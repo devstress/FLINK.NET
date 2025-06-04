@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+option csharp_namespace = "FlinkDotNet.JobManager.InternalApi.Grpc";
+
+package FlinkDotNet.JobManagerInternal;
+
+// Service definition for internal communication between JobManager and TaskManagers
+service JobManagerInternalService {
+  // TaskManager reports completion of its state persistence for a checkpoint.
+  rpc ReportStateCompletion (ReportStateCompletionRequest) returns (ReportStateCompletionReply);
+
+  // JobManager requests a TaskManager to initiate a checkpoint.
+  rpc RequestCheckpoint (RequestCheckpointRequest) returns (RequestCheckpointReply);
+
+  // JobManager requests a TaskManager to recover state for a job.
+  rpc RequestRecovery (RequestRecoveryRequest) returns (RequestRecoveryReply);
+
+  // TaskManager sends a heartbeat to the JobManager.
+  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatReply);
+}
+
+// Message Definitions based on InternalApiModels
+
+message ReportStateCompletionRequest {
+  int64 checkpoint_id = 1;
+  string operator_instance_id = 2;
+  string state_location = 3; // e.g., URI to blob storage
+  map<string, int64> input_offsets = 4;
+}
+
+message ReportStateCompletionReply {
+  bool ack = 1; // Simple acknowledgement
+}
+
+message RequestCheckpointRequest {
+  int64 checkpoint_id = 1;
+  // Potentially other parameters like checkpoint type (full, incremental)
+}
+
+message RequestCheckpointReply {
+  bool accepted = 1; // Indicates if the TM will attempt the checkpoint
+}
+
+message RequestRecoveryRequest {
+  string job_id = 1;
+  int64 checkpoint_id = 2;
+  // Potentially details about which tasks/operators need recovery
+}
+
+message RequestRecoveryReply {
+  bool recovery_initiated = 1;
+}
+
+message HeartbeatRequest {
+  string job_id = 1;
+  string operator_instance_id = 2; // Or TaskManagerId
+  string health_status = 3; // e.g., "HEALTHY", "DEGRADED"
+  map<string, double> metrics = 4; // e.g., { "cpuUsage": 0.75, "memoryUsageMB": 1024 }
+}
+
+message HeartbeatReply {
+  bool ack = 1;
+  // Optionally, JobManager could send commands back in heartbeat reply, e.g., "SHUTDOWN_TASK"
+  // string next_action = 2;
+}

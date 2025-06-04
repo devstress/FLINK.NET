@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.JobManager", "FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj", "{835AE1D1-E185-4802-A95B-0BEDCBAC20F7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.JobManager.Tests", "FlinkDotNet.JobManager.Tests\FlinkDotNet.JobManager.Tests.csproj", "{F05E66F0-456E-4B80-9B4F-F4D3C0ED6FC2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Core.Abstractions", "FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj", "{AA098A28-50CE-4AF9-929C-65B00BE8ADB8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{835AE1D1-E185-4802-A95B-0BEDCBAC20F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{835AE1D1-E185-4802-A95B-0BEDCBAC20F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{835AE1D1-E185-4802-A95B-0BEDCBAC20F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{835AE1D1-E185-4802-A95B-0BEDCBAC20F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F05E66F0-456E-4B80-9B4F-F4D3C0ED6FC2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F05E66F0-456E-4B80-9B4F-F4D3C0ED6FC2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F05E66F0-456E-4B80-9B4F-F4D3C0ED6FC2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F05E66F0-456E-4B80-9B4F-F4D3C0ED6FC2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA098A28-50CE-4AF9-929C-65B00BE8ADB8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA098A28-50CE-4AF9-929C-65B00BE8ADB8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA098A28-50CE-4AF9-929C-65B00BE8ADB8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA098A28-50CE-4AF9-929C-65B00BE8ADB8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
