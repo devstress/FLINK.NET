@@ -1,0 +1,6 @@
+@FlinkDotNet.JobManager_HostAddress = http://localhost:5252
+
+GET {{FlinkDotNet.JobManager_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
