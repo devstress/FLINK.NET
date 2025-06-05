@@ -61,7 +61,7 @@ Flink.NET is architected as a distributed stream processing system designed for 
 
 The system comprises several key interacting components:
 
-*   **[JobManager](./docs/wiki/Core-Concepts-JobManager.md) (Singleton/Leader Election):** This central component orchestrates job execution, manages checkpoints for fault tolerance, detects failures, and coordinates recovery processes. In a high-availability setup, leader election ensures there''s always one active JobManager.
+*   **[JobManager](./docs/wiki/Core-Concepts-JobManager.md) (Singleton/Leader Election):** This central component orchestrates job execution, manages checkpoints for fault tolerance, detects failures, and coordinates recovery processes. In a high-availability setup, leader election ensures there's always one active JobManager.
 *   **[TaskManagers](./docs/wiki/Core-Concepts-TaskManager.md) (Worker Nodes):** These are distributed .NET applications, typically running as Kubernetes Pods. TaskManagers are responsible for:
     *   Consuming input data streams.
     *   Executing the actual data processing logic (operators defined by the user).
