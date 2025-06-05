@@ -1,13 +1,14 @@
-using FlinkDotNet.Core.Abstractions.Models; // For JobConfiguration
-using FlinkDotNet.Core.Abstractions.Models.State; // For StateDescriptors
-using FlinkDotNet.Core.Abstractions.States;     // For IValueState, IListState, IMapState
+#nullable enable
+using FlinkDotNet.Core.Abstractions.Models;
+using FlinkDotNet.Core.Abstractions.Models.State;
+using FlinkDotNet.Core.Abstractions.States;
 
 namespace FlinkDotNet.Core.Abstractions.Context
 {
     /// <summary>
     /// Provides information about the context in which an operator is executed.
     /// This includes information about the job, the task, parallelism, and access to state.
-    /// Similar to Flinks org.apache.flink.api.common.functions.RuntimeContext.
+    /// Similar to Flink's org.apache.flink.api.common.functions.RuntimeContext.
     /// </summary>
     public interface IRuntimeContext
     {
@@ -57,12 +58,13 @@ namespace FlinkDotNet.Core.Abstractions.Context
         /// <summary>
         /// Gets a handle to an <see cref="IMapState{TK, TV}"/>, which is scoped to the current key.
         /// </summary>
-        /// <typeparam name="TK">The type of keys in the map state.</typeparam>
+        /// <typeparam name="TK">The type of keys in the map state. Must be notnull.</typeparam>
         /// <typeparam name="TV">The type of values in the map state.</typeparam>
         /// <param name="stateDescriptor">Descriptor that contains the name and other properties for the state.</param>
         /// <returns>The map state.</returns>
-        IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor);
+        IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor) where TK : notnull; // Added notnull constraint
 
         // Other utilities like accumulators, broadcast variables, side outputs etc.
     }
 }
+#nullable disable

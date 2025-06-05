@@ -45,7 +45,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             }
 
             object state = _states.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryValueState<T>(stateDescriptor.DefaultValue ?? default!)); // Corrected line
+                new InMemoryValueState<T>(stateDescriptor.DefaultValue ?? default!));
 
             if (state is IValueState<T> typedState)
             {
@@ -60,12 +60,44 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
 
         public IListState<T> GetListState<T>(ListStateDescriptor<T> stateDescriptor)
         {
-            throw new NotImplementedException("ListState not implemented in BasicRuntimeContext yet.");
+            if (stateDescriptor == null)
+            {
+                throw new ArgumentNullException(nameof(stateDescriptor));
+            }
+
+            object state = _states.GetOrAdd(stateDescriptor.Name, _ =>
+                new InMemoryListState<T>());
+
+            if (state is IListState<T> typedState)
+            {
+                return typedState;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"State with name ''{stateDescriptor.Name}'' already exists but is not of type IListState<{typeof(T).Name}>.");
+            }
         }
 
-        public IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor)
+        public IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor) where TK : notnull // Added notnull constraint
         {
-            throw new NotImplementedException("MapState not implemented in BasicRuntimeContext yet.");
+            if (stateDescriptor == null)
+            {
+                throw new ArgumentNullException(nameof(stateDescriptor));
+            }
+
+            object state = _states.GetOrAdd(stateDescriptor.Name, _ =>
+                new InMemoryMapState<TK, TV>());
+
+            if (state is IMapState<TK, TV> typedState)
+            {
+                return typedState;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"State with name ''{stateDescriptor.Name}'' already exists but is not of type IMapState<{typeof(TK).Name}, {typeof(TV).Name}>.");
+            }
         }
     }
 }
