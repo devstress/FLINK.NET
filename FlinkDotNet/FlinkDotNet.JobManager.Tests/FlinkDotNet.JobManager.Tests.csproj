@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>
