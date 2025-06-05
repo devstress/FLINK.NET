@@ -11,12 +11,25 @@ namespace FlinkDotNet.JobManager.Services
     /// <summary>
     /// Mock implementation of IJobRepository using in-memory ConcurrentDictionaries.
     /// </summary>
+using Microsoft.Extensions.Logging; // Added for ILogger
+
+namespace FlinkDotNet.JobManager.Services
+{
+    /// <summary>
+    /// Mock implementation of IJobRepository using in-memory ConcurrentDictionaries.
+    /// </summary>
     public class InMemoryJobRepository : IJobRepository
     {
         private readonly ConcurrentDictionary<string, JobDefinitionDto> _jobDefinitions = new();
         private readonly ConcurrentDictionary<string, JobStatusDto> _jobStatuses = new();
         private readonly ConcurrentDictionary<string, List<CheckpointInfoDto>> _jobCheckpoints = new();
         private readonly ConcurrentDictionary<string, DlqMessageDto> _dlqMessages = new(); // Key: "jobId_messageId"
+        private readonly ILogger<InMemoryJobRepository> _logger;
+
+        public InMemoryJobRepository(ILogger<InMemoryJobRepository> logger) // Added ILogger
+        {
+            _logger = logger;
+        }
 
         public Task<bool> CreateJobAsync(string jobId, JobDefinitionDto jobDefinition, JobStatusDto initialStatus)
         {
@@ -57,17 +70,42 @@ namespace FlinkDotNet.JobManager.Services
                 return Task.FromResult<IEnumerable<CheckpointInfoDto>?>(null);
             }
 
-            if (_jobCheckpoints.TryGetValue(jobId, out var checkpoints))
+            if (_jobCheckpoints.TryGetValue(jobId, out var checkpoints) && checkpoints.Any())
             {
                 return Task.FromResult<IEnumerable<CheckpointInfoDto>?>(checkpoints.AsEnumerable());
             }
 
+            // If no real checkpoints, return an empty list.
             return Task.FromResult<IEnumerable<CheckpointInfoDto>?>(new List<CheckpointInfoDto>());
+        }
+
+        public Task AddCheckpointAsync(string jobId, CheckpointInfoDto checkpointInfo)
+        {
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                // Or throw ArgumentNullException, depending on desired contract
+                return Task.CompletedTask;
+            }
+
+            // Ensure the job exists before adding a checkpoint for it (optional, but good practice)
+            // if (!_jobStatuses.ContainsKey(jobId))
+            // {
+            //     // Or throw new InvalidOperationException($"Job with ID {jobId} not found. Cannot add checkpoint.");
+            //     return Task.CompletedTask;
+            // }
+
+            var checkpoints = _jobCheckpoints.GetOrAdd(jobId, _ => new List<CheckpointInfoDto>());
+            lock (checkpoints) // ConcurrentDictionary GetOrAdd is atomic for list creation, but adding to list needs sync
+            {
+                checkpoints.Add(checkpointInfo);
+            }
+            _logger.LogDebug("Added checkpoint {CheckpointId} for Job ID {JobId}. Total checkpoints for job: {CheckpointCount}", checkpointInfo.CheckpointId, jobId, checkpoints.Count);
+            return Task.CompletedTask;
         }
 
         public void AddMockCheckpoint(string jobId, CheckpointInfoDto checkpoint)
         {
-            if (!_jobDefinitions.ContainsKey(jobId))
+            if (!_jobDefinitions.ContainsKey(jobId)) // Should check _jobStatuses or a unified job existence check
             {
                  throw new InvalidOperationException($"Job with ID {jobId} does not exist. Cannot add checkpoint.");
             }

@@ -23,6 +23,9 @@ using System.Collections.Generic;
 
 namespace FlinkDotNet.TaskManager
 {
+    // LOGGING_PLACEHOLDER:
+    // private readonly Microsoft.Extensions.Logging.ILogger<TaskExecutor> _logger; // Inject via constructor, ensure using Microsoft.Extensions.Logging;
+
     // Basic context implementations for this PoC
     public class SimpleSourceContext<T> : ISourceContext<T>
     {
@@ -104,6 +107,9 @@ namespace FlinkDotNet.TaskManager
                         TargetSubtaskIndex = _outputInfo.TargetSpecificSubtaskIndex, // Use the specific index
                         Payload = ByteString.CopyFrom(payload)
                     });
+                    // METRICS_PLACEHOLDER:
+                    // var sourceTaskMetrics = TaskMetricsRegistry.Get(_sourceJobVertexId + "_" + _sourceSubtaskIndex);
+                    // if (sourceTaskMetrics != null) sourceTaskMetrics.RecordsOut++;
                 }
                 catch (Exception ex)
                 {
@@ -138,6 +144,13 @@ namespace FlinkDotNet.TaskManager
             Dictionary<string, string> operatorProperties, // Already deserialized from TDD
         CancellationToken cancellationToken)
     {
+        // METRICS_PLACEHOLDER:
+        // string taskInstanceId = $"{tdd.JobVertexId}_{tdd.SubtaskIndex}";
+        // var taskMetrics = new FlinkDotNet.TaskManager.Models.TaskMetrics { TaskId = taskInstanceId };
+        // TaskMetricsRegistry.Register(taskInstanceId, taskMetrics); // Assuming a static registry or instance member like:
+        //                                                              // public static ConcurrentDictionary<string, FlinkDotNet.TaskManager.Models.TaskMetrics> AllTaskMetrics = new();
+        // cancellationToken.Register(() => TaskMetricsRegistry.Unregister(taskInstanceId));
+
         Console.WriteLine($"[{tdd.TaskName}] Attempting to execute task from TDD. Operator: {tdd.FullyQualifiedOperatorName}");
         IRuntimeContext runtimeContext = new BasicRuntimeContext(
             jobName: tdd.JobGraphJobId,
@@ -279,6 +292,10 @@ namespace FlinkDotNet.TaskManager
                 if (targetJobVertexId != tdd.JobVertexId || targetSubtaskIndex != tdd.SubtaskIndex) return;
                 try
                 {
+                    // METRICS_PLACEHOLDER:
+                    // var currentTaskMetrics = TaskMetricsRegistry.Get(tdd.JobVertexId + "_" + tdd.SubtaskIndex);
+                    // if (currentTaskMetrics != null) currentTaskMetrics.RecordsIn++;
+
                     var deserializedRecord = inputDataSerializer.Deserialize(payload);
                     if (isOperator && operatorInstance != null)
                     {

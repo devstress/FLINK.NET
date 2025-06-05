@@ -35,6 +35,10 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         public List<JobEdge> InputEdges { get; } = new();
         public List<JobEdge> OutputEdges { get; } = new();
 
+        // Metrics (to be updated by JobManager based on TaskManager heartbeats)
+        public long AggregatedRecordsIn { get; set; } = 0;
+        public long AggregatedRecordsOut { get; set; } = 0;
+
         public JobVertex(string name, VertexType type, string typeName, int parallelism = 1)
         {
             Id = Guid.NewGuid();

@@ -1,0 +1,40 @@
+@inherits LayoutComponentBase
+@using Microsoft.Fast.Components.FluentUI
+@using Microsoft.Fast.Components.FluentUI.DesignTokens // For BaseLayerLuminance
+@using FlinkDotNet.WebUI.Layout
+@using FlinkDotNet.WebUI.Services // For ThemeService
+@inject ThemeService ThemeService
+@implements IDisposable
+
+<FluentThemeProvider Luminance="@ThemeService.CurrentLuminance">
+    <FluentLayout>
+        <FluentHeader>
+            FlinkDotNet.WebUI
+            <div style="margin-left: auto;"> <!-- This will push the switcher to the right -->
+                <ThemeSwitcher />
+            </div>
+        </FluentHeader>
+        <FluentStack Orientation="Orientation.Horizontal" Style="width: 100%; min-height: calc(100vh - 60px - 40px);"> {/* Adjust min-height based on header/footer */}
+            <NavMenu />
+            <FluentBodyContent Style="width: 100%;">
+                @Body
+            </FluentBodyContent>
+        </FluentStack>
+        <FluentFooter>
+            <a href="https://www.fluentui-blazor.net" target="_blank">FluentUI Blazor</a>
+            <span style="margin-left: auto;">FlinkDotNet v0.1</span>
+        </FluentFooter>
+    </FluentLayout>
+</FluentThemeProvider>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ThemeService.OnThemeChanged += StateHasChanged; // Re-render when theme changes
+    }
+
+    public void Dispose()
+    {
+        ThemeService.OnThemeChanged -= StateHasChanged;
+    }
+}

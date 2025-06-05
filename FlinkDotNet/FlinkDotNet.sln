@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Connectors.Sink
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Storage.FileSystem", "FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj", "{E5057337-0F48-4655-9792-00640B249324}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.WebUI", "..\FlinkDotNet.WebUI\FlinkDotNet.WebUI\FlinkDotNet.WebUI.csproj", "{173447B1-40B0-477F-9E82-D92EB44A112A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{E5057337-0F48-4655-9792-00640B249324}.Release|x64.Build.0 = Release|Any CPU
 		{E5057337-0F48-4655-9792-00640B249324}.Release|x86.ActiveCfg = Release|Any CPU
 		{E5057337-0F48-4655-9792-00640B249324}.Release|x86.Build.0 = Release|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Debug|x64.Build.0 = Debug|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Debug|x86.Build.0 = Debug|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Release|x64.ActiveCfg = Release|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Release|x64.Build.0 = Release|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Release|x86.ActiveCfg = Release|Any CPU
+		{173447B1-40B0-477F-9E82-D92EB44A112A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
