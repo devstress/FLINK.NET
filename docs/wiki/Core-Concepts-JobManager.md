@@ -8,7 +8,7 @@ The JobManager is the central coordinating component of a Flink.NET deployment. 
 
 See also: [System Design Overview in Readme.md](../../../Readme.md#system-design-overview)
 
-*(Apache Flink Ref: [Setup JobManager](https://nightlies.apache.org/flink/flink-docs-release-1.17/docs/deployment/memory/mem_setup_jobmanager/), [JobManager High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/ha/overview/))*
+*(Apache Flink Ref: [Setup JobManager](https://nightlies.apache.org/flink/flink-docs-release-1.17/docs/deployment/memory/mem_setup_jobmanager/))*
 
 ## Key Responsibilities:
 
@@ -43,6 +43,6 @@ See also: [System Design Overview in Readme.md](../../../Readme.md#system-design
 *   In Flink.NET, the JobManager is designed to be deployed on Kubernetes.
 *   Production environments require a High Availability (HA) setup (planned).
 
-*(Apache Flink Ref: [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/))*
+*(Apache Flink Ref: [JobManager High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/ha/overview/))*
 
 The JobManager is the "brain" of a Flink.NET application.
