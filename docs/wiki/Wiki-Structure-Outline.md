@@ -49,6 +49,13 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
     *   **Exactly-Once Semantics** (dedicated section, cross-referencing)
         *   *Flink.NET Content:* How Flink.NET aims to achieve this.
         *   *Apache Flink Ref:* [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
+    *   **Memory Management**
+        *   [Overview](./Core-Concepts-Memory-Overview.md)
+        *   [JobManager Memory](./Core-Concepts-Memory-JobManager.md)
+        *   [TaskManager Memory](./Core-Concepts-Memory-TaskManager.md)
+        *   [Memory Tuning](./Core-Concepts-Memory-Tuning.md)
+        *   [Memory Troubleshooting](./Core-Concepts-Memory-Troubleshooting.md)
+        *   [Network Memory Tuning](./Core-Concepts-Memory-Network.md)
 
 ## 3. Developing Flink.NET Applications
     *   **Project Setup**
@@ -95,5 +102,5 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 ## 7. Advanced Topics (Placeholders)
     *   **Serialization**
     *   **Metrics & Monitoring**
-    *   **Performance Tuning**
+    *   **Performance Tuning** (Note: a dedicated Memory Tuning page now exists under Core Concepts)
     *   **Security**
