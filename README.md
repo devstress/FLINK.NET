@@ -69,6 +69,7 @@ The system comprises several key interacting components:
     *   Interacting with external data sinks.
 *   **Connectors (Sources & Sinks):** These are specialized components or libraries responsible for interfacing with external data systems. Sources read data from systems like Apache Kafka, Azure Event Hubs, etc., while Sinks write processed data to databases, APIs, or other messaging systems.
 *   **Durable State Backend:** A persistent, scalable, and highly available storage solution (e.g., a distributed database like Cosmos DB, SQL Server, or a key-value store for metadata; or object stores like MinIO/S3 for snapshots) is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics, as detailed in the [Checkpointing Overview](./docs/wiki/Core-Concepts-Checkpointing-Overview.md).
+*   **[Memory Management](./docs/wiki/Core-Concepts-Memory-Overview.md):** Understanding how Flink.NET manages memory for JobManagers, TaskManagers, network buffers, and state is crucial for performance and stability. This includes configurations for Kubernetes and local deployments, tuning, and troubleshooting.
 *   **Job Submission & Management API:** A RESTful (and potentially gRPC) API exposed by the JobManager allows users and external systems to submit new processing jobs, monitor their status, manage their lifecycle (e.g., stop, cancel, scale), and inspect checkpoint information.
 
 ### Architectural Diagram
