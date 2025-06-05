@@ -9,7 +9,7 @@ The core objective of Flink.NET is to implement the fundamental concepts that ma
 *   **High Throughput and Low Latency:** Designing for performance to handle demanding real-time workloads.
 *   **Rich Connectors and APIs:** Providing a flexible framework for integrating with various data sources and sinks, and offering intuitive APIs for developers.
 
-This project endeavors to bring the power of distributed stream processing to the .NET world, allowing developers to leverage their existing C# skills and .NET libraries to build cutting-edge data-intensive applications. While drawing heavily from Apache Flink''s proven design patterns, Flink.NET will also embrace .NET idioms and best practices to create a familiar and productive environment for its users.
+This project endeavors to bring the power of distributed stream processing to the .NET world, allowing developers to leverage their existing C# skills and .NET libraries to build cutting-edge data-intensive applications. While drawing heavily from Apache Flink's proven design patterns, Flink.NET will also embrace .NET idioms and best practices to create a familiar and productive environment for its users.
 
 ## Table of Contents
 - [Business Requirements](#business-requirements)
@@ -29,7 +29,7 @@ Flink.NET is being developed to meet a stringent set of business requirements cr
 2.  **Message Uniqueness (Deduplication):** Ensures each message is uniquely identifiable, with custom deduplication logic using a durable state store to prevent reprocessing.
 3.  **Processing Idempotency:** Designs all processing logic and sinks to be idempotent, so reprocessing a message yields the same result without side effects.
 4.  **Error Handling and Recovery (Checkpointing/Snapshotting):** Includes robust checkpointing and state persistence for automatic recovery from failures, restoring state and resuming from the correct point.
-5.  **Communication Idempotency (External Systems):** Aims to provide an "exactly-once" experience for product teams even when interacting with external systems that don''t offer idempotency guarantees, minimizing double processing.
+5.  **Communication Idempotency (External Systems):** Aims to provide an "exactly-once" experience for product teams even when interacting with external systems that don't offer idempotency guarantees, minimizing double processing.
 6.  **Transaction Management (Atomic Writes):** Implements mechanisms like two-phase commit to coordinate transactions across internal state and external sinks, ensuring atomicity.
 7.  **Durable State Management:** Utilizes a durable, fault-tolerant backend for all processing state, ensuring consistency and recoverability.
 8.  **End-to-End Acknowledgement:** For multi-step processing, uses tracking IDs to provide a single ACK (success) or NACK (failure) for the entire flow.
@@ -51,11 +51,11 @@ While Apache Flink stands as a powerful and mature stream processing solution, F
 *   **Enhancing Technical Reputation:** Contributing a high-quality, Flink-inspired stream processing engine to the open-source .NET landscape can significantly enhance the technical reputation and leadership of contributing organizations and individuals.
 *   **Full Control and Customization:** Building Flink.NET from the ground up in .NET offers complete control over the architecture and implementation, allowing for fine-tuned customizations and optimizations tailored to specific .NET environments or performance characteristics.
 
-Flink.NET is not just about replicating Apache Flink in a new language; it''s about creating a first-class, .NET-native stream processing engine that empowers .NET developers and enriches the .NET open-source ecosystem.
+Flink.NET is not just about replicating Apache Flink in a new language; it's about creating a first-class, .NET-native stream processing engine that empowers .NET developers and enriches the .NET open-source ecosystem.
 
 ## System Design Overview
 
-Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from Apache Flink''s robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
+Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from Apache Flink's robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
 
 ### Key Architectural Components
 
@@ -123,7 +123,7 @@ This architecture is designed to enable parallel processing of data streams acro
 
 ## Project Status (Placeholder)
 
-*(TODO: Add a brief section on the current development status, what''s implemented, and what''s next. This will be updated as the project progresses.)*
+*(TODO: Add a brief section on the current development status, what's implemented, and what's next. This will be updated as the project progresses.)*
 
 ## Getting Involved & Contribution
 
