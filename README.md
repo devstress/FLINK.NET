@@ -9,7 +9,17 @@ The core objective of Flink.NET is to implement the fundamental concepts that ma
 *   **High Throughput and Low Latency:** Designing for performance to handle demanding real-time workloads.
 *   **Rich Connectors and APIs:** Providing a flexible framework for integrating with various data sources and sinks, and offering intuitive APIs for developers.
 
-This project endeavors to bring the power of distributed stream processing to the .NET world, allowing developers to leverage their existing C# skills and .NET libraries to build cutting-edge data-intensive applications. While drawing heavily from Apache Flink's proven design patterns, Flink.NET will also embrace .NET idioms and best practices to create a familiar and productive environment for its users.
+This project endeavors to bring the power of distributed stream processing to the .NET world, allowing developers to leverage their existing C# skills and .NET libraries to build cutting-edge data-intensive applications. While drawing heavily from Apache Flink''s proven design patterns, Flink.NET will also embrace .NET idioms and best practices to create a familiar and productive environment for its users.
+
+## Table of Contents
+- [Business Requirements](#business-requirements)
+- [Why Flink.NET?](#why-flinknet)
+- [System Design Overview](#system-design-overview)
+  - [Key Architectural Components](#key-architectural-components)
+  - [Architectural Diagram](#architectural-diagram)
+- [Project Status](#project-status-placeholder)
+- [Getting Involved & Contribution](#getting-involved--contribution)
+- [License](#license)
 
 ## Business Requirements
 
@@ -19,7 +29,7 @@ Flink.NET is being developed to meet a stringent set of business requirements cr
 2.  **Message Uniqueness (Deduplication):** Ensures each message is uniquely identifiable, with custom deduplication logic using a durable state store to prevent reprocessing.
 3.  **Processing Idempotency:** Designs all processing logic and sinks to be idempotent, so reprocessing a message yields the same result without side effects.
 4.  **Error Handling and Recovery (Checkpointing/Snapshotting):** Includes robust checkpointing and state persistence for automatic recovery from failures, restoring state and resuming from the correct point.
-5.  **Communication Idempotency (External Systems):** Aims to provide an "exactly-once" experience for product teams even when interacting with external systems that don't offer idempotency guarantees, minimizing double processing.
+5.  **Communication Idempotency (External Systems):** Aims to provide an "exactly-once" experience for product teams even when interacting with external systems that don''t offer idempotency guarantees, minimizing double processing.
 6.  **Transaction Management (Atomic Writes):** Implements mechanisms like two-phase commit to coordinate transactions across internal state and external sinks, ensuring atomicity.
 7.  **Durable State Management:** Utilizes a durable, fault-tolerant backend for all processing state, ensuring consistency and recoverability.
 8.  **End-to-End Acknowledgement:** For multi-step processing, uses tracking IDs to provide a single ACK (success) or NACK (failure) for the entire flow.
@@ -41,24 +51,24 @@ While Apache Flink stands as a powerful and mature stream processing solution, F
 *   **Enhancing Technical Reputation:** Contributing a high-quality, Flink-inspired stream processing engine to the open-source .NET landscape can significantly enhance the technical reputation and leadership of contributing organizations and individuals.
 *   **Full Control and Customization:** Building Flink.NET from the ground up in .NET offers complete control over the architecture and implementation, allowing for fine-tuned customizations and optimizations tailored to specific .NET environments or performance characteristics.
 
-Flink.NET is not just about replicating Apache Flink in a new language; it's about creating a first-class, .NET-native stream processing engine that empowers .NET developers and enriches the .NET open-source ecosystem.
+Flink.NET is not just about replicating Apache Flink in a new language; it''s about creating a first-class, .NET-native stream processing engine that empowers .NET developers and enriches the .NET open-source ecosystem.
 
 ## System Design Overview
 
-Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from Apache Flink's robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
+Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from Apache Flink''s robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
 
 ### Key Architectural Components
 
 The system comprises several key interacting components:
 
-*   **JobManager (Singleton/Leader Election):** This central component orchestrates job execution, manages checkpoints for fault tolerance, detects failures, and coordinates recovery processes. In a high-availability setup, leader election ensures there's always one active JobManager.
-*   **TaskManagers (Worker Nodes):** These are distributed .NET applications, typically running as Kubernetes Pods. TaskManagers are responsible for:
+*   **[JobManager](./docs/wiki/Core-Concepts-JobManager.md) (Singleton/Leader Election):** This central component orchestrates job execution, manages checkpoints for fault tolerance, detects failures, and coordinates recovery processes. In a high-availability setup, leader election ensures there''s always one active JobManager.
+*   **[TaskManagers](./docs/wiki/Core-Concepts-TaskManager.md) (Worker Nodes):** These are distributed .NET applications, typically running as Kubernetes Pods. TaskManagers are responsible for:
     *   Consuming input data streams.
     *   Executing the actual data processing logic (operators defined by the user).
-    *   Managing local state for stateful operations.
+    *   Managing local state for stateful operations (see [State Management Overview](./docs/wiki/Core-Concepts-State-Management-Overview.md)).
     *   Interacting with external data sinks.
 *   **Connectors (Sources & Sinks):** These are specialized components or libraries responsible for interfacing with external data systems. Sources read data from systems like Apache Kafka, Azure Event Hubs, etc., while Sinks write processed data to databases, APIs, or other messaging systems.
-*   **Durable State Backend:** A persistent, scalable, and highly available storage solution (e.g., a distributed database like Cosmos DB, SQL Server, or a key-value store; or object stores like MinIO/S3 for snapshots) is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics.
+*   **Durable State Backend:** A persistent, scalable, and highly available storage solution (e.g., a distributed database like Cosmos DB, SQL Server, or a key-value store for metadata; or object stores like MinIO/S3 for snapshots) is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics, as detailed in the [Checkpointing Overview](./docs/wiki/Core-Concepts-Checkpointing-Overview.md).
 *   **Job Submission & Management API:** A RESTful (and potentially gRPC) API exposed by the JobManager allows users and external systems to submit new processing jobs, monitor their status, manage their lifecycle (e.g., stop, cancel, scale), and inspect checkpoint information.
 
 ### Architectural Diagram
@@ -113,12 +123,14 @@ This architecture is designed to enable parallel processing of data streams acro
 
 ## Project Status (Placeholder)
 
-*(TODO: Add a brief section on the current development status, what's implemented, and what's next. This will be updated as the project progresses.)*
+*(TODO: Add a brief section on the current development status, what''s implemented, and what''s next. This will be updated as the project progresses.)*
 
-## Getting Involved (Placeholder)
+## Getting Involved & Contribution
 
-*(TODO: Add information on how to contribute, report issues, or get in touch with the development team.)*
+We welcome contributions from everyone to help make Flink.NET a robust and feature-rich stream processing engine for the .NET ecosystem!
 
-## License (Placeholder)
+If you are a senior-level (or above) engineer from a top technology company and are interested in becoming an admin with merge rights, please reach out to the project maintainers and provide a link to your LinkedIn profile for consideration.
 
-*(TODO: Specify the open-source license for the project, e.g., Apache 2.0, MIT.)*
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details (once created) or visit [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
