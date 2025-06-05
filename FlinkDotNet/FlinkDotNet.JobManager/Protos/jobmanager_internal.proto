@@ -86,9 +86,16 @@ message RegisterTaskManagerResponse {
 }
 
 // These are new Heartbeat messages for TaskManagerRegistration service
+message TaskMetricData {
+  string task_id = 1; // Format: JobVertexId_SubtaskIndex
+  int64 records_in = 2;
+  int64 records_out = 3;
+}
+
 message HeartbeatRequest {
   string taskManagerId = 1;
   // Add other relevant info like current status, resource utilization
+  repeated TaskMetricData task_metrics = 2; // Added for metrics
 }
 
 message HeartbeatResponse {

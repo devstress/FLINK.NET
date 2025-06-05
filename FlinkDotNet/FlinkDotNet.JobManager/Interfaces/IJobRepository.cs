@@ -34,6 +34,11 @@ namespace FlinkDotNet.JobManager.Interfaces
         /// </summary>
         Task<IEnumerable<CheckpointInfoDto>?> GetCheckpointsAsync(string jobId);
 
+        /// <summary>
+        /// Adds a new checkpoint information entry for a specific job.
+        /// </summary>
+        Task AddCheckpointAsync(string jobId, CheckpointInfoDto checkpointInfo);
+
         // DLQ Methods
         /// <summary>
         /// Conceptually requests resubmission of all DLQ messages for a given job.

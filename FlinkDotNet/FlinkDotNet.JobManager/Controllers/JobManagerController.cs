@@ -19,16 +19,119 @@ namespace FlinkDotNet.JobManager.Controllers
     [Route("api/jobmanager")] // Changed route
     public class JobManagerController : ControllerBase // Removed IJobManagerApi for now as methods change
     {
-        // Temporary storage for JobGraphs - replace with a proper JobRepository/Service
-        private static readonly ConcurrentDictionary<Guid, JobGraph> _jobGraphs = new();
+        // Temporary storage for JobGraphs - made public static for TaskManagerRegistrationService access (TEMPORARY DESIGN)
+        public static readonly ConcurrentDictionary<Guid, JobGraph> _jobGraphs = new();
         // Corrected key type from Guid to string to match TaskManagerRegistrationServiceImpl.JobCoordinators and CheckpointCoordinator's expectation of string JobId
-        private static readonly ConcurrentDictionary<string, CheckpointCoordinator> _jobCoordinators = TaskManagerRegistrationServiceImpl.JobCoordinators;
+        private static readonly ConcurrentDictionary<string, CheckpointCoordinator> _jobCoordinators = TaskManagerRegistrationServiceImpl.JobCoordinators; // This remains private static as it's used internally by controller and checkpoint coordinator via static dictionary in TaskManagerRegistrationService
+        private readonly IJobRepository _jobRepository;
+        private readonly ILogger<JobManagerController> _logger;
+        private readonly ILoggerFactory _loggerFactory;
 
-        // Removed IJobRepository for now to simplify with new SubmitJob
-        // public JobManagerController(IJobRepository jobRepository)
-        // {
-        //     _jobRepository = jobRepository;
-        // }
+        public JobManagerController(IJobRepository jobRepository, ILogger<JobManagerController> logger, ILoggerFactory loggerFactory)
+        {
+            _jobRepository = jobRepository;
+            _logger = logger;
+            _loggerFactory = loggerFactory;
+        }
+
+        [HttpGet("taskmanagers")]
+        public IActionResult GetTaskManagers()
+        {
+            var taskManagers = TaskManagerTracker.RegisteredTaskManagers.Values.ToList();
+            return Ok(taskManagers);
+        }
+
+        [HttpGet("jobs")]
+        public IActionResult GetJobs()
+        {
+            var jobOverviews = _jobGraphs.Values.Select(jg => new JobOverviewDto
+            {
+                JobId = jg.JobId.ToString(),
+                JobName = jg.JobName,
+                SubmissionTime = jg.SubmissionTime,
+                Status = jg.Status,
+                Duration = DateTime.UtcNow - jg.SubmissionTime // Calculate duration as if currently running
+            }).ToList();
+
+            return Ok(jobOverviews);
+        }
+
+        [HttpGet("jobs/{jobId}")]
+        public IActionResult GetJobDetails(string jobId)
+        {
+            if (!Guid.TryParse(jobId, out var parsedGuid))
+            {
+                return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
+            }
+
+            if (_jobGraphs.TryGetValue(parsedGuid, out var jobGraph))
+            {
+                return Ok(jobGraph);
+            }
+            else
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
+        }
+
+        [HttpGet("jobs/{jobId}/metrics")]
+        public IActionResult GetJobMetrics(string jobId)
+        {
+            // Placeholder: Basic check for Job ID format and existence (optional for a placeholder)
+            if (!Guid.TryParse(jobId, out var parsedGuid))
+            {
+                return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
+            }
+
+            if (!_jobGraphs.ContainsKey(parsedGuid))
+            {
+                return NotFound($"Job with ID {jobId} not found. Cannot retrieve metrics.");
+            }
+
+            // Actual implementation:
+            if (!_jobGraphs.TryGetValue(parsedGuid, out var jobGraph))
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
+
+            var vertexMetricsList = new List<VertexMetricsDto>();
+            foreach (var vertex in jobGraph.Vertices)
+            {
+                long totalRecordsIn = 0;
+                long totalRecordsOut = 0;
+
+                // Aggregate from TaskInstanceMetrics
+                // The key in TaskInstanceMetrics is "JobVertexId_SubtaskIndex"
+                foreach (var subtaskIndex in Enumerable.Range(0, vertex.Parallelism))
+                {
+                    string taskInstanceId = $"{vertex.Id}_{subtaskIndex}";
+                    if (jobGraph.TaskInstanceMetrics.TryGetValue(taskInstanceId, out var taskMetrics))
+                    {
+                        totalRecordsIn += taskMetrics.RecordsIn;
+                        totalRecordsOut += taskMetrics.RecordsOut;
+                    }
+                }
+
+                // Update JobVertex aggregate properties (optional, could also just calculate for DTO)
+                // For simplicity, let's assume the JobVertex properties are the single source of truth for aggregated values
+                // and they would be updated by a background process or directly by heartbeat handler if not using TaskInstanceMetrics for aggregation here.
+                // For this subtask, we'll populate VertexMetricsDto directly from aggregation of TaskInstanceMetrics.
+                // The JobVertex.AggregatedRecordsIn/Out properties would ideally be updated by the heartbeat processing logic itself.
+                // Let's assume for now the heartbeat logic is responsible for updating JobVertex.AggregatedRecordsIn/Out directly
+                // or we read from there. Given the current setup, it's easier to aggregate here for the DTO.
+
+                vertexMetricsList.Add(new VertexMetricsDto
+                {
+                    VertexId = vertex.Id.ToString(),
+                    VertexName = vertex.Name,
+                    RecordsIn = totalRecordsIn,  // Use aggregated values
+                    RecordsOut = totalRecordsOut // Use aggregated values
+                });
+            }
+
+            _logger.LogDebug("Returning {MetricCount} VertexMetricsDto for Job ID {JobId}", vertexMetricsList.Count, jobId);
+            return Ok(vertexMetricsList);
+        }
 
         // ... (existing methods like GetStatus, GetJobs etc. might need adjustment or removal if IJobManagerApi is removed/changed)
 
@@ -44,7 +147,9 @@ namespace FlinkDotNet.JobManager.Controllers
 
             // --- 1. Create JobGraph ---
             var jobGraph = new JobGraph(jobDefinition.JobName);
-            Console.WriteLine($"Created JobGraph with JobId: {jobGraph.JobId}, Name: {jobGraph.JobName}");
+            // Console.WriteLine($"Created JobGraph with JobId: {jobGraph.JobId}, Name: {jobGraph.JobName}"); // Replaced by logger
+            _logger.LogInformation("Created JobGraph for job {JobName} with ID {JobId}", jobGraph.JobName, jobGraph.JobId);
+
 
             JobVertex? previousVertex = null;
             string? currentOutputType = null;
@@ -139,11 +244,13 @@ namespace FlinkDotNet.JobManager.Controllers
 
             // TODO: Initiate checkpoint coordinator for this job
             var coordinatorConfig = new JobManagerConfig { /* Populate from jobDefinition or global config */ };
-            var checkpointCoordinator = new CheckpointCoordinator(jobGraph.JobId.ToString(), coordinatorConfig); // JobId for CC is string
+            // Pass the _jobRepository and logger to the CheckpointCoordinator constructor
+            var coordinatorLogger = _loggerFactory.CreateLogger<CheckpointCoordinator>();
+            var checkpointCoordinator = new CheckpointCoordinator(jobGraph.JobId.ToString(), _jobRepository, coordinatorLogger, coordinatorConfig);
             if (_jobCoordinators.TryAdd(jobGraph.JobId.ToString(), checkpointCoordinator)) // Use string key here
             {
-                // checkpointCoordinator.Start(); // Start triggering checkpoints
-                Console.WriteLine($"CheckpointCoordinator started for job {jobGraph.JobId}. (Currently commented out)");
+                checkpointCoordinator.Start(); // Start triggering checkpoints
+                _logger.LogInformation("CheckpointCoordinator for job {JobId} created, added to static list, and started.", jobGraph.JobId);
             }
             else
             {
@@ -253,7 +360,7 @@ namespace FlinkDotNet.JobManager.Controllers
                     }
                 }
             }
-            Console.WriteLine($"All tasks for job '{jobGraph.JobName}' have been (attempted) deployed.");
+            _logger.LogInformation("All tasks for job {JobName} (ID: {JobId}) have been (attempted) deployed.", jobGraph.JobName, jobGraph.JobId);
 
             return Ok(new { Message = "Job submitted successfully and task deployment initiated.", JobId = jobGraph.JobId });
         }
@@ -364,22 +471,54 @@ namespace FlinkDotNet.JobManager.Controllers
         }
 
         // GET /jobs/{jobId}/checkpoints
-        [HttpGet("/jobs/{jobId}/checkpoints")]
+        [HttpGet("jobs/{jobId}/checkpoints")] // Corrected route as per subtask (removed leading slash if it was there)
         public async Task<IActionResult> GetJobCheckpoints(string jobId)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
+            if (!Guid.TryParse(jobId, out var parsedGuid))
+            {
+                return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
+            }
 
-            // var checkpoints = await _jobRepository.GetCheckpointsAsync(jobId);
+            // Check if the job itself exists in the primary JobGraph storage
+            if (!_jobGraphs.ContainsKey(parsedGuid))
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
 
-            // if (checkpoints == null)
-            // {
-            //     return NotFound($"Job with ID {jobId} not found, or no checkpoint information available.");
-            // }
-            // return Ok(checkpoints);
-            return StatusCode(501, "GetJobCheckpoints not implemented with JobGraph storage yet.");
+            var checkpoints = await _jobRepository.GetCheckpointsAsync(jobId);
+
+            // The mock logic in repository should provide mock data if no real checkpoints exist.
+            // If GetCheckpointsAsync itself returns null (e.g., if the repository logic changes to indicate job not found there for checkpoints)
+            // then it might also warrant a NotFound, but current repo mock logic prevents this if job exists.
+            if (checkpoints == null)
+            {
+                 // This case might indicate the job ID was valid Guid but not found by repository's own check,
+                 // though our _jobGraphs check above should be the primary job existence check.
+                 // For safety, or if repo could have jobs not in _jobGraphs (unlikely with current setup).
+                return NotFound($"Checkpoint information not available for job {jobId}, or job not found by repository.");
+            }
+
+            return Ok(checkpoints);
+        }
+
+        [HttpGet("jobs/{jobId}/logs")]
+        public IActionResult GetJobLogs(string jobId)
+        {
+            if (!Guid.TryParse(jobId, out var parsedGuid))
+            {
+                _logger.LogWarning("GetJobLogs called with invalid Job ID format: {JobId}", jobId);
+                return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
+            }
+
+            if (!_jobGraphs.ContainsKey(parsedGuid))
+            {
+                _logger.LogWarning("GetJobLogs called for non-existent Job ID: {JobId}", jobId);
+                return NotFound($"Job with ID {jobId} not found.");
+            }
+
+            _logger.LogInformation("Log retrieval request for Job ID {JobId}. Job-specific log aggregation from console output is not implemented.", jobId);
+
+            return Ok(new { Message = "Job-specific log retrieval from the current logging setup (e.g., console) is not yet implemented. Check centralized JobManager console/logs for diagnostics.", Logs = new List<LogEntryDto>() });
         }
 
         // POST /jobs/{jobId}/restart
