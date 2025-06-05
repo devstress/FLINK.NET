@@ -1,45 +1,54 @@
 # Flink.NET GitHub Wiki Structure Proposal
 
+### Table of Contents
+- [1. Introduction](#1-introduction)
+- [2. Core Concepts (Flink.NET Implementation)](#2-core-concepts-flinknet-implementation)
+- [3. Developing Flink.NET Applications](#3-developing-flinknet-applications)
+- [4. Connectors](#4-connectors)
+- [5. JobManager API Reference](#5-jobmanager-api-reference)
+- [6. Deployment](#6-deployment)
+- [7. Advanced Topics](#7-advanced-topics)
+
 This document outlines the proposed structure for the Flink.NET GitHub Wiki. The goal is to provide comprehensive documentation for users and developers, with clear references to Apache Flink''s concepts where applicable.
 
 ## 1. Introduction
     *   **Welcome to Flink.NET**
-        *   Overview of Flink.NET (links to Readme sections)
-        *   Key Features & Goals (links to Readme sections)
+        *   Overview of Flink.NET (See main [Readme.md](../Readme.md))
+        *   Key Features & Goals (See main [Readme.md](../Readme.md))
         *   Relationship to Apache Flink
             *   *Flink.NET Content:* Philosophy of alignment, key differences (e.g., .NET ecosystem, specific implementation choices).
-            *   *Apache Flink Ref:* Link to Apache Flink''s main page and "What is Flink?"
+            *   *Apache Flink Ref:* [Apache Flink Home](https://flink.apache.org/), [What is Apache Flink?](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/overview/)
     *   **Getting Started**
         *   *Flink.NET Content:* Setting up a development environment, writing a first simple Flink.NET application (conceptual, as the system evolves).
-        *   *Apache Flink Ref:* Link to Flink''s "Getting Started" and "Concepts" for basic stream processing ideas.
+        *   *Apache Flink Ref:* [Flink Getting Started](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/), [Fundamental Concepts](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/)
     *   **Use Cases**
         *   *Flink.NET Content:* Examples of potential applications for Flink.NET.
     *   **Community & Contribution**
-        *   *Flink.NET Content:* How to get involved, contribution guidelines.
+        *   *Flink.NET Content:* How to get involved, contribution guidelines (See main [Readme.md](../Readme.md#getting-involved--contribution)).
 
 ## 2. Core Concepts (Flink.NET Implementation)
-    *   **Architecture Overview** (links to Readme section)
-        *   JobManager
+    *   **Architecture Overview** (See main [Readme.md](../Readme.md#system-design-overview))
+        *   [JobManager](./Core-Concepts-JobManager.md)
             *   *Flink.NET Content:* Role in Flink.NET, HA setup (planned).
-            *   *Apache Flink Ref:* Link to Flink''s "JobManager" and "High Availability" documentation.
-        *   TaskManagers
+            *   *Apache Flink Ref:* [JobManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#jobmanager), [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/)
+        *   [TaskManager](./Core-Concepts-TaskManager.md)
             *   *Flink.NET Content:* Role in Flink.NET, execution of tasks, pod structure.
-            *   *Apache Flink Ref:* Link to Flink''s "TaskManager" and "Task Execution" documentation.
+            *   *Apache Flink Ref:* [TaskManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager), [Task Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_execution/)
         *   Dataflow & JobGraph
             *   *Flink.NET Content:* How logical plans are translated and executed.
-            *   *Apache Flink Ref:* Link to Flink''s "Dataflow Programming Model" and "Job Execution".
+            *   *Apache Flink Ref:* [Dataflow Programming Model](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/programming_model/), [Job Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/job_scheduling/)
     *   **Stream Processing Model**
         *   Streams, Events, Transformations (briefly)
-        *   *Apache Flink Ref:* Link to Flink''s "DataStream API Programming Guide" for these fundamental ideas.
-    *   **State Management**
-        *   *Flink.NET Content:* Overview of state in Flink.NET (`IValueState`, `IListState`, `IMapState`), keyed state, state descriptors. Brief mention of planned state backends (in-memory for testing, durable options like Redis + snapshots).
-        *   *Apache Flink Ref:* Link to Flink''s "Working with State" documentation.
-    *   **Checkpointing & Fault Tolerance**
-        *   *Flink.NET Content:* Overview of Flink.NET''s checkpointing mechanism (barriers, snapshots, recovery), exactly-once semantics. Role of `CheckpointMetadata` and `OperatorStateMetadata`.
-        *   *Apache Flink Ref:* Link to Flink''s "Checkpointing" and "Fault Tolerance" documentation.
+        *   *Apache Flink Ref:* [DataStream API Programming Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/overview/)
+    *   [State Management Overview](./Core-Concepts-State-Management-Overview.md)
+        *   *Flink.NET Content:* Overview of state in Flink.NET (`IValueState`, `IListState`, `IMapState`), keyed state, state descriptors. Brief mention of planned state backends.
+        *   *Apache Flink Ref:* [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/)
+    *   [Checkpointing & Fault Tolerance](./Core-Concepts-Checkpointing-Overview.md)
+        *   *Flink.NET Content:* Overview of Flink.NET''s checkpointing mechanism, exactly-once semantics. Role of `CheckpointMetadata` and `OperatorStateMetadata`.
+        *   *Apache Flink Ref:* [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/), [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
     *   **Exactly-Once Semantics** (dedicated section, cross-referencing)
-        *   *Flink.NET Content:* How Flink.NET aims to achieve this through checkpointing, transactional sinks, and idempotent processing.
-        *   *Apache Flink Ref:* Link to Flink''s "Fault Tolerance Guarantees."
+        *   *Flink.NET Content:* How Flink.NET aims to achieve this.
+        *   *Apache Flink Ref:* [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
 
 ## 3. Developing Flink.NET Applications
     *   **Project Setup**
@@ -53,51 +62,37 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
         *   `IReduceOperator` & `IRichReduceOperator`
         *   `IAggregateOperator` & `IRichAggregateOperator`
         *   `IJoinFunction` & `IRichJoinFunction`
-        *   `IWindowOperator` (placeholder, to be expanded with `WindowAssigners`, `Triggers`, `ProcessWindowFunction`-like concepts)
+        *   `IWindowOperator` (placeholder)
         *   *For each:*
             *   *Flink.NET Content:* C# interface details, simple usage examples.
-            *   *Apache Flink Ref:* Link to the corresponding Flink `Function` (e.g., `MapFunction`, `RichMapFunction`).
+            *   *Apache Flink Ref:* Link to the corresponding Flink `Function`.
     *   **Using `IRuntimeContext`**
-        *   *Flink.NET Content:* Accessing job/task info, (later) accessing state, using accumulators/broadcast vars (planned).
+        *   *Flink.NET Content:* Accessing job/task info, state, etc.
     *   **Working with State (Detailed)**
-        *   Using `ValueStateDescriptor`, `ListStateDescriptor`, `MapStateDescriptor`.
-        *   Examples of using `IValueState`, `IListState`, `IMapState` in a Rich operator.
-        *   State TTL, cleanup (planned).
-        *   *Apache Flink Ref:* Link to Flink''s "Working with State" (keyed state, state types).
-    *   **Windowing API (Future - based on `IWindowOperator` evolution)**
-        *   *Flink.NET Content:* Event Time vs. Processing Time, Tumbling, Sliding, Session Windows, Triggers, Evictors.
-        *   *Apache Flink Ref:* Link to Flink''s "Windowing" documentation.
+        *   Using `StateDescriptor`s.
+        *   Examples for each state type.
+        *   State TTL (planned).
+        *   *Apache Flink Ref:* [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/).
+    *   **Windowing API (Future)**
+        *   *Flink.NET Content:* Concepts and examples.
+        *   *Apache Flink Ref:* [Windowing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/).
 
 ## 4. Connectors
     *   **Overview**
-        *   *Flink.NET Content:* Concept of sources and sinks in Flink.NET.
-    *   **Source Connectors**
-        *   (Planned) Kafka Connector
-        *   (Planned) File Source Connector
-        *   *Flink.NET Content:* Configuration, usage, checkpointing integration.
-        *   *Apache Flink Ref:* Link to Flink''s "Connectors" documentation (e.g., Kafka connector).
-    *   **Sink Connectors**
-        *   (Planned) Console Sink
-        *   (Planned) File Sink
-        *   (Planned) Transactional Sinks (`ITwoPhaseCommitSink`)
-        *   *Flink.NET Content:* Configuration, usage, guarantees.
-        *   *Apache Flink Ref:* Link to Flink''s "Connectors" and `TwoPhaseCommitSinkFunction`.
+    *   **Source Connectors** (Kafka, File - planned)
+    *   **Sink Connectors** (Console, File, Transactional - planned)
+    *   *Apache Flink Ref:* [Connectors](https://nightlies.apache.org/flink/flink-docs-stable/docs/connectors/datastream/overview/).
 
 ## 5. JobManager API Reference
     *   **REST API**
-        *   *Flink.NET Content:* Endpoints, request/response DTOs for `JobManagerController`.
-        *   *Apache Flink Ref:* (Optional) Comparison to Flink''s Monitoring REST API if alignment is pursued.
     *   **Internal gRPC API**
-        *   *Flink.NET Content:* Overview of `JobManagerInternalService` and its methods/messages (for developers of Flink.NET itself or advanced users).
 
 ## 6. Deployment
     *   **Kubernetes Deployment**
-        *   *Flink.NET Content:* Overview of deploying JobManager and TaskManagers on Kubernetes, HA considerations (planned), configuration.
-        *   *Apache Flink Ref:* Link to Flink''s "Kubernetes Deployment" documentation.
-    *   **Local Development/Testing**
-        *   *Flink.NET Content:* How to run/test Flink.NET applications locally (will evolve, potentially with Microsoft Aspire).
+    *   **Local Development/Testing** (potentially with Aspire)
+    *   *Apache Flink Ref:* [Deployment](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/overview/).
 
-## 7. Advanced Topics (Placeholders for future content)
+## 7. Advanced Topics (Placeholders)
     *   **Serialization**
     *   **Metrics & Monitoring**
     *   **Performance Tuning**

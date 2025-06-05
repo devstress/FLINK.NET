@@ -1,6 +1,12 @@
 # Core Concepts: JobManager
 
+### Table of Contents
+- [Key Responsibilities](#key-responsibilities)
+- [Deployment & High Availability (HA)](#deployment--high-availability-ha)
+
 The JobManager is the central coordinating component of a Flink.NET deployment. It is responsible for the orchestration of job execution, resource management (in conjunction with the underlying cluster manager like Kubernetes), checkpoint coordination, and failure recovery. In a high-availability setup, there can be multiple JobManager instances, but only one is active as the leader at any given time.
+
+See also: [System Design Overview in Readme.md](../../../Readme.md#system-design-overview)
 
 *(Apache Flink Ref: [JobManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#jobmanager))*
 
@@ -13,34 +19,30 @@ The JobManager is the central coordinating component of a Flink.NET deployment. 
 2.  **Task Scheduling & Resource Allocation:**
     *   Translates the `JobGraph` into an `ExecutionGraph`, which represents the physical execution plan.
     *   Requests resources (e.g., TaskManager pods/slots) from the cluster manager (Kubernetes in Flink.NET''s target architecture).
-    *   Assigns individual tasks (parallel instances of operators) to available TaskManagers.
+    *   Assigns individual tasks (parallel instances of operators) to available [TaskManagers](./Core-Concepts-TaskManager.md).
 
 3.  **Checkpoint Coordination:**
     *   The JobManager hosts the **Checkpoint Coordinator**.
     *   Triggers periodic checkpoints for running jobs.
     *   Receives acknowledgements from TaskManagers when they complete their part of a checkpoint.
-    *   Manages metadata about completed checkpoints (e.g., storing it in a durable metadata store like Cosmos DB or PostgreSQL).
+    *   Manages metadata about completed checkpoints (e.g., storing it in a durable metadata store).
     *   Initiates recovery procedures using the last successfully completed checkpoint in case of failures.
-    *   *(See Wiki Page: Core Concepts: Checkpointing Overview for more details)*
+    *   *(See Wiki Page: [Core Concepts: Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md) for more details)*
 
 4.  **Failure Detection & Recovery:**
     *   Monitors TaskManagers via heartbeats (using the internal gRPC API).
     *   Detects failures of TaskManagers or individual tasks.
-    *   Coordinates the recovery process, which involves:
-        *   Cancelling remaining tasks from the failed execution attempt.
-        *   Resetting tasks to the state of the last completed checkpoint.
-        *   Re-requesting resources if needed and redeploying tasks.
+    *   Coordinates the recovery process.
 
 5.  **Metadata & API Hosting:**
-    *   Maintains metadata about running and completed jobs, task statuses, checkpoint history, etc.
-    *   Exposes the **Job Management REST API** for external clients to interact with the system.
-    *   Exposes the **Internal gRPC API** for communication with TaskManagers.
+    *   Maintains metadata about jobs, tasks, checkpoints, etc.
+    *   Exposes the Job Management REST API and Internal gRPC API.
 
 ## Deployment & High Availability (HA)
 
 *   In Flink.NET, the JobManager is designed to be deployed on Kubernetes.
-*   For production environments, a High Availability (HA) setup is crucial. This typically involves running multiple JobManager instances with a leader election mechanism (e.g., using ZooKeeper, etcd, or Kubernetes leader election primitives). If the active leader fails, another standby JobManager takes over leadership, ensuring continuous operation by recovering job metadata from a durable store.
+*   Production environments require a High Availability (HA) setup (planned).
 
 *(Apache Flink Ref: [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/))*
 
-The JobManager is the "brain" of a Flink.NET application, ensuring that data processing jobs run smoothly, efficiently, and reliably.
+The JobManager is the "brain" of a Flink.NET application.
