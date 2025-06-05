@@ -21,7 +21,8 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         public int IndexOfThisSubtask { get; }
         public JobConfiguration JobConfiguration { get; }
 
-        private readonly ConcurrentDictionary<string, object> _states = new();
+        private object? _currentKey; // Stores the current key for keyed state
+        private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new();
 
         public BasicRuntimeContext(
             string jobName = "DefaultJob",
@@ -37,6 +38,11 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             JobConfiguration = jobConfiguration ?? new JobConfiguration();
         }
 
+        public void SetCurrentKey(object key)
+        {
+            _currentKey = key ?? throw new ArgumentNullException(nameof(key), "Current key cannot be null.");
+        }
+
         public IValueState<T> GetValueState<T>(ValueStateDescriptor<T> stateDescriptor)
         {
             if (stateDescriptor == null)
@@ -44,8 +50,15 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
                 throw new ArgumentNullException(nameof(stateDescriptor));
             }
 
-            object state = _states.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryValueState<T>(stateDescriptor.DefaultValue ?? default!));
+            if (_currentKey == null)
+            {
+                throw new InvalidOperationException("Cannot get keyed state if current key is not set. Call SetCurrentKey first.");
+            }
+
+            var statesForCurrentKey = _keyedStates.GetOrAdd(_currentKey, _ => new ConcurrentDictionary<string, object>());
+
+            object state = statesForCurrentKey.GetOrAdd(stateDescriptor.Name, _ =>
+                new InMemoryValueState<T>(stateDescriptor.DefaultValue ?? default!, stateDescriptor.Serializer)); // Pass serializer
 
             if (state is IValueState<T> typedState)
             {
@@ -65,8 +78,15 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
                 throw new ArgumentNullException(nameof(stateDescriptor));
             }
 
-            object state = _states.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryListState<T>());
+            if (_currentKey == null)
+            {
+                throw new InvalidOperationException("Cannot get keyed state if current key is not set. Call SetCurrentKey first.");
+            }
+
+            var statesForCurrentKey = _keyedStates.GetOrAdd(_currentKey, _ => new ConcurrentDictionary<string, object>());
+
+            object state = statesForCurrentKey.GetOrAdd(stateDescriptor.Name, _ =>
+                new InMemoryListState<T>(stateDescriptor.ElementSerializer)); // Pass serializer
 
             if (state is IListState<T> typedState)
             {
@@ -86,8 +106,15 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
                 throw new ArgumentNullException(nameof(stateDescriptor));
             }
 
-            object state = _states.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryMapState<TK, TV>());
+            if (_currentKey == null)
+            {
+                throw new InvalidOperationException("Cannot get keyed state if current key is not set. Call SetCurrentKey first.");
+            }
+
+            var statesForCurrentKey = _keyedStates.GetOrAdd(_currentKey, _ => new ConcurrentDictionary<string, object>());
+
+            object state = statesForCurrentKey.GetOrAdd(stateDescriptor.Name, _ =>
+                new InMemoryMapState<TK, TV>(stateDescriptor.KeySerializer, stateDescriptor.ValueSerializer)); // Pass serializers
 
             if (state is IMapState<TK, TV> typedState)
             {

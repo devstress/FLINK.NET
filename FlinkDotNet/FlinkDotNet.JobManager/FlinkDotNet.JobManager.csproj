@@ -7,13 +7,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+    <PackageReference Include="Google.Protobuf" Version="3.27.2" /> <!-- Updated -->
+    <PackageReference Include="Grpc.AspNetCore" Version="2.63.0" /> <!-- Updated to stable -->
+    <PackageReference Include="Grpc.Tools" Version="2.64.0"> <!-- Updated -->
+      <PrivateAssets>All</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.16" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos/jobmanager_internal.proto" GrpcServices="Server" />
+    <Protobuf Include="Protos\jobmanager_internal.proto" GrpcServices="Both" /> <!-- Changed Server to Both -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

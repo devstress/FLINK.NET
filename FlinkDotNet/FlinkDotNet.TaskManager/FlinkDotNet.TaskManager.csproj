@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType> <!-- Changed from Library -->
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.27.2" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.63.0" /> <!-- Updated -->
+    <PackageReference Include="Grpc.Net.Client" Version="2.63.0" /> <!-- Updated -->
+    <PackageReference Include="Grpc.Tools" Version="2.64.0"> <!-- Updated -->
+      <PrivateAssets>All</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\FlinkDotNet.JobManager\Protos\jobmanager_internal.proto" GrpcServices="Both" Link="Protos\jobmanager_internal.proto" /> <!-- Changed Server to Both -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNet.Connectors.Sources.File\FlinkDotNet.Connectors.Sources.File.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Connectors.Sinks.Console\FlinkDotNet.Connectors.Sinks.Console.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj" />
+  </ItemGroup>
+
+</Project>

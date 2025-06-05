@@ -1,6 +1,8 @@
 using FlinkDotNet.JobManager.Interfaces;
-using FlinkDotNet.JobManager.Services; // This using is already present and is needed for JobManagerInternalApiService
-using System; // Required for DateOnly, DateTime
+using FlinkDotNet.JobManager.Services;
+using FlinkDotNet.JobManager.Checkpointing; // Added for CheckpointCoordinator
+using FlinkDotNet.JobManager.Models; // Added for JobManagerConfig
+using System;
 using System.Linq; // Required for Enumerable
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +31,7 @@ app.UseHttpsRedirection();
 
 // Map gRPC service
 app.MapGrpcService<JobManagerInternalApiService>(); // Added for gRPC
+app.MapGrpcService<TaskManagerRegistrationServiceImpl>(); // Added for new TM registration service
 
 var summaries = new[]
 {
@@ -55,6 +58,13 @@ app.MapGet("/weatherforecast", () =>
 // The `dotnet new webapi` template for .NET 6+ often includes this setup implicitly or via AddEndpointsApiExplorer.
 // If API controllers are not found, explicit registration might be needed.
 // For now, assuming JobManagerController (REST API) is correctly mapped by existing setup.
+
+// Test CheckpointCoordinator setup
+var testJobId = "test-job-001";
+var coordinatorConfig = new JobManagerConfig { CheckpointIntervalSecs = 15 }; // Using class from CheckpointCoordinator.cs
+var checkpointCoordinator = new CheckpointCoordinator(testJobId, coordinatorConfig);
+TaskManagerRegistrationServiceImpl.JobCoordinators.TryAdd(testJobId, checkpointCoordinator);
+// checkpointCoordinator.Start(); // Start triggering for the test job - commented out for now
 
 app.Run();
 

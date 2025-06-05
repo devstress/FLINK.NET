@@ -3,15 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 using FlinkDotNet.Core.Abstractions.States;
+using FlinkDotNet.Core.Abstractions.Serializers; // Added for serializers
 
 namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
 {
     public class InMemoryMapStateTests
     {
+        private readonly StringSerializer _stringSerializer = new StringSerializer();
+        private readonly IntSerializer _intSerializer = new IntSerializer();
+
         [Fact]
         public void NewState_IsEmpty_ReturnsTrue()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             Assert.True(state.IsEmpty());
             Assert.Empty(state.Keys());
             Assert.Empty(state.Values());
@@ -21,7 +25,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Put_SingleEntry_GetReturnsValue_ContainsReturnsTrue_IsNotEmpty()
         {
-            var state = new InMemoryMapState<string, string>();
+            var state = new InMemoryMapState<string, string>(_stringSerializer, _stringSerializer);
             state.Put("key1", "value1");
 
             Assert.Equal("value1", state.Get("key1"));
@@ -32,17 +36,17 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Get_NonExistentKey_ReturnsDefaultValue()
         {
-            var state = new InMemoryMapState<string, int>(); // int default is 0
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer); // int default is 0
             Assert.Equal(0, state.Get("nonexistent"));
 
-            var stateStr = new InMemoryMapState<int, string?>(); // string? default is null
+            var stateStr = new InMemoryMapState<int, string?>(_intSerializer, _stringSerializer); // string? default is null
             Assert.Null(stateStr.Get(123));
         }
 
         [Fact]
         public void Put_UpdateExistingKey_GetReturnsNewValue()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("key1", 10);
             state.Put("key1", 20); // Update
             Assert.Equal(20, state.Get("key1"));
@@ -51,7 +55,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void PutAll_AddsMultipleEntries_OverwritesExisting()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("key1", 1); // Existing, will be overwritten
             state.Put("key2", 2); // Existing, will remain
 
@@ -71,7 +75,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void PutAll_NullDictionary_DoesNotThrow_StateUnchanged()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("key1", 1);
             state.PutAll(null!);
             Assert.Equal(1, state.Get("key1"));
@@ -82,14 +86,14 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Contains_NonExistentKey_ReturnsFalse()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             Assert.False(state.Contains("key1"));
         }
 
         [Fact]
         public void Remove_ExistingKey_RemovesEntry_GetReturnsDefault_ContainsReturnsFalse()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("key1", 10);
             state.Remove("key1");
 
@@ -101,7 +105,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Remove_NonExistentKey_DoesNothing()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("key1", 10);
             state.Remove("key2"); // Non-existent
             Assert.Equal(1, state.Entries().Count());
@@ -111,7 +115,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Keys_ReturnsAllKeys()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("a", 1);
             state.Put("b", 2);
             state.Put("c", 3);
@@ -121,7 +125,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Values_ReturnsAllValues()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("a", 10);
             state.Put("b", 20);
             state.Put("c", 10); // Duplicate value
@@ -131,7 +135,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Entries_ReturnsAllKeyValuePairs()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("x", 100);
             state.Put("y", 200);
             var entries = state.Entries().ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
@@ -144,7 +148,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Entries_ModifyingReturnedEnumerable_DoesNotAffectInternalState()
         {
-            var state = new InMemoryMapState<string, string>();
+            var state = new InMemoryMapState<string, string>(_stringSerializer, _stringSerializer);
             state.Put("key1", "value1");
 
             var entries = state.Entries();
@@ -160,7 +164,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
         [Fact]
         public void Clear_RemovesAllEntries_IsEmptyReturnsTrue()
         {
-            var state = new InMemoryMapState<string, int>();
+            var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("one", 1);
             state.Put("two", 2);
             state.Clear();
