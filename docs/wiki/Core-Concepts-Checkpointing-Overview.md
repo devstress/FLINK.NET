@@ -5,7 +5,7 @@
 - [Role in Fault Tolerance & Recovery](#role-in-fault-tolerance--recovery)
 - [Key Considerations](#key-considerations)
 
-Checkpointing is Flink.NET''s core mechanism for fault tolerance and exactly-once processing semantics. A checkpoint is a consistent snapshot of application state and stream positions.
+Checkpointing is fundamental to Flink.NET''s reliability. It is Flink.NET''s core mechanism for fault tolerance and exactly-once processing semantics. A checkpoint is a consistent snapshot of application state and stream positions.
 
 See also: [State Management Overview](./Core-Concepts-State-Management-Overview.md)
 
@@ -33,5 +33,3 @@ If a failure occurs:
 *   **State Backend Choice:** Impacts performance and reliability.
 *   **Checkpoint Interval:** Balances recovery speed and overhead.
 *   **Exactly-Once Sinks:** Often require two-phase commit coordinated with checkpoints.
-
-Checkpointing is fundamental to Flink.NET''s reliability.

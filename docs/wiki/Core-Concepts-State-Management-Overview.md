@@ -20,6 +20,7 @@ Flink.NET primarily focuses on **Keyed State**, partitioned by a key extracted f
 *(Apache Flink Ref: [Keyed State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/#keyed-state))*
 
 ### Types of Keyed State in Flink.NET
+
 Core state interfaces (`FlinkDotNet.Core.Abstractions.States`):
 *   **`IValueState<T>`:** Holds a single value.
 *   **`IListState<T>`:** Holds a list of elements.
@@ -31,14 +32,26 @@ Core state interfaces (`FlinkDotNet.Core.Abstractions.States`):
 State is accessed in "Rich" operators via `IRuntimeContext` using a `StateDescriptor` (e.g., `ValueStateDescriptor<T>`). The descriptor defines the state''s name, type, and (later) serializers and default values.
 
 ```csharp
-// Conceptual example in a Rich operator:
-public class MyRichMap : IRichMapOperator<string, string> {
-    private IValueState<long> _myCounter;
-    public void Open(IRuntimeContext context) {
-        var descriptor = new ValueStateDescriptor<long>("myCounterState", 0L);
-        _myCounter = context.GetValueState(descriptor);
+// Conceptual example within a Rich operator:
+public class MyStatefulCounter : IRichMapOperator<string, string>
+{
+    private IValueState<long> _countState;
+
+    public void Open(IRuntimeContext context)
+    {
+        var descriptor = new ValueStateDescriptor<long>("myCounterState", defaultValue: 0L);
+        _countState = context.GetValueState(descriptor);
     }
-    // ... Map method ...
+
+    public string Map(string eventData)
+    {
+        long currentCount = _countState.Value();
+        currentCount++;
+        _countState.Update(currentCount);
+        return $"Event: {eventData}, Current Count for Key: {currentCount}";
+    }
+
+    public void Close() { /* Cleanup state if needed */ }
 }
 ```
 
