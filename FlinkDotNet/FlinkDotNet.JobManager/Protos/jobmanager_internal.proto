@@ -1,8 +1,9 @@
 syntax = "proto3";
 
-option csharp_namespace = "FlinkDotNet.JobManager.InternalApi.Grpc";
+// Option for C# namespace
+option csharp_namespace = "FlinkDotNet.Proto.Internal";
 
-package FlinkDotNet.JobManagerInternal;
+package FlinkDotNet.Proto; // Adjusted package name
 
 // Service definition for internal communication between JobManager and TaskManagers
 service JobManagerInternalService {
@@ -16,7 +17,7 @@ service JobManagerInternalService {
   rpc RequestRecovery (RequestRecoveryRequest) returns (RequestRecoveryReply);
 
   // TaskManager sends a heartbeat to the JobManager.
-  rpc Heartbeat (HeartbeatRequest) returns (HeartbeatReply);
+  rpc Heartbeat (JobManagerHeartbeatRequest) returns (JobManagerHeartbeatReply); // Renamed
 }
 
 // Message Definitions based on InternalApiModels
@@ -51,15 +52,154 @@ message RequestRecoveryReply {
   bool recovery_initiated = 1;
 }
 
-message HeartbeatRequest {
+message JobManagerHeartbeatRequest { // Renamed
   string job_id = 1;
   string operator_instance_id = 2; // Or TaskManagerId
   string health_status = 3; // e.g., "HEALTHY", "DEGRADED"
   map<string, double> metrics = 4; // e.g., { "cpuUsage": 0.75, "memoryUsageMB": 1024 }
 }
 
-message HeartbeatReply {
+message JobManagerHeartbeatReply { // Renamed
   bool ack = 1;
   // Optionally, JobManager could send commands back in heartbeat reply, e.g., "SHUTDOWN_TASK"
   // string next_action = 2;
+}
+
+// Service for TaskManager to JobManager communication
+service TaskManagerRegistration {
+  rpc RegisterTaskManager (RegisterTaskManagerRequest) returns (RegisterTaskManagerResponse);
+  rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse); // Note: Uses new Heartbeat messages below
+  rpc AcknowledgeCheckpoint(AcknowledgeCheckpointRequest) returns (AcknowledgeCheckpointResponse); // New RPC
+}
+
+message RegisterTaskManagerRequest {
+  string taskManagerId = 1; // Unique ID for the TaskManager
+  string address = 2;       // Hostname/IP of the TaskManager
+  int32 port = 3;           // Port TaskManager listens on (if it hosts services)
+  // Add other relevant info like available resources/slots in the future
+}
+
+message RegisterTaskManagerResponse {
+  bool success = 1;
+  string jobManagerId = 2; // ID of the JobManager that handled registration
+  // Add other relevant info like configuration or assignments in the future
+}
+
+// These are new Heartbeat messages for TaskManagerRegistration service
+message HeartbeatRequest {
+  string taskManagerId = 1;
+  // Add other relevant info like current status, resource utilization
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+  // JobManager can use this to send commands back if needed (e.g., shutdown)
+}
+
+// Add new message types for checkpointing
+message CheckpointTaskInfo {
+    string taskManagerId = 1;
+    // Later: specific subtask IDs if a TM runs multiple parts of an operator
+    string snapshotPath = 2; // Path or handle to the snapshotted state for this task
+    // uint64 snapshotSize = 3; // Optional: size of the snapshot
+    // uint64 duration = 4;     // Optional: time taken to snapshot
+}
+
+message TriggerCheckpointRequest {
+    string jobManagerId = 1; // Originating JobManager
+    string jobId = 2;        // The job for which to trigger the checkpoint
+    int64 checkpointId = 3;
+    int64 checkpointTimestamp = 4;
+    // bool isExactlyOnce = 5; // Future: Checkpoint mode
+}
+
+message TriggerCheckpointResponse {
+    bool acknowledged = 1; // Whether the TM accepted the trigger
+}
+
+message AcknowledgeCheckpointRequest {
+    string jobManagerId = 1;
+    string jobId = 2;
+    int64 checkpointId = 3;
+    string taskManagerId = 4; // TaskManager acknowledging
+    // CheckpointTaskInfo taskInfo = 5; // If TM reports snapshot details directly here
+    string snapshotHandle = 5; // Path or reference to the snapshotted state
+    // uint64 snapshotSize = 6;
+    // uint64 duration = 7;
+}
+
+message AcknowledgeCheckpointResponse {
+    bool success = 1;
+}
+
+// Service for TaskManager to implement, JobManager to call
+service TaskManagerCheckpointing {
+  rpc TriggerTaskCheckpoint (TriggerCheckpointRequest) returns (TriggerCheckpointResponse);
+}
+
+// Messages for Task Deployment
+message OperatorInput {
+    string sourceVertexId = 1; // ID of the upstream JobVertex in the JobGraph
+    // Potentially add connection type, serializer info if not per-vertex
+}
+
+message OperatorOutput {
+    string targetVertexId = 1; // ID of the downstream JobVertex (could be multiple for fan-out)
+    string target_task_endpoint = 2; // New: e.g., "http://localhost:50072"
+    int32 target_specific_subtask_index = 3; // New: specific subtask index of the downstream operator
+}
+
+message TaskDeploymentDescriptor {
+    string jobGraphJobId = 1;         // The JobID from the JobGraph
+    string jobVertexId = 2;           // The ID of the JobVertex this task instance belongs to
+    int32 subtaskIndex = 3;           // For parallelism (0 to N-1)
+    string taskName = 4;              // e.g., "Source: MyFileSource (1/2)"
+
+    string fullyQualifiedOperatorName = 5; // Type name of the ISourceFunction, IOperator, or ISinkFunction
+    bytes operatorConfiguration = 6;       // Serialized properties for the operator (e.g., JSON or custom)
+                                           // Using 'bytes' for flexibility. Could also be map<string, string>.
+
+    // Input/Output information (derived from JobVertex and JobEdges)
+    // For sources, inputs might be empty. For sinks, outputs might be empty.
+    repeated OperatorInput inputs = 7;
+    repeated OperatorOutput outputs = 8;
+
+    string inputTypeName = 9;              // Fully qualified name of the input data type for this operator/sink
+    string outputTypeName = 10;             // Fully qualified name of the output data type for this source/operator
+    string inputSerializerTypeName = 11;   // Serializer for input type
+    string outputSerializerTypeName = 12;  // Serializer for output type
+
+    // Add checkpointing related info if needed per task
+    // string checkpointStateBackendInfo = 13; // Info to init state backend
+}
+
+message DeployTaskResponse {
+    bool success = 1;
+    string message = 2; // Optional message
+}
+
+// New service for TaskManager to implement
+service TaskExecution {
+  rpc DeployTask (TaskDeploymentDescriptor) returns (DeployTaskResponse);
+  // Later: CancelTask, UpdateTask, etc.
+}
+
+// Messages for Data Exchange
+message DataRecord {
+    string targetJobVertexId = 1;     // ID of the target JobVertex on the receiving TM
+    int32 targetSubtaskIndex = 2;     // Specific subtask index of the target operator
+    bytes payload = 3;                // Serialized record using the appropriate ITypeSerializer
+    // string payloadTypeName = 4;    // Optional: FQN of the type, for debugging/validation
+    // string serializerTypeName = 5; // Optional: FQN of the serializer used
+}
+
+// Empty response, or could include backpressure signals later
+message DataAck {
+    bool received = 1;
+}
+
+// New service for TaskManager to implement, called by other TaskManagers
+service DataExchangeService {
+  // Client-streaming RPC: sender streams records, receiver processes them.
+  rpc SendData (stream DataRecord) returns (DataAck);
 }

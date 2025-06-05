@@ -1,4 +1,5 @@
 #nullable enable
+using FlinkDotNet.Core.Abstractions.Serializers;
 using System.Collections.Generic;
 using System.Linq; // Required for ToList() on IEnumerable for Update and AddAll
 
@@ -13,22 +14,27 @@ namespace FlinkDotNet.Core.Abstractions.States
     public class InMemoryListState<T> : IListState<T>
     {
         private List<T> _list;
+        private readonly ITypeSerializer<T> _elementSerializer;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InMemoryListState{T}"/> class.
         /// </summary>
-        public InMemoryListState()
+        /// <param name="elementSerializer">The serializer for the elements in the list.</param>
+        public InMemoryListState(ITypeSerializer<T> elementSerializer)
         {
+            _elementSerializer = elementSerializer;
             _list = new List<T>();
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InMemoryListState{T}"/> class
-        /// with an initial list of elements. (Primarily for testing/mocking setup)
+        /// with an initial list of elements and a serializer. (Primarily for testing/mocking setup)
         /// </summary>
         /// <param name="initialElements">The initial elements for the list state.</param>
-        internal InMemoryListState(IEnumerable<T> initialElements)
+        /// <param name="elementSerializer">The serializer for the elements in the list.</param>
+        internal InMemoryListState(IEnumerable<T> initialElements, ITypeSerializer<T> elementSerializer)
         {
+            _elementSerializer = elementSerializer;
             _list = new List<T>(initialElements);
         }
 

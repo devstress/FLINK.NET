@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 using Grpc.Core;
-using FlinkDotNet.JobManager.InternalApi.Grpc; // Namespace from our .proto csharp_namespace option
+using FlinkDotNet.Proto.Internal; // Updated namespace
 using Microsoft.Extensions.Logging; // For optional logging
 
 // Assuming the generated base class is JobManagerInternalService.JobManagerInternalServiceBase
@@ -47,11 +47,11 @@ namespace FlinkDotNet.JobManager.Services
             });
         }
 
-        public override Task<HeartbeatReply> Heartbeat(HeartbeatRequest request, ServerCallContext context)
+        public override Task<JobManagerHeartbeatReply> Heartbeat(JobManagerHeartbeatRequest request, ServerCallContext context) // Types updated
         {
             _logger.LogInformation($"gRPC: Heartbeat received from JobId: {request.JobId}, Operator: {request.OperatorInstanceId}, Status: {request.HealthStatus}");
             // In a real implementation, update heartbeat status, check for timeouts, etc.
-            return Task.FromResult(new HeartbeatReply
+            return Task.FromResult(new JobManagerHeartbeatReply // Type updated
             {
                 Ack = true
             });

@@ -1,4 +1,5 @@
 #nullable enable
+using FlinkDotNet.Core.Abstractions.Serializers;
 using System.Collections.Generic;
 using System.Linq; // Required for Keys, Values, Entries returning copies
 
@@ -14,22 +15,32 @@ namespace FlinkDotNet.Core.Abstractions.States
     public class InMemoryMapState<TK, TV> : IMapState<TK, TV> where TK : notnull
     {
         private readonly Dictionary<TK, TV> _dictionary;
+        private readonly ITypeSerializer<TK> _keySerializer;
+        private readonly ITypeSerializer<TV> _valueSerializer;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InMemoryMapState{TK, TV}"/> class.
         /// </summary>
-        public InMemoryMapState()
+        /// <param name="keySerializer">The serializer for the keys.</param>
+        /// <param name="valueSerializer">The serializer for the values.</param>
+        public InMemoryMapState(ITypeSerializer<TK> keySerializer, ITypeSerializer<TV> valueSerializer)
         {
+            _keySerializer = keySerializer;
+            _valueSerializer = valueSerializer;
             _dictionary = new Dictionary<TK, TV>();
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InMemoryMapState{TK, TV}"/> class
-        /// with an initial set of entries. (Primarily for testing/mocking setup)
+        /// with an initial set of entries and serializers. (Primarily for testing/mocking setup)
         /// </summary>
         /// <param name="initialEntries">The initial entries for the map state.</param>
-        internal InMemoryMapState(IDictionary<TK, TV> initialEntries)
+        /// <param name="keySerializer">The serializer for the keys.</param>
+        /// <param name="valueSerializer">The serializer for the values.</param>
+        internal InMemoryMapState(IDictionary<TK, TV> initialEntries, ITypeSerializer<TK> keySerializer, ITypeSerializer<TV> valueSerializer)
         {
+            _keySerializer = keySerializer;
+            _valueSerializer = valueSerializer;
             _dictionary = new Dictionary<TK, TV>(initialEntries);
         }
 

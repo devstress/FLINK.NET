@@ -1,5 +1,8 @@
 #nullable enable // Enable nullable reference types for this file
 
+using FlinkDotNet.Core.Abstractions.Serializers;
+using System; // Required for ArgumentNullException
+
 namespace FlinkDotNet.Core.Abstractions.Models.State
 {
     /// <summary>
@@ -37,13 +40,13 @@ namespace FlinkDotNet.Core.Abstractions.Models.State
         /// </summary>
         public T? DefaultValue { get; }
 
-        // public TypeSerializer<T> Serializer { get; } // Example for later
+        public ITypeSerializer<T> Serializer { get; }
 
-        public ValueStateDescriptor(string name, T? defaultValue = default)
+        public ValueStateDescriptor(string name, ITypeSerializer<T> serializer, T? defaultValue = default)
             : base(name)
         {
+            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             DefaultValue = defaultValue;
-            // Serializer = serializer ?? throw new System.ArgumentNullException(nameof(serializer));
         }
     }
 
@@ -53,12 +56,12 @@ namespace FlinkDotNet.Core.Abstractions.Models.State
     /// <typeparam name="T">The type of the elements in the list state.</typeparam>
     public class ListStateDescriptor<T> : StateDescriptor
     {
-        // public TypeSerializer<T> ElementSerializer { get; } // Example for later
+        public ITypeSerializer<T> ElementSerializer { get; }
 
-        public ListStateDescriptor(string name /*, TypeSerializer<T> elementSerializer */)
+        public ListStateDescriptor(string name, ITypeSerializer<T> elementSerializer)
             : base(name)
         {
-            // ElementSerializer = elementSerializer ?? throw new System.ArgumentNullException(nameof(elementSerializer));
+            ElementSerializer = elementSerializer ?? throw new ArgumentNullException(nameof(elementSerializer));
         }
     }
 
@@ -69,14 +72,14 @@ namespace FlinkDotNet.Core.Abstractions.Models.State
     /// <typeparam name="TV">The type of the values in the map state.</typeparam>
     public class MapStateDescriptor<TK, TV> : StateDescriptor
     {
-        // public TypeSerializer<TK> KeySerializer { get; } // Example for later
-        // public TypeSerializer<TV> ValueSerializer { get; } // Example for later
+        public ITypeSerializer<TK> KeySerializer { get; }
+        public ITypeSerializer<TV> ValueSerializer { get; }
 
-        public MapStateDescriptor(string name /*, TypeSerializer<TK> keySerializer, TypeSerializer<TV> valueSerializer */)
+        public MapStateDescriptor(string name, ITypeSerializer<TK> keySerializer, ITypeSerializer<TV> valueSerializer)
             : base(name)
         {
-            // KeySerializer = keySerializer ?? throw new System.ArgumentNullException(nameof(keySerializer));
-            // ValueSerializer = valueSerializer ?? throw new System.ArgumentNullException(nameof(valueSerializer));
+            KeySerializer = keySerializer ?? throw new ArgumentNullException(nameof(keySerializer));
+            ValueSerializer = valueSerializer ?? throw new ArgumentNullException(nameof(valueSerializer));
         }
     }
 }
