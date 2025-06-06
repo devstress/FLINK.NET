@@ -24,6 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
     <ProjectReference Include="..\..\FlinkDotNetAspire\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.AzureBlob\FlinkDotNet.Storage.AzureBlob.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.S3\FlinkDotNet.Storage.S3.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.GCS\FlinkDotNet.Storage.GCS.csproj" />
   </ItemGroup>
 
 </Project>

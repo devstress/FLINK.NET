@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework> <!-- Or your project's target framework -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.19.1" /> <!-- Use the latest stable version -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../FlinkDotNet.Core.Abstractions/FlinkDotNet.Core.Abstractions.csproj" /> <!-- Add reference to FlinkDotNet.Core.Abstractions -->
+  </ItemGroup>
+
+</Project>
