@@ -22,7 +22,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         public JobConfiguration JobConfiguration { get; }
 
         private object? _currentKey; // Stores the current key for keyed state
-        private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new();
+        // private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new(); // Assuming this is how state is managed
 
         public BasicRuntimeContext(
             string jobName = "DefaultJob",
@@ -36,11 +36,21 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             NumberOfParallelSubtasks = numberOfParallelSubtasks;
             IndexOfThisSubtask = indexOfThisSubtask;
             JobConfiguration = jobConfiguration ?? new JobConfiguration();
+            _currentKey = null; // Explicitly initialize
         }
 
-        public void SetCurrentKey(object key)
+        public object? GetCurrentKey()
         {
-            _currentKey = key ?? throw new ArgumentNullException(nameof(key), "Current key cannot be null.");
+            return _currentKey;
+        }
+
+        public void SetCurrentKey(object? key)
+        {
+            // This method is intended to be called by the TaskExecutor.
+            // If multiple threads were ever to use the same RuntimeContext instance
+            // (generally not the case per operator invocation), this would need thread-safety.
+            // However, a RuntimeContext is typically per task instance / per record processing scope.
+            _currentKey = key;
         }
 
         public IValueState<T> GetValueState<T>(ValueStateDescriptor<T> stateDescriptor)
@@ -99,7 +109,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             }
         }
 
-        public IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor) where TK : notnull // Added notnull constraint
+        public IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor) where TK : notnull
         {
             if (stateDescriptor == null)
             {
