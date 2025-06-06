@@ -10,9 +10,18 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSingleton<FlinkDotNet.JobManager.Interfaces.IJobRepository, FlinkDotNet.JobManager.Services.InMemoryJobRepository>();
+// IJobRepository is now registered like this due to ILogger dependency:
+builder.Services.AddSingleton<IJobRepository, InMemoryJobRepository>();
+// If InMemoryJobRepository itself needs to be resolved directly (it doesn't seem to be),
+// it would also be covered by AddSingleton<IJobRepository, InMemoryJobRepository>() if it's the implementation.
+// For clarity, if it were ever resolved directly: builder.Services.AddSingleton<InMemoryJobRepository>();
 builder.Services.AddSwaggerGen();
 builder.Services.AddGrpc(); // Added for gRPC
+
+// Configure logging
+builder.Logging.ClearProviders(); // Optional: Remove other providers like EventLog
+builder.Logging.AddConsole();
+builder.Logging.SetMinimumLevel(LogLevel.Information); // Set desired minimum log level
 
 var app = builder.Build();
 
@@ -59,12 +68,14 @@ app.MapGet("/weatherforecast", () =>
 // If API controllers are not found, explicit registration might be needed.
 // For now, assuming JobManagerController (REST API) is correctly mapped by existing setup.
 
-// Test CheckpointCoordinator setup
-var testJobId = "test-job-001";
-var coordinatorConfig = new JobManagerConfig { CheckpointIntervalSecs = 15 }; // Using class from CheckpointCoordinator.cs
-var checkpointCoordinator = new CheckpointCoordinator(testJobId, coordinatorConfig);
-TaskManagerRegistrationServiceImpl.JobCoordinators.TryAdd(testJobId, checkpointCoordinator);
-// checkpointCoordinator.Start(); // Start triggering for the test job - commented out for now
+// Test CheckpointCoordinator setup - This is now outdated due to constructor changes
+// var testJobId = "test-job-001";
+// var coordinatorConfig = new JobManagerConfig { CheckpointIntervalSecs = 15 };
+// ILogger<CheckpointCoordinator> dummyCoordinatorLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<CheckpointCoordinator>();
+// IJobRepository dummyRepo = app.Services.GetRequiredService<IJobRepository>();
+// var checkpointCoordinator = new CheckpointCoordinator(testJobId, dummyRepo, dummyCoordinatorLogger, coordinatorConfig);
+// TaskManagerRegistrationServiceImpl.JobCoordinators.TryAdd(testJobId, checkpointCoordinator);
+// checkpointCoordinator.Start();
 
 app.Run();
 

@@ -1,0 +1,20 @@
+@using Microsoft.Fast.Components.FluentUI
+@using Microsoft.Fast.Components.FluentUI.DesignTokens
+@using FlinkDotNet.WebUI.Services
+@inject ThemeService ThemeService
+
+<FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" Gap="10">
+    <FluentLabel>Light</FluentLabel>
+    <FluentSwitch CurrentValue="@(ThemeService.CurrentLuminance == BaseLayerLuminance.Dark)"
+                  CurrentValueChanged="@OnThemeToggleClicked"
+                  Label="Theme"
+                  HideLabel="true" />
+    <FluentLabel>Dark</FluentLabel>
+</FluentStack>
+
+@code {
+    private async Task OnThemeToggleClicked(bool isDark)
+    {
+        await ThemeService.SetLuminanceAsync(isDark ? BaseLayerLuminance.Dark : BaseLayerLuminance.Light);
+    }
+}

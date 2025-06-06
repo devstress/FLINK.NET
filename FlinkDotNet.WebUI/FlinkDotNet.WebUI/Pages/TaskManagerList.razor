@@ -1,0 +1,58 @@
+@page "/taskmanagers"
+@using FlinkDotNet.WebUI.Models
+@inject HttpClient Http
+@using Microsoft.Fast.Components.FluentUI
+
+<PageTitle>TaskManagers</PageTitle>
+
+<h1>Registered TaskManagers</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading TaskManagers...</em></p>
+    <FluentProgressRing />
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <FluentCard Style="padding: 1rem; margin-bottom: 1rem; background-color: var(--error-container-color); color: var(--on-error-container-color);">
+        <p><strong>Error:</strong> @errorMessage</p>
+    </FluentCard>
+}
+else if (taskManagers == null || !taskManagers.Any())
+{
+    <p><em>No TaskManagers currently registered.</em></p>
+}
+else
+{
+    <FluentDataGrid Items="@taskManagers" GridTemplateColumns="2fr 2fr 1fr 2fr" Style="width: 100%;">
+        <PropertyColumn Property="@(tm => tm.TaskManagerId)" Sortable="true" Title="ID" TooltipText="TaskManagerId" />
+        <PropertyColumn Property="@(tm => tm.Address)" Sortable="true" Title="Address" TooltipText="Address" />
+        <PropertyColumn Property="@(tm => tm.Port)" Sortable="true" Title="Port" TooltipText="Port" />
+        <PropertyColumn Property="@(tm => tm.LastHeartbeat)" Sortable="true" Title="Last Heartbeat" Format="yyyy-MM-dd HH:mm:ss UTC" TooltipText="LastHeartbeat" />
+    </FluentDataGrid>
+}
+
+@code {
+    private List<TaskManagerInfoUIDto>? taskManagers;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            taskManagers = await Http.GetFromJsonAsync<List<TaskManagerInfoUIDto>>("api/jobmanager/taskmanagers");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error fetching TaskManager list: {ex.Message}";
+            Console.WriteLine(ex); // Log full exception
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

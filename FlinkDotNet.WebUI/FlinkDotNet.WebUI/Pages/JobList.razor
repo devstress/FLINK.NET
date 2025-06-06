@@ -1,0 +1,59 @@
+@page "/jobs"
+@using FlinkDotNet.WebUI.Models
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@using Microsoft.Fast.Components.FluentUI
+
+<PageTitle>Job List</PageTitle>
+
+<h1>Flink Jobs</h1>
+
+@if (jobs == null)
+{
+    <p><em>Loading jobs...</em></p>
+    <FluentProgressRing />
+}
+else if (!jobs.Any())
+{
+    <p><em>No jobs found.</em></p>
+}
+else
+{
+    <FluentDataGrid Items="@jobs" GridTemplateColumns="1fr 2fr 2fr 1fr 1fr 1fr" Style="width: 100%;">
+        <TemplateColumn Title="Job ID" TooltipText="JobId">
+            <FluentAnchor Href="#" @onclick="@(() => NavigateToJobDetails(context.JobId!))" Appearance="Appearance.Hypertext">
+                @context.JobId?.Substring(0, 8)
+            </FluentAnchor>
+        </TemplateColumn>
+        <PropertyColumn Property="@(p => p.JobName)" Sortable="true" Title="Name" TooltipText="JobName" />
+        <PropertyColumn Property="@(p => p.SubmissionTime)" Sortable="true" Title="Submitted" Format="yyyy-MM-dd HH:mm:ss" TooltipText="SubmissionTime" />
+        <PropertyColumn Property="@(p => p.Status)" Sortable="true" Title="Status" TooltipText="Status" />
+        <PropertyColumn Property="@(p => p.Duration)" Sortable="true" Title="Duration" Format="hh\\:mm\\:ss" TooltipText="Duration" />
+        <TemplateColumn Title="Actions">
+            <FluentButton Appearance="Appearance.Stealth" @onclick="@(() => NavigateToJobDetails(context.JobId!))">Details</FluentButton>
+        </TemplateColumn>
+    </FluentDataGrid>
+}
+
+@code {
+    private List<JobOverviewDto>? jobs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            jobs = await Http.GetFromJsonAsync<List<JobOverviewDto>>("api/jobmanager/jobs");
+        }
+        catch (Exception ex)
+        {
+            // Log error or show error message
+            Console.WriteLine($"Error fetching jobs: {ex.Message}");
+            jobs = new List<JobOverviewDto>(); // Initialize to empty list on error to avoid null ref
+        }
+    }
+
+    private void NavigateToJobDetails(string jobId)
+    {
+        NavigationManager.NavigateTo($"/jobs/{jobId}");
+    }
+}

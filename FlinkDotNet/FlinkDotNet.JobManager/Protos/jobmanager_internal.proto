@@ -2,20 +2,24 @@ syntax = "proto3";
 
 option csharp_namespace = "FlinkDotNet.Proto.Internal";
 
-package FlinkDotNet.Proto;
+package FlinkDotNet.Proto; 
 
+// ----- JobManagerInternalService and related messages (mostly from feature branch) -----
 service JobManagerInternalService {
   rpc ReportStateCompletion (ReportStateCompletionRequest) returns (ReportStateCompletionReply);
   rpc RequestCheckpoint (RequestCheckpointRequest) returns (RequestCheckpointReply);
   rpc RequestRecovery (RequestRecoveryRequest) returns (RequestRecoveryReply);
-  rpc Heartbeat (JobManagerHeartbeatRequest) returns (JobManagerHeartbeatReply);
+  // Heartbeat was part of this service in one version, but seems to be part of TaskManagerRegistration in another.
+  // Let's assume TaskManagerRegistration.SendHeartbeat is the one to keep, and JobManagerInternalService.Heartbeat might be deprecated or for a different purpose.
+  // For this merge, I will OMIT JobManagerInternalService.Heartbeat if TaskManagerRegistration.SendHeartbeat exists and is more complete.
+  // The provided diff for JobManagerController uses TaskManagerTracker, which is updated by TaskManagerRegistrationService.
 }
 
 message ReportStateCompletionRequest {
   int64 checkpoint_id = 1;
-  string operator_instance_id = 2;
-  string state_location = 3;
-  map<string, int64> input_offsets = 4;
+  string operator_instance_id = 2; // This might be more like "jobVertexId_subtaskIndex"
+  string state_location = 3; 
+  map<string, int64> input_offsets = 4; // For sources
 }
 
 message ReportStateCompletionReply {
@@ -24,6 +28,7 @@ message ReportStateCompletionReply {
 
 message RequestCheckpointRequest {
   int64 checkpoint_id = 1;
+  // int64 checkpoint_timestamp = 2; // This was in TriggerCheckpointRequest, not here.
 }
 
 message RequestCheckpointReply {
@@ -39,187 +44,201 @@ message RequestRecoveryReply {
   bool recovery_initiated = 1;
 }
 
-message JobManagerHeartbeatRequest {
-  string job_id = 1;
-  string operator_instance_id = 2;
-  string health_status = 3;
-  map<string, double> metrics = 4;
-}
-
-message JobManagerHeartbeatReply {
-  bool ack = 1;
-}
-
+// ----- TaskManagerRegistration Service and related messages -----
+// (Combines elements from both, especially HeartbeatRequest)
 service TaskManagerRegistration {
   rpc RegisterTaskManager (RegisterTaskManagerRequest) returns (RegisterTaskManagerResponse);
-  rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse);
-  rpc AcknowledgeCheckpoint(AcknowledgeCheckpointRequest) returns (AcknowledgeCheckpointResponse);
+  rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse); // This is the primary heartbeat
+  rpc AcknowledgeCheckpoint(AcknowledgeCheckpointRequest) returns (AcknowledgeCheckpointResponse); 
 }
 
 message RegisterTaskManagerRequest {
-  string taskManagerId = 1;
-  string address = 2;
-  int32 port = 3;
+  string taskManagerId = 1; 
+  string address = 2;       
+  int32 port = 3;           
 }
 
 message RegisterTaskManagerResponse {
   bool success = 1;
-  string jobManagerId = 2;
+  string jobManagerId = 2; 
 }
 
-message HeartbeatRequest {
+// From 'main' branch for metrics
+message TaskMetricData {
+  string task_id = 1; // Format: JobVertexId_SubtaskIndex
+  int64 records_in = 2;
+  int64 records_out = 3;
+}
+
+message HeartbeatRequest { // Merged version
   string taskManagerId = 1;
+  repeated TaskMetricData task_metrics = 2; // From 'main'
+  // Could add other TM-level status/metrics here from 'feature' if any were planned
 }
 
-message HeartbeatResponse {
+message HeartbeatResponse { // Merged version
   bool acknowledged = 1;
+  // Potentially commands from JM back to TM
 }
 
-message CheckpointTaskInfo {
+// ----- Checkpointing related messages (mostly from feature branch) -----
+message CheckpointTaskInfo { // This seems less used if AcknowledgeCheckpointRequest has all details
     string taskManagerId = 1;
-    string snapshotPath = 2;
+    string snapshotPath = 2; 
 }
 
-message TriggerCheckpointRequest {
-    string jobManagerId = 1;
-    string jobId = 2;
+message TriggerCheckpointRequest { // JM -> TM (for TaskManagerCheckpointing service)
+    string jobManagerId = 1; 
+    string jobId = 2;        
     int64 checkpointId = 3;
     int64 checkpointTimestamp = 4;
 }
 
 message TriggerCheckpointResponse {
-    bool acknowledged = 1;
+    bool acknowledged = 1; 
 }
 
-message AcknowledgeCheckpointRequest {
-    string jobManagerId = 1;
+message AcknowledgeCheckpointRequest { // TM -> JM (for TaskManagerRegistration service)
+    string jobManagerId = 1; // Should be ID of JM receiving this
     string jobId = 2;
     int64 checkpointId = 3;
-    string taskManagerId = 4;
-    string jobVertexId = 5;
-    int32 subtaskIndex = 6;
-    string snapshotHandle = 7;
-    map<string, int64> source_offsets = 8;
-    uint64 snapshotSize = 9;
-    uint64 duration = 10;
+    string taskManagerId = 4; 
+    string jobVertexId = 5;       // Specific operator/vertex ID
+    int32 subtaskIndex = 6;       // Specific subtask index
+    string snapshotHandle = 7; 
+    map<string, int64> source_offsets = 8; // For sources
+    uint64 snapshotSize = 9;      // Optional
+    uint64 duration = 10;         // Optional
 }
 
 message AcknowledgeCheckpointResponse {
     bool success = 1;
 }
 
-service TaskManagerCheckpointing {
+service TaskManagerCheckpointing { // TM hosts this, JM calls it
   rpc TriggerTaskCheckpoint (TriggerCheckpointRequest) returns (TriggerCheckpointResponse);
 }
 
+// ----- Task Deployment messages (mostly from feature branch) -----
 message OperatorInput {
-    string sourceVertexId = 1;
-    string upstream_job_vertex_id = 2;
-    int32 upstream_subtask_index = 3;
+    string sourceVertexId = 1; // Original upstream vertex in JobGraph that this input edge comes from
+    // Fields to identify the immediate sender if different from original source (e.g. after shuffles)
+    // These are crucial for barrier alignment with multiple inputs.
+    string upstream_job_vertex_id = 2; // The JobVertexId of the task instance sending data on this input channel
+    int32 upstream_subtask_index = 3;   // The SubtaskIndex of the task instance sending data
 }
 
-message OperatorOutput {
-    string targetVertexId = 1;
-    string target_task_endpoint = 2;
-    int32 target_specific_subtask_index = 3;
+message OperatorOutput { // Defines a connection to a specific downstream subtask instance
+    string targetVertexId = 1; 
+    string target_task_endpoint = 2; // Host:Port of the TM running the target subtask
+    int32 target_specific_subtask_index = 3; 
 }
 
-message OutputEdgeKeyingInfo {
-  string target_job_vertex_id = 1;
-  string serialized_key_selector = 2;
-  string key_type_name = 3;
+message OutputEdgeKeyingInfo { // For TDD, if an output is hash partitioned
+  string target_job_vertex_id = 1; 
+  string serialized_key_selector = 2; 
+  string key_type_name = 3;           
   int32 downstream_parallelism = 4;
 }
 
-message InputKeyingInfo {
-  string serialized_key_selector = 1;
-  string key_type_name = 2;
+message InputKeyingInfo { // For TDD, if an input is expected to be keyed (for state access)
+  string serialized_key_selector = 1; // Selector used by upstream to partition to this task
+  string key_type_name = 2;           // Type of the key for this input stream
 }
 
-message ChainedOperatorInfo {
-  string original_job_vertex_id = 1;
-  string fully_qualified_operator_name = 2;
-  bytes operator_configuration = 3;
-  string input_type_name = 4;
-  string output_type_name = 5;
+message ChainedOperatorInfo { // For TDD, for operators chained after the head operator
+  string original_job_vertex_id = 1; // Original JobVertexId for this specific operator
+  string fully_qualified_operator_name = 2; 
+  bytes operator_configuration = 3;       
+  string input_type_name = 4;  // Input type for this specific chained op           
+  string output_type_name = 5; // Output type from this specific chained op           
 }
 
 message TaskDeploymentDescriptor {
-    string jobGraphJobId = 1;
-    string jobVertexId = 2;
-    int32 subtaskIndex = 3;
-    string taskName = 4;
+    string jobGraphJobId = 1;         
+    string jobVertexId = 2;           // ID of the JobVertex for the *head* operator of this task/chain
+    int32 subtaskIndex = 3;           
+    string taskName = 4;              
 
-    string fullyQualifiedOperatorName = 5;
-    bytes operatorConfiguration = 6;
-    string inputTypeName = 9;
-    string outputTypeName = 10;
-    string inputSerializerTypeName = 11;
-    string outputSerializerTypeName = 12;
+    string fullyQualifiedOperatorName = 5; // For the head operator
+    bytes operatorConfiguration = 6;       // For the head operator (can include windowing config etc.)
+    
+    repeated OperatorInput inputs = 7;     // Inputs for the *head* operator
+    repeated OperatorOutput outputs = 8;    // Outputs from the *last* operator in the chain
 
-    repeated OperatorInput inputs = 7;
-    repeated OperatorOutput outputs = 8;
+    // Serializer/Type info for the overall task's network boundaries
+    string inputTypeName = 9;              // Input type for the *head* operator from network/source
+    string outputTypeName = 10;            // Output type from the *last* operator to network/sink
+    string inputSerializerTypeName = 11;   
+    string outputSerializerTypeName = 12;  
 
-    repeated OutputEdgeKeyingInfo output_keying_info = 13;
+    repeated OutputEdgeKeyingInfo output_keying_info = 13; // For outputs of the *last* operator if keyed
 
+    // Recovery fields
     bool is_recovery = 14;
     int64 recovery_checkpoint_id = 15;
-    string recovery_snapshot_handle = 16;
+    string recovery_snapshot_handle = 16; 
     map<string, int64> recovery_source_offsets = 17;
 
-    repeated InputKeyingInfo input_keying_info = 18;
-    repeated ChainedOperatorInfo chained_operator_info = 19;
+    repeated InputKeyingInfo input_keying_info = 18; // For inputs of the *head* operator if its state is keyed
+    repeated ChainedOperatorInfo chained_operator_info = 19; // Subsequent operators in the chain
 }
 
 message DeployTaskResponse {
     bool success = 1;
-    string message = 2;
+    string message = 2; 
 }
 
-service TaskExecution {
+service TaskExecution { // TM hosts this, JM calls it
   rpc DeployTask (TaskDeploymentDescriptor) returns (DeployTaskResponse);
 }
 
+// ----- Data Exchange messages (from feature branch, for credit control and new DataExchangeService) -----
 message CheckpointBarrier {
   int64 checkpoint_id = 1;
-  int64 checkpoint_timestamp = 2;
+  int64 checkpoint_timestamp = 2; 
+}
+
+message Watermark { // NEW for windowing event time
+  int64 timestamp = 1;
 }
 
 message DataRecord {
-    string targetJobVertexId = 1;
-    int32 targetSubtaskIndex = 2;
-
-    string source_job_vertex_id = 5;
-    int32 source_subtask_index = 6;
-
+    string targetJobVertexId = 1;     // Target JobVertex on the receiving TM
+    int32 targetSubtaskIndex = 2;     // Specific subtask index of the target operator
+    
+    // Sender identification for multi-input alignment (barriers, watermarks)
+    string source_job_vertex_id = 5;  // JobVertexId of the sending task
+    int32 source_subtask_index = 6;   // SubtaskIndex of the sending task
+    
     oneof payload_type {
-      bytes data_payload = 3;
-      CheckpointBarrier barrier_payload = 4;
+      bytes data_payload = 3;           // Serialized user data record
+      CheckpointBarrier barrier_payload = 4; 
+      Watermark watermark_payload = 7; // New payload type for watermarks (ensure field number 7 is unique)
     }
 }
 
-// New messages for credit-based flow control
-message UpstreamPayload {
+message UpstreamPayload { // For new ExchangeData RPC
   oneof payload_oneof {
     DataRecord record = 1;
-    // Could add other upstream messages like EndOfStreamMarker, etc.
+    // Could add other control messages from sender here if needed
   }
 }
 
-message CreditUpdate {
+message CreditUpdate { // For new ExchangeData RPC
   int32 credits_granted = 1;
 }
 
-message DownstreamPayload {
+message DownstreamPayload { // For new ExchangeData RPC
   oneof payload_oneof {
     CreditUpdate credits = 1;
-    // Could add other downstream messages like Ack, error reports, etc.
+    // Could add other control messages from receiver here if needed
   }
 }
 
-// DataAck is removed as it's no longer used by the new DataExchangeService.
+// DataAck message is removed as it's no longer used by the new DataExchangeService.
 
-// Modified DataExchangeService for full duplex communication
-service DataExchangeService {
+service DataExchangeService { // TM hosts this, other TMs call it
+  // Bi-directional streaming RPC for data and credit exchange
   rpc ExchangeData (stream UpstreamPayload) returns (stream DownstreamPayload);
 }
