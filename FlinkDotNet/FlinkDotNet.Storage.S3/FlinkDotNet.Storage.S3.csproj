@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework> <!-- Or your project's target framework -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="3.7.308.5" /> <!-- Use a recent stable version -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

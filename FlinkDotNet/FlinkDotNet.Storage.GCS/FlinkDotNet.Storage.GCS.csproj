@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework> <!-- Or your project's target framework -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.Storage.V1" Version="4.9.0" /> <!-- Use a recent stable version -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
