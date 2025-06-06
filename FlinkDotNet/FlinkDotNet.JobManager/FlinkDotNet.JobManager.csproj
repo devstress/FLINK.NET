@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNetAspire\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

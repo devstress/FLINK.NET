@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Core.Api\FlinkDotNet.Core.Api.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Connectors.Sources.File\FlinkDotNet.Connectors.Sources.File.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Connectors.Sinks.Console\FlinkDotNet.Connectors.Sinks.Console.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.25.1" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.59.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.60.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+    <PackageReference Include="Confluent.Kafka" Version="2.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Assuming jobmanager_internal.proto is in FlinkDotNet/FlinkDotNet.JobManager/Protos -->
+    <Protobuf Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\Protos\jobmanager_internal.proto" GrpcServices="Client" Link="Protos\jobmanager_internal.proto" />
+  </ItemGroup>
+</Project>

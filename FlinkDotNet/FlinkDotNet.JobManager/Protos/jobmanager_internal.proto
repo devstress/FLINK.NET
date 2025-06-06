@@ -213,9 +213,14 @@ message DataRecord {
     
     oneof payload_type {
       bytes data_payload = 3;           // Serialized user data record
-      CheckpointBarrier barrier_payload = 4; 
-      Watermark watermark_payload = 7; // New payload type for watermarks (ensure field number 7 is unique)
+      CheckpointBarrier barrier_payload = 4; // Contains id and timestamp
+      Watermark watermark_payload = 7;
     }
+
+  // New fields for barrier indication and options
+  bool is_checkpoint_barrier = 8; // Explicitly marks if this DataRecord (wrapper) is a barrier.
+                                  // If true, barrier_payload is expected to be set.
+  bytes checkpoint_options = 9;   // Optional: For future extensions like type of checkpoint or other flags
 }
 
 message UpstreamPayload { // For new ExchangeData RPC
