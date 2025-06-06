@@ -9,6 +9,7 @@ using System.Threading.Tasks; // Added for Task
 using FlinkDotNet.JobManager.Models.JobGraph; // For JobGraph, JobVertex, JobEdge, etc.
 using FlinkDotNet.Core.Api.Streaming; // For Transformation, DataStream, etc. (assuming these exist)
 using System.Collections.Generic; // For List, Dictionary
+using FlinkDotNet.Core.Abstractions.Operators; // For ChainingStrategy
 
 // Removed embedded placeholder for JobGraph
 
@@ -18,7 +19,10 @@ namespace FlinkDotNet.Core.Api
     {
         private static StreamExecutionEnvironment? _defaultInstance;
         public SerializerRegistry SerializerRegistry { get; }
-        public List<Transformation> Transformations { get; } = new List<Transformation>();
+        public List<FlinkDotNet.Core.Api.Streaming.Transformation> Transformations { get; } = new List<FlinkDotNet.Core.Api.Streaming.Transformation>(); // Correctly typed list
+
+        private bool _isChainingEnabled = true;
+        private ChainingStrategy _defaultChainingStrategy = ChainingStrategy.ALWAYS; // Align with Flink's common operator default
 
         // Constructor
         public StreamExecutionEnvironment()
@@ -33,103 +37,225 @@ namespace FlinkDotNet.Core.Api
             return _defaultInstance;
         }
 
-        internal void AddTransformation(Transformation transformation)
+        internal void AddTransformation(FlinkDotNet.Core.Api.Streaming.Transformation transformation) // Corrected parameter type
         {
             Transformations.Add(transformation);
         }
 
-        public DataStream<T> AddSource<T>(Abstractions.Sources.ISourceFunction<T> sourceFunction, string name)
+        public FlinkDotNet.Core.Api.Streaming.DataStream<T> AddSource<T>(Abstractions.Sources.ISourceFunction<T> sourceFunction, string name) // Corrected return type
         {
-            var transformation = new SourceTransformation<T>(name, sourceFunction, this);
+            // Correctly instantiate SourceTransformation from the Streaming namespace
+            var transformation = new FlinkDotNet.Core.Api.Streaming.SourceTransformation<T>(name, sourceFunction, typeof(T));
             AddTransformation(transformation);
-            return new DataStream<T>(this, transformation);
+            return new FlinkDotNet.Core.Api.Streaming.DataStream<T>(this, transformation);
         }
 
 
         public FlinkDotNet.JobManager.Models.JobGraph.JobGraph CreateJobGraph(string jobName = "MyFlinkJob")
         {
-            var jobGraph = new FlinkDotNet.JobManager.Models.JobGraph.JobGraph(jobName);
-
-            jobGraph.SerializerTypeRegistrations = SerializerRegistry.GetNamedRegistrations()
-                                                       .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-            var transformationToVertexId = new Dictionary<Guid, Guid>();
-
-            // First pass: Create all vertices
-            foreach (var transform in Transformations)
+            var jobGraph = new FlinkDotNet.JobManager.Models.JobGraph.JobGraph(jobName)
             {
-                var vertexType = transform switch
+                SerializerTypeRegistrations = SerializerRegistry.GetNamedRegistrations()
+                                                               .ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
+            };
+
+            var transformationToJobVertexIdMap = new Dictionary<FlinkDotNet.Core.Api.Streaming.Transformation, Guid>();
+            var visitedTransformations = new HashSet<FlinkDotNet.Core.Api.Streaming.Transformation>();
+
+            foreach (var rootTransform in Transformations)
+            {
+                // Ensure all transformations are treated as FlinkDotNet.Core.Api.Streaming.Transformation
+                var streamingRootTransform = rootTransform as FlinkDotNet.Core.Api.Streaming.Transformation;
+                if (streamingRootTransform == null)
                 {
-                    SourceTransformation<object> _ => VertexType.Source, // Simplified, need generic handling
-                    SinkTransformation<object> _ => VertexType.Sink,     // Simplified, need generic handling
-                    _ => VertexType.Operator
-                };
+                    // This should not happen if Transformations list is correctly populated
+                    throw new InvalidOperationException("Transformation in list is not of expected type.");
+                }
 
-                // This is highly simplified. OperatorDefinition would need real configuration.
-                var opDef = new OperatorDefinition(
-                    transform.OperatorType.AssemblyQualifiedName ?? "UnknownOperator",
-                    "{}"); // Empty JSON config for now
-
-                var vertex = new JobVertex(
-                    transform.Name,
-                    vertexType,
-                    opDef,
-                    transform.Parallelism,
-                    transform.InputType?.AssemblyQualifiedName,
-                    transform.OutputType?.AssemblyQualifiedName
-                );
-
-                // TODO: Populate vertex.InputSerializerTypeName and vertex.OutputSerializerTypeName
-                // from SerializerRegistry based on InputType and OutputType.
-
-                jobGraph.AddVertex(vertex);
-                transformationToVertexId[transform.Id] = vertex.Id;
+                if (!visitedTransformations.Contains(streamingRootTransform))
+                {
+                    BuildGraphNodeRecursive(streamingRootTransform, jobGraph, transformationToJobVertexIdMap, visitedTransformations, null, null);
+                }
             }
 
-            // Second pass: Create all edges
-            foreach (var transform in Transformations)
+            return jobGraph;
+        }
+
+        private void BuildGraphNodeRecursive(
+            FlinkDotNet.Core.Api.Streaming.Transformation currentTransform,
+            JobGraph jobGraph,
+            Dictionary<FlinkDotNet.Core.Api.Streaming.Transformation, Guid> transformationToJobVertexIdMap,
+            HashSet<FlinkDotNet.Core.Api.Streaming.Transformation> visited,
+            JobVertex? currentChainHeadVertex,
+            FlinkDotNet.Core.Api.Streaming.Transformation? previousTransformInChain)
+        {
+            visited.Add(currentTransform);
+
+            Type operatorClrType = typeof(object); // Default
+            object? operatorInstance = null;
+
+            // Correctly get Operator Type and Instance based on actual Transformation type
+            if (currentTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object> srcT) // Assuming generic type for casting
             {
-                Guid targetVertexId = transformationToVertexId[transform.Id];
-                foreach (var inputTransform in transform.Inputs)
+                operatorInstance = srcT.SourceFunction;
+                operatorClrType = operatorInstance.GetType();
+            }
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.OneInputTransformation<object, object> oneInT) // Assuming generic types
+            {
+                operatorInstance = oneInT.Operator;
+                operatorClrType = operatorInstance.GetType();
+            }
+            // TODO: Add SinkTransformation if it exists and is used similarly.
+            // else if (currentTransform is FlinkDotNet.Core.Api.Streaming.SinkTransformation<object> sinkT)
+            // {
+            //     operatorInstance = sinkT.SinkFunction;
+            //     operatorClrType = operatorInstance.GetType();
+            // }
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyT)
+            {
+                // KeyedTransformation might not have a direct "operator" instance in the same way.
+                // It represents a state/partitioning characteristic.
+                // For OperatorDefinition, we might use a generic type or a specific marker type.
+                // For now, let's use its own type. Its main effect is on the edge.
+                operatorInstance = keyT; // The transformation itself can be the "operator" for definition purposes
+                operatorClrType = keyT.GetType();
+            }
+
+
+            var opDef = new OperatorDefinition(
+                operatorClrType.AssemblyQualifiedName ?? currentTransform.GetType().AssemblyQualifiedName ?? "UnknownOperator",
+                "{}" // Empty JSON config for now
+            );
+
+            string? opInputTypeName = null;
+            string opOutputTypeName = currentTransform.OutputType.AssemblyQualifiedName!;
+
+            if (previousTransformInChain != null)
+            {
+                opInputTypeName = previousTransformInChain.OutputType.AssemblyQualifiedName;
+            }
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.OneInputTransformation<object, object> oneInputNode) // If head of chain is an operator
+            {
+                 opInputTypeName = oneInputNode.Input.OutputType.AssemblyQualifiedName;
+            }
+             else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyedNode) // If head of chain is a keyed Op
+            {
+                 opInputTypeName = keyedNode.Input.OutputType.AssemblyQualifiedName;
+            }
+            // SourceTransformations will have null opInputTypeName if they are head, which is correct.
+
+            if (currentChainHeadVertex == null) // Starts a new JobVertex
+            {
+                VertexType vertexType = currentTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object>
+                    ? VertexType.Source
+                    // : (currentTransform is FlinkDotNet.Core.Api.Streaming.SinkTransformation<object> ? VertexType.Sink : VertexType.Operator); // Example if Sink exists
+                    : VertexType.Operator;
+
+                string? vertexInputTypeName = opInputTypeName; // For the first operator in a chain
+
+                // For a Source, opInputTypeName would be null, which is correct for VertexInputTypeName
+                // For an operator that is head of a new chain, opInputTypeName is its actual input.
+
+                var newChainHeadVertex = new JobVertex(
+                    currentTransform.Name,
+                    vertexType,
+                    opDef,
+                    currentTransform.Parallelism
+                )
                 {
-                    Guid sourceVertexId = transformationToVertexId[inputTransform.Id];
+                    InputTypeName = vertexInputTypeName,
+                    OutputTypeName = opOutputTypeName // Initially, the output of the head is the output of the vertex
+                };
 
-                    // Determine ShuffleMode and OutputKeyingConfig
-                    var shuffleMode = ShuffleMode.Forward; // Default
-                    OutputKeyingConfig? keyingConfig = null;
+                jobGraph.AddVertex(newChainHeadVertex);
+                transformationToJobVertexIdMap[currentTransform] = newChainHeadVertex.Id;
+                currentChainHeadVertex = newChainHeadVertex;
+            }
+            else // Chain currentTransform onto currentChainHeadVertex
+            {
+                currentChainHeadVertex.ChainedOperators.Add(opDef);
+                transformationToJobVertexIdMap[currentTransform] = currentChainHeadVertex.Id;
+                currentChainHeadVertex.OutputTypeName = opOutputTypeName; // Update vertex output to the end of the chain
+            }
 
-                    if (inputTransform is KeyedTransformation<object,object> keyedInput) // Simplified type check
+            foreach (var (downstreamTransform, shuffleMode) in currentTransform.DownstreamTransformations)
+            {
+                Guid sourceVertexIdForEdge = transformationToJobVertexIdMap[currentTransform];
+                JobVertex currentPhysicalVertex = jobGraph.Vertices.First(v => v.Id == sourceVertexIdForEdge);
+
+                // Determine if currentTransform can chain with downstreamTransform
+                bool canChain = false; // Default to not chaining
+
+                if (this._isChainingEnabled) // Check global chaining flag first
+                {
+                    // Get strategies. Transformation.ChainingStrategy defaults to ALWAYS.
+                    ChainingStrategy upstreamStrategy = currentTransform.ChainingStrategy;
+                    ChainingStrategy downstreamStrategy = downstreamTransform.ChainingStrategy;
+
+                    bool strategiesAllow = true;
+                    if (upstreamStrategy == ChainingStrategy.NEVER || downstreamStrategy == ChainingStrategy.NEVER)
                     {
-                        shuffleMode = ShuffleMode.Hash;
-                        // This assumes KeyedTransformation has KeySelectorTypeName and KeyTypeAssemblyName properties
-                        // keyingConfig = new OutputKeyingConfig(keyedInput.KeySelectorTypeName, keyedInput.KeyTypeAssemblyName);
-                        // For PoC, we might need to make assumptions or leave it null if properties don't exist
-                        System.Console.WriteLine($"Warning: KeyedTransformation detected but OutputKeyingConfig creation is placeholder for {inputTransform.Name}");
-
+                        strategiesAllow = false;
                     }
 
-                    // DataTypeName should be the OutputType of the sourceTransform (inputTransform here)
-                    var edgeDataTypeName = inputTransform.OutputType?.AssemblyQualifiedName ?? "UnknownType";
-                    // TODO: Get SerializerTypeName for edgeDataTypeName from SerializerRegistry
+                    // If the downstream operator wants to be the head of a chain,
+                    // it cannot be chained to the current upstream operator.
+                    if (downstreamStrategy == ChainingStrategy.HEAD)
+                    {
+                        strategiesAllow = false;
+                    }
+
+                    // Note: If upstreamStrategy is HEAD, it means currentTransform itself did not chain with *its*
+                    // predecessor. It can still chain with its successor if downstreamStrategy is ALWAYS.
+                    // This is implicitly handled because currentChainHeadVertex would have been null when
+                    // BuildGraphNodeRecursive was called for currentTransform if it was HEAD.
+
+                    if (strategiesAllow)
+                    {
+                        canChain = (shuffleMode == ShuffleMode.Forward &&
+                                    currentTransform.Parallelism == downstreamTransform.Parallelism &&
+                                    !(downstreamTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object>));
+                                    // Ensure downstream is not a source.
+                                    // Add other fundamental chaining conditions if any (e.g. not a sink that must terminate a chain if such a type exists).
+                    }
+                }
+                // 'canChain' now holds the final decision.
+
+                if (canChain)
+                {
+                    BuildGraphNodeRecursive(downstreamTransform, jobGraph, transformationToJobVertexIdMap, visited, currentChainHeadVertex, currentTransform);
+                }
+                else
+                {
+                    Guid targetVertexIdForEdge;
+                    if (transformationToJobVertexIdMap.TryGetValue(downstreamTransform, out var existingTargetId))
+                    {
+                        targetVertexIdForEdge = existingTargetId;
+                    }
+                    else
+                    {
+                        BuildGraphNodeRecursive(downstreamTransform, jobGraph, transformationToJobVertexIdMap, visited, null, null);
+                        targetVertexIdForEdge = transformationToJobVertexIdMap[downstreamTransform];
+                    }
 
                     var edge = new JobEdge(
-                        sourceVertexId,
-                        targetVertexId,
-                        edgeDataTypeName,
+                        sourceVertexIdForEdge,
+                        targetVertexIdForEdge,
+                        currentTransform.OutputType.AssemblyQualifiedName!,
                         shuffleMode,
-                        null, // serializerTypeName placeholder
-                        keyingConfig
+                        null // Serializer type name for the edge
                     );
                     jobGraph.AddEdge(edge);
 
-                    // Link edge to vertices (JobGraph.AddEdge should handle this if JobEdge constructor doesn't)
-                    // Or, if JobVertex expects direct calls:
-                    // jobGraph.Vertices.First(v => v.Id == sourceVertexId).AddOutputEdgeId(edge.Id);
-                    // jobGraph.Vertices.First(v => v.Id == targetVertexId).AddInputEdgeId(edge.Id);
-                    // Current JobVertex has internal AddInput/OutputEdgeId, JobGraph.AddEdge should be responsible.
+                    if (shuffleMode == ShuffleMode.Hash && currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyedSource)
+                    {
+                         currentPhysicalVertex.OutputEdgeKeying[edge.Id] = new KeyingInfo(
+                            keyedSource.SerializedKeySelectorRepresentation,
+                            keyedSource.KeyType.AssemblyQualifiedName!
+                        );
+                    }
                 }
             }
-            return jobGraph;
         }
 
         // Placeholder for ExecuteAsync if it's part of this class
@@ -140,141 +266,25 @@ namespace FlinkDotNet.Core.Api
             Console.WriteLine($"JobGraph '{jobGraph.JobName}' created. In a real scenario, this would be submitted.");
             return Task.CompletedTask;
         }
-    }
 
-    // Define Transformation and related classes if they are not in a separate file yet for PoC
-    // These are very basic placeholders.
-    namespace Streaming
-    {
-        public abstract class Transformation
+        public void DisableOperatorChaining()
         {
-            public Guid Id { get; } = Guid.NewGuid();
-            public string Name { get; }
-            public Type? InputType { get; protected set; }
-            public Type? OutputType { get; protected set; }
-            public int Parallelism { get; set; } = 1;
-            public List<Transformation> Inputs { get; } = new List<Transformation>();
-            public abstract Type OperatorType { get; }
-
-
-            protected Transformation(string name, StreamExecutionEnvironment environment)
-            {
-                Name = name;
-            }
+            this._isChainingEnabled = false;
         }
 
-        public class SourceTransformation<TOut> : Transformation
+        public bool IsChainingEnabled()
         {
-            public Abstractions.Sources.ISourceFunction<TOut> SourceFunction { get; }
-            public override Type OperatorType => SourceFunction.GetType();
-
-
-            public SourceTransformation(string name, Abstractions.Sources.ISourceFunction<TOut> sourceFunction, StreamExecutionEnvironment environment)
-                : base(name, environment)
-            {
-                SourceFunction = sourceFunction;
-                OutputType = typeof(TOut);
-            }
+            return this._isChainingEnabled;
         }
 
-        public class KeyedTransformation<TIn, TKey> : Transformation
+        public void SetDefaultChainingStrategy(ChainingStrategy strategy)
         {
-            // Placeholder for KeySelectorTypeName and KeyTypeAssemblyName
-            public string KeySelectorTypeName { get; set; } = "UnknownKeySelector";
-            public string KeyTypeAssemblyName { get; set; } = "UnknownKeyType";
-            public override Type OperatorType { get; } // This would be the type of the operation that produced the keyed stream
-
-            public KeyedTransformation(string name, Transformation input, StreamExecutionEnvironment environment) : base(name, environment)
-            {
-                Inputs.Add(input);
-                InputType = input.OutputType;
-                OutputType = input.OutputType; // Keying doesn't change data type itself, just its distribution properties
-                OperatorType = typeof(object); // Placeholder
-            }
+            this._defaultChainingStrategy = strategy;
         }
 
-
-        public class SinkTransformation<TIn> : Transformation
+        public ChainingStrategy GetDefaultChainingStrategy()
         {
-            public Abstractions.Sinks.ISinkFunction<TIn> SinkFunction { get; }
-            public override Type OperatorType => SinkFunction.GetType();
-
-            public SinkTransformation(string name, DataStream<TIn> inputStream, Abstractions.Sinks.ISinkFunction<TIn> sinkFunction, StreamExecutionEnvironment environment)
-                : base(name, environment)
-            {
-                SinkFunction = sinkFunction;
-                Inputs.Add(inputStream.Transformation);
-                InputType = inputStream.Transformation.OutputType;
-                OutputType = null; // Sinks don't have an output type
-            }
-        }
-
-        public class DataStream<T>
-        {
-            public StreamExecutionEnvironment Environment { get; }
-            public Transformation Transformation { get; }
-
-            public DataStream(StreamExecutionEnvironment environment, Transformation transformation)
-            {
-                Environment = environment;
-                Transformation = transformation;
-            }
-
-            public DataStream<TOut> Map<TOut>(Abstractions.Operators.IMapOperator<T, TOut> mapper, string name)
-            {
-                var mapTransformation = new MapTransformation<T, TOut>(name, this, mapper, Environment);
-                Environment.AddTransformation(mapTransformation);
-                return new DataStream<TOut>(Environment, mapTransformation);
-            }
-
-            public DataStream<T> KeyBy<TKey>(Abstractions.Operators.IKeySelector<T, TKey> keySelector, string name)
-            {
-                 // This is a conceptual representation.
-                 // A real KeyedStream might be a different class, or KeyedTransformation might wrap the original DataStream's transformation.
-                var keyedTransformation = new KeyedTransformation<T, TKey>(name, this.Transformation, Environment);
-                // KeyedTransformation would store keySelector's type name and TKey's type name.
-                // For simplicity, not adding it to Transformation list for JobGraph generation directly,
-                // but its properties (like shuffle mode HASH) would affect the edge leading to the *next* operator.
-                // However, for graph representation, often a keyBy itself isn't a vertex, but modifies the edge.
-                // For this PoC, let's assume KeyedTransformation is a node for simplicity of the loop above.
-                // Environment.AddTransformation(keyedTransformation); // Or handle differently.
-                // For now, let's return a new DataStream that wraps this KeyedTransformation
-                // This is a simplification; usually KeyBy returns a KeyedStream<T, TKey>
-                return new DataStream<T>(Environment, keyedTransformation);
-            }
-
-
-            public DataStream<TOut> Process<TOut>(string name /* complex operator */)
-            {
-                // Placeholder for more complex operators
-                // var processTransformation = new ProcessTransformation<T, TOut>(name, this, ..., Environment);
-                // Environment.AddTransformation(processTransformation);
-                // return new DataStream<TOut>(Environment, processTransformation);
-                throw new NotImplementedException();
-            }
-
-
-            public void AddSink(Abstractions.Sinks.ISinkFunction<T> sinkFunction, string name)
-            {
-                var sinkTransformation = new SinkTransformation<T>(name, this, sinkFunction, Environment);
-                Environment.AddTransformation(sinkTransformation);
-            }
-        }
-
-        public class MapTransformation<TIn, TOut> : Transformation
-        {
-            public Abstractions.Operators.IMapOperator<TIn, TOut> Mapper { get; }
-            public override Type OperatorType => Mapper.GetType();
-
-
-            public MapTransformation(string name, DataStream<TIn> inputStream, Abstractions.Operators.IMapOperator<TIn, TOut> mapper, StreamExecutionEnvironment environment)
-                : base(name, environment)
-            {
-                Mapper = mapper;
-                Inputs.Add(inputStream.Transformation);
-                InputType = inputStream.Transformation.OutputType;
-                OutputType = typeof(TOut);
-            }
+            return this._defaultChainingStrategy;
         }
     }
 }

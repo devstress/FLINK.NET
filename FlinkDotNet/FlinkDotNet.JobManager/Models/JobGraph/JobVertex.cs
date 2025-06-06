@@ -52,6 +52,11 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         /// </summary>
         public Dictionary<Guid, KeyingInfo> OutputEdgeKeying { get; } = new Dictionary<Guid, KeyingInfo>();
 
+        /// <summary>
+        /// List of operators chained to this vertex.
+        /// </summary>
+        public List<OperatorDefinition> ChainedOperators { get; } = new List<OperatorDefinition>();
+
         // --- Fields from 'main' (user's changes) ---
         public long AggregatedRecordsIn { get; set; } = 0; // This is runtime state, might not belong in core JobGraph model for submission
         public long AggregatedRecordsOut { get; set; } = 0; // This is runtime state, might not belong in core JobGraph model for submission
@@ -139,6 +144,11 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
             // AggregatedRecordsIn and AggregatedRecordsOut are runtime metrics, not typically part of the static graph definition for submission.
             // If they need to be part of a status snapshot, they could be added to a different proto message or context.
 
+            foreach (var chainedOperator in ChainedOperators)
+            {
+                protoVertex.ChainedOperators.Add(chainedOperator.ToProto());
+            }
+
             return protoVertex;
         }
 
@@ -176,6 +186,11 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
             foreach (var kvp in protoVertex.OutputEdgeKeying)
             {
                 vertex.OutputEdgeKeying.Add(Guid.Parse(kvp.Key), KeyingInfo.FromProto(kvp.Value)); // Assumes KeyingInfo has FromProto
+            }
+
+            foreach (var protoChainedOperator in protoVertex.ChainedOperators)
+            {
+                vertex.ChainedOperators.Add(OperatorDefinition.FromProto(protoChainedOperator));
             }
 
             // Runtime metrics like AggregatedRecordsIn/Out are not set from the static graph definition

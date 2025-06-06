@@ -247,3 +247,44 @@ service DataExchangeService { // TM hosts this, other TMs call it
   // Bi-directional streaming RPC for data and credit exchange
   rpc ExchangeData (stream UpstreamPayload) returns (stream DownstreamPayload);
 }
+
+// ----- Added message definitions based on C# models -----
+
+// Enum for JobVertex type
+enum VertexType {
+  SOURCE = 0;
+  OPERATOR = 1;
+  SINK = 2;
+}
+
+// Message for KeyingInfo (maps to OutputKeyingConfig in C# model)
+message OutputKeyingConfig {
+  string key_selector_type_name = 1;
+  string key_type_assembly_name = 2;
+}
+
+// Message for OperatorDefinition
+message OperatorDefinition {
+  string fully_qualified_name = 1;
+  google.protobuf.Struct configuration = 2; // Using Struct for flexible JSON-like configuration
+}
+
+// Message for JobVertex
+message JobVertex {
+  string id = 1;
+  string name = 2;
+  OperatorDefinition operator_definition = 3;
+  int32 parallelism = 4;
+  VertexType vertex_type = 5;
+  string input_type_name = 6;           // Optional: field presence indicates if set
+  string output_type_name = 7;          // Optional: field presence indicates if set
+  string input_serializer_type_name = 8; // Optional
+  string output_serializer_type_name = 9;// Optional
+  repeated string input_edge_ids = 10;
+  repeated string output_edge_ids = 11;
+  map<string, OutputKeyingConfig> output_edge_keying = 12;
+  repeated OperatorDefinition chained_operators = 13; // New field for chained operators
+}
+
+// Import for google.protobuf.Struct, if not already implicitly available by tools
+import "google/protobuf/struct.proto";

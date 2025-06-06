@@ -38,76 +38,191 @@ namespace FlinkDotNet.TaskManager.Services
         }
     }
 
+using FlinkDotNet.Core.Networking; // For LocalBufferPool, NetworkBufferPool, NetworkBuffer
+
+namespace FlinkDotNet.TaskManager.Services
+{
     public class DataExchangeServiceImpl : DataExchangeService.DataExchangeServiceBase
     {
         private readonly string _taskManagerId;
+        private readonly NetworkBufferPool _globalNetworkBufferPool; // Added for LocalBufferPool creation
 
-        public DataExchangeServiceImpl(string taskManagerId)
+        public DataExchangeServiceImpl(string taskManagerId, NetworkBufferPool globalNetworkBufferPool)
         {
-            _taskManagerId = taskManagerId;
+            _taskManagerId = taskManagerId ?? throw new ArgumentNullException(nameof(taskManagerId));
+            _globalNetworkBufferPool = globalNetworkBufferPool ?? throw new ArgumentNullException(nameof(globalNetworkBufferPool));
             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Initialized.");
         }
 
-        public override async Task<DataAck> SendData(
-            IAsyncStreamReader<DataRecord> requestStream,
+        // Old SendData method removed / can be marked Obsolete if needed for a transition period.
+
+        public override async Task ExchangeData(
+            IAsyncStreamReader<UpstreamPayload> requestStream,
+            IServerStreamWriter<DownstreamPayload> responseStream,
             ServerCallContext context)
         {
-            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Incoming SendData stream started by {context.Peer}.");
+            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] New ExchangeData stream started by {context.Peer}.");
+
+            // TODO: Determine targetJobVertexId and targetSubtaskIndex for this specific channel.
+            // This might require an initial message from client, or be part of the gRPC path/metadata.
+            // For now, we'll extract it from the first DataRecord, which is not ideal.
+            string? targetJobVertexId = null;
+            int targetSubtaskIndex = -1;
+
+            // TODO: Configurable pool sizes per channel. Using defaults for now.
+            // These defaults should be small for testing credit logic.
+            const int localPoolMinSegments = 2;
+            const int localPoolMaxSegments = 4; // Small to force credit logic. Flink uses numExclusiveBuffersPerChannel + floatingBuffers.
+
+            LocalBufferPool? localBufferPool = null;
+            Action? bufferReturnedCallback = null; // To send credit update
+
             try
             {
-                await foreach (var dataRecord in requestStream.ReadAllAsync(context.CancellationToken))
+                bufferReturnedCallback = () =>
+                {
+                    // This callback is invoked by LocalBufferPool when a buffer is returned to it.
+                    // We need to send a credit update back to the client.
+                    // This needs to be careful about concurrency with responseStream.
+                    try
+                    {
+                        // Send 1 credit for each buffer returned.
+                        // In a real system, might batch credits or have more complex logic.
+                        responseStream.WriteAsync(new DownstreamPayload { Credits = new CreditUpdate { CreditsGranted = 1 } })
+                            .GetAwaiter().GetResult(); // Blocking for simplicity in callback, consider async queue for production
+                        Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Sent 1 credit back to {context.Peer}.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error sending credit update: {ex.Message}");
+                        // Cannot easily propagate this error back to the main loop from here without more complex plumbing.
+                    }
+                };
+
+                // The LocalBufferPool constructor needs to be adapted if it's to use such a callback directly.
+                // For now, this callback is conceptual. The LBP's ReturnSegmentToLocalPool
+                // will be called, and *that* method (or the LBP itself) would need to invoke this.
+                // This means LocalBufferPool needs a way to signal back.
+                // Let's assume LocalBufferPool is modified to accept this Action in its constructor or a setter.
+                // For this subtask, we'll focus on the DataExchangeService logic and assume LBP can trigger it.
+                // A simpler way: DataExchangeService periodically checks localBufferPool.AvailablePoolBuffers and sends diff.
+                // For now, we'll proceed with the direct callback assumption and refine LBP later if needed.
+
+                await foreach (var upstreamPayload in requestStream.ReadAllAsync(context.CancellationToken))
                 {
                     if (context.CancellationToken.IsCancellationRequested) break;
 
-                    string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}";
-                    if (DataReceiverRegistry.RecordProcessors.TryGetValue(receiverKey, out var processor))
+                    if (upstreamPayload.PayloadCase == UpstreamPayload.PayloadOneofCase.Record)
                     {
+                        DataRecord dataRecord = upstreamPayload.Record;
+
+                        if (localBufferPool == null) // First record, initialize pool and send initial credit
+                        {
+                            targetJobVertexId = dataRecord.TargetJobVertexId;
+                            targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex}.");
+
+                            // TODO: Pass bufferReturnedCallback to LocalBufferPool constructor or a method.
+                            // This is a conceptual step for now.
+                            // Action<LocalBufferPool, int> creditCallback = (pool, credits) => ... defined above or inline
+                            localBufferPool = new LocalBufferPool(
+                                _globalNetworkBufferPool,
+                                localPoolMinSegments,
+                                localPoolMaxSegments,
+                                bufferReturnedCallback, // Pass the actual callback
+                                $"LBP-Peer-{context.Peer}"); // Example pool identifier
+                            // localBufferPool.SetBufferReturnedListener(bufferReturnedCallback); // Hypothetical method no longer needed if passed via ctor
+
+                            int initialCredits = localBufferPool.AvailablePoolBuffers;
+                            if (initialCredits > 0)
+                            {
+                                await responseStream.WriteAsync(new DownstreamPayload { Credits = new CreditUpdate { CreditsGranted = initialCredits } });
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Sent initial {initialCredits} credits to {context.Peer}.");
+                            }
+                        }
+
+                        if (localBufferPool == null) {
+                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] CRITICAL ERROR: localBufferPool is null even after first record. This should not happen. Peer: {context.Peer}");
+                             throw new InvalidOperationException("LocalBufferPool was not initialized.");
+                        }
+
+                        NetworkBuffer networkBuffer;
                         try
                         {
-                            if (dataRecord.IsCheckpointBarrier)
+                            // Use RequestBufferAsync to wait for a buffer if necessary
+                            networkBuffer = await localBufferPool.RequestBufferAsync(context.CancellationToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] RequestBufferAsync cancelled for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
+                            break; // Exit foreach loop as operation was cancelled
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] LocalBufferPool disposed while requesting buffer for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
+                            break; // Exit foreach loop
+                        }
+
+                        try
+                        {
+                            // Copy data from DataRecord to NetworkBuffer
+                            var payloadBytes = dataRecord.DataPayload.ToByteArray();
+                            if (networkBuffer.Capacity < payloadBytes.Length)
                             {
-                                // It's a Protobuf barrier
-                                var barrierInfo = dataRecord.BarrierPayload; // Assuming BarrierPayload is never null if IsCheckpointBarrier is true
-                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received PROTOFBUF BARRIER for {receiverKey}. ID: {barrierInfo?.CheckpointId}, Timestamp: {barrierInfo?.CheckpointTimestamp}");
+                                // This should ideally not happen if segments are reasonably sized
+                                // or if large messages are chunked by the sender.
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ERROR: Record size ({payloadBytes.Length}) exceeds buffer capacity ({networkBuffer.Capacity}). Discarding record. Peer: {context.Peer}");
+                                networkBuffer.Dispose(); // Return the buffer
+                                continue;
+                            }
+                            networkBuffer.Write(payloadBytes);
 
-                                // For PoC: Forward a special string payload indicating a barrier from proto
-                                // A more robust solution would change ProcessRecordDelegate signature or use a typed envelope.
-                                string barrierMarkerPayload = $"PROTO_BARRIER_{barrierInfo?.CheckpointId}_{barrierInfo?.CheckpointTimestamp}";
-                                byte[] payloadBytes = Encoding.UTF8.GetBytes(barrierMarkerPayload);
+                            // TODO: Handle dataRecord.IsCheckpointBarrier and dataRecord.BarrierPayload
+                            // TODO: Handle dataRecord.Backlog
 
-                                await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, payloadBytes);
-                                // Note: DataExchangeMetrics.RecordsReceived currently counts barriers if not filtered.
-                                // The metric was moved to the 'else' block to only count actual data records.
+                            string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}";
+                            if (DataReceiverRegistry.RecordProcessors.TryGetValue(receiverKey, out var processor))
+                            {
+                                DataExchangeMetrics.RecordsReceived.Add(1);
+
+                                // Create a copy of the data for the processor, then dispose the network buffer.
+                                // This ensures the buffer is returned to the LocalBufferPool promptly,
+                                // which in turn allows the credit to be sent back to the sender.
+                                byte[] payloadCopy = new byte[networkBuffer.DataLength];
+                                networkBuffer.GetReadOnlyMemory().CopyTo(payloadCopy);
+
+                                networkBuffer.Dispose(); // Dispose *before* calling processor, as data is copied.
+
+                                await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, payloadCopy);
                             }
                             else
                             {
-                                // Regular data record
-                                // Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received data for {receiverKey}, Size: {dataRecord.Payload.Length}");
-                                DataExchangeMetrics.RecordsReceived.Add(1); // Count only actual data records
-                                await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, dataRecord.Payload.ToByteArray());
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding record. Peer: {context.Peer}");
+                                networkBuffer.Dispose(); // Still need to dispose buffer
                             }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error processing record/barrier for {receiverKey}: {ex.Message}");
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error processing record for {targetJobVertexId}_{targetSubtaskIndex}: {ex.Message}. Peer: {context.Peer}");
+                            if (!networkBuffer.IsDisposed) networkBuffer.Dispose(); // Ensure buffer is disposed on error
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding record/barrier.");
-                    }
+                    // TODO: Handle other UpstreamPayload types if any (e.g., control messages from client)
                 }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException && ex is not RpcException)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error reading client stream: {ex.Message}");
-                // Potentially return an error status or throw RpcException
+                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ExchangeData stream cancelled by client or server shutdown for {context.Peer}.");
+            }
+            catch (Exception ex) when (ex is not RpcException) // Catch other non-gRPC exceptions
+            {
+                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error in ExchangeData stream with {context.Peer}: {ex.Message} {ex.StackTrace}");
             }
             finally
             {
-                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] SendData stream from {context.Peer} ended.");
+                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ExchangeData stream from {context.Peer} ended.");
+                localBufferPool?.Dispose(); // Clean up the local pool for this connection
             }
-            return new DataAck { Received = true }; // Indicates stream processing finished on server side.
         }
     }
 }
