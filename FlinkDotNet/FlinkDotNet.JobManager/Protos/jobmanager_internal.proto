@@ -136,14 +136,16 @@ message OperatorOutput { // Defines a connection to a specific downstream subtas
 
 message OutputEdgeKeyingInfo { // For TDD, if an output is hash partitioned
   string target_job_vertex_id = 1; 
-  string serialized_key_selector = 2; 
-  string key_type_name = 3;           
+  string serialized_key_selector = 2; // Base64 string of the IKeySelector instance
+  string key_type_name = 3;           // AssemblyQualifiedName of TKey
   int32 downstream_parallelism = 4;
+  string key_selector_type_name = 5;  // AssemblyQualifiedName of the IKeySelector implementation
 }
 
 message InputKeyingInfo { // For TDD, if an input is expected to be keyed (for state access)
-  string serialized_key_selector = 1; // Selector used by upstream to partition to this task
-  string key_type_name = 2;           // Type of the key for this input stream
+  string serialized_key_selector = 1; // Base64 string of the IKeySelector instance
+  string key_type_name = 2;           // AssemblyQualifiedName of TKey
+  string key_selector_type_name = 3;  // AssemblyQualifiedName of the IKeySelector implementation
 }
 
 message ChainedOperatorInfo { // For TDD, for operators chained after the head operator

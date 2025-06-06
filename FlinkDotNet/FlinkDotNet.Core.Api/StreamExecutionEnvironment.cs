@@ -1,6 +1,7 @@
 #nullable enable
 using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
-// Potentially other using statements like FlinkDotNet.JobManager.Models.JobGraph
+using System; // For Convert.ToBase64String
+using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer
 using System.Linq; // Added for ToDictionary
 using System.Threading.Tasks; // Added for Task
 
@@ -95,17 +96,36 @@ namespace FlinkDotNet.Core.Api
                     Guid sourceVertexId = transformationToVertexId[inputTransform.Id];
 
                     // Determine ShuffleMode and OutputKeyingConfig
-                    var shuffleMode = ShuffleMode.Forward; // Default
-                    OutputKeyingConfig? keyingConfig = null;
+                    OutputKeyingConfigDto? keyingConfig = null; // Use the DTO
+                    ShuffleMode shuffleMode;
 
-                    if (inputTransform is KeyedTransformation<object,object> keyedInput) // Simplified type check
+                    // Check if inputTransform is a KeyedTransformation<TKey, TIn>
+                    if (inputTransform.GetType().IsGenericType &&
+                        inputTransform.GetType().GetGenericTypeDefinition() == typeof(KeyedTransformation<,>))
                     {
-                        shuffleMode = ShuffleMode.Hash;
-                        // This assumes KeyedTransformation has KeySelectorTypeName and KeyTypeAssemblyName properties
-                        // keyingConfig = new OutputKeyingConfig(keyedInput.KeySelectorTypeName, keyedInput.KeyTypeAssemblyName);
-                        // For PoC, we might need to make assumptions or leave it null if properties don't exist
-                        System.Console.WriteLine($"Warning: KeyedTransformation detected but OutputKeyingConfig creation is placeholder for {inputTransform.Name}");
+                        shuffleMode = ShuffleMode.Hash; // Definitely hash for keyed inputs
 
+                        // Using dynamic to access properties of the generically typed KeyedTransformation
+                        dynamic dynInputTransform = inputTransform;
+                        object keySelectorInstance = dynInputTransform.KeySelectorInstance; // This is IKeySelector<TIn, TKey>
+                        Type keySelectorType = keySelectorInstance.GetType();
+                        Type keyType = dynInputTransform.KeyType; // This is typeof(TKey)
+
+                        ITypeSerializer keySelectorSerializer = this.SerializerRegistry.GetSerializer(keySelectorType);
+                        byte[] serializedKeySelectorBytes = keySelectorSerializer.Serialize(keySelectorInstance);
+                        string base64SerializedKeySelector = Convert.ToBase64String(serializedKeySelectorBytes);
+
+                        keyingConfig = new OutputKeyingConfigDto(
+                            base64SerializedKeySelector,
+                            keySelectorType.AssemblyQualifiedName,
+                            keyType.AssemblyQualifiedName
+                        );
+                        Console.WriteLine($"StreamExecutionEnvironment: Created OutputKeyingConfig for edge. KeySelectorType: {keySelectorType.Name}, KeyType: {keyType.Name}");
+                    }
+                    else
+                    {
+                        shuffleMode = ShuffleMode.Forward; // Default if not a keyed transformation
+                        keyingConfig = null;
                     }
 
                     // DataTypeName should be the OutputType of the sourceTransform (inputTransform here)
@@ -177,19 +197,25 @@ namespace FlinkDotNet.Core.Api
             }
         }
 
-        public class KeyedTransformation<TIn, TKey> : Transformation
+        // TKey is the type of the key, TIn is the type of the input element
+        public class KeyedTransformation<TKey, TIn> : Transformation
         {
-            // Placeholder for KeySelectorTypeName and KeyTypeAssemblyName
-            public string KeySelectorTypeName { get; set; } = "UnknownKeySelector";
-            public string KeyTypeAssemblyName { get; set; } = "UnknownKeyType";
-            public override Type OperatorType { get; } // This would be the type of the operation that produced the keyed stream
+            public Abstractions.Functions.IKeySelector<TIn, TKey> KeySelectorInstance { get; }
+            public Type KeyType => typeof(TKey);
+            public override Type OperatorType { get; }
 
-            public KeyedTransformation(string name, Transformation input, StreamExecutionEnvironment environment) : base(name, environment)
+            public KeyedTransformation(
+                string name,
+                Transformation input, // This input is of type TIn
+                Abstractions.Functions.IKeySelector<TIn, TKey> keySelector,
+                StreamExecutionEnvironment environment)
+                : base(name, environment)
             {
                 Inputs.Add(input);
-                InputType = input.OutputType;
-                OutputType = input.OutputType; // Keying doesn't change data type itself, just its distribution properties
-                OperatorType = typeof(object); // Placeholder
+                InputType = input.OutputType; // Should be TIn
+                OutputType = input.OutputType; // Output type is still TIn after keying
+                OperatorType = typeof(object); // Keying itself is not a runtime operator, but a property of an edge/stream
+                KeySelectorInstance = keySelector ?? throw new ArgumentNullException(nameof(keySelector));
             }
         }
 
@@ -227,20 +253,19 @@ namespace FlinkDotNet.Core.Api
                 return new DataStream<TOut>(Environment, mapTransformation);
             }
 
-            public DataStream<T> KeyBy<TKey>(Abstractions.Operators.IKeySelector<T, TKey> keySelector, string name)
+            public KeyedDataStream<TKey, T> KeyBy<TKey>(
+                Abstractions.Functions.IKeySelector<T, TKey> keySelector,
+                string name)
             {
-                 // This is a conceptual representation.
-                 // A real KeyedStream might be a different class, or KeyedTransformation might wrap the original DataStream's transformation.
-                var keyedTransformation = new KeyedTransformation<T, TKey>(name, this.Transformation, Environment);
-                // KeyedTransformation would store keySelector's type name and TKey's type name.
-                // For simplicity, not adding it to Transformation list for JobGraph generation directly,
-                // but its properties (like shuffle mode HASH) would affect the edge leading to the *next* operator.
-                // However, for graph representation, often a keyBy itself isn't a vertex, but modifies the edge.
-                // For this PoC, let's assume KeyedTransformation is a node for simplicity of the loop above.
-                // Environment.AddTransformation(keyedTransformation); // Or handle differently.
-                // For now, let's return a new DataStream that wraps this KeyedTransformation
-                // This is a simplification; usually KeyBy returns a KeyedStream<T, TKey>
-                return new DataStream<T>(Environment, keyedTransformation);
+                // T is TIn (element type), TKey is TKey (key type)
+                // KeyedTransformation is defined as KeyedTransformation<TKey, TIn>
+                var keyedTransformation = new KeyedTransformation<TKey, T>( // Correctly TKey, T
+                    name,
+                    this.Transformation, // input transformation (produces T)
+                    keySelector,        // IKeySelector<T, TKey>
+                    this.Environment);
+
+                return new KeyedDataStream<TKey, T>(this.Environment, keyedTransformation);
             }
 
 
