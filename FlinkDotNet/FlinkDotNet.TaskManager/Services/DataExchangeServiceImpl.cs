@@ -41,10 +41,12 @@ namespace FlinkDotNet.TaskManager.Services
     public class DataExchangeServiceImpl : DataExchangeService.DataExchangeServiceBase
     {
         private readonly string _taskManagerId;
+        private readonly TaskExecutor _taskExecutor;
 
-        public DataExchangeServiceImpl(string taskManagerId)
+        public DataExchangeServiceImpl(string taskManagerId, TaskExecutor taskExecutor)
         {
             _taskManagerId = taskManagerId;
+            _taskExecutor = taskExecutor;
             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Initialized.");
         }
 
@@ -59,42 +61,53 @@ namespace FlinkDotNet.TaskManager.Services
                 {
                     if (context.CancellationToken.IsCancellationRequested) break;
 
-                    string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}";
-                    if (DataReceiverRegistry.RecordProcessors.TryGetValue(receiverKey, out var processor))
+                    // string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}"; // already exists
+
+                    if (dataRecord.IsCheckpointBarrier)
                     {
-                        try
+                        var barrierProto = dataRecord.BarrierPayload;
+                        if (barrierProto == null) {
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received DataRecord for {dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex} marked as barrier but BarrierPayload is null. Discarding.");
+                            continue; // Skip this record
+                        }
+
+                        var receiverKeyForLog = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}"; // For logging consistency
+                        Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received BARRIER for {receiverKeyForLog}. CP ID: {barrierProto.CheckpointId}, Timestamp: {barrierProto.CheckpointTimestamp}, From Input: {dataRecord.SourceJobVertexId}_{dataRecord.SourceSubtaskIndex}");
+
+                        var handler = _taskExecutor.GetOperatorBarrierHandler(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex);
+                        if (handler != null)
                         {
-                            if (dataRecord.IsCheckpointBarrier)
+                            string barrierSourceInputId = $"{dataRecord.SourceJobVertexId}_{dataRecord.SourceSubtaskIndex}";
+                            // Intentionally not awaiting. HandleIncomingBarrier itself can use Task.Run for long operations.
+                            _ = handler.HandleIncomingBarrier(barrierProto.CheckpointId, barrierProto.CheckpointTimestamp, barrierSourceInputId);
+                        }
+                        else
+                        {
+                            // This might be normal if the target is a sink that doesn't have complex barrier alignment,
+                            // or if the task is still initializing or has been cleaned up.
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No OperatorBarrierHandler found for {receiverKeyForLog} to handle barrier {barrierProto.CheckpointId}. This might be a sink or a source if barriers are routed unexpectedly.");
+                        }
+                    }
+                    else // Regular data record
+                    {
+                        // Existing logic for data records using DataReceiverRegistry:
+                        string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}"; // ensure receiverKey is defined here too
+                        if (DataReceiverRegistry.RecordProcessors.TryGetValue(receiverKey, out var processor))
+                        {
+                            try
                             {
-                                // It's a Protobuf barrier
-                                var barrierInfo = dataRecord.BarrierPayload; // Assuming BarrierPayload is never null if IsCheckpointBarrier is true
-                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received PROTOFBUF BARRIER for {receiverKey}. ID: {barrierInfo?.CheckpointId}, Timestamp: {barrierInfo?.CheckpointTimestamp}");
-
-                                // For PoC: Forward a special string payload indicating a barrier from proto
-                                // A more robust solution would change ProcessRecordDelegate signature or use a typed envelope.
-                                string barrierMarkerPayload = $"PROTO_BARRIER_{barrierInfo?.CheckpointId}_{barrierInfo?.CheckpointTimestamp}";
-                                byte[] payloadBytes = Encoding.UTF8.GetBytes(barrierMarkerPayload);
-
-                                await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, payloadBytes);
-                                // Note: DataExchangeMetrics.RecordsReceived currently counts barriers if not filtered.
-                                // The metric was moved to the 'else' block to only count actual data records.
-                            }
-                            else
-                            {
-                                // Regular data record
-                                // Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received data for {receiverKey}, Size: {dataRecord.Payload.Length}");
                                 DataExchangeMetrics.RecordsReceived.Add(1); // Count only actual data records
                                 await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, dataRecord.Payload.ToByteArray());
                             }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error in processor for {receiverKey} processing data: {ex.Message}");
+                            }
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error processing record/barrier for {receiverKey}: {ex.Message}");
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding data record.");
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding record/barrier.");
                     }
                 }
             }
