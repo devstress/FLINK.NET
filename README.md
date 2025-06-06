@@ -18,6 +18,7 @@ This project endeavors to bring the power of distributed stream processing to th
   - [Key Architectural Components](#key-architectural-components)
   - [Architectural Diagram](#architectural-diagram)
 - [Project Status](#project-status-placeholder)
+- [Samples and Tutorials](#samples-and-tutorials)
 - [Getting Involved & Contribution](#getting-involved--contribution)
 - [License](#license)
 
@@ -122,9 +123,36 @@ graph TD
 
 This architecture is designed to enable parallel processing of data streams across multiple TaskManagers, coordinated by the JobManager, with robust state management and fault tolerance mechanisms ensuring data integrity and continuous operation.
 
-## Project Status (Placeholder)
+## Project Status
 
-*(TODO: Add a brief section on the current development status, what's implemented, and what's next. This will be updated as the project progresses.)*
+Flink.NET is currently in an **alpha/foundational development stage**. Key architectural components like the JobManager, TaskManager, and basic stream processing APIs are in place. A .NET Aspire-based simulation environment has been set up to facilitate testing and development (see [Samples and Tutorials](#samples-and-tutorials)).
+
+**Current Focus & Next Steps:**
+The immediate focus is on implementing **Phase 1: Core Functionality for Exactly-Once FIFO Processing**. This includes:
+*   **Barrier-Based Checkpointing:** Design and initial implementation stages for fault tolerance and exactly-once semantics. A preliminary design for checkpoint barriers has been documented ([Core Concepts: Checkpointing - Barriers](./docs/wiki/Core-Concepts-Checkpointing-Barriers.md)).
+*   **High-Performance Default Serializers & Robust Custom Serializer Support:** Addressing current bottlenecks with POCO serialization is a priority.
+*   **Full Keyed Processing Logic:** Implementing robust support for keyed streams, including state management per key.
+
+**Implemented So Far (Highlights):**
+*   Core JobManager and TaskManager services with gRPC communication.
+*   Basic stream processing API (`StreamExecutionEnvironment`, `DataStream`, simple operators like Map, Sink, Source).
+*   JobGraph model and submission from client to JobManager.
+*   .NET Aspire project for local cluster simulation, including Redis and Kafka integration for samples.
+*   Initial observability setup using OpenTelemetry, viewable in the Aspire Dashboard.
+*   Proof-of-concept for client-side send throttling.
+
+**Future Phases (Long-Term Vision):**
+*   **Phase 2: Performance Optimization for High Throughput** (e.g., operator chaining, advanced flow control).
+*   **Phase 3: Robustness and Advanced Features** (e.g., production-ready state backends, incremental checkpointing, memory optimizations).
+
+The project welcomes contributions, especially for the core features outlined in these phases.
+
+## Samples and Tutorials
+
+Explore practical examples and tutorials to understand how to use Flink.NET and see its capabilities in action.
+
+*   **[Local High Throughput Test with Redis](./docs/wiki/Sample-Local-High-Throughput-Test.md)**:
+        Learn how to set up a local Flink.NET environment using .NET Aspire. This sample runs a high-throughput test (e.g., 10 million messages) where messages are generated with sequence IDs from Redis, processed, and then sent to both a Kafka topic and a separate Redis counter. It demonstrates basic job submission, execution with multiple sinks, and observability within the Aspire framework.
 
 ## Getting Involved & Contribution
 

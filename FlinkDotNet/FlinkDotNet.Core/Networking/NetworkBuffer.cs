@@ -35,7 +35,17 @@ namespace FlinkDotNet.Core.Networking
         /// Gets or sets a flag indicating whether this buffer contains a checkpoint barrier.
         /// This needs to be set by the producer of the buffer (e.g., NetworkedCollector).
         /// </summary>
-        public bool IsBarrierPayload { get; set; }
+        public bool IsBarrierPayload { get; private set; } // Made setter private, to be set via constructor or SetBarrierInfo
+
+        /// <summary>
+        /// Gets the Checkpoint ID if this buffer represents a barrier.
+        /// </summary>
+        public long CheckpointId { get; private set; }
+
+        /// <summary>
+        /// Gets the timestamp of the checkpoint if this buffer represents a barrier.
+        /// </summary>
+        public long CheckpointTimestamp { get; private set; }
 
         private readonly Action<NetworkBuffer>? _returnToPoolAction;
         private bool _isDisposed = false;
@@ -47,17 +57,55 @@ namespace FlinkDotNet.Core.Networking
         /// <param name="returnToPoolAction">The action to call to return this buffer to its pool.</param>
         /// <param name="initialDataOffset">The offset where data starts in the buffer (usually 0).</param>
         /// <param name="initialDataLength">The initial length of data in the buffer (usually 0 for writing).</param>
+        /// <param name="isBarrier">Indicates if this buffer is a checkpoint barrier.</param>
+        /// <param name="checkpointId">The ID of the checkpoint if it's a barrier.</param>
+        /// <param name="checkpointTimestamp">The timestamp of the checkpoint if it's a barrier.</param>
         public NetworkBuffer(
             byte[] rentedBuffer,
             Action<NetworkBuffer>? returnToPoolAction,
             int initialDataOffset = 0,
-            int initialDataLength = 0)
+            int initialDataLength = 0,
+            bool isBarrier = false,
+            long checkpointId = 0,
+            long checkpointTimestamp = 0)
         {
             UnderlyingBuffer = rentedBuffer ?? throw new ArgumentNullException(nameof(rentedBuffer));
-            _returnToPoolAction = returnToPoolAction; // Can be null if not pooled or disposed externally
+            _returnToPoolAction = returnToPoolAction;
             DataOffset = initialDataOffset;
             DataLength = initialDataLength;
-            IsBarrierPayload = false; // Default to not being a barrier
+
+            IsBarrierPayload = isBarrier;
+            if (IsBarrierPayload)
+            {
+                CheckpointId = checkpointId;
+                CheckpointTimestamp = checkpointTimestamp;
+            }
+            else
+            {
+                CheckpointId = 0;
+                CheckpointTimestamp = 0;
+            }
+        }
+
+        /// <summary>
+        /// Sets or clears checkpoint barrier information for this buffer.
+        /// </summary>
+        /// <param name="isBarrier">True if this buffer should be marked as a barrier, false otherwise.</param>
+        /// <param name="checkpointId">The checkpoint ID, used if isBarrier is true.</param>
+        /// <param name="checkpointTimestamp">The checkpoint timestamp, used if isBarrier is true.</param>
+        public void SetBarrierInfo(bool isBarrier, long checkpointId = 0, long checkpointTimestamp = 0)
+        {
+            IsBarrierPayload = isBarrier;
+            if (IsBarrierPayload)
+            {
+                CheckpointId = checkpointId;
+                CheckpointTimestamp = checkpointTimestamp;
+            }
+            else
+            {
+                CheckpointId = 0;
+                CheckpointTimestamp = 0;
+            }
         }
 
         /// <summary>
@@ -136,6 +184,8 @@ namespace FlinkDotNet.Core.Networking
             if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
             DataLength = 0;
             IsBarrierPayload = false;
+            CheckpointId = 0;
+            CheckpointTimestamp = 0;
             // DataOffset usually remains fixed as it's about where the usable segment starts in UnderlyingBuffer.
         }
 

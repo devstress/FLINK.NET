@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
+    <ProjectReference Include="..\FlinkJobSimulator\FlinkJobSimulator.csproj" />
+  </ItemGroup>
+</Project>

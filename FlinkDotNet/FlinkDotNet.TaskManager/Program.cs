@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting; // Ensured for AddServiceDefaults
 using FlinkDotNet.TaskManager.Services; // For TaskManagerCheckpointingServiceImpl
 
 namespace FlinkDotNet.TaskManager
@@ -68,6 +68,7 @@ namespace FlinkDotNet.TaskManager
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+                .AddServiceDefaults() // Added ServiceDefaults
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Register TaskManagerCoreService (previously TaskManagerService)

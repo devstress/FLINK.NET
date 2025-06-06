@@ -4,8 +4,10 @@ using FlinkDotNet.JobManager.Checkpointing; // Added for CheckpointCoordinator
 using FlinkDotNet.JobManager.Models; // Added for JobManagerConfig
 using System;
 using System.Linq; // Required for Enumerable
+using Microsoft.Extensions.Hosting; // Added for AddServiceDefaults
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults(); // Added ServiceDefaults
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

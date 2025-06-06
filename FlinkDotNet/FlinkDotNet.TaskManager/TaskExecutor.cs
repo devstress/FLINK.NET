@@ -16,6 +16,8 @@ using Grpc.Core;
 using Google.Protobuf;
 using FlinkDotNet.TaskManager.Services;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics; // Added for Metrics
+using System.Globalization; // For CultureInfo
 
 
 // May need to add 'using' for ConsoleSinkFunction and FileSourceFunction if used directly by type name
@@ -23,6 +25,12 @@ using System.Collections.Generic;
 
 namespace FlinkDotNet.TaskManager
 {
+    internal static class TaskManagerMetrics
+    {
+        private static readonly Meter TaskExecutorMeter = new Meter("FlinkDotNet.TaskManager.TaskExecutor", "1.0.0");
+        internal static readonly Counter<long> RecordsSent = TaskExecutorMeter.CreateCounter<long>("flinkdotnet.taskmanager.records_sent", unit: "{records}", description: "Number of records sent by NetworkedCollector.");
+    }
+
     // LOGGING_PLACEHOLDER:
     // private readonly Microsoft.Extensions.Logging.ILogger<TaskExecutor> _logger; // Inject via constructor, ensure using Microsoft.Extensions.Logging;
 
@@ -52,11 +60,15 @@ namespace FlinkDotNet.TaskManager
             private DataExchangeService.DataExchangeServiceClient? _client;
             private AsyncClientStreamingCall<DataRecord, DataAck>? _streamCall;
 
+            private const int MaxOutstandingSends = 100; // Or make it configurable
+            private readonly SemaphoreSlim _sendPermits;
+
             public NetworkedCollector(
                 string sourceJobVertexId, int sourceSubtaskIndex,
                 OperatorOutput outputInfo,
                 ITypeSerializer<T> serializer) // Removed targetTmEndpoint as it's in outputInfo
             {
+                _sendPermits = new SemaphoreSlim(MaxOutstandingSends, MaxOutstandingSends); // Initialize semaphore
                 _sourceJobVertexId = sourceJobVertexId;
                 _sourceSubtaskIndex = sourceSubtaskIndex;
                 _outputInfo = outputInfo;
@@ -89,32 +101,99 @@ namespace FlinkDotNet.TaskManager
                 }
             }
 
-            public async Task Collect(T record, CancellationToken cancellationToken)
+            public async Task Collect(T record, CancellationToken cancellationToken) // Assuming T is object here, or string
             {
-                await EnsureStreamOpenAsync(cancellationToken);
-                if (_streamCall == null)
-                {
-                    Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] ERROR: Stream call is null, cannot send record to {_outputInfo.TargetVertexId}.");
-                    return;
-                }
+                await _sendPermits.WaitAsync(cancellationToken); // Existing throttling
 
                 try
                 {
-                    var payload = _serializer.Serialize(record);
-                    await _streamCall.RequestStream.WriteAsync(new DataRecord
+                    await EnsureStreamOpenAsync(cancellationToken);
+                    if (_streamCall == null)
                     {
-                        TargetJobVertexId = _outputInfo.TargetVertexId,
-                        TargetSubtaskIndex = _outputInfo.TargetSpecificSubtaskIndex, // Use the specific index
-                        Payload = ByteString.CopyFrom(payload)
-                    });
-                    // METRICS_PLACEHOLDER:
-                    // var sourceTaskMetrics = TaskMetricsRegistry.Get(_sourceJobVertexId + "_" + _sourceSubtaskIndex);
-                    // if (sourceTaskMetrics != null) sourceTaskMetrics.RecordsOut++;
+                        Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] ERROR: Stream call is null, cannot send record/barrier to {_outputInfo.TargetVertexId}.");
+                        // _sendPermits.Release(); // This is handled by finally
+                        return;
+                    }
+
+                    DataRecord dataRecordToSend;
+
+                    if (record is string recordString && recordString.StartsWith("BARRIER_"))
+                    {
+                        // This is our PoC string barrier marker
+                        Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] NetworkedCollector received string barrier marker: {recordString}");
+                        try
+                        {
+                            string[] parts = recordString.Split('_');
+                            long checkpointId = long.Parse(parts[1], CultureInfo.InvariantCulture);
+                            long timestamp = long.Parse(parts[2], CultureInfo.InvariantCulture);
+                            // bool isFinal = parts.Length > 3 && parts[3] == "FINAL"; // We can add options later
+
+                            var barrierPayload = new CheckpointBarrier // FROM Proto namespace
+                            {
+                                CheckpointId = checkpointId,
+                                CheckpointTimestamp = timestamp
+                            };
+
+                            dataRecordToSend = new DataRecord
+                            {
+                                TargetJobVertexId = _outputInfo.TargetVertexId,
+                                TargetSubtaskIndex = _outputInfo.TargetSpecificSubtaskIndex,
+                                IsCheckpointBarrier = true,
+                                BarrierPayload = barrierPayload, // Assign to the oneof field
+                                Payload = ByteString.Empty // Main payload is empty for barriers
+                            };
+                             Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] Converted string marker to Protobuf Barrier ID: {checkpointId}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] ERROR: Failed to parse string barrier marker '{recordString}': {ex.Message}. Sending as regular data.");
+                            // Fallback: send as regular data if parsing fails, though this indicates an issue.
+                            var payloadBytes = _serializer.Serialize(record);
+                            dataRecordToSend = new DataRecord
+                            {
+                                TargetJobVertexId = _outputInfo.TargetVertexId,
+                                TargetSubtaskIndex = _outputInfo.TargetSpecificSubtaskIndex,
+                                IsCheckpointBarrier = false,
+                                Payload = ByteString.CopyFrom(payloadBytes)
+                            };
+                        }
+                    }
+                    else
+                    {
+                        // Regular data record
+                        var payloadBytes = _serializer.Serialize(record);
+                        dataRecordToSend = new DataRecord
+                        {
+                            TargetJobVertexId = _outputInfo.TargetVertexId,
+                            TargetSubtaskIndex = _outputInfo.TargetSpecificSubtaskIndex,
+                            IsCheckpointBarrier = false,
+                            Payload = ByteString.CopyFrom(payloadBytes)
+                        };
+                    }
+
+                    await _streamCall.RequestStream.WriteAsync(dataRecordToSend);
+
+                    if (!dataRecordToSend.IsCheckpointBarrier)
+                    {
+                        TaskManagerMetrics.RecordsSent.Add(1); // Increment only for actual data records
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] Collect operation cancelled for {_outputInfo.TargetVertexId}.");
+                    // Permit is released in finally. If WaitAsync itself was cancelled, it wouldn't have acquired the permit.
+                    // If cancellation happened after WaitAsync, finally will release it.
+                    // throw; // Re-throw if cancellation needs to propagate and be handled by caller.
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] Error sending data to {_outputInfo.TargetVertexId}: {ex.Message}. Closing stream.");
-                    await CloseStreamAsync();
+                    Console.WriteLine($"[{_sourceJobVertexId}_{_sourceSubtaskIndex}] Error sending data/barrier to {_outputInfo.TargetVertexId}: {ex.Message}. Closing stream.");
+                    await CloseStreamAsync(); // Close stream on error
+                    // Permit is released in finally
+                }
+                finally
+                {
+                    _sendPermits.Release(); // Release permit in all cases where WaitAsync completed successfully
                 }
             }
 
