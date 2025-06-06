@@ -65,6 +65,17 @@ namespace FlinkDotNet.Core.Abstractions.Context
         IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor) where TK : notnull; // Added notnull constraint
 
         // Other utilities like accumulators, broadcast variables, side outputs etc.
+
+        /// <summary>
+        /// Gets the current key in a keyed context. Returns null if not in a keyed context or key is null.
+        /// Used by state implementations to scope state to the current key.
+        /// </summary>
+        object? GetCurrentKey();
+
+        /// <summary>
+        /// INTERNAL USE: Sets the current key. Called by the TaskExecutor before processing a record in a keyed stream.
+        /// </summary>
+        void SetCurrentKey(object? key);
     }
 }
 #nullable disable

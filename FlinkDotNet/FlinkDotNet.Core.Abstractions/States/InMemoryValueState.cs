@@ -1,55 +1,110 @@
-#nullable enable // Enable nullable reference types for this file
-
-using FlinkDotNet.Core.Abstractions.Serializers;
+#nullable enable
+using System;
+using System.Collections.Generic;
+using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext
+using FlinkDotNet.Core.Abstractions.Models.State; // For ValueStateDescriptor
 
 namespace FlinkDotNet.Core.Abstractions.States
 {
-    /// <summary>
-    /// An in-memory implementation of <see cref="IValueState{T}"/>.
-    /// This implementation is primarily for local testing and development.
-    /// It is not designed for distributed fault tolerance.
-    /// </summary>
-    /// <typeparam name="T">The type of the value in the state.</typeparam>
     public class InMemoryValueState<T> : IValueState<T>
     {
-        private T _value; // If T is a reference type, this can be null. If value type, cannot be null.
-        // private readonly T _defaultValue; // DefaultValue is now part of the descriptor
-        private readonly ITypeSerializer<T> _serializer;
+        private readonly ValueStateDescriptor<T> _descriptor;
+        private readonly IRuntimeContext _runtimeContext;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="InMemoryValueState{T}"/> class.
-        /// </summary>
-        /// <param name="initialValue">The initial value for the state.
-        /// For reference types, this can be null. For value types, it will be their default (e.g., 0 for int)
-        /// unless a different value is provided.</param>
-        /// <param name="serializer">The serializer for the type T.</param>
-        public InMemoryValueState(T initialValue, ITypeSerializer<T> serializer)
+        // Internal storage: Key is the key from IRuntimeContext.GetCurrentKey(), Value is the user's state.
+        // Using a placeholder object for non-keyed/null-key scenarios.
+        private static readonly object NonKeyedScopePlaceholder = new object(); // Used as a key if IRuntimeContext.GetCurrentKey() is null.
+        private readonly Dictionary<object, T> _keyedStorage = new Dictionary<object, T>();
+
+        public InMemoryValueState(ValueStateDescriptor<T> descriptor, IRuntimeContext runtimeContext)
         {
-            _serializer = serializer; // Store the serializer
-            _value = initialValue; // Store initial value, could be default(T)
+            _descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
+            _runtimeContext = runtimeContext ?? throw new ArgumentNullException(nameof(runtimeContext));
+            // Note: The serializer from the descriptor is not explicitly used in this in-memory version
+            // for Get/Update/Clear as it deals with live objects. It would be crucial for
+            // actual snapshotting/restoration to bytes.
         }
 
-        /// <inheritdoc/>
-        public T Value() // Returns T, which can be null if T is a reference type or Nullable<V>
+        private object GetEffectiveKey()
         {
-            // The concept of a separate "defaultValue" at the state level is reduced
-            // as the descriptor now holds it, and initialValue is passed at construction.
-            return _value;
+            return _runtimeContext.GetCurrentKey() ?? NonKeyedScopePlaceholder;
         }
 
-        /// <inheritdoc/>
-        public void Update(T value) // Accepts T, which can be null if T is a reference type or Nullable<V>
+        public T Value()
         {
-            _value = value;
+            object keyToUse = GetEffectiveKey();
+            if (_keyedStorage.TryGetValue(keyToUse, out T? value))
+            {
+                return value;
+            }
+            return _descriptor.DefaultValue;
         }
 
-        /// <inheritdoc/>
+        public void Update(T value)
+        {
+            object keyToUse = GetEffectiveKey();
+            // Standard Flink behavior: if value to update is null (for nullable types) or default for value types,
+            // the state for that key is cleared.
+            // For simplicity here, we check against _descriptor.DefaultValue.
+            // A more robust check might involve EqualityComparer<T>.Default.Equals(value, _descriptor.DefaultValue)
+            // or specific checks for null if T is a reference type or Nullable<U>.
+
+            // If T can be null (reference type or Nullable<ValueType>) and the value is null,
+            // or if T is a value type and value is its default (which isn't what descriptor.DefaultValue usually means for clearing state),
+            // Flink typically clears state if updated with null.
+            // For non-nullable value types, they can't be set to null.
+            // Let's refine this: if T is a reference type or Nullable<U>, and value is null, then clear. Otherwise, update.
+            // The original _descriptor.DefaultValue check was potentially problematic.
+            if (default(T) == null && value == null) // Check if T is nullable and value is null
+            {
+                 _keyedStorage.Remove(keyToUse);
+            }
+            else
+            {
+                _keyedStorage[keyToUse] = value;
+            }
+        }
+
         public void Clear()
         {
-            // Clearing should reset to the type's default, not a pre-configured default.
-            // The descriptor's defaultValue is for when the state is first created.
-            _value = default!; // This will be null for reference types, default for value types
+            object keyToUse = GetEffectiveKey();
+            _keyedStorage.Remove(keyToUse);
+        }
+
+        /// <summary>
+        /// FOR SNAPSHOTTING: Returns all key-value pairs stored in this state.
+        /// The owning operator will use this to snapshot the state.
+        /// </summary>
+        internal IEnumerable<KeyValuePair<object, T>> GetKeyedStateEntries()
+        {
+            // Return a copy to avoid issues if the collection is modified during snapshotting by another thread
+            // (though typically a single TaskExecutor processes records sequentially for an operator instance).
+            return new List<KeyValuePair<object, T>>(_keyedStorage);
+        }
+
+        /// <summary>
+        /// FOR RESTORATION: Clears current state and loads the provided keyed state entries.
+        /// The owning operator will use this to restore state.
+        /// </summary>
+        internal void SetKeyedStateEntries(IEnumerable<KeyValuePair<object, T>> entries)
+        {
+            _keyedStorage.Clear();
+            if (entries != null)
+            {
+                foreach (var entry in entries)
+                {
+                    // Ensure placeholder isn't used as a persisted key if it was somehow snapshotted,
+                    // though GetKeyedStateEntries should ideally not return it if it represents a "cleared" state.
+                    // This check might be overly cautious depending on how NonKeyedScopePlaceholder is handled during snapshot.
+                    // If NonKeyedScopePlaceholder itself could be a valid key a user provides, this logic is flawed.
+                    // For now, assume user keys won't be the exact same object instance as NonKeyedScopePlaceholder.
+                    if (entry.Key != NonKeyedScopePlaceholder || !object.ReferenceEquals(entry.Key, NonKeyedScopePlaceholder))
+                    {
+                        _keyedStorage[entry.Key] = entry.Value;
+                    }
+                }
+            }
         }
     }
 }
-#nullable disable // Restore previous nullable context if needed
+#nullable disable
