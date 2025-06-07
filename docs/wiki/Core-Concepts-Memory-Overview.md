@@ -1,5 +1,16 @@
 # Core Concepts: Flink.NET Memory Overview
 
+[Back to Main Outline](./Wiki-Structure-Outline.md)
+
+### Table of Contents
+- [Introduction](#introduction)
+- [Flink.NET Process Memory Model (General)](#flinknet-process-memory-model-general)
+- [Interaction with Kubernetes](#interaction-with-kubernetes)
+- [Configuration Approach](#configuration-approach)
+- [Key Memory Components (High-Level)](#key-memory-components-high-level)
+
+---
+
 ## Introduction
 
 Memory management is crucial for achieving optimal performance, stability, and resource efficiency in Flink.NET applications. This document provides an overview of how Flink.NET processes manage memory, focusing on deployments in Kubernetes and local execution environments. Understanding these concepts will help you configure Flink.NET effectively.
@@ -60,3 +71,7 @@ The memory requested by a Flink.NET JobManager or TaskManager is utilized by sev
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
 *   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+
+---
+**Navigation**
+*   Next: [JobManager Memory](./Core-Concepts-Memory-JobManager.md)

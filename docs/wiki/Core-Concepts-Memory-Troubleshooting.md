@@ -1,5 +1,14 @@
 # Core Concepts: Memory Troubleshooting (Flink.NET)
 
+[Back to Main Outline](./Wiki-Structure-Outline.md)
+
+### Table of Contents
+- [Common Memory Problems in Flink.NET](#common-memory-problems-in-flinknet)
+- [Diagnosing Memory Issues](#diagnosing-memory-issues)
+- [Specific Issue Resolution Strategies](#specific-issue-resolution-strategies)
+
+---
+
 Troubleshooting memory issues is a common task when running distributed data processing applications like Flink.NET. This guide provides advice on diagnosing and resolving common memory-related problems in Flink.NET, covering both .NET runtime aspects and interactions with Kubernetes.
 
 Reference: [Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
@@ -84,3 +93,7 @@ A systematic approach is needed:
 *   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+
+---
+**Navigation**
+*   Previous: [Memory Tuning](./Core-Concepts-Memory-Tuning.md)

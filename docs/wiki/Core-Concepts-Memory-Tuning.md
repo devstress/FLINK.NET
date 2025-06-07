@@ -1,5 +1,18 @@
 # Core Concepts: Memory Tuning (Flink.NET)
 
+[Back to Main Outline](./Wiki-Structure-Outline.md)
+
+### Table of Contents
+- [General Principles for Flink.NET](#general-principles-for-flinknet)
+- [Tuning .NET Runtime Heap](#tuning-net-runtime-heap)
+- [Tuning Network Buffers](#tuning-network-buffers)
+- [Tuning State Backend Memory (If Applicable)](#tuning-state-backend-memory-if-applicable)
+- [Advanced .NET Performance Techniques (for UDFs)](#advanced-net-performance-techniques-for-udfs)
+- [Container Considerations (Kubernetes)](#container-considerations-kubernetes)
+- [Common Scenarios & Recommendations](#common-scenarios--recommendations)
+
+---
+
 Memory tuning is essential for optimizing the performance and stability of your Flink.NET applications. This guide covers key aspects of tuning memory, from .NET runtime considerations to Flink.NET-specific configurations and Kubernetes resource management.
 
 Reference: [Memory Overview](./Core-Concepts-Memory-Overview.md)
@@ -94,3 +107,8 @@ Leveraging these techniques typically requires more in-depth .NET knowledge but 
 *   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
 *   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
 *   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+
+---
+**Navigation**
+*   Previous: [Network Memory Tuning](./Core-Concepts-Memory-Network.md)
+*   Next: [Memory Troubleshooting](./Core-Concepts-Memory-Troubleshooting.md)

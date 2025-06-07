@@ -55,8 +55,8 @@ namespace FlinkDotNet.JobManager.Models
         // Key: TaskManagerId (or a more granular subtask ID later)
         public ConcurrentDictionary<string, TaskCheckpointInfo> TaskSnapshots { get; }
 
-        // TODO: Store overall checkpoint location if it's consolidated, or just pointers to task snapshots.
-        // public string? ExternalPath { get; private set; }
+        // TODO: ExternalPath can be used to store the location of a master metadata file for the checkpoint if consolidation occurs. Individual task snapshot locations are in TaskSnapshots.
+        public string? ExternalPath { get; private set; }
 
         public CheckpointMetadata(string jobId, long checkpointId, long timestamp, List<string> expectedTaskIds)
         {
@@ -71,13 +71,13 @@ namespace FlinkDotNet.JobManager.Models
             }
         }
 
-        public void MarkCompleted(string externalPath = "")
+        public void MarkCompleted(string? externalPath = null)
         {
             // Logic to check if all tasks are completed before marking the whole checkpoint completed
             if (TaskSnapshots.Values.All(t => t.Status == CheckpointStatus.Completed))
             {
                 Status = CheckpointStatus.Completed;
-                // ExternalPath = externalPath; // If applicable
+                ExternalPath = externalPath; // If applicable
                 Console.WriteLine($"Checkpoint {CheckpointId} for job {JobId} marked COMPLETED.");
             }
             else

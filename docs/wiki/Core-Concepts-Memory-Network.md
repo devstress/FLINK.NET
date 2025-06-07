@@ -1,5 +1,15 @@
 # Core Concepts: Network Memory Tuning (Flink.NET)
 
+[Back to Main Outline](./Wiki-Structure-Outline.md)
+
+### Table of Contents
+- [Network Memory Architecture in Flink.NET (Conceptual)](#network-memory-architecture-in-flinknet-conceptual)
+- [Configuring Network Memory](#configuring-network-memory)
+- [Tuning for Performance and High Throughput](#tuning-for-performance-and-high-throughput)
+- [Troubleshooting Network Memory Issues](#troubleshooting-network-memory-issues)
+
+---
+
 Network memory is a critical resource in Flink.NET, especially for TaskManagers, as it's used for all inter-task data communication (shuffling, broadcasting, etc.). Proper configuration of network memory is essential for achieving high throughput, low latency, and avoiding backpressure in your Flink.NET jobs.
 
 Reference: [Memory Overview](./Core-Concepts-Memory-Overview.md), [TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
@@ -81,3 +91,8 @@ Tuning network memory is vital for jobs processing millions of messages per seco
 *   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
+
+---
+**Navigation**
+*   Previous: [TaskManager Memory](./Core-Concepts-Memory-TaskManager.md)
+*   Next: [Memory Tuning](./Core-Concepts-Memory-Tuning.md)

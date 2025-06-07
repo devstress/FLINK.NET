@@ -104,12 +104,11 @@ namespace FlinkDotNet.Core.Api
                 operatorInstance = oneInT.Operator;
                 operatorClrType = operatorInstance.GetType();
             }
-            // TODO: Add SinkTransformation if it exists and is used similarly.
-            // else if (currentTransform is FlinkDotNet.Core.Api.Streaming.SinkTransformation<object> sinkT)
-            // {
-            //     operatorInstance = sinkT.SinkFunction;
-            //     operatorClrType = operatorInstance.GetType();
-            // }
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.SinkTransformation<object> sinkT)
+            {
+                operatorInstance = sinkT.SinkFunction;
+                operatorClrType = operatorInstance.GetType();
+            }
             else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyT)
             {
                 // KeyedTransformation might not have a direct "operator" instance in the same way.
@@ -145,10 +144,19 @@ namespace FlinkDotNet.Core.Api
 
             if (currentChainHeadVertex == null) // Starts a new JobVertex
             {
-                VertexType vertexType = currentTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object>
-                    ? VertexType.Source
-                    // : (currentTransform is FlinkDotNet.Core.Api.Streaming.SinkTransformation<object> ? VertexType.Sink : VertexType.Operator); // Example if Sink exists
-                    : VertexType.Operator;
+                VertexType vertexType;
+                if (currentTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object>)
+                {
+                    vertexType = VertexType.Source;
+                }
+                else if (currentTransform is FlinkDotNet.Core.Api.Streaming.SinkTransformation<object>)
+                {
+                    vertexType = VertexType.Sink;
+                }
+                else
+                {
+                    vertexType = VertexType.Operator;
+                }
 
                 string? vertexInputTypeName = opInputTypeName; // For the first operator in a chain
 
@@ -261,7 +269,8 @@ namespace FlinkDotNet.Core.Api
         public Task ExecuteAsync(string jobName = "MyFlinkJob")
         {
             var jobGraph = CreateJobGraph(jobName);
-            // TODO: Submit jobGraph to JobManager
+            // TODO: Implement local/embedded execution or connect to an embedded JobManager.
+            // For distributed execution, serialize JobGraph and submit via gRPC (see FlinkJobSimulator for an example).
             Console.WriteLine($"JobGraph '{jobGraph.JobName}' created. In a real scenario, this would be submitted.");
             return Task.CompletedTask;
         }

@@ -22,8 +22,11 @@ This project endeavors to bring the power of distributed stream processing to th
   - [Credit-Based Flow Control](#credit-based-flow-control)
 - [Project Status](#project-status-placeholder)
 - [Samples and Tutorials](#samples-and-tutorials)
+- [AI-Assisted Development](#ai-assisted-development)
 - [Getting Involved & Contribution](#getting-involved--contribution)
+- [Documentation](#documentation)
 - [License](#license)
+- [Full Documentation (Wiki)](./docs/wiki/Wiki-Structure-Outline.md)
 
 ## Business Requirements
 
@@ -188,6 +191,15 @@ The development of Flink.NET, including aspects of its documentation, design, an
 We welcome contributions from everyone to help make Flink.NET a robust and feature-rich stream processing engine for the .NET ecosystem!
 
 If you are a senior-level (or above) engineer from a top technology company and are interested in becoming an admin with merge rights, please reach out to the project maintainers and provide a link to your LinkedIn profile for consideration.
+
+## Documentation
+
+For comprehensive documentation, please visit the [Flink.NET Wiki](./docs/wiki/Wiki-Structure-Outline.md).
+
+Key starting points in the wiki include:
+*   [Getting Started Guide](./docs/wiki/Getting-Started.md)
+*   [Core Concepts Overview](./docs/wiki/Wiki-Structure-Outline.md)
+*   [Developing Applications](./docs/wiki/Developing-Operators.md)
 
 ## License
 

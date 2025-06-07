@@ -117,84 +117,103 @@ namespace FlinkDotNet.TaskManager.Services
                             }
                             continue;
                         }
-
-                        if (localBufferPool == null) 
+                        // Check for WatermarkPayload
+                        else if (dataRecord.PayloadTypeCase == DataRecord.PayloadTypeOneofCase.WatermarkPayload)
                         {
-                            if (targetJobVertexId == null) { 
+                            if (targetJobVertexId == null) { // First message determines target
                                 targetJobVertexId = dataRecord.TargetJobVertexId;
                                 targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex} from first watermark. Peer: {context.Peer}");
                             }
-                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex}. Initializing LocalBufferPool.");
-                            
-                            localBufferPool = new LocalBufferPool(
-                                _globalNetworkBufferPool,
-                                localPoolMinSegments,
-                                localPoolMaxSegments,
-                                bufferReturnedCallback, 
-                                $"LBP-Peer-{context.Peer}"); 
 
-                            int initialCredits = localBufferPool.AvailablePoolBuffers;
-                            if (initialCredits > 0)
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received WATERMARK for {dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}. Timestamp: {dataRecord.WatermarkPayload.Timestamp}. Peer: {context.Peer}");
+                            // TODO: Implement watermark handling. This involves:
+                            // 1. Forwarding the watermark to the target operator instance (TaskExecutor).
+                            // 2. The operator instance then needs to update its internal event time clock and potentially trigger windows or timers.
+                            // 3. For now, it's just logged.
+                            continue; // Watermarks are control messages, don't go through buffer pool/data processing path here
+                        }
+                        // Handle DataPayload
+                        else
+                        {
+                            if (localBufferPool == null)
                             {
-                                await responseStream.WriteAsync(new DownstreamPayload { Credits = new CreditUpdate { CreditsGranted = initialCredits } });
-                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Sent initial {initialCredits} credits to {context.Peer}.");
+                                if (targetJobVertexId == null) {
+                                    targetJobVertexId = dataRecord.TargetJobVertexId;
+                                    targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
+                                }
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex}. Initializing LocalBufferPool for data. Peer: {context.Peer}");
+
+                                localBufferPool = new LocalBufferPool(
+                                    _globalNetworkBufferPool,
+                                    localPoolMinSegments,
+                                    localPoolMaxSegments,
+                                    bufferReturnedCallback,
+                                    $"LBP-Peer-{context.Peer}");
+
+                                int initialCredits = localBufferPool.AvailablePoolBuffers;
+                                if (initialCredits > 0)
+                                {
+                                    await responseStream.WriteAsync(new DownstreamPayload { Credits = new CreditUpdate { CreditsGranted = initialCredits } });
+                                    Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Sent initial {initialCredits} credits to {context.Peer}.");
+                                }
                             }
-                        }
 
-                        if (localBufferPool == null) { 
-                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] CRITICAL ERROR: localBufferPool is null even after first data record. Peer: {context.Peer}");
-                             throw new InvalidOperationException("LocalBufferPool was not initialized.");
-                        }
+                            if (localBufferPool == null) {
+                                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] CRITICAL ERROR: localBufferPool is null even after first data record. Peer: {context.Peer}");
+                                 throw new InvalidOperationException("LocalBufferPool was not initialized for data payload.");
+                            }
 
-                        NetworkBuffer networkBuffer;
-                        try
-                        {
-                            networkBuffer = await localBufferPool.RequestBufferAsync(context.CancellationToken);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] RequestBufferAsync cancelled for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
-                            break; 
-                        }
-                        catch (ObjectDisposedException)
-                        {
-                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] LocalBufferPool disposed while requesting buffer for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
-                            break; 
-                        }
-
-                        try
-                        {
-                            var payloadBytes = dataRecord.DataPayload.ToByteArray();
-                            if (networkBuffer.Capacity < payloadBytes.Length)
+                            NetworkBuffer networkBuffer;
+                            try
                             {
-                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ERROR: Record size ({payloadBytes.Length}) exceeds buffer capacity ({networkBuffer.Capacity}). Discarding record. Peer: {context.Peer}");
-                                networkBuffer.Dispose(); 
-                                continue;
+                                networkBuffer = await localBufferPool.RequestBufferAsync(context.CancellationToken);
                             }
-                            networkBuffer.Write(payloadBytes);
-
-                            string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}";
-                            if (DataReceiverRegistry.RecordProcessors.TryGetValue(receiverKey, out var processor))
+                            catch (OperationCanceledException)
                             {
-                                DataExchangeMetrics.RecordsReceived.Add(1);
-
-                                byte[] payloadCopy = new byte[networkBuffer.DataLength];
-                                networkBuffer.GetReadOnlyMemory().CopyTo(payloadCopy);
-
-                                networkBuffer.Dispose(); 
-
-                                await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, payloadCopy);
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] RequestBufferAsync cancelled for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
+                                break;
                             }
-                            else
+                            catch (ObjectDisposedException)
                             {
-                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding record. Peer: {context.Peer}");
-                                networkBuffer.Dispose(); 
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] LocalBufferPool disposed while requesting buffer for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
+                                break;
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error processing record for {targetJobVertexId}_{targetSubtaskIndex}: {ex.Message}. Peer: {context.Peer}");
-                            if (networkBuffer != null && !networkBuffer.IsDisposed) networkBuffer.Dispose(); 
+
+                            try
+                            {
+                                var payloadBytes = dataRecord.DataPayload.ToByteArray();
+                                if (networkBuffer.Capacity < payloadBytes.Length)
+                                {
+                                    Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ERROR: Record size ({payloadBytes.Length}) exceeds buffer capacity ({networkBuffer.Capacity}). Discarding record. Peer: {context.Peer}");
+                                    networkBuffer.Dispose();
+                                    continue;
+                                }
+                                networkBuffer.Write(payloadBytes);
+
+                                string receiverKey = $"{dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}";
+                                if (DataReceiverRegistry.RecordProcessors.TryGetValue(receiverKey, out var processor))
+                                {
+                                    DataExchangeMetrics.RecordsReceived.Add(1);
+
+                                    byte[] payloadCopy = new byte[networkBuffer.DataLength];
+                                    networkBuffer.GetReadOnlyMemory().CopyTo(payloadCopy);
+
+                                    networkBuffer.Dispose();
+
+                                    await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, payloadCopy);
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding record. Peer: {context.Peer}");
+                                    networkBuffer.Dispose();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error processing record for {targetJobVertexId}_{targetSubtaskIndex}: {ex.Message}. Peer: {context.Peer}");
+                                if (networkBuffer != null && !networkBuffer.IsDisposed) networkBuffer.Dispose();
+                            }
                         }
                     }
                     // TODO: Handle other UpstreamPayload types if any (e.g., control messages from client)
