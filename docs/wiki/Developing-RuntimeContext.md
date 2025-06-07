@@ -89,4 +89,5 @@ Understanding `IRuntimeContext` is essential for writing Rich functions that can
 
 ---
 Previous: [Developing Operators](./Developing-Operators.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Developing State](./Developing-State.md)

@@ -132,4 +132,5 @@ This page provides a starting point for understanding and implementing operators
 
 ---
 Previous: [Developing Data Types](./Developing-Data-Types.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Developing RuntimeContext](./Developing-RuntimeContext.md)

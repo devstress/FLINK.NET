@@ -36,4 +36,5 @@ If a failure occurs:
 
 ---
 Previous: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Concepts: Checkpointing - Barriers](./Core-Concepts-Checkpointing-Barriers.md)

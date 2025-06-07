@@ -44,4 +44,5 @@ Please refer to the Apache Flink documentation on [Windowing](https://nightlies.
 
 ---
 Previous: [Developing State](./Developing-State.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Connectors Overview](./Connectors-Overview.md)

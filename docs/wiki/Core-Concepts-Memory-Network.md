@@ -81,3 +81,6 @@ Tuning network memory is vital for jobs processing millions of messages per seco
 *   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
+
+---
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

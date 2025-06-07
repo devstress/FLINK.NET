@@ -83,4 +83,5 @@ This optimization is applied automatically where possible, but the API methods p
 
 ---
 Previous: [Core Processing Features](./Core-Processing-Features.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Credit-Based Flow Control](./Credit-Based-Flow-Control.md)

@@ -61,4 +61,5 @@ This credit-based system is an internal mechanism designed to make FlinkDotNet j
 
 ---
 Previous: [Operator Chaining](./Operator-Chaining.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Developing Data Types](./Developing-Data-Types.md)

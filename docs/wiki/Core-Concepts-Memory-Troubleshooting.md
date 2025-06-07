@@ -84,3 +84,6 @@ A systematic approach is needed:
 *   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+
+---
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

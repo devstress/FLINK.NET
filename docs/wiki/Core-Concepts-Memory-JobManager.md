@@ -113,3 +113,6 @@ In an HA setup, JobManager memory should also account for any state that needs t
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
 *   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+
+---
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

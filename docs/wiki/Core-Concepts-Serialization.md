@@ -101,4 +101,5 @@ This ensures that JSON serialization, with its performance implications, is an e
 
 ---
 Previous: [Core Concepts: Checkpointing - Barriers](./Core-Concepts-Checkpointing-Barriers.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Concepts: Serialization Strategy](./Core-Concepts-Serialization-Strategy.md)
