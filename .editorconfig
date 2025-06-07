@@ -257,6 +257,7 @@ dotnet_diagnostic.IDE0073.severity = silent
 # The primary way to enforce these types of rules is through Roslyn analyzers
 # referenced in the project file, which then respect severity settings from .editorconfig.
 # The `max_line_length` is a general setting that helps a bit.
+
 # Roslynator rules fine-tuned for SOLID principles (severity set to warning, will be error due to TreatWarningsAsErrors=true)
 
 # SRP & Complexity related

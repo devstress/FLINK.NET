@@ -45,6 +45,11 @@ jobs:
           New-Item -Path .\.sonar\scanner -ItemType Directory
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
 
+      # New step to install .NET workloads
+      - name: Install .NET Aspire Workload
+        shell: powershell # Or bash, ensure consistency with other script steps if needed
+        run: dotnet workload restore FlinkDotNet/FlinkDotNet.sln
+
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For PR decoration and SonarCloud <-> GitHub integration
