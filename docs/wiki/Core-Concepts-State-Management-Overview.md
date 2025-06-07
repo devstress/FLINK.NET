@@ -1,105 +1,57 @@
-# Core Concepts: State Management Overview
+# Core Concepts: State Management Overview in Flink.NET
 
-### Table of Contents
-- [What is State?](#what-is-state)
-- [Keyed State](#keyed-state)
-  - [Types of Keyed State in Flink.NET](#types-of-keyed-state-in-flinknet)
-  - [Accessing and Describing State](#accessing-and-describing-state)
-- [State Backends](#state-backends)
+Stateful stream processing is a key strength of Apache Flink, and Flink.NET aims to provide robust state management capabilities for .NET developers. State is crucial for applications that need to remember information over time, such as aggregations, windowing operations, or finite state machines.
 
-Stateful stream processing is a cornerstone of Flink.NET, allowing applications to maintain information across events for complex computations.
+## What is State in Flink.NET?
 
-*(Apache Flink Ref: [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/))*
+In Flink.NET, state refers to data that operators maintain and update as they process streaming events. This state is versioned and checkpointed, allowing for fault tolerance and consistent recovery.
 
-## What is State?
-In stream processing, "state" is any data an operator remembers from past events to process current ones.
+## Types of State in Flink.NET
 
-## Keyed State
-Flink.NET primarily focuses on **Keyed State**, partitioned by a key extracted from input data. All state for a given key is managed by the same operator instance.
+Flink.NET will support different types of state, mirroring Apache Flink's offerings, to cater to various use cases:
 
-*(Apache Flink Ref: [Keyed State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/#keyed-state))*
+*   **Keyed State:** This is the most common type of state and is scoped to a specific key within a data stream. When a stream is partitioned using `KeyBy()`, each key has its own independent state. Flink.NET will provide the following types of keyed state:
+    *   `IValueState<T>`: Stores a single value of type `T`. You can `Update(T value)` it and retrieve the `Value()`.
+    *   `IListState<T>`: Stores a list of elements of type `T`. You can `Add(T value)`, `AddAll(List<T> values)`, retrieve the `Get()` as `IEnumerable<T>`, and `Update(List<T> values)` to replace the entire list.
+    *   `IMapState<UK, UV>`: Stores a map of key-value pairs (`UK`, `UV`). You can `Put(UK key, UV value)`, `Get(UK key)`, retrieve all `Entries()`, `Keys()`, `Values()`, and `Remove(UK key)`.
+    *   *(Others like `IReducingState` and `IAggregatingState` may be considered based on Apache Flink's model).*
 
-### Types of Keyed State in Flink.NET
+*   **Operator State:** (To be detailed further in advanced sections if implemented) This state is scoped to an instance of an operator, rather than a key. It's useful for sources and sinks that need to remember offsets or manage connections.
 
-Core state interfaces (`FlinkDotNet.Core.Abstractions.States`):
-*   **`IValueState<T>`:** Holds a single value.
-*   **`IListState<T>`:** Holds a list of elements.
-*   **`IMapState<TK, TV>`:** Holds key-value pairs.
+## State Descriptors
 
-*(Apache Flink Ref: [State Primitives](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/#available-state-primitives))*
+To create or access state, you use a `StateDescriptor`. This object defines:
 
-### Accessing and Describing State
-State is accessed in "Rich" operators via `IRuntimeContext` using a `StateDescriptor` (e.g., `ValueStateDescriptor<T>`). The descriptor defines the state''s name, type, and (later) serializers and default values.
+*   **State Name:** A unique name for the state within an operator.
+*   **Serializer/Type Information:** How the state's data should be serialized and deserialized. Flink.NET will aim to infer this from the generic types or allow custom serializers.
 
-```csharp
-// Conceptual example within a Rich operator:
-public class MyStatefulCounter : IRichMapOperator<string, string>
-{
-    private IValueState<long> _countState;
+## State Backends (Planned)
 
-    public void Open(IRuntimeContext context)
-    {
-        // Assuming FlinkDotNet.Core.Abstractions.Serializers.LongSerializer is in scope
-        var descriptor = new ValueStateDescriptor<long>("myCounterState", new LongSerializer(), defaultValue: 0L); // Assuming LongSerializer is available and appropriate
-        _countState = context.GetValueState(descriptor);
-    }
+A State Backend determines how and where state is stored. Apache Flink offers different state backends (e.g., memory, filesystem, RocksDB). Flink.NET plans to support configurable state backends:
 
-    public string Map(string eventData)
-    {
-        long currentCount = _countState.Value();
-        currentCount++;
-        _countState.Update(currentCount);
-        return $"Event: {eventData}, Current Count for Key: {currentCount}";
-    }
+*   **MemoryStateBackend:** Stores state in memory on the TaskManagers. Suitable for development and small state sizes.
+*   **FsStateBackend (or similar for .NET):** Stores state in a file system (e.g., HDFS, local FS).
+*   **RocksDBStateBackend (or similar for .NET):** Stores state in an embedded RocksDB instance. This is often the preferred choice for large state and offers incremental checkpointing.
 
-    public void Close() { /* Cleanup state if needed */ }
-}
-```
+The choice of state backend impacts performance and scalability.
 
-### State Backends
-A **State Backend** determines how state is stored and managed, both for live access during processing and for durable persistence via checkpointing. Flink.NET's initial planned state backends include:
+## Working with State
 
-1.  **In-Memory State Backend:** This backend holds live state directly in the TaskManager's memory. Checkpoints (snapshots) are typically written to a durable object store. While offering fast access, it's limited by the available memory of the TaskManagers and is suitable for applications with smaller state sizes.
-2.  **Durable Keyed State Backend (Planned):** This backend aims to support larger state sizes by storing live state in an embedded key-value store (like RocksDB, which is common in Apache Flink) or potentially a fast, external distributed key-value store (e.g., Redis). Snapshots are still persisted to a durable object store (like S3, Azure Blob Storage, or MinIO).
+Operators that use state typically implement a "rich" interface (e.g., `IRichMapOperator`) which provides an `IRuntimeContext`. This context gives access to methods for creating and retrieving state.
 
-*(Apache Flink Ref: [State Backends](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/state_backends/))*
+See [[Working with State|Developing-State]] for detailed examples.
 
-#### Apache Flink 2.0 and Disaggregated State Management
-A significant evolution in Apache Flink, particularly emphasized with Flink 2.0, is **Disaggregated State Management**. This architectural pattern fundamentally changes how state is handled, especially in cloud-native environments.
+## Relationship to Apache Flink State Management
 
-*   **Core Concept:** Disaggregated state management decouples state storage from compute resources. Instead of TaskManagers holding the primary copy of the state locally (even if backed by RocksDB on local disk), the state is primarily managed in a Distributed File System (DFS) like HDFS, S3, or Azure Blob Storage. TaskManagers might cache parts of the state locally for performance but the source of truth and durability lies with the DFS.
+Flink.NET's state management is designed to be closely aligned with Apache Flink's concepts. The types of state, the use of state descriptors, and the role of state backends are all derived from Flink's battle-tested model. This ensures that .NET developers can leverage Flink's powerful fault tolerance and state consistency features.
 
-*   **Primary Goals:**
-    *   **Resource Efficiency:** In cloud environments, compute and storage can be scaled independently. TaskManagers can be scaled up or down more flexibly without needing to migrate large amounts of local state.
-    *   **Faster Rescaling:** When jobs with large states need to be rescaled (e.g., changing parallelism), the process can be much faster as state doesn't need to be physically redistributed across local disks of new TaskManagers. Instead, new TaskManagers can directly access the state from the DFS.
-    *   **Lighter/Faster Checkpoints:** Checkpoints can become more efficient as they might involve incremental updates or metadata changes in the DFS rather than copying large state files from local TaskManager disks to the DFS.
+**Apache Flink References:**
 
-*   **Key Components/Enablers in Flink 2.0:**
-    *   **Asynchronous Execution Model:** Flink's internal architecture is evolving to better support non-blocking state access. This allows computations to proceed while state is being fetched or written asynchronously from/to the remote state backend, crucial for performance when state is not local.
-    *   **ForSt (Flink Object Storage State Backend):** Flink introduced ForSt (currently an experimental backend) as a purpose-built disaggregated state backend. It's designed to work efficiently with object stores (like S3) and leverages techniques like local caching and optimized data formats for better performance.
+*   [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/)
+*   [State Backends](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/state_backends/)
+*   [Keyed State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/#keyed-state)
 
-*   **Relevance to Flink.NET:**
-    Disaggregated state management represents an advanced, cloud-native architectural pattern from the wider Flink ecosystem. While Flink.NET would need to develop its own .NET-specific implementations to realize such a backend, these Flink 2.0 concepts provide invaluable guiding principles. For Flink.NET, especially when targeting robust and scalable cloud deployments, understanding and potentially adopting similar disaggregated state strategies will be crucial. This could involve:
-    *   Designing state access mechanisms that can work efficiently with remote storage.
-    *   Developing .NET equivalents of components like ForSt or integrating with existing .NET libraries that facilitate interaction with DFS.
-    *   Ensuring that checkpointing and recovery mechanisms are optimized for a disaggregated state model.
+## Next Steps
 
-Adopting such principles would allow Flink.NET to offer highly scalable, resilient, and resource-efficient stateful stream processing capabilities, particularly in cloud environments where dynamic scaling and cost optimization are paramount.
-
-Proper state management is essential for advanced, fault-tolerant streaming applications.
-
-## State Versioning and Compatibility
-
-In long-running stateful streaming applications, the structure of the data being stored in state (state schema) or even the logic that processes it might need to evolve over time due to new business requirements or bug fixes. This evolution requires careful management to ensure that existing state can still be read and understood by updated application code.
-
-Key considerations include:
-*   **Schema Evolution:** How changes to the data types or structures stored in state (e.g., adding or removing fields in a POCO stored in `IValueState`) are handled. This often involves defining clear serialization formats and potentially providing custom serializers that can handle different versions of a schema.
-*   **State Migration:** In some cases, more complex transformations of state data might be necessary when application logic changes significantly.
-*   **Framework Upgrades:** Upgrading the stream processing framework itself (like Flink.NET or Apache Flink) can also have implications for state compatibility.
-
-It's important to note that major version changes in underlying engines, like Apache Flink 2.0 not guaranteeing state compatibility with Flink 1.x versions, highlight the need for careful planning, versioning strategies, and potential migration paths for state data in any stateful stream processing system, including Flink.NET. While Flink.NET is in its early stages, these are crucial long-term considerations for production readiness.
-
----
-Previous: [Core Concepts: TaskManager](./Core-Concepts-TaskManager.md)
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
-Next: [Core Concepts: Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md)
+*   Learn the specifics of [[Working with State|Developing-State]] in your Flink.NET applications.
+*   Understand [[Checkpointing & Fault Tolerance|Core-Concepts-Checkpointing-Overview]] which relies heavily on state management.
