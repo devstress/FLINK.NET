@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using FlinkDotNet.Core.Abstractions.Operators; // For IMapOperator, etc.
 using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode

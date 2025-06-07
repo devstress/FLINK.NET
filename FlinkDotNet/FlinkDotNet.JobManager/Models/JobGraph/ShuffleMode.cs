@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace FlinkDotNet.JobManager.Models.JobGraph
 {
     public enum ShuffleMode

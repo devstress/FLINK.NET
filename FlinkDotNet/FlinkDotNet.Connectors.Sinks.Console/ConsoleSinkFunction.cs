@@ -1,4 +1,3 @@
-#nullable enable
 using System; // Already present, but ensuring it's there for Console.WriteLine
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext

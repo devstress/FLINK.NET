@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 
 namespace FlinkDotNet.TaskManager.Models // Namespace adjusted for TaskManager project

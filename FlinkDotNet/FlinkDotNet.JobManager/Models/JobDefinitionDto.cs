@@ -1,4 +1,3 @@
-#nullable enable
 using System.Collections.Generic;
 
 namespace FlinkDotNet.JobManager.Models

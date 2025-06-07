@@ -1,4 +1,3 @@
-#nullable enable
 using System.Threading.Tasks; // For ValueTask if RequestBufferAsync is preferred
 
 namespace FlinkDotNet.Core.Networking

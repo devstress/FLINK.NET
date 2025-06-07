@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using Xunit;
 using FlinkDotNet.Core.Abstractions.Context;

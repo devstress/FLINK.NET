@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic; // Required for List
 using FlinkDotNet.Core.Abstractions.Operators; // For IMapOperator as an example

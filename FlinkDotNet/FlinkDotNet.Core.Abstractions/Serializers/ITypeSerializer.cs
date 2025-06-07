@@ -1,4 +1,3 @@
-#nullable enable
 namespace FlinkDotNet.Core.Abstractions.Serializers
 {
     public interface ITypeSerializer<T>

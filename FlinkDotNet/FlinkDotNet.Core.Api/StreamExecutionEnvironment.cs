@@ -1,4 +1,3 @@
-#nullable enable
 using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
 // Potentially other using statements like FlinkDotNet.JobManager.Models.JobGraph
 using System.Linq; // Added for ToDictionary

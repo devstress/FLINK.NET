@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Collectors;

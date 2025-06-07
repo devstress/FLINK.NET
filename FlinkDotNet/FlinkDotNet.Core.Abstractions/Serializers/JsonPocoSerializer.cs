@@ -1,5 +1,4 @@
 // In FlinkDotNet.Core.Abstractions.Serializers JsonPocoSerializer.cs
-#nullable enable
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;

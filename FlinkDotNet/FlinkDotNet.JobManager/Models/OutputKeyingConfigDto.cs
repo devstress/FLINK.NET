@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace FlinkDotNet.JobManager.Models
 {
     public class OutputKeyingConfigDto

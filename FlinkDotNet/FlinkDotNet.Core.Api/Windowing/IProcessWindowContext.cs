@@ -1,4 +1,3 @@
-#nullable enable
 using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext
 using FlinkDotNet.Core.Abstractions.Models.State; // For state descriptors
 using FlinkDotNet.Core.Abstractions.States;   // For state access (ValueStateDescriptor, etc.)

@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.IO; // For Path
 using System.Threading;

@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using FlinkDotNet.Core.Api.Common; // For Time struct, if needed by static helpers, though not directly used in this version of TimeWindow properties
 

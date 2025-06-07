@@ -1,4 +1,3 @@
-#nullable enable
 namespace FlinkDotNet.Core.Abstractions.Functions
 {
     /// <summary>
