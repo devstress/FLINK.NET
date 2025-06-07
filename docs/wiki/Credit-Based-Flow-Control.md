@@ -58,3 +58,7 @@ While users typically don't interact directly with these components, understandi
 
 This credit-based system is an internal mechanism designed to make FlinkDotNet jobs more robust and stable under varying load conditions and operator processing speeds.
 ```
+
+---
+Previous: [Operator Chaining](./Operator-Chaining.md)
+Next: [Developing Data Types](./Developing-Data-Types.md)

@@ -54,3 +54,7 @@ The following is a conceptual list of endpoints based on common Flink patterns a
 ## Further Development
 
 This API will be expanded with more endpoints and richer functionality as Flink.NET matures. Refer to the source code (`JobManagerController.cs`) and future API specifications for the most up-to-date information.
+
+---
+Previous: [Connectors Overview](./Connectors-Overview.md)
+Next: [JobManager gRPC Api](./JobManager-Grpc-Api.md)

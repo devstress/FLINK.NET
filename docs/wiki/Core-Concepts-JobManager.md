@@ -158,3 +158,7 @@ This mode offers flexibility for local development but places more responsibilit
 ## Disclaimer
 
 Note: The Flink.NET JobManager is under active development. Some concepts, particularly around High Availability and fine-grained memory management, are evolving and may currently differ from the mature implementations found in Apache Flink. This documentation reflects the current design, observed behavior based on recent code analysis, and planned future enhancements. For definitive Apache Flink concepts, please refer to the official Apache Flink documentation.
+
+---
+Previous: [Core Concepts: Memory Overview](./Core-Concepts-Memory-Overview.md)
+Next: [Core Concepts: TaskManager](./Core-Concepts-TaskManager.md)

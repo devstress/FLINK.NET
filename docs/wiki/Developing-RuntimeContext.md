@@ -86,3 +86,7 @@ Keyed state is always associated with the "current key" being processed by the o
 *   **`void SetCurrentKey(object? key)`**: **INTERNAL USE:** This method is called by the Flink.NET runtime (e.g., `TaskExecutor`) to set the current key before processing an element in a keyed stream. Application developers typically do not call this method directly.
 
 Understanding `IRuntimeContext` is essential for writing Rich functions that can leverage Flink.NET's stateful processing capabilities and gain insights into their operational environment.
+
+---
+Previous: [Developing Operators](./Developing-Operators.md)
+Next: [Developing State](./Developing-State.md)

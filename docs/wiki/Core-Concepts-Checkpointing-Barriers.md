@@ -105,3 +105,7 @@ The actual `DataRecord` Protobuf definition (with `is_checkpoint_barrier`, `barr
 *   **Checkpoint Coordination:** The JobManager tracks barrier progress and acknowledgements to declare a checkpoint complete or failed.
 
 This initial design focuses on the structure and identification of barriers. The runtime behavior is complex and will be detailed in subsequent design and implementation phases.
+
+---
+Previous: [Core Concepts: Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md)
+Next: [Core Concepts: Serialization](./Core-Concepts-Serialization.md)

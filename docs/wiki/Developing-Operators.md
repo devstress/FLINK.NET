@@ -129,3 +129,7 @@ When implementing your UDFs:
 *   Use Rich functions when you need to interact with the runtime environment or manage state.
 
 This page provides a starting point for understanding and implementing operators in Flink.NET. Refer to specific interface definitions and further examples in the repository as you build your applications.
+
+---
+Previous: [Developing Data Types](./Developing-Data-Types.md)
+Next: [Developing RuntimeContext](./Developing-RuntimeContext.md)

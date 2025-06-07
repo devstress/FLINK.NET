@@ -80,3 +80,7 @@ During job compilation, the `StreamExecutionEnvironment` analyzes the logical pl
 
 This optimization is applied automatically where possible, but the API methods provide control for specific scenarios where default behavior might not be desired.
 ```
+
+---
+Previous: [Core Processing Features](./Core-Processing-Features.md)
+Next: [Credit-Based Flow Control](./Credit-Based-Flow-Control.md)
