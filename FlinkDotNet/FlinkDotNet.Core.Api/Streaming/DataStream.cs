@@ -11,6 +11,7 @@ using FlinkDotNet.Core.Abstractions.Functions; // For IKeySelector
 // If it's in FlinkDotNet.Core.Api.Streaming, this using might not be strictly necessary
 // but doesn't hurt. If it's in a parent namespace, it's good.
 using FlinkDotNet.Core.Api;
+using FlinkDotNet.Core.Abstractions.Operators; // For ChainingStrategy
 
 
 namespace FlinkDotNet.Core.Api.Streaming
@@ -195,6 +196,18 @@ namespace FlinkDotNet.Core.Api.Streaming
 
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
         }
+
+        public DataStream<TElement> StartNewChain()
+        {
+            this.Transformation.ChainingStrategy = ChainingStrategy.HEAD;
+            return this;
+        }
+
+        public DataStream<TElement> DisableChaining()
+        {
+            this.Transformation.ChainingStrategy = ChainingStrategy.NEVER;
+            return this;
+        }
     }
 
     // Simplified Transformation classes for illustration of the logical plan.
@@ -205,6 +218,7 @@ namespace FlinkDotNet.Core.Api.Streaming
         public Type OutputType { get; }
         public int Parallelism { get; set; } = 1; // Default parallelism
         public List<(Transformation Output, ShuffleMode Mode)> DownstreamTransformations { get; } = new();
+        public ChainingStrategy ChainingStrategy { get; set; } = ChainingStrategy.ALWAYS;
 
         protected Transformation(string name, Type outputType)
         {

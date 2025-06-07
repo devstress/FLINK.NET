@@ -136,16 +136,14 @@ message OperatorOutput { // Defines a connection to a specific downstream subtas
 
 message OutputEdgeKeyingInfo { // For TDD, if an output is hash partitioned
   string target_job_vertex_id = 1; 
-  string serialized_key_selector = 2; // Base64 string of the IKeySelector instance
-  string key_type_name = 3;           // AssemblyQualifiedName of TKey
+  string serialized_key_selector = 2;
+  string key_type_name = 3;
   int32 downstream_parallelism = 4;
-  string key_selector_type_name = 5;  // AssemblyQualifiedName of the IKeySelector implementation
 }
 
 message InputKeyingInfo { // For TDD, if an input is expected to be keyed (for state access)
-  string serialized_key_selector = 1; // Base64 string of the IKeySelector instance
-  string key_type_name = 2;           // AssemblyQualifiedName of TKey
-  string key_selector_type_name = 3;  // AssemblyQualifiedName of the IKeySelector implementation
+  string serialized_key_selector = 1; // Selector used by upstream to partition to this task
+  string key_type_name = 2;           // Type of the key for this input stream
 }
 
 message ChainedOperatorInfo { // For TDD, for operators chained after the head operator
@@ -249,3 +247,44 @@ service DataExchangeService { // TM hosts this, other TMs call it
   // Bi-directional streaming RPC for data and credit exchange
   rpc ExchangeData (stream UpstreamPayload) returns (stream DownstreamPayload);
 }
+
+// ----- Added message definitions based on C# models -----
+
+// Enum for JobVertex type
+enum VertexType {
+  SOURCE = 0;
+  OPERATOR = 1;
+  SINK = 2;
+}
+
+// Message for KeyingInfo (maps to OutputKeyingConfig in C# model)
+message OutputKeyingConfig {
+  string key_selector_type_name = 1;
+  string key_type_assembly_name = 2;
+}
+
+// Message for OperatorDefinition
+message OperatorDefinition {
+  string fully_qualified_name = 1;
+  google.protobuf.Struct configuration = 2; // Using Struct for flexible JSON-like configuration
+}
+
+// Message for JobVertex
+message JobVertex {
+  string id = 1;
+  string name = 2;
+  OperatorDefinition operator_definition = 3;
+  int32 parallelism = 4;
+  VertexType vertex_type = 5;
+  string input_type_name = 6;           // Optional: field presence indicates if set
+  string output_type_name = 7;          // Optional: field presence indicates if set
+  string input_serializer_type_name = 8; // Optional
+  string output_serializer_type_name = 9;// Optional
+  repeated string input_edge_ids = 10;
+  repeated string output_edge_ids = 11;
+  map<string, OutputKeyingConfig> output_edge_keying = 12;
+  repeated OperatorDefinition chained_operators = 13; // New field for chained operators
+}
+
+// Import for google.protobuf.Struct, if not already implicitly available by tools
+import "google/protobuf/struct.proto";

@@ -97,25 +97,18 @@ namespace FlinkDotNet.Core.Abstractions.Execution
 
                 // 2. Check for MemoryPack compatibility for class types (POCOs)
                 //    Ensure MemoryPackableAttribute is from the correct MemoryPack namespace.
-                //    Ensure MemoryPackableAttribute is from the correct MemoryPack namespace.
                 if (type.IsClass && type.GetCustomAttribute<MemoryPackableAttribute>(inherit: false) != null)
                 {
                     try
                     {
                         Type genericMemoryPackSerializerType = typeof(MemoryPackSerializer<>).MakeGenericType(type);
-                        var serializerInstance = (ITypeSerializer)Activator.CreateInstance(genericMemoryPackSerializerType)!;
-
-                        // Record the successfully chosen MemoryPack serializer type
-                        // This ensures GetNamedRegistrations and GetSerializerType can see it later.
-                        _typeToSerializerType.TryAdd(type, genericMemoryPackSerializerType); // Use TryAdd for safety, though GetOrAdd context might make it single-threaded for this key.
-
-                        return serializerInstance;
+                        return (ITypeSerializer)Activator.CreateInstance(genericMemoryPackSerializerType)!;
                     }
                     catch (Exception ex)
                     {
+                        // This might happen if MemoryPack source generator didn't run for the type,
+                        // or other instantiation issues. Fall through to next step (strict fallback).
                         Console.WriteLine($"[SerializerRegistry] DEBUG: MemoryPackSerializer instantiation failed for {type.FullName}, will proceed to fallback. Error: {ex.Message}");
-                        // Do not throw here, allow fallback to the main exception at the end of GetSerializer
-                        // if this was the only option. The original code already does this.
                     }
                 }
 

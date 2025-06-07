@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting; // Ensured for AddServiceDefaults
-using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
 using FlinkDotNet.TaskManager.Services; // For TaskManagerCheckpointingServiceImpl
 
 namespace FlinkDotNet.TaskManager
@@ -77,31 +76,15 @@ namespace FlinkDotNet.TaskManager
                     services.AddSingleton(new TaskManagerCoreService.Config(TaskManagerId, JobManagerAddress));
                     services.AddHostedService<TaskManagerCoreService>();
 
-                    // Register SerializerRegistry
-                    services.AddSingleton<SerializerRegistry>();
-
                     // Register TaskExecutor
-                    services.AddSingleton(sp => new TaskExecutor(
-                        sp.GetRequiredService<ActiveTaskRegistry>(),
-                        sp.GetRequiredService<TaskManagerCheckpointingServiceImpl>(),
-                        sp.GetRequiredService<SerializerRegistry>()
-                    ));
-
-                    // Register ActiveTaskRegistry
-                    services.AddSingleton<ActiveTaskRegistry>();
+                    services.AddSingleton<TaskExecutor>();
 
                     // Register gRPC services
                     services.AddGrpc();
                     // Pass TaskManagerId to the service if needed for context
-                    services.AddSingleton(sp => new TaskManagerCheckpointingServiceImpl(
-                        Program.TaskManagerId, // Or resolve from configuration if preferred
-                        sp.GetRequiredService<ActiveTaskRegistry>()
-                    ));
+                    services.AddSingleton(sp => new TaskManagerCheckpointingServiceImpl(TaskManagerId));
                     services.AddSingleton(sp => new TaskExecutionServiceImpl(TaskManagerId, sp.GetRequiredService<TaskExecutor>()));
-                    services.AddSingleton(sp => new DataExchangeServiceImpl(
-                        Program.TaskManagerId, // Assuming Program.TaskManagerId is accessible
-                        sp.GetRequiredService<TaskExecutor>()
-                    )); // Register DataExchangeService
+                    services.AddSingleton(sp => new DataExchangeServiceImpl(TaskManagerId)); // Register DataExchangeService
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {

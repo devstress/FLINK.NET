@@ -4,27 +4,22 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using FlinkDotNet.Proto.Internal; // From .proto file
 using System.IO; // For Path, File
-// using FlinkDotNet.Storage.FileSystem; // No longer used directly here
+using FlinkDotNet.Storage.FileSystem; // Added for FileSystemSnapshotStore
 using System.Text; // Added for Encoding.UTF8
-using System.Threading.Channels; // Required for ChannelClosedException
-using FlinkDotNet.Core.Abstractions.Models.State; // Added for OperatorStateSnapshot
-using FlinkDotNet.TaskManager; // Added for ActiveTaskRegistry and BarrierInjectionRequest
 
 namespace FlinkDotNet.TaskManager.Services
 {
-    // public record SnapshotResult(bool Success, string SnapshotHandle, long SnapshotSize, long Duration); // No longer needed here
+    public record SnapshotResult(bool Success, string SnapshotHandle, long SnapshotSize, long Duration); // Added record
 
     public class TaskManagerCheckpointingServiceImpl : TaskManagerCheckpointing.TaskManagerCheckpointingBase
     {
         private readonly string _taskManagerId;
-        private readonly ActiveTaskRegistry _activeTaskRegistry;
-        // private static readonly FileSystemSnapshotStore _snapshotStore = new FileSystemSnapshotStore(); // Removed
+        private static readonly FileSystemSnapshotStore _snapshotStore = new FileSystemSnapshotStore(); // Simple static instance for now
 
         // Inject TaskManagerId or get it from a shared service/config
-        public TaskManagerCheckpointingServiceImpl(string taskManagerId, ActiveTaskRegistry activeTaskRegistry)
+        public TaskManagerCheckpointingServiceImpl(string taskManagerId)
         {
             _taskManagerId = taskManagerId;
-            _activeTaskRegistry = activeTaskRegistry;
         }
 
         public override async Task<TriggerCheckpointResponse> TriggerTaskCheckpoint( // Made async
@@ -32,77 +27,62 @@ namespace FlinkDotNet.TaskManager.Services
         {
             Console.WriteLine($"TaskManager [{_taskManagerId}]: Received TriggerCheckpoint request for JobID '{request.JobId}', CheckpointID {request.CheckpointId} from JM '{request.JobManagerId}'.");
 
-            // --- New Barrier Injection Logic ---
-            var sourcesForJob = _activeTaskRegistry.GetSourcesForJob(request.JobId);
-            int injectionCount = 0;
-            foreach (var source in sourcesForJob)
+            // Placeholder for actual snapshot logic
+            string snapshotHandle = string.Empty;
+            long snapshotSize = 0;
+            long duration = 0;
+            // bool snapshotSuccess = await PerformLocalSnapshotAsync(request.JobId, request.CheckpointId, snapshotHandle: out snapshotHandle, snapshotSize: out snapshotSize, duration: out duration);
+            var snapshotResult = await PerformLocalSnapshotAsync(request.JobId, request.CheckpointId);
+
+
+            if (snapshotResult.Success)
             {
-                try
-                {
-                    var barrierRequest = new BarrierInjectionRequest(request.CheckpointId, request.CheckpointTimestamp);
-                    // Asynchronously send the request. If the channel is full or closed, it might throw.
-                    // Consider using TryWrite if immediate failure handling is needed, but WriteAsync is fine for now.
-                    await source.BarrierChannelWriter.WriteAsync(barrierRequest, context.CancellationToken); // Use context.CancellationToken
-                    injectionCount++;
-                    Console.WriteLine($"TaskManager [{_taskManagerId}]: Queued barrier {request.CheckpointId} for source {source.JobVertexId}_{source.SubtaskIndex}");
-                }
-                catch (ChannelClosedException cce)
-                {
-                    Console.WriteLine($"TaskManager [{_taskManagerId}]: Failed to queue barrier for source {source.JobVertexId}_{source.SubtaskIndex} because channel was closed: {cce.Message}");
-                    // This might happen if the source task completed and unregistered concurrently.
-                }
-                catch (OperationCanceledException oce)
-                {
-                    Console.WriteLine($"TaskManager [{_taskManagerId}]: Failed to queue barrier for source {source.JobVertexId}_{source.SubtaskIndex} due to cancellation: {oce.Message}");
-                    // This might happen if the gRPC call itself is cancelled.
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"TaskManager [{_taskManagerId}]: Error queueing barrier for source {source.JobVertexId}_{source.SubtaskIndex}: {ex.Message}");
-                    // Log other potential errors
-                }
-            }
-            Console.WriteLine($"TaskManager [{_taskManagerId}]: Attempted to queue barrier {request.CheckpointId} for {injectionCount} sources for job {request.JobId}.");
-            // --- End of New Barrier Injection Logic ---
+                Console.WriteLine($"TaskManager [{_taskManagerId}]: Local snapshot for checkpoint {request.CheckpointId} completed. Handle: {snapshotResult.SnapshotHandle}");
 
-            // The method now primarily just ensures barriers are injected into sources.
-            // Acknowledgements will be sent by ReportOperatorSnapshotComplete when operators (or sources acting as checkpointable) complete their snapshots.
-            Console.WriteLine($"TaskManager [{_taskManagerId}]: Finished processing TriggerCheckpoint for CP {request.CheckpointId}. Barriers injected for sources. Operators will acknowledge upon their snapshot completion.");
-            return new TriggerCheckpointResponse { Acknowledged = true }; // Acknowledges the trigger itself
-        }
-
-        public async Task ReportOperatorSnapshotComplete(
-            string jobId,
-            long checkpointId,
-            string jobVertexId, // From TDD
-            int subtaskIndex,   // From TDD
-            OperatorStateSnapshot snapshotDetail, // The result from operator.SnapshotState()
-            long durationMs) // Duration of the snapshot operation for this operator
-        {
-            Console.WriteLine($"TaskManager [{_taskManagerId}]: Operator {jobVertexId}_{subtaskIndex} completed snapshot for CP {checkpointId}. Handle: {snapshotDetail.StateHandle}");
-
-            if (Program.CoreServiceInstance != null)
-            {
-                // Assuming Program.CoreServiceInstance.SendAcknowledgeCheckpointAsync exists and
-                // can take these parameters or be adapted.
-                // The AcknowledgeCheckpointRequest proto has fields for most of these.
-                // It expects snapshotHandle, snapshotSize, duration.
-                // It also has jobVertexId and subtaskIndex.
-                await Program.CoreServiceInstance.SendAcknowledgeCheckpointAsync(
-                    jobId,
-                    checkpointId,
-                    snapshotDetail.StateHandle ?? string.Empty, // Ensure null safety
-                    (ulong)snapshotDetail.StateSize, // Cast to ulong for proto
-                    (ulong)durationMs, // Cast to ulong for proto
-                    jobVertexId,    // Pass through identifying info
-                    subtaskIndex    // Pass through identifying info
-                    // TODO: Add source_offsets if snapshotDetail.SourceOffsets is populated (for sources)
-                );
-                 Console.WriteLine($"TaskManager [{_taskManagerId}]: Sent AcknowledgeCheckpoint for {jobVertexId}_{subtaskIndex}, CP {checkpointId}.");
+                // Send AcknowledgeCheckpoint back to the JobManager
+                if (Program.CoreServiceInstance != null)
+                {
+                    // Fire and forget for now, or await if critical path
+                    _ = Program.CoreServiceInstance.SendAcknowledgeCheckpointAsync(
+                            request.JobId,
+                            request.CheckpointId,
+                            snapshotResult.SnapshotHandle,
+                            snapshotResult.SnapshotSize,
+                            snapshotResult.Duration);
+                }
+                else
+                {
+                    Console.WriteLine($"TaskManager [{_taskManagerId}]: CRITICAL - TaskManagerCoreService instance not available to send AcknowledgeCheckpoint.");
+                }
             }
             else
             {
-                Console.WriteLine($"TaskManager [{_taskManagerId}]: CRITICAL - TaskManagerCoreService instance not available to send AcknowledgeCheckpoint for {jobVertexId}_{subtaskIndex}, CP {checkpointId}.");
+                Console.WriteLine($"TaskManager [{_taskManagerId}]: Local snapshot for checkpoint {request.CheckpointId} FAILED. No acknowledgement will be sent.");
+                // Note: JobManager will eventually time out this checkpoint if it doesn't receive all acks.
+            }
+
+            return new TriggerCheckpointResponse { Acknowledged = true }; // Changed for async method
+        }
+
+        private async Task<SnapshotResult> PerformLocalSnapshotAsync(string jobId, long checkpointId) // Changed signature
+        {
+            Console.WriteLine($"TaskManager [{_taskManagerId}]: Performing local snapshot for JobID '{jobId}', CheckpointID {checkpointId}.");
+
+            var snapshotData = Encoding.UTF8.GetBytes($"Snapshot data for CP {checkpointId} from TM {_taskManagerId} for Job {jobId}"); // Dummy data
+
+            try
+            {
+                // Use a consistent operatorId/stateName for the dummy snapshot
+                var handleRecord = await _snapshotStore.StoreSnapshot(jobId, checkpointId, _taskManagerId, "operator_default_state", snapshotData);
+                long snapshotSize = snapshotData.Length;
+                long duration = 50; // dummy, ideally measure actual time
+                Console.WriteLine($"TaskManager [{_taskManagerId}]: Snapshot stored via FileSystemSnapshotStore. Handle: {handleRecord.Value}");
+                return new SnapshotResult(true, handleRecord.Value, snapshotSize, duration);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"TaskManager [{_taskManagerId}]: Error storing snapshot using FileSystemSnapshotStore: {ex.Message}");
+                return new SnapshotResult(false, string.Empty, 0, 0);
             }
         }
     }
