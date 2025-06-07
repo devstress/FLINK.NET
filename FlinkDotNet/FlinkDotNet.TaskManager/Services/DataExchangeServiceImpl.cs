@@ -45,12 +45,14 @@ namespace FlinkDotNet.TaskManager.Services
     public class DataExchangeServiceImpl : DataExchangeService.DataExchangeServiceBase
     {
         private readonly string _taskManagerId;
-        private readonly NetworkBufferPool _globalNetworkBufferPool; // Added for LocalBufferPool creation
+        private readonly NetworkBufferPool _globalNetworkBufferPool;
+        private readonly TaskExecutor _taskExecutor; // Added TaskExecutor
 
-        public DataExchangeServiceImpl(string taskManagerId, NetworkBufferPool globalNetworkBufferPool)
+        public DataExchangeServiceImpl(string taskManagerId, NetworkBufferPool globalNetworkBufferPool, TaskExecutor taskExecutor)
         {
             _taskManagerId = taskManagerId ?? throw new ArgumentNullException(nameof(taskManagerId));
             _globalNetworkBufferPool = globalNetworkBufferPool ?? throw new ArgumentNullException(nameof(globalNetworkBufferPool));
+            _taskExecutor = taskExecutor ?? throw new ArgumentNullException(nameof(taskExecutor)); // Store injected TaskExecutor
             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Initialized.");
         }
 
@@ -116,9 +118,47 @@ namespace FlinkDotNet.TaskManager.Services
                     {
                         DataRecord dataRecord = upstreamPayload.Record;
 
-                        if (localBufferPool == null) // First record, initialize pool and send initial credit
+                        // Handle barrier first
+                        if (dataRecord.IsCheckpointBarrier)
                         {
-                            targetJobVertexId = dataRecord.TargetJobVertexId;
+                            var barrierProto = dataRecord.BarrierPayload;
+                            if (barrierProto == null)
+                            {
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received DataRecord for {dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex} marked as barrier but BarrierPayload is null. Discarding. Peer: {context.Peer}");
+                                continue; // Skip this record
+                            }
+
+                            // Ensure targetJobVertexId and targetSubtaskIndex are initialized if this is the first message
+                            if (targetJobVertexId == null) {
+                                targetJobVertexId = dataRecord.TargetJobVertexId;
+                                targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex} from first barrier. Peer: {context.Peer}");
+                            }
+
+                            Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received BARRIER for {dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex}. CP ID: {barrierProto.CheckpointId}, Timestamp: {barrierProto.CheckpointTimestamp}, From Input: {dataRecord.SourceJobVertexId}_{dataRecord.SourceSubtaskIndex}. Peer: {context.Peer}");
+
+                            // Assuming TaskExecutor has a method to get a barrier handler for a specific task instance
+                            // This method was not defined in the prompt, so using a placeholder name.
+                            // This implies TaskExecutor needs to register such handlers when tasks are deployed.
+                            var handler = _taskExecutor.GetOperatorBarrierHandler(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex);
+                            if (handler != null)
+                            {
+                                string barrierSourceInputId = $"{dataRecord.SourceJobVertexId}_{dataRecord.SourceSubtaskIndex}";
+                                // Intentionally not awaiting. HandleIncomingBarrier itself can use Task.Run for long operations.
+                                _ = handler.HandleIncomingBarrier(barrierProto.CheckpointId, barrierProto.CheckpointTimestamp, barrierSourceInputId);
+                            }
+                            else
+                            {
+                                Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No OperatorBarrierHandler found for {dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex} to handle barrier {barrierProto.CheckpointId}. This might be a sink or a source if barriers are routed unexpectedly. Peer: {context.Peer}");
+                            }
+                            // Barrier processed, continue to next message in stream
+                            continue;
+                        }
+
+                        // If not a barrier, then it's a data record. Proceed with existing data handling logic:
+                        if (localBufferPool == null) // First data record, initialize pool and send initial credit
+                        {
+                            targetJobVertexId = dataRecord.TargetJobVertexId; // Could also be set by a preceding barrier
                             targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex}.");
 
