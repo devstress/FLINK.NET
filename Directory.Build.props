@@ -1,0 +1,33 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Enforce .NET code style rules on build -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Set the analysis level to the latest recommended for .NET SDK analyzers -->
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Treat all warnings (including compiler and analyzer warnings) as errors -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Optional: Enable all .NET SDK analyzers explicitly, though AnalysisLevel often handles this. -->
+    <!-- <EnableNETAnalyzers>true</EnableNETAnalyzers> -->
+
+    <!-- Optional: Set a specific .NET version if needed, though usually inherited. -->
+    <!-- <TargetFrameworkVersion>net9.0</TargetFrameworkVersion> -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Add Roslynator Analyzers -->
+    <!-- Version 4.13.1 was the latest stable at the time of writing -->
+    <PackageReference Include="Roslynator.Analyzers" Version="4.13.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.11.0.117924">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
