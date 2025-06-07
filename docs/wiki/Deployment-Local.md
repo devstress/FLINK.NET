@@ -75,3 +75,6 @@ A true in-process local runner would be beneficial for very quick unit tests of 
 *   **Simplified Configuration**: Manages connection strings and environment variables for services.
 
 Using the `FlinkDotNetAspire` setup provides a robust and feature-rich environment for developing, testing, and debugging your Flink.NET applications locally.
+
+---
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

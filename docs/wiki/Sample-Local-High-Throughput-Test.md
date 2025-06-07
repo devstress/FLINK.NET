@@ -120,3 +120,6 @@ The `FlinkDotNetAspire` project orchestrates a local Flink.NET "cluster" (JobMan
 *   **Docker Not Running:** Aspire needs Docker for Redis/Kafka.
 *   **Connection Issues (Redis/Kafka):** Check service logs in Aspire Dashboard. Ensure correct connection strings/keys/topics are used (Aspire injects these as environment variables; `ConnectionStrings__redis`, `ConnectionStrings__kafka`).
 *   Refer to general Flink.NET and Aspire troubleshooting if services don't start.
+
+---
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

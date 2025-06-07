@@ -65,4 +65,5 @@ For detailed message formats and RPC signatures, please refer directly to the `.
 
 ---
 Previous: [JobManager REST Api](./JobManager-Rest-Api.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Deployment Local](./Deployment-Local.md)

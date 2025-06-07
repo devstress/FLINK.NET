@@ -40,3 +40,6 @@ This page will be updated with:
 *   Guidance on secure connector configuration.
 
 For general concepts, refer to the Apache Flink documentation on [Security](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/security/overview/).
+
+---
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

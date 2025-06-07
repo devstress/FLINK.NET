@@ -24,4 +24,5 @@ The project welcomes contributions, especially for the core features outlined in
 
 ---
 Previous: [Advanced Security](./Advanced-Security.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Wiki Structure Outline](./Wiki-Structure-Outline.md)

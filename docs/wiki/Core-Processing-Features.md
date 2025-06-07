@@ -14,4 +14,5 @@ For more details, see [Credit-Based Flow Control](./Credit-Based-Flow-Control.md
 
 ---
 Previous: [Core Concepts: Serialization Strategy](./Core-Concepts-Serialization-Strategy.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Operator Chaining](./Operator-Chaining.md)

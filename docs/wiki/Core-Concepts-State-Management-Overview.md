@@ -101,4 +101,5 @@ It's important to note that major version changes in underlying engines, like Ap
 
 ---
 Previous: [Core Concepts: TaskManager](./Core-Concepts-TaskManager.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Concepts: Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md)

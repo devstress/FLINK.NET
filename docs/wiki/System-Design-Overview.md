@@ -69,4 +69,5 @@ This architecture is designed to enable parallel processing of data streams acro
 
 ---
 Previous: [Business Requirements](./Business-Requirements.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Concepts - Memory Overview](./Core-Concepts-Memory-Overview.md)

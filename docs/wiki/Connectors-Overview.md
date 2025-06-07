@@ -55,4 +55,5 @@ As the Flink.NET ecosystem grows, more pre-built connectors will become availabl
 
 ---
 Previous: [Developing Windowing Api](./Developing-Windowing-Api.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [JobManager REST Api](./JobManager-Rest-Api.md)

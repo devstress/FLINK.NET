@@ -108,4 +108,5 @@ This initial design focuses on the structure and identification of barriers. The
 
 ---
 Previous: [Core Concepts: Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Concepts: Serialization](./Core-Concepts-Serialization.md)

@@ -161,4 +161,5 @@ Note: The Flink.NET JobManager is under active development. Some concepts, parti
 
 ---
 Previous: [Core Concepts: Memory Overview](./Core-Concepts-Memory-Overview.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Concepts: TaskManager](./Core-Concepts-TaskManager.md)

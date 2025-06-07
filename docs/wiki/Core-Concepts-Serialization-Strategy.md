@@ -93,4 +93,5 @@ Adopting `MemoryPack` as the default high-performance POCO serializer, combined 
 
 ---
 Previous: [Core Concepts: Serialization](./Core-Concepts-Serialization.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Core Processing Features](./Core-Processing-Features.md)

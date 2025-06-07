@@ -145,4 +145,5 @@ Choosing appropriate data types and ensuring they are serialized efficiently is 
 
 ---
 Previous: [Credit-Based Flow Control](./Credit-Based-Flow-Control.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [Developing Operators](./Developing-Operators.md)

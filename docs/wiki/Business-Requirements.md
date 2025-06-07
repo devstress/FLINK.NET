@@ -26,4 +26,5 @@ With current AI capabilities and Flink's open-source nature, AI could assist in 
 
 ---
 Previous: [Getting Started](./Getting-Started.md)
+[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
 Next: [System Design Overview](./System-Design-Overview.md)
