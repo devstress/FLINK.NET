@@ -19,8 +19,8 @@ namespace FlinkDotNet.JobManager.Models
     {
         public string TaskManagerId { get; }
         public string SnapshotHandle { get; private set; } // Path or reference
-        public long SnapshotSize { get; private set; }
-        public long DurationMs { get; private set; }
+        public ulong SnapshotSize { get; private set; }
+        public ulong DurationMs { get; private set; }
         public CheckpointStatus Status { get; private set; } // Status of this specific task's checkpoint
 
         public TaskCheckpointInfo(string taskManagerId)
@@ -30,7 +30,7 @@ namespace FlinkDotNet.JobManager.Models
             Status = CheckpointStatus.InProgress;
         }
 
-        public void Complete(string handle, long size = 0, long duration = 0)
+        public void Complete(string handle, ulong size = 0, ulong duration = 0)
         {
             SnapshotHandle = handle;
             SnapshotSize = size;
@@ -94,7 +94,7 @@ namespace FlinkDotNet.JobManager.Models
              Console.WriteLine($"Checkpoint {CheckpointId} for job {JobId} marked FAILED.");
         }
 
-         public void MarkTaskAcknowledged(string taskManagerId, string snapshotHandle, long size = 0, long duration = 0)
+         public void MarkTaskAcknowledged(string taskManagerId, string snapshotHandle, ulong size = 0, ulong duration = 0)
         {
             if (TaskSnapshots.TryGetValue(taskManagerId, out var taskInfo))
             {

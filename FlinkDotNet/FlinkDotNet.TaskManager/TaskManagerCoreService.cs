@@ -21,6 +21,7 @@ public class TaskManagerCoreService : IHostedService // new
     private TaskManagerRegistration.TaskManagerRegistrationClient? _client;
     private bool _registered = false;
     private CancellationTokenSource? _internalCts;
+    private string _jobManagerId = string.Empty; // Added to store JM Id
 
     // public TaskManagerService(string taskManagerId, string jobManagerAddress) // old
     public TaskManagerCoreService(Config config) // new
@@ -35,8 +36,8 @@ public class TaskManagerCoreService : IHostedService // new
         var linkedToken = _internalCts.Token;
 
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} starting...");
-        var channel = GrpcChannel.ForAddress(_config.JobManagerGrpcAddress);
-        _client = new TaskManagerRegistration.TaskManagerRegistrationClient(channel);
+        var channel = GrpcChannel.ForAddress(_config.JobManagerGrpcAddress); // _jobManagerChannel could be a field
+        _client = new TaskManagerRegistration.TaskManagerRegistrationClient(channel); // _jmRegistrationClient is _client
 
         try
         {
@@ -51,6 +52,7 @@ public class TaskManagerCoreService : IHostedService // new
             if (response.Success)
             {
                 _registered = true;
+                _jobManagerId = response.JobManagerId; // Store JobManagerId
                 Console.WriteLine($"TaskManager {_config.TaskManagerId} registered successfully with JobManager {response.JobManagerId}.");
                 StartHeartbeat(linkedToken);
 
@@ -152,44 +154,52 @@ public class TaskManagerCoreService : IHostedService // new
         return Task.CompletedTask;
     }
 
-    public async Task SendAcknowledgeCheckpointAsync(string jobId, long checkpointId, string snapshotHandle, long snapshotSize, long duration)
+    public async Task SendAcknowledgeCheckpointAsync(
+        string jobId,
+        long checkpointId,
+        string snapshotHandle,
+        long snapshotSize,
+        long duration,
+        string jobVertexId,
+        int subtaskIndex,
+        Dictionary<string, long> sourceOffsets)
     {
-        if (!_registered || _client == null)
+        if (!_registered || _client == null) // _client is _jmRegistrationClient
         {
-            Console.WriteLine($"TaskManager [{_config.TaskManagerId}]: Not registered or client not available. Cannot send AcknowledgeCheckpoint for CP {checkpointId}.");
+            Console.WriteLine($"TaskManagerCoreService: JobManager client not initialized or TM not registered. Cannot send AcknowledgeCheckpoint for CP {checkpointId}.");
             return;
         }
 
+        var request = new AcknowledgeCheckpointRequest
+        {
+            JobManagerId = _jobManagerId, // The ID of the JM this TM is registered with
+            JobId = jobId,
+            CheckpointId = checkpointId,
+            TaskManagerId = _config.TaskManagerId, // This TM's ID from _config
+            JobVertexId = jobVertexId,
+            SubtaskIndex = subtaskIndex,
+            SnapshotHandle = snapshotHandle ?? string.Empty,
+            SnapshotSize = (ulong)snapshotSize,
+            Duration = (ulong)duration
+        };
+        request.SourceOffsets.Add(sourceOffsets);
+
         try
         {
-            var ackRequest = new AcknowledgeCheckpointRequest
-            {
-                JobManagerId = "", // JobManagerId is known by the JM, TM doesn't need to echo it back unless proto requires for routing
-                JobId = jobId,
-                CheckpointId = checkpointId,
-                TaskManagerId = _config.TaskManagerId,
-                SnapshotHandle = snapshotHandle,
-                // SnapshotSize = snapshotSize, // Add if/when proto supports these details directly
-                // Duration = duration        // Add if/when proto supports these details directly
-            };
-
-            Console.WriteLine($"TaskManager [{_config.TaskManagerId}]: Sending AcknowledgeCheckpoint for Job '{jobId}', CP {checkpointId}, Handle '{snapshotHandle}' to JobManager.");
-            var response = await _client.AcknowledgeCheckpointAsync(ackRequest, deadline: DateTime.UtcNow.AddSeconds(10));
-
+            Console.WriteLine($"TaskManagerCoreService: Sending AcknowledgeCheckpoint for Job {jobId}, CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}, Handle: {snapshotHandle}");
+            var response = await _client.AcknowledgeCheckpointAsync(request); // Removed deadline for now, can be added back from config
             if (response.Success)
             {
-                Console.WriteLine($"TaskManager [{_config.TaskManagerId}]: AcknowledgeCheckpoint for CP {checkpointId} successfully processed by JobManager.");
+                Console.WriteLine($"TaskManagerCoreService: AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex} successfully sent to JobManager.");
             }
             else
             {
-                Console.WriteLine($"TaskManager [{_config.TaskManagerId}]: JobManager did not successfully process AcknowledgeCheckpoint for CP {checkpointId}.");
-                // Handle this failure, e.g., retry, mark checkpoint as failed locally.
+                Console.WriteLine($"TaskManagerCoreService: JobManager did not confirm AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"TaskManager [{_config.TaskManagerId}]: Error sending AcknowledgeCheckpoint for CP {checkpointId}: {ex.GetType().Name} - {ex.Message}");
-            // Handle failure
+            Console.WriteLine($"TaskManagerCoreService: Error sending AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}: {ex.Message}");
         }
     }
 }

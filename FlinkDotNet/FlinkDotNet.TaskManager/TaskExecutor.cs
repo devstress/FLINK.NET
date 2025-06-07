@@ -164,6 +164,11 @@ namespace FlinkDotNet.TaskManager
             _barrierInjectableSources.TryGetValue($"{jobId}_{vertexId}_{subtaskIndex}", out var source);
             return source;
         }
+
+        public IEnumerable<IBarrierInjectableSource> GetAllSources()
+        {
+            return _barrierInjectableSources.Values.ToList(); // Return a copy
+        }
     }
 
     public class SimpleSourceContext<T> : ISourceContext<T>
@@ -232,6 +237,7 @@ namespace FlinkDotNet.TaskManager
     public class TaskExecutor
     {
         private readonly ActiveTaskRegistry _activeTaskRegistry;
+        public ActiveTaskRegistry Registry => _activeTaskRegistry; // Add this property
         private readonly TaskManagerCheckpointingServiceImpl _checkpointingService;
         private readonly SerializerRegistry _serializerRegistry;
         private readonly string _taskManagerId;
@@ -534,7 +540,8 @@ namespace FlinkDotNet.TaskManager
                 jobName: tdd.JobGraphJobId,
                 taskName: tdd.TaskName,
                 numberOfParallelSubtasks: tdd.Parallelism, // Using TDD parallelism
-                indexOfThisSubtask: tdd.SubtaskIndex
+                indexOfThisSubtask: tdd.SubtaskIndex,
+                stateSnapshotStore: _stateStore // Pass the TaskExecutor's state store
             );
 
             var allOperatorInstances = new List<object>();
@@ -687,17 +694,33 @@ namespace FlinkDotNet.TaskManager
                     }
 
                     if (allSnapshotsOk) {
-                         // Simplified: report all snapshots to checkpointing service
-                        foreach(var sr in snapshotResults) {
-                             await _checkpointingService.ReportOperatorSnapshotComplete(
-                                tdd.JobGraphJobId, alignedBarrier.CheckpointId, tdd.JobVertexId, tdd.SubtaskIndex, // This should be specific operator's ID if different
-                                sr, 50 /* placeholder duration */);
+                            if (Program.CoreServiceInstance != null) {
+                                string representativeHandle = "empty_snapshot_handle";
+                                long totalSize = 0;
+
+                                if (snapshotResults.Any()) {
+                                    representativeHandle = snapshotResults.First().StateHandle;
+                                    totalSize = snapshotResults.Sum(s => s.StateSize);
+                                }
+
+                                Console.WriteLine($"[{tdd.TaskName}] Sending AcknowledgeCheckpoint for CP {alignedBarrier.CheckpointId}, Handle: {representativeHandle}, TotalSize: {totalSize}");
+                                await Program.CoreServiceInstance.SendAcknowledgeCheckpointAsync(
+                                    jobId: tdd.JobGraphJobId,
+                                    checkpointId: alignedBarrier.CheckpointId,
+                                    snapshotHandle: representativeHandle,
+                                    snapshotSize: totalSize,
+                                    duration: 50, // Placeholder
+                                    jobVertexId: tdd.JobVertexId,
+                                    subtaskIndex: tdd.SubtaskIndex,
+                                    sourceOffsets: new Dictionary<string, long>() // Empty for non-source
+                                );
+                            } else {
+                                Console.WriteLine($"[{tdd.TaskName}] CRITICAL - TaskManagerCoreService instance not available to send AcknowledgeCheckpoint for CP {alignedBarrier.CheckpointId}.");
                         }
-                        Console.WriteLine($"[{tdd.TaskName}] All snapshots reported for CP {alignedBarrier.CheckpointId}.");
                     } else {
                          Console.WriteLine($"[{tdd.TaskName}] Snapshotting failed for CP {alignedBarrier.CheckpointId}.");
                          // TODO: Report checkpoint failure
-                         return;
+                             return; // Do not forward barrier if snapshotting failed
                     }
 
                     if (allCollectors.LastOrDefault() is List<INetworkedCollector> outputSenders) {
@@ -895,26 +918,40 @@ namespace FlinkDotNet.TaskManager
         public void Close() { Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator closed."); }
 
         public async Task<OperatorStateSnapshot> SnapshotState(long checkpointId, long checkpointTimestamp) {
-            Console.WriteLine($"[{_taskName}] SnapshotState called for CP ID: {checkpointId}, Timestamp: {checkpointTimestamp}.");
-            var snapshotStore = new FileSystemSnapshotStore("file:///tmp/flinkdotnet/snapshots"); // Example path
-            var dummyStateData = System.Text.Encoding.UTF8.GetBytes($"State for operator {_taskName} (Instance: {_context?.TaskName}) at checkpoint {checkpointId} on {DateTime.UtcNow:o}");
-            string jobGraphJobId = _context!.JobName; // Non-null asserted
-            string operatorInstanceId = _context!.TaskName; // Non-null asserted
-            
-            var snapshotHandleRecord = await snapshotStore.StoreSnapshot(
-                jobGraphJobId, checkpointId, Program.TaskManagerId, operatorInstanceId, dummyStateData);
+            Console.WriteLine($"[{_taskName}] SnapshotState called for CP ID: {checkpointId}, Timestamp: {checkpointTimestamp}. Current Key: {_context?.GetCurrentKey()}"); // Corrected GetCurrentKey call
 
-            var snapshot = new OperatorStateSnapshot(snapshotHandleRecord.Value, dummyStateData.Length) {
+            if (_context == null) throw new InvalidOperationException("RuntimeContext not available in SnapshotState.");
+            
+            IStateSnapshotStore snapshotStore = _context.StateSnapshotStore; // Use from context
+
+            string stateContent = $"State for operator {_taskName} (Instance: {_context.TaskName}, Subtask: {_context.IndexOfThisSubtask}) at CP {checkpointId}. Key: '{_context.GetCurrentKey()}'. Timestamp: {DateTime.UtcNow:o}"; // Corrected GetCurrentKey call
+            var stateDataBytes = System.Text.Encoding.UTF8.GetBytes(stateContent);
+
+            string jobGraphJobId = _context.JobName;
+            string storeOperatorId = $"{_context.TaskName}_{this.GetType().Name}";
+
+            var snapshotHandleRecord = await snapshotStore.StoreSnapshot(
+                jobGraphJobId,
+                checkpointId,
+                Program.TaskManagerId,
+                storeOperatorId,
+                stateDataBytes);
+
+            var snapshot = new OperatorStateSnapshot(snapshotHandleRecord.Value, stateDataBytes.Length) {
                 Metadata = new Dictionary<string, string> {
-                    { "OperatorType", _taskName }, { "OperatorInstanceId", operatorInstanceId },
-                    { "CheckpointTime", DateTime.UtcNow.ToString("o") }, { "TaskManagerId", Program.TaskManagerId }
+                    { "OperatorType", this.GetType().Name },
+                    { "OperatorInstanceId", storeOperatorId },
+                    { "TaskName", _context.TaskName },
+                    { "SubtaskIndex", _context.IndexOfThisSubtask.ToString() },
+                    { "CheckpointTime", DateTime.UtcNow.ToString("o") },
+                    { "TaskManagerId", Program.TaskManagerId }
                 }
             };
-            Console.WriteLine($"[{_taskName}] Operator {operatorInstanceId} stored snapshot. Handle: {snapshot.StateHandle}, Size: {snapshot.StateSize}");
+            Console.WriteLine($"[{_taskName}] Operator {storeOperatorId} stored snapshot. Handle: {snapshot.StateHandle}, Size: {snapshot.StateSize}");
             return snapshot;
         }
         
-        public Task RestoreState(OperatorStateSnapshot snapshot) { // Added RestoreState
+        public Task RestoreState(OperatorStateSnapshot snapshot) {
              Console.WriteLine($"[{_taskName}] RestoreState called. Snapshot Handle: {snapshot.StateHandle}");
              // In a real scenario, you would use snapshotStore.ReadSnapshot and deserialize.
              return Task.CompletedTask;
