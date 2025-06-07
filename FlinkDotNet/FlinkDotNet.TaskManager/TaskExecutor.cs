@@ -5,27 +5,27 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using FlinkDotNet.Core.Abstractions.Context;
-using FlinkDotNet.Core.Abstractions.Operators;
+using FlinkDotNet.Core.Abstractions.Operators; 
 using FlinkDotNet.Core.Abstractions.Runtime;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Sources;
-using FlinkDotNet.Core.Abstractions.Serializers;
-using FlinkDotNet.Core.Abstractions.Models.Checkpointing;
-using FlinkDotNet.Core.Abstractions.Models.State;
-using FlinkDotNet.Storage.FileSystem;
-using System.Text;
-using FlinkDotNet.Core.Abstractions.Execution;
+using FlinkDotNet.Core.Abstractions.Serializers; 
+using FlinkDotNet.Core.Abstractions.Models.Checkpointing; 
+using FlinkDotNet.Core.Abstractions.Models.State; 
+using FlinkDotNet.Storage.FileSystem; 
+using System.Text; 
+using FlinkDotNet.Core.Abstractions.Execution; 
 using FlinkDotNet.Proto.Internal;
 using Grpc.Net.Client;
 using Grpc.Core;
 using Google.Protobuf;
 using FlinkDotNet.TaskManager.Services;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Diagnostics.Metrics;
-using System.Globalization;
-using System.Threading.Channels;
-using FlinkDotNet.Core.Abstractions.Storage;
+using System.Collections.Concurrent; 
+using System.Diagnostics.Metrics; 
+using System.Globalization; 
+using System.Threading.Channels; 
+using FlinkDotNet.Core.Abstractions.Storage; 
 using FlinkDotNet.Core.Abstractions.Collectors; // For ICollector (used by ChainedCollector)
 using FlinkDotNet.Core.Abstractions.Functions; // For IKeySelector
 
@@ -41,8 +41,8 @@ namespace FlinkDotNet.TaskManager
     public interface IOperatorBarrierHandler : IDisposable
     {
         Task HandleIncomingBarrier(long checkpointId, long checkpointTimestamp, string sourceInputId);
-        void RegisterInputs(List<string> expectedInputIds);
-        void TriggerCheckpoint(long checkpointId, long timestamp);
+        void RegisterInputs(List<string> expectedInputIds); 
+        void TriggerCheckpoint(long checkpointId, long timestamp); 
     }
 
     public class OperatorBarrierHandler : IOperatorBarrierHandler
@@ -103,7 +103,7 @@ namespace FlinkDotNet.TaskManager
                     Timestamp = checkpointTimestamp,
                 };
                 await _onAlignedCallback(barrierToCallback);
-                _receivedBarriers.TryRemove(checkpointId, out _);
+                _receivedBarriers.TryRemove(checkpointId, out _); 
             }
             else
             {
@@ -118,7 +118,7 @@ namespace FlinkDotNet.TaskManager
             _receivedBarriers.Clear();
         }
     }
-
+    
     // Interface for ActiveTaskRegistry to interact with SourceTaskWrapper regarding barrier injection
     public interface IBarrierInjectableSource
     {
@@ -159,7 +159,7 @@ namespace FlinkDotNet.TaskManager
                 Console.WriteLine($"[ActiveTaskRegistry] Unregistered and reported completion for IBarrierInjectableSource {key}");
             }
         }
-
+        
         public IBarrierInjectableSource? GetBarrierInjectableSource(string jobId, string vertexId, int subtaskIndex)
         {
             _barrierInjectableSources.TryGetValue($"{jobId}_{vertexId}_{subtaskIndex}", out var source);
@@ -178,7 +178,7 @@ namespace FlinkDotNet.TaskManager
     {
         public long CurrentProcessingTimeMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
-
+    
     // ChainedCollector from feature branch
     internal class ChainedCollector<T> : ICollector<T>
     {
@@ -236,7 +236,7 @@ namespace FlinkDotNet.TaskManager
         private readonly TaskManagerCheckpointingServiceImpl _checkpointingService;
         private readonly SerializerRegistry _serializerRegistry;
         private readonly string _taskManagerId;
-        private readonly IStateSnapshotStore _stateStore;
+        private readonly IStateSnapshotStore _stateStore; 
 
         private readonly ConcurrentDictionary<string, IOperatorBarrierHandler> _operatorBarrierHandlers =
             new ConcurrentDictionary<string, IOperatorBarrierHandler>();
@@ -246,13 +246,13 @@ namespace FlinkDotNet.TaskManager
             TaskManagerCheckpointingServiceImpl checkpointingService,
             SerializerRegistry serializerRegistry,
             string taskManagerId,
-            IStateSnapshotStore stateStore)
+            IStateSnapshotStore stateStore) 
         {
             _activeTaskRegistry = activeTaskRegistry ?? throw new ArgumentNullException(nameof(activeTaskRegistry));
             _checkpointingService = checkpointingService ?? throw new ArgumentNullException(nameof(checkpointingService));
             _serializerRegistry = serializerRegistry ?? throw new ArgumentNullException(nameof(serializerRegistry));
             _taskManagerId = taskManagerId ?? throw new ArgumentNullException(nameof(taskManagerId));
-            _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
+            _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore)); 
         }
 
         public IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex)
@@ -260,7 +260,7 @@ namespace FlinkDotNet.TaskManager
             _operatorBarrierHandlers.TryGetValue($"{jobVertexId}_{subtaskIndex}", out var handler);
             return handler;
         }
-
+        
         // SourceTaskWrapper (inner class from main)
         private class SourceTaskWrapper : IBarrierInjectableSource
         {
@@ -321,7 +321,7 @@ namespace FlinkDotNet.TaskManager
             private readonly CancellationTokenSource _ctsInternal = new CancellationTokenSource();
             private CancellationToken _linkedCt = CancellationToken.None;
             private readonly string _identifier;
-
+            
             public string TargetVertexId => _outputInfo.TargetVertexId;
 
             public NetworkedCollector(
@@ -364,7 +364,7 @@ namespace FlinkDotNet.TaskManager
                     throw;
                 }
             }
-
+            
             public async Task CollectObject(object record, CancellationToken cancellationToken)
             {
                 // Handle if record is CheckpointBarrier first
@@ -376,7 +376,7 @@ namespace FlinkDotNet.TaskManager
                 {
                     CollectInternal(typedRecord, false, 0, 0);
                 }
-                else
+                else 
                 {
                      Console.WriteLine($"[{_identifier}] ERROR: Record type mismatch in CollectObject. Expected {typeof(T).Name} or CheckpointBarrier, got {record.GetType().Name}. Record dropped.");
                 }
@@ -398,7 +398,7 @@ namespace FlinkDotNet.TaskManager
                         SourceSubtaskIndex = _sourceSubtaskIndex,
                         IsCheckpointBarrier = true,
                         BarrierPayload = new Proto.Internal.CheckpointBarrier { CheckpointId = checkpointId, CheckpointTimestamp = checkpointTimestamp },
-                        Payload = ByteString.Empty
+                        Payload = ByteString.Empty 
                     };
                 }
                 else
@@ -436,17 +436,17 @@ namespace FlinkDotNet.TaskManager
                         if (ct.IsCancellationRequested) break;
 
                         DataRecord? dataRecordToSend = null;
-                        lock (_sendSignal)
+                        lock (_sendSignal) 
                         {
                             if (_availableCredits > 0 && _sendQueue.TryDequeue(out dataRecordToSend))
                             {
                                 Interlocked.Decrement(ref _availableCredits);
                             }
-
+                            
                             if (_availableCredits > 0 && !_sendQueue.IsEmpty) {
-                                _sendSignal.Set();
+                                _sendSignal.Set(); 
                             } else {
-                                _sendSignal.Reset();
+                                _sendSignal.Reset(); 
                             }
                         }
 
@@ -464,7 +464,7 @@ namespace FlinkDotNet.TaskManager
                             } catch (Exception ex) {
                                 Console.WriteLine($"[{_identifier}] Send error: {ex.Message}. Re-queueing.");
                                 _sendQueue.Enqueue(dataRecordToSend); Interlocked.Increment(ref _availableCredits);
-                                if (!_ctsInternal.IsCancellationRequested) _ctsInternal.Cancel();
+                                if (!_ctsInternal.IsCancellationRequested) _ctsInternal.Cancel(); 
                             } finally {
                                 if (_availableCredits > 0 && !_sendQueue.IsEmpty) _sendSignal.Set(); // Re-evaluate loop
                             }
@@ -496,23 +496,23 @@ namespace FlinkDotNet.TaskManager
                 finally { Console.WriteLine($"[{_identifier}] Downstream processing loop ended."); if (!_ctsInternal.IsCancellationRequested) _ctsInternal.Cancel(); _sendSignal.Set(); }
             }
 
-            public async Task CloseAsync()
+            public async Task CloseAsync() 
             {
                 Console.WriteLine($"[{_identifier}] CloseAsync called.");
                 if (!_ctsInternal.IsCancellationRequested) _ctsInternal.Cancel();
-                _sendSignal.Set();
+                _sendSignal.Set(); 
 
                 if (_exchangeCall?.RequestStream != null) {
                     try { await _exchangeCall.RequestStream.CompleteAsync(); }
                     catch (Exception ex) { Console.WriteLine($"[{_identifier}] Error completing request stream: {ex.Message}"); }
                 }
-
+                
                 var tasksToWait = new List<Task>();
                 if (_processSendQueueTask != null) tasksToWait.Add(_processSendQueueTask);
                 if (_processDownstreamMessagesTask != null) tasksToWait.Add(_processDownstreamMessagesTask);
 
                 if (tasksToWait.Any()) {
-                    await Task.WhenAll(tasksToWait).WaitAsync(TimeSpan.FromSeconds(5));
+                    await Task.WhenAll(tasksToWait).WaitAsync(TimeSpan.FromSeconds(5)); 
                 }
 
                 _exchangeCall?.Dispose();
@@ -525,7 +525,7 @@ namespace FlinkDotNet.TaskManager
 
         public async Task ExecuteFromDescriptor(
             TaskDeploymentDescriptor tdd,
-            Dictionary<string, string> operatorProperties,
+            Dictionary<string, string> operatorProperties, 
             CancellationToken cancellationToken)
         {
             _activeTaskRegistry.RegisterTask(this, tdd.JobGraphJobId, tdd.JobVertexId, tdd.SubtaskIndex, tdd.TaskName);
@@ -552,7 +552,7 @@ namespace FlinkDotNet.TaskManager
             } catch (Exception ex) { Console.WriteLine($"[{tdd.TaskName}] ERROR: Failed to instantiate head operator {tdd.FullyQualifiedOperatorName}: {ex.Message}"); return; }
 
             bool isHeadSource = tdd.Inputs.Count == 0;
-
+            
             if (tdd.ChainedOperatorInfo != null && tdd.ChainedOperatorInfo.Count > 0) {
                 foreach (var chainedOpProto in tdd.ChainedOperatorInfo) {
                     Type? chainedOpType = Type.GetType(chainedOpProto.FullyQualifiedOperatorName);
@@ -571,7 +571,7 @@ namespace FlinkDotNet.TaskManager
                     catch (Exception ex) { Console.WriteLine($"[{tdd.TaskName}] ERROR: Failed to open operator {opInstance.GetType().Name}: {ex.Message}"); return; }
                 }
             }
-
+            
             // Initialize allCollectors placeholders
             for (int i = 0; i < allOperatorInstances.Count; i++) allCollectors.Add(null!);
 
@@ -605,11 +605,11 @@ namespace FlinkDotNet.TaskManager
                             } catch (Exception ex) { Console.WriteLine($"[{tdd.TaskName}] ERROR: Failed to deserialize KeySelector for output {outputDesc.TargetVertexId}. Ex: {ex.Message}"); }
                         } else { Console.WriteLine($"[{tdd.TaskName}] ERROR: Could not load KeySelectorType or KeyType for output {outputDesc.TargetVertexId}."); }
                     }
-
+                    
                     // Create specific NetworkedCollector<T, TKey>
                     Type genericCollectorType = typeof(NetworkedCollector<,>);
                     Type specificCollectorType = genericCollectorType.MakeGenericType(taskOutputOverallType, keyTypeForCollector);
-
+                    
                     INetworkedCollector collector = (INetworkedCollector)Activator.CreateInstance(
                         specificCollectorType,
                         tdd.JobVertexId, tdd.SubtaskIndex, outputDesc, specificSerializer, keySelectorInstance, keyingDownstreamParallelism)!;
@@ -634,7 +634,7 @@ namespace FlinkDotNet.TaskManager
                 inputTypeOfNextOperator = Type.GetType(tdd.ChainedOperatorInfo[i].InputTypeName);
 
                 if (outputTypeOfCurrentOperator == null || inputTypeOfNextOperator == null) { Console.WriteLine($"[{tdd.TaskName}] Error resolving types for ChainedCollector between {currentOperator.GetType().Name} and {nextOperator.GetType().Name}."); continue; }
-
+                
                 Type chainedCollectorGenericType = typeof(ChainedCollector<>);
                 Type chainedCollectorTyped = chainedCollectorGenericType.MakeGenericType(outputTypeOfCurrentOperator);
                 object chainedCollectorInstance = Activator.CreateInstance(chainedCollectorTyped, nextOperator, collectorForNextOperatorOutput, inputTypeOfNextOperator)!;
@@ -665,7 +665,7 @@ namespace FlinkDotNet.TaskManager
                     }
                 }
             }
-
+            
             IOperatorBarrierHandler? barrierHandlerForInputs = null;
             if (!isHeadSource) {
                 var expectedInputIds = tdd.Inputs.Select(inp => $"{inp.UpstreamJobVertexId}_{inp.UpstreamSubtaskIndex}").ToList();
@@ -711,7 +711,7 @@ namespace FlinkDotNet.TaskManager
                 };
                 barrierHandlerForInputs = new OperatorBarrierHandler(tdd.JobVertexId, tdd.SubtaskIndex, expectedInputIds, onAlignedCallback);
                 _operatorBarrierHandlers[$"{tdd.JobVertexId}_{tdd.SubtaskIndex}"] = barrierHandlerForInputs;
-
+                
                 if (inputDataSerializer != null) {
                     ProcessRecordDelegate recordProcessor = async (targetJobVertexId, targetSubtaskIndex, payload) => {
                         if (targetJobVertexId != tdd.JobVertexId || targetSubtaskIndex != tdd.SubtaskIndex) return;
@@ -779,7 +779,7 @@ namespace FlinkDotNet.TaskManager
                         .GetMethod(nameof(RunSourceWithBarrierInjection), BindingFlags.NonPublic | BindingFlags.Instance)
                         ?.MakeGenericMethod(sourceOutputType);
                     if (runMethod == null) throw new InvalidOperationException("RunSourceWithBarrierInjection method not found.");
-
+                    
                     await (Task)runMethod.Invoke(this, new object[] {
                         headSourceFunction,
                         networkedOutputs, // Pass List<INetworkedCollector>
@@ -803,7 +803,7 @@ namespace FlinkDotNet.TaskManager
             // Cleanup
             try {
                 foreach (var opInstance in allOperatorInstances) { if (opInstance is IOperatorLifecycle lifecycle) lifecycle.Close(); }
-
+                
                 if (allCollectors.LastOrDefault() is List<INetworkedCollector> finalOutputSenders) {
                     await Task.WhenAll(finalOutputSenders.Select(s => s.CloseAsync()));
                 }
@@ -817,11 +817,11 @@ namespace FlinkDotNet.TaskManager
                  Console.WriteLine($"[{tdd.TaskName}] Execution finished and cleaned up.");
             }
         }
-
+        
         // RunSourceWithBarrierInjection from main
         private async Task RunSourceWithBarrierInjection<TOut>(
             ISourceFunction<TOut> sourceFunction,
-            List<INetworkedCollector> collectors,
+            List<INetworkedCollector> collectors, 
             ChannelReader<BarrierInjectionRequest> barrierRequests,
             CancellationToken taskOverallCancellation,
             Action cancelSourceFunctionAction)
@@ -878,19 +878,19 @@ namespace FlinkDotNet.TaskManager
                 try { await sourceRunTask; } catch { /* Ignored as source cancellation might throw */ }
             }
         }
-    }
-
+    } 
+    
     // Dummy IKeyedOperator for testing compilation
     public interface IKeyedOperator {}
 
-    public class SimpleStringToUpperMapOperator : IMapOperator<object, object>, IOperatorLifecycle, ICheckpointableOperator
+    public class SimpleStringToUpperMapOperator : IMapOperator<object, object>, IOperatorLifecycle, ICheckpointableOperator 
     {
         private string _taskName = nameof(SimpleStringToUpperMapOperator);
-        private IRuntimeContext? _context;
+        private IRuntimeContext? _context; 
 
         public void Open(IRuntimeContext context) {
-            _taskName = context.TaskName; _context = context;
-            Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator opened.");
+            _taskName = context.TaskName; _context = context; 
+            Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator opened."); 
         }
         public object Map(object record) => record.ToString()?.ToUpper() ?? "";
         public void Close() { Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator closed."); }
@@ -901,7 +901,7 @@ namespace FlinkDotNet.TaskManager
             var dummyStateData = System.Text.Encoding.UTF8.GetBytes($"State for operator {_taskName} (Instance: {_context?.TaskName}) at checkpoint {checkpointId} on {DateTime.UtcNow:o}");
             string jobGraphJobId = _context!.JobName; // Non-null asserted
             string operatorInstanceId = _context!.TaskName; // Non-null asserted
-
+            
             var snapshotHandleRecord = await snapshotStore.StoreSnapshot(
                 jobGraphJobId, checkpointId, Program.TaskManagerId, operatorInstanceId, dummyStateData);
 
@@ -914,7 +914,7 @@ namespace FlinkDotNet.TaskManager
             Console.WriteLine($"[{_taskName}] Operator {operatorInstanceId} stored snapshot. Handle: {snapshot.StateHandle}, Size: {snapshot.StateSize}");
             return snapshot;
         }
-
+        
         public Task RestoreState(OperatorStateSnapshot snapshot) { // Added RestoreState
              Console.WriteLine($"[{_taskName}] RestoreState called. Snapshot Handle: {snapshot.StateHandle}");
              // In a real scenario, you would use snapshotStore.ReadSnapshot and deserialize.

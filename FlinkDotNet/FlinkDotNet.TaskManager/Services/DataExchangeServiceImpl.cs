@@ -39,13 +39,13 @@ namespace FlinkDotNet.TaskManager.Services
     {
         private readonly string _taskManagerId;
         private readonly NetworkBufferPool _globalNetworkBufferPool;
-        private readonly TaskExecutor _taskExecutor;
+        private readonly TaskExecutor _taskExecutor; 
 
         public DataExchangeServiceImpl(string taskManagerId, NetworkBufferPool globalNetworkBufferPool, TaskExecutor taskExecutor)
         {
             _taskManagerId = taskManagerId ?? throw new ArgumentNullException(nameof(taskManagerId));
             _globalNetworkBufferPool = globalNetworkBufferPool ?? throw new ArgumentNullException(nameof(globalNetworkBufferPool));
-            _taskExecutor = taskExecutor ?? throw new ArgumentNullException(nameof(taskExecutor));
+            _taskExecutor = taskExecutor ?? throw new ArgumentNullException(nameof(taskExecutor)); 
             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Initialized.");
         }
 
@@ -60,10 +60,10 @@ namespace FlinkDotNet.TaskManager.Services
             int targetSubtaskIndex = -1;
 
             const int localPoolMinSegments = 2;
-            const int localPoolMaxSegments = 4;
+            const int localPoolMaxSegments = 4; 
 
             LocalBufferPool? localBufferPool = null;
-            Action? bufferReturnedCallback = null;
+            Action? bufferReturnedCallback = null; 
 
             try
             {
@@ -72,7 +72,7 @@ namespace FlinkDotNet.TaskManager.Services
                     try
                     {
                         responseStream.WriteAsync(new DownstreamPayload { Credits = new CreditUpdate { CreditsGranted = 1 } })
-                            .GetAwaiter().GetResult();
+                            .GetAwaiter().GetResult(); 
                         Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Sent 1 credit back to {context.Peer}.");
                     }
                     catch (Exception ex)
@@ -95,10 +95,10 @@ namespace FlinkDotNet.TaskManager.Services
                             if (barrierProto == null)
                             {
                                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Received DataRecord for {dataRecord.TargetJobVertexId}_{dataRecord.TargetSubtaskIndex} marked as barrier but BarrierPayload is null. Discarding. Peer: {context.Peer}");
-                                continue;
+                                continue; 
                             }
 
-                            if (targetJobVertexId == null) {
+                            if (targetJobVertexId == null) { 
                                 targetJobVertexId = dataRecord.TargetJobVertexId;
                                 targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
                                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex} from first barrier. Peer: {context.Peer}");
@@ -119,20 +119,20 @@ namespace FlinkDotNet.TaskManager.Services
                             continue;
                         }
 
-                        if (localBufferPool == null)
+                        if (localBufferPool == null) 
                         {
-                            if (targetJobVertexId == null) {
+                            if (targetJobVertexId == null) { 
                                 targetJobVertexId = dataRecord.TargetJobVertexId;
                                 targetSubtaskIndex = dataRecord.TargetSubtaskIndex;
                             }
                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Channel mapped to {targetJobVertexId}_{targetSubtaskIndex}. Initializing LocalBufferPool.");
-
+                            
                             localBufferPool = new LocalBufferPool(
                                 _globalNetworkBufferPool,
                                 localPoolMinSegments,
                                 localPoolMaxSegments,
-                                bufferReturnedCallback,
-                                $"LBP-Peer-{context.Peer}");
+                                bufferReturnedCallback, 
+                                $"LBP-Peer-{context.Peer}"); 
 
                             int initialCredits = localBufferPool.AvailablePoolBuffers;
                             if (initialCredits > 0)
@@ -142,7 +142,7 @@ namespace FlinkDotNet.TaskManager.Services
                             }
                         }
 
-                        if (localBufferPool == null) {
+                        if (localBufferPool == null) { 
                              Console.WriteLine($"[DataExchangeService-{_taskManagerId}] CRITICAL ERROR: localBufferPool is null even after first data record. Peer: {context.Peer}");
                              throw new InvalidOperationException("LocalBufferPool was not initialized.");
                         }
@@ -155,12 +155,12 @@ namespace FlinkDotNet.TaskManager.Services
                         catch (OperationCanceledException)
                         {
                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] RequestBufferAsync cancelled for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
-                            break;
+                            break; 
                         }
                         catch (ObjectDisposedException)
                         {
                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] LocalBufferPool disposed while requesting buffer for {targetJobVertexId}_{targetSubtaskIndex}. Peer: {context.Peer}");
-                            break;
+                            break; 
                         }
 
                         try
@@ -169,7 +169,7 @@ namespace FlinkDotNet.TaskManager.Services
                             if (networkBuffer.Capacity < payloadBytes.Length)
                             {
                                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ERROR: Record size ({payloadBytes.Length}) exceeds buffer capacity ({networkBuffer.Capacity}). Discarding record. Peer: {context.Peer}");
-                                networkBuffer.Dispose();
+                                networkBuffer.Dispose(); 
                                 continue;
                             }
                             networkBuffer.Write(payloadBytes);
@@ -182,20 +182,20 @@ namespace FlinkDotNet.TaskManager.Services
                                 byte[] payloadCopy = new byte[networkBuffer.DataLength];
                                 networkBuffer.GetReadOnlyMemory().CopyTo(payloadCopy);
 
-                                networkBuffer.Dispose();
+                                networkBuffer.Dispose(); 
 
                                 await processor(dataRecord.TargetJobVertexId, dataRecord.TargetSubtaskIndex, payloadCopy);
                             }
                             else
                             {
                                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] No record processor registered for {receiverKey}. Discarding record. Peer: {context.Peer}");
-                                networkBuffer.Dispose();
+                                networkBuffer.Dispose(); 
                             }
                         }
                         catch (Exception ex)
                         {
                             Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error processing record for {targetJobVertexId}_{targetSubtaskIndex}: {ex.Message}. Peer: {context.Peer}");
-                            if (networkBuffer != null && !networkBuffer.IsDisposed) networkBuffer.Dispose();
+                            if (networkBuffer != null && !networkBuffer.IsDisposed) networkBuffer.Dispose(); 
                         }
                     }
                     // TODO: Handle other UpstreamPayload types if any (e.g., control messages from client)
@@ -205,14 +205,14 @@ namespace FlinkDotNet.TaskManager.Services
             {
                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ExchangeData stream cancelled by client or server shutdown for {context.Peer}.");
             }
-            catch (Exception ex) when (ex is not RpcException)
+            catch (Exception ex) when (ex is not RpcException) 
             {
                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] Error in ExchangeData stream with {context.Peer}: {ex.Message} {ex.StackTrace}");
             }
             finally
             {
                 Console.WriteLine($"[DataExchangeService-{_taskManagerId}] ExchangeData stream from {context.Peer} ended.");
-                localBufferPool?.Dispose();
+                localBufferPool?.Dispose(); 
             }
         }
     }
