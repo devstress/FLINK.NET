@@ -156,3 +156,6 @@ Currently, Flink.NET's primary execution model involves submitting the `JobGraph
 *   Explore the `FlinkDotNetAspire` solution to see how a JobManager, TaskManager, and a job-submitting client (`FlinkJobSimulator`) are run together.
 *   Dive deeper into the [Core Concepts](./Core-Concepts-Overview.md) of Flink.NET.
 *   Learn more about [Developing Operators](./Developing-Operators.md) and [Working with State](./Developing-State.md).
+
+---
+Next: [Business Requirements](./Business-Requirements.md)

@@ -33,3 +33,7 @@ If a failure occurs:
 *   **State Backend Choice:** Impacts performance and reliability.
 *   **Checkpoint Interval:** Balances recovery speed and overhead.
 *   **Exactly-Once Sinks:** Often require two-phase commit coordinated with checkpoints.
+
+---
+Previous: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md)
+Next: [Core Concepts: Checkpointing - Barriers](./Core-Concepts-Checkpointing-Barriers.md)

@@ -142,3 +142,7 @@ For more details on Flink.NET's serialization strategy and `MemoryPack`, refer t
 *   [Core Concepts: Serialization Strategy](./Core-Concepts-Serialization-Strategy.md)
 
 Choosing appropriate data types and ensuring they are serialized efficiently is key to building robust and performant Flink.NET applications.
+
+---
+Previous: [Credit-Based Flow Control](./Credit-Based-Flow-Control.md)
+Next: [Developing Operators](./Developing-Operators.md)

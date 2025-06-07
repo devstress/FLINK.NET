@@ -39,3 +39,7 @@ See also: [System Design Overview in Readme.md](../../../Readme.md#system-design
 *(Apache Flink Ref: [Task Execution & Scheduling](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_scheduling/))*
 
 TaskManagers are the workhorses of the Flink.NET system.
+
+---
+Previous: [Core Concepts: JobManager](./Core-Concepts-JobManager.md)
+Next: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md)

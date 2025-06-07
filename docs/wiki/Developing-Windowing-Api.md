@@ -41,3 +41,7 @@ DataStream<ResultType> windowedResult = keyedStream
 Please refer to the Apache Flink documentation on [Windowing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/) for general concepts that inspire Flink.NET's design.
 
 **This page will be updated with detailed Flink.NET specific examples and API documentation as the Windowing API matures.**
+
+---
+Previous: [Developing State](./Developing-State.md)
+Next: [Connectors Overview](./Connectors-Overview.md)

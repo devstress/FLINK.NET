@@ -90,3 +90,7 @@ Flink.NET will continue to provide highly optimized, built-in serializers for co
 ## Conclusion
 
 Adopting `MemoryPack` as the default high-performance POCO serializer, combined with a strict fallback strategy and strong support for custom serializers, aims to provide Flink.NET users with both excellent out-of-the-box performance for their data types and the flexibility to handle any serialization requirement.
+
+---
+Previous: [Core Concepts: Serialization](./Core-Concepts-Serialization.md)
+Next: [Core Processing Features](./Core-Processing-Features.md)

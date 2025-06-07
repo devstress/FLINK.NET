@@ -60,3 +60,7 @@ The memory requested by a Flink.NET JobManager or TaskManager is utilized by sev
 *   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
 *   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
 *   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+
+---
+Previous: [System Design Overview](./System-Design-Overview.md)
+Next: [Core Concepts: JobManager](./Core-Concepts-JobManager.md)

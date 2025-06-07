@@ -98,3 +98,7 @@ Key considerations include:
 *   **Framework Upgrades:** Upgrading the stream processing framework itself (like Flink.NET or Apache Flink) can also have implications for state compatibility.
 
 It's important to note that major version changes in underlying engines, like Apache Flink 2.0 not guaranteeing state compatibility with Flink 1.x versions, highlight the need for careful planning, versioning strategies, and potential migration paths for state data in any stateful stream processing system, including Flink.NET. While Flink.NET is in its early stages, these are crucial long-term considerations for production readiness.
+
+---
+Previous: [Core Concepts: TaskManager](./Core-Concepts-TaskManager.md)
+Next: [Core Concepts: Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md)

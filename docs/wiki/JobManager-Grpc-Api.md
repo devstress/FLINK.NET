@@ -62,3 +62,7 @@ While not hosted on the JobManager, these are critical parts of the gRPC ecosyst
 *   **Cluster Coordination**: The other services and RPCs are primarily used by Flink.NET's internal components (JobManager, TaskManager) to coordinate job execution, checkpointing, and maintain cluster health.
 
 For detailed message formats and RPC signatures, please refer directly to the `.proto` files. The C# gRPC client and service base classes are generated from these definitions.
+
+---
+Previous: [JobManager REST Api](./JobManager-Rest-Api.md)
+Next: [Deployment Local](./Deployment-Local.md)

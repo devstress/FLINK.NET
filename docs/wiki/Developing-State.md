@@ -156,3 +156,7 @@ Flink.NET plans to support Time-To-Live (TTL) for state. This feature will allow
 ---
 
 Working with state is a powerful feature of Flink.NET. By understanding these primitives and how to use them within your Rich UDFs, you can build sophisticated, fault-tolerant streaming applications.
+
+---
+Previous: [Developing RuntimeContext](./Developing-RuntimeContext.md)
+Next: [Developing Windowing Api](./Developing-Windowing-Api.md)

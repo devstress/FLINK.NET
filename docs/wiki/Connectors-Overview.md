@@ -52,3 +52,7 @@ If Flink.NET does not yet provide a connector for your specific external system,
 *   **Lifecycle**: Properly implement `Open()` and `Close()` methods for resource management if your connector interacts with external clients or connections.
 
 As the Flink.NET ecosystem grows, more pre-built connectors will become available. Check the project's documentation and repository for the latest updates on connector availability.
+
+---
+Previous: [Developing Windowing Api](./Developing-Windowing-Api.md)
+Next: [JobManager REST Api](./JobManager-Rest-Api.md)

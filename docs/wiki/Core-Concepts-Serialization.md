@@ -98,3 +98,7 @@ env.SerializerRegistry.RegisterSerializer(typeof(MyTypeForJson), typeof(JsonPoco
 ```
 
 This ensures that JSON serialization, with its performance implications, is an explicit choice by the developer for types on the data path.
+
+---
+Previous: [Core Concepts: Checkpointing - Barriers](./Core-Concepts-Checkpointing-Barriers.md)
+Next: [Core Concepts: Serialization Strategy](./Core-Concepts-Serialization-Strategy.md)
