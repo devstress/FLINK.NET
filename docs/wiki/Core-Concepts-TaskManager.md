@@ -21,7 +21,7 @@ See also: [System Design Overview in Readme.md](../../../Readme.md#system-design
     *   Manages network buffers for data shuffling between TaskManagers.
 
 3.  **State Management (Local Aspect):**
-    *   Manages actual state data for its tasks, interacting with the configured state backend.
+    *   Manages actual state data for its tasks, interacting with the configured state backend. Future enhancements may be influenced by concepts like Apache Flink 2.0's disaggregated state management, potentially involving more direct or asynchronous interaction with remote distributed file systems for state operations.
     *   Snapshots state to durable storage during checkpointing.
     *   *(See Wiki Page: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md) for more details)*
 

@@ -58,7 +58,7 @@ Key features required for robust HA on Kubernetes, such as leader election among
 Achieving High Availability for the JobManager on Kubernetes will involve several standard patterns:
 
 *   **Leader Election:** A distributed consensus mechanism will be necessary to elect a single active JobManager (leader) from a pool of instances. This can be achieved by leveraging native Kubernetes leader election capabilities (e.g., using Lease objects) or by integrating libraries like `Kubernetes.LeaderElection` or similar coordination primitives.
-*   **Durable State Storage:** Critical for HA is the persistence of job metadata (JobGraphs, ExecutionGraphs, application state, operator states) and checkpoint information. This state must be stored in a fault-tolerant manner, accessible to any JobManager instance that might become the leader. Options include:
+*   **Durable State Storage:** Critical for HA is the persistence of job metadata (JobGraphs, ExecutionGraphs, application state, operator states) and checkpoint information. This state must be stored in a fault-tolerant manner, accessible to any JobManager instance that might become the leader. Apache Flink 2.0's continued focus on robust and scalable state management, including concepts like disaggregated state, further underscores the critical need for durable and consistent storage of JobManager metadata for true high availability. Options include:
     *   **Persistent Volumes (PVs):** Using Kubernetes PVs with appropriate ReadWriteMany access modes if shared, or ReadWriteOnce with mechanisms to re-attach to a new leader.
     *   **Databases:** Employing a relational or NoSQL database deployed in a fault-tolerant configuration.
     *   **Distributed Stores:** Utilizing systems like etcd. While Apache Flink often uses ZooKeeper, a lighter-weight or more .NET-idiomatic solution might be preferred for Flink.NET if it meets the consistency and durability requirements.
@@ -92,6 +92,7 @@ When deploying the Flink.NET JobManager on Kubernetes, a hybrid approach to memo
 *   **Control:** Administrators gain control at two levels: overall pod resource consumption (via Kubernetes) and internal JobManager behavior/performance (via Flink.NET configurations).
 *   **Resource Efficiency:** Allows for better resource management by sizing the pod appropriately and then fine-tuning internal allocations.
 *   **Monitoring:** The total pod memory usage can be monitored using standard Kubernetes tools (`kubectl top pod`, Prometheus, etc.). Internal Flink.NET metrics (once implemented) would provide insights into the usage of internally defined memory pools.
+*   **Alignment with Modern Flink Architectures:** Concepts from Apache Flink 2.0, such as Disaggregated State Management, aim to optimize resource utilization and could influence how Flink.NET's JobManager interacts with state and memory. For instance, offloading more state-related concerns to a specialized backend could reduce direct memory pressure on the JobManager, aligning with efficient cloud-native operations.
 
 As Flink.NET matures, these internal configuration options and best practices for setting them in conjunction with Kubernetes requests/limits will be further developed and documented.
 

@@ -32,10 +32,10 @@ Flink.NET is being developed to meet a stringent set of business requirements cr
 1.  **Data Integrity (Exactly-Once Semantics):** Guarantees that all data is processed precisely once, without duplicates or omissions, even during failures.
 2.  **Message Uniqueness (Deduplication):** Ensures each message is uniquely identifiable, with custom deduplication logic using a durable state store to prevent reprocessing.
 3.  **Processing Idempotency:** Designs all processing logic and sinks to be idempotent, so reprocessing a message yields the same result without side effects.
-4.  **Error Handling and Recovery (Checkpointing/Snapshotting):** Includes robust checkpointing and state persistence for automatic recovery from failures, restoring state and resuming from the correct point.
+4.  **Error Handling and Recovery (Checkpointing/Snapshotting):** Includes robust checkpointing and state persistence for automatic recovery from failures, restoring state and resuming from the correct point. This aligns with concepts like Apache Flink 2.0's Disaggregated State Management, which aims to make checkpointing and recovery even more efficient and scalable in cloud-native environments.
 5.  **Communication Idempotency (External Systems):** Aims to provide an "exactly-once" experience for product teams even when interacting with external systems that don't offer idempotency guarantees, minimizing double processing.
-6.  **Transaction Management (Atomic Writes):** Implements mechanisms like two-phase commit to coordinate transactions across internal state and external sinks, ensuring atomicity.
-7.  **Durable State Management:** Utilizes a durable, fault-tolerant backend for all processing state, ensuring consistency and recoverability.
+6.  **Transaction Management (Atomic Writes):** Implements mechanisms like two-phase commit to coordinate transactions across internal state and external sinks, ensuring atomicity. This is supported by patterns similar to Apache Flink's TwoPhaseCommitSinkFunction, and Flink 2.0's ongoing enhancements in connector APIs and state consistency further strengthen such transactional capabilities.
+7.  **Durable State Management:** Utilizes a durable, fault-tolerant backend for all processing state, ensuring consistency and recoverability. The evolution of Apache Flink, such as Flink 2.0's Disaggregated State Management (including concepts like the ForSt backend and asynchronous state access), provides a strong reference for implementing highly available and scalable durable state in Flink.NET.
 8.  **End-to-End Acknowledgement:** For multi-step processing, uses tracking IDs to provide a single ACK (success) or NACK (failure) for the entire flow.
 9.  **Partial Failure Handling (NACK for Split Messages):** For messages processed in parts, NACKs indicate partial failure, allowing selective retries or full replay.
 10. **Batch Failure Correlation & Replay:** For batched messages, failures update related message statuses, with visual inspection and replay capabilities for failed batches.
@@ -43,12 +43,21 @@ Flink.NET is being developed to meet a stringent set of business requirements cr
 
 These requirements drive the architecture towards a fault-tolerant, stateful stream processing system with strong data consistency guarantees.
 
+### Further Considerations on Flink.NET and Apache Flink
+
+Apache Flink, particularly with advancements in Flink 2.0, directly addresses all 11 business requirements through its core architecture. Key features include its powerful checkpointing (enhanced by concepts like Disaggregated State Management in Flink 2.0) for fault-tolerant state management and recovery (requirements 1, 4, 7), managed keyed state for efficient deduplication and uniqueness (requirement 2), and the TwoPhaseCommitSinkFunction for end-to-end transactional integrity with external systems (requirements 3, 5, 6).
+
+While Apache Flink's lack of native .NET support necessitates the reimplementation of these evolving concepts within the .NET ecosystem for Flink.NET, the effort is substantial. However, it offers the benefit of full control over the .NET implementation and the potential for a valuable open-source contribution to the .NET community. Requirements 8, 9, 10, and 11, for instance, would be realized as custom operators and sinks within Flink.NET, leveraging this Flink-inspired foundational system. The ongoing evolution of Flink (e.g., Flink 2.0) serves as a continuous source of inspiration for these efforts.
+
+With current AI capabilities and Flink's open-source nature, AI could assist in rapidly drafting and refining Flink.NET's .NET implementation. This endeavor also helps build our company's reputation by contributing to the .NET landscape for big data processing. Alternatively, one might consider adopting Apache Flink directly and transitioning to the Java ecosystem.
+
 ## Why Flink.NET?
 
 While Apache Flink stands as a powerful and mature stream processing solution, Flink.NET aims to address several key motivations and create unique value, particularly for organizations and developers invested in the .NET ecosystem:
 
 *   **Native .NET Capabilities:** Provides a stream processing framework that integrates seamlessly with existing .NET applications, libraries, and skillsets. This allows .NET teams to build sophisticated stream processing solutions without needing to bridge to or manage a separate Java-based infrastructure.
 *   **Leveraging the .NET Ecosystem:** Enables the use of familiar .NET tools, languages (C# primarily), and development patterns, fostering productivity and reducing the learning curve for .NET developers.
+*   **Optimized Cloud-Native Performance:** Leveraging .NET's performance characteristics and optimized containerization on Kubernetes, Flink.NET aims to explore advantages such as potentially faster application startup times and a more streamlined resource footprint compared to traditional JVM-based solutions in similar cloud-native deployments.
 *   **Open Source Contribution & Community Building:** By being an open-source project, Flink.NET aims to contribute to the .NET community, fostering collaboration and innovation in the big data and stream processing space within the .NET world. It offers an opportunity to build and shape a significant piece of .NET infrastructure.
 *   **Addressing Specific Organizational Needs:** For teams primarily working with .NET, having a native Flink-like engine can simplify deployment, monitoring, and operational overhead compared to managing a polyglot environment.
 *   **Modern Development Approaches:** The project was initiated with the idea of potentially leveraging modern development techniques, including AI-assisted code generation and insights, to accelerate its development and explore new ways of building complex software.
@@ -72,7 +81,7 @@ The system comprises several key interacting components:
     *   Managing local state for stateful operations (see [State Management Overview](./docs/wiki/Core-Concepts-State-Management-Overview.md)).
     *   Interacting with external data sinks.
 *   **Connectors (Sources & Sinks):** These are specialized components or libraries responsible for interfacing with external data systems. Sources read data from systems like Apache Kafka, Azure Event Hubs, etc., while Sinks write processed data to databases, APIs, or other messaging systems.
-*   **Durable State Backend:** A persistent, scalable, and highly available storage solution (e.g., a distributed database like Cosmos DB, SQL Server, or a key-value store for metadata; or object stores like MinIO/S3 for snapshots) is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics, as detailed in the [Checkpointing Overview](./docs/wiki/Core-Concepts-Checkpointing-Overview.md).
+*   **Durable State Backend:** A persistent, scalable, and highly available storage solution is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics, as detailed in the [Checkpointing Overview](./docs/wiki/Core-Concepts-Checkpointing-Overview.md). For cloud-native deployments, inspiration is drawn from concepts like Apache Flink 2.0's Disaggregated State Management, which decouples state storage (often using Distributed File Systems like S3 or HDFS, managed by backends like Flink's ForSt) from compute resources and utilizes asynchronous state access. This approach aims to enhance scalability, resource efficiency, and recovery speed, guiding Flink.NET's strategy for robust state handling.
 *   **[Memory Management](./docs/wiki/Core-Concepts-Memory-Overview.md):** Understanding how Flink.NET manages memory for JobManagers, TaskManagers, network buffers, and state is crucial for performance and stability. This includes configurations for Kubernetes and local deployments, tuning, and troubleshooting.
 *   **Job Submission & Management API:** A RESTful (and potentially gRPC) API exposed by the JobManager allows users and external systems to submit new processing jobs, monitor their status, manage their lifecycle (e.g., stop, cancel, scale), and inspect checkpoint information.
 
@@ -170,6 +179,9 @@ Explore practical examples and tutorials to understand how to use Flink.NET and 
 
 *   **[Local High Throughput Test with Redis](./docs/wiki/Sample-Local-High-Throughput-Test.md)**:
         Learn how to set up a local Flink.NET environment using .NET Aspire. This sample runs a high-throughput test (e.g., 10 million messages) where messages are generated with sequence IDs from Redis, processed, and then sent to both a Kafka topic and a separate Redis counter. It demonstrates basic job submission, execution with multiple sinks, and observability within the Aspire framework.
+
+## AI-Assisted Development
+The development of Flink.NET, including aspects of its documentation, design, and implementation strategies, has been significantly accelerated and enhanced with the assistance of Google's Jules AI. This collaboration showcases a modern approach to tackling complex software engineering challenges and rapidly iterating on the project.
 
 ## Getting Involved & Contribution
 
