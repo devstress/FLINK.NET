@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic; // Added for Dictionary
 using System.Text.Json; // For deserializing OperatorConfiguration

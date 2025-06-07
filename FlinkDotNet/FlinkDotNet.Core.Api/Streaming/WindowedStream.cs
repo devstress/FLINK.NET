@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic; // Required for ICollection, List
 using FlinkDotNet.Core.Api.Common; // For Time

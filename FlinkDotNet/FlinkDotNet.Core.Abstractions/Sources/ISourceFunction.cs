@@ -1,4 +1,3 @@
-#nullable enable
 using System.Threading;
 using System.Threading.Tasks; // For Task, though Run is synchronous for now based on Flink's ISourceFunction
 

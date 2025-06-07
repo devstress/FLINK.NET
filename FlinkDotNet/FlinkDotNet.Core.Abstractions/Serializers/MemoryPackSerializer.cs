@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.IO; // For Stream, MemoryStream, although MemoryPack works with ReadOnlySpan<byte>
 using MemoryPack; // Main MemoryPack namespace

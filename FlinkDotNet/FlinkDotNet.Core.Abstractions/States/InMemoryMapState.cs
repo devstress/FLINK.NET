@@ -1,4 +1,3 @@
-#nullable enable
 using FlinkDotNet.Core.Abstractions.Serializers;
 using System.Collections.Generic;
 using System.Linq; // Required for Keys, Values, Entries returning copies

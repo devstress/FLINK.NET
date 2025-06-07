@@ -1,4 +1,3 @@
-#nullable enable
 using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext
 using System.Threading.Tasks; // For async Open/Close/Invoke if needed
 

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FlinkDotNet.Core.Api</RootNamespace>
+    <AssemblyName>FlinkDotNet.Core.Api</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Default SDK globbing should include all .cs files.
+       If specific includes/excludes are needed later, they can be added here.
+  <ItemGroup>
+    <Compile Include="**/*.cs" />
+  </ItemGroup>
+  -->
+
+</Project>

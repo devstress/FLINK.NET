@@ -1,4 +1,3 @@
-#nullable enable
 using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext if needed later
 
 namespace FlinkDotNet.Core.Abstractions.Sinks

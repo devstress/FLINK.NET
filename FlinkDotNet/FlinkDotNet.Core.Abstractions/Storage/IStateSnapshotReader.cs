@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic; // For IAsyncEnumerable, KeyValuePair
 using System.IO; // For Stream

@@ -1,5 +1,4 @@
 // In FlinkDotNet.Core.Abstractions.Execution.SerializerRegistry.cs
-#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

@@ -1,4 +1,3 @@
-#nullable enable
 using Xunit;
 using FlinkDotNet.Core.Abstractions.States;
 using FlinkDotNet.Core.Abstractions.Serializers; // Added for serializers

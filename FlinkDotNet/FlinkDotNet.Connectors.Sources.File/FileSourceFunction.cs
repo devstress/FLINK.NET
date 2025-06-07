@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.IO;
 using System.Text; // For a simple string deserialization if no serializer is provided for string

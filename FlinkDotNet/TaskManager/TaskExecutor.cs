@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Concurrent; // For CheckpointBarrierAligner's dictionary
 using System.Collections.Generic;

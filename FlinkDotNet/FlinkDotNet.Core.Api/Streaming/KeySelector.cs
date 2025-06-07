@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace FlinkDotNet.Core.Api.Streaming
 {
     /// <summary>

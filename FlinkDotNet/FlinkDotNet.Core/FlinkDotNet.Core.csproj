@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FlinkDotNet.Core</RootNamespace>
+    <AssemblyName>FlinkDotNet.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

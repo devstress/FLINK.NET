@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic; // For List in Transformation base
 using FlinkDotNet.Core.Api.Windowing;

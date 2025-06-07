@@ -64,22 +64,5 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// </summary>
         public abstract bool IsEventTime { get; }
     }
-
-    // Placeholder/Stub for Trigger base class, as it's referenced by WindowAssigner.
-    // A full definition would be in its own file (e.g., Trigger.cs).
-    public abstract class Trigger<TElement, TWindow> where TWindow : Window
-    {
-        // Abstract methods defining trigger behavior, e.g.:
-        // public abstract TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx);
-        // public abstract TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx);
-        // public abstract TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx);
-        // public abstract void Clear(TWindow window, ITriggerContext ctx);
-        // public virtual bool CanMerge => false; // For mergeable windows
-        // public virtual void OnMerge(TWindow mergedWindow, ICollection<TWindow> sourceWindows, IMergeContext ctx) { /* ... */ }
-    }
-
-    // Placeholder for ITriggerContext, if needed by a full Trigger stub.
-    // public interface ITriggerContext { /* ... methods to register timers, access state ... */ }
-    // public enum TriggerResult { CONTINUE, FIRE, PURGE, FIRE_AND_PURGE }
 }
 #nullable disable

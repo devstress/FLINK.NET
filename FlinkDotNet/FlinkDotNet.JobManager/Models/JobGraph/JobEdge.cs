@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using FlinkDotNet.Proto.Internal; // Required for ToProto method
 
