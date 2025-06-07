@@ -4,6 +4,7 @@ using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Models;
 using FlinkDotNet.Core.Abstractions.Models.State;
 using FlinkDotNet.Core.Abstractions.States;
+using FlinkDotNet.Core.Abstractions.Storage; // Added
 
 namespace FlinkDotNet.Core.Abstractions.Runtime
 {
@@ -19,22 +20,26 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         public int NumberOfParallelSubtasks { get; }
         public int IndexOfThisSubtask { get; }
         public JobConfiguration JobConfiguration { get; }
+        public IStateSnapshotStore StateSnapshotStore => _stateSnapshotStore; // Added
 
         private object? _currentKey; // Stores the current key for keyed state
         // private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new(); // Assuming this is how state is managed
+        private readonly IStateSnapshotStore _stateSnapshotStore; // Added
 
         public BasicRuntimeContext(
             string jobName = "DefaultJob",
             string taskName = "DefaultTask",
             int numberOfParallelSubtasks = 1,
             int indexOfThisSubtask = 0,
-            JobConfiguration? jobConfiguration = null)
+            JobConfiguration? jobConfiguration = null,
+            IStateSnapshotStore stateSnapshotStore = null) // Added, made optional for now to avoid breaking other tests not aware of this
         {
             JobName = jobName;
             TaskName = taskName;
             NumberOfParallelSubtasks = numberOfParallelSubtasks;
             IndexOfThisSubtask = indexOfThisSubtask;
             JobConfiguration = jobConfiguration ?? new JobConfiguration();
+            _stateSnapshotStore = stateSnapshotStore ?? new FlinkDotNet.Storage.FileSystem.FileSystemSnapshotStore(); // Added, provide default for now
             _currentKey = null; // Explicitly initialize
         }
 

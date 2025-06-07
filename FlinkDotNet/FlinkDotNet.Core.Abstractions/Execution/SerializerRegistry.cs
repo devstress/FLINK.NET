@@ -94,32 +94,59 @@ namespace FlinkDotNet.Core.Abstractions.Execution
                     }
                 }
 
-                // 2. Check for MemoryPack compatibility for class types (POCOs)
-                //    Ensure MemoryPackableAttribute is from the correct MemoryPack namespace.
+                // 2. Check for MemoryPack compatibility for class types with [MemoryPackable] attribute
                 if (type.IsClass && type.GetCustomAttribute<MemoryPackableAttribute>(inherit: false) != null)
                 {
                     try
                     {
                         Type genericMemoryPackSerializerType = typeof(MemoryPackSerializer<>).MakeGenericType(type);
+                        Console.WriteLine($"[SerializerRegistry] INFO: Using MemoryPackSerializer for [MemoryPackable] type {type.FullName}");
                         return (ITypeSerializer)Activator.CreateInstance(genericMemoryPackSerializerType)!;
                     }
                     catch (Exception ex)
                     {
-                        // This might happen if MemoryPack source generator didn't run for the type,
-                        // or other instantiation issues. Fall through to next step (strict fallback).
-                        Console.WriteLine($"[SerializerRegistry] DEBUG: MemoryPackSerializer instantiation failed for {type.FullName}, will proceed to fallback. Error: {ex.Message}");
+                        Console.WriteLine($"[SerializerRegistry] WARNING: MemoryPackSerializer instantiation failed for [MemoryPackable] type {type.FullName}, will proceed to other fallbacks. Error: {ex.Message}");
+                        // Fall through to other attempts if attribute is present but instantiation fails for some reason
                     }
                 }
 
-                // 3. If no specific or MemoryPack serializer, this is where the strict fallback will be implemented (Step 4 of plan)
-                // For now, this method is expected by the plan to try and return a serializer if one is found by these rules.
-                // The next step will handle the exception throwing.
-                // So, if we reach here, it means no serializer was found by the current logic.
-                // The strict fallback will be added in the next step to throw an exception here.
-                throw new SerializationException($"No serializer found for type {type.FullName}. " +
-                                   $"If it is a POCO, ensure it is marked with [MemoryPackable] and meets MemoryPack requirements. " +
-                                   $"Otherwise, register a custom ITypeSerializer for it, or ensure it's a supported basic type.");
+                // 3. If dataType is a class (and not [MemoryPackable] or failed above), attempt MemoryPackSerializer (best-effort)
+                if (type.IsClass) // This condition now covers non-[MemoryPackable] classes too
+                {
+                    try
+                    {
+                        // This attempt is for POCOs that might not be [MemoryPackable] but MemoryPack might handle via reflection.
+                        Type genericMemoryPackSerializerType = typeof(MemoryPackSerializer<>).MakeGenericType(type);
+                        Console.WriteLine($"[SerializerRegistry] INFO: Attempting MemoryPackSerializer (best-effort) for non-attributed class type {type.FullName}");
+                        return (ITypeSerializer)Activator.CreateInstance(genericMemoryPackSerializerType)!;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SerializerRegistry] INFO: Best-effort MemoryPackSerializer failed for class type {type.FullName}. Error: {ex.Message}. Proceeding to JsonPocoSerializer fallback.");
+                        // Fall through to JsonPocoSerializer
+                    }
+                }
 
+                // 4. If dataType is a class and MemoryPack attempts failed, use JsonPocoSerializer as a fallback
+                if (type.IsClass)
+                {
+                    try
+                    {
+                        Type genericJsonPocoSerializerType = typeof(JsonPocoSerializer<>).MakeGenericType(type);
+                        Console.WriteLine($"[SerializerRegistry] INFO: Using JsonPocoSerializer as fallback for class type {type.FullName}");
+                        return (ITypeSerializer)Activator.CreateInstance(genericJsonPocoSerializerType)!;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SerializerRegistry] WARNING: JsonPocoSerializer instantiation failed for type {type.FullName}. Error: {ex.Message}");
+                        // Fall through to final error
+                    }
+                }
+
+                // 5. If none of the above, throw SerializationException
+                throw new SerializationException($"No serializer could be resolved for type {type.FullName}. " +
+                                   $"Consider marking POCOs with [MemoryPackable], registering a custom ITypeSerializer, " +
+                                   $"or ensuring it's a supported basic type or simple POCO class.");
             });
         }
 

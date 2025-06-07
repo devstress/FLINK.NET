@@ -1,6 +1,7 @@
 using FlinkDotNet.Core.Abstractions.Models;
 using FlinkDotNet.Core.Abstractions.Models.State;
 using FlinkDotNet.Core.Abstractions.States;
+using FlinkDotNet.Core.Abstractions.Storage; // Add this using
 
 namespace FlinkDotNet.Core.Abstractions.Context
 {
@@ -75,6 +76,11 @@ namespace FlinkDotNet.Core.Abstractions.Context
         /// INTERNAL USE: Sets the current key. Called by the TaskExecutor before processing a record in a keyed stream.
         /// </summary>
         void SetCurrentKey(object? key);
+
+        /// <summary>
+        /// Gets the state snapshot store for this operator, used during checkpointing.
+        /// </summary>
+        IStateSnapshotStore StateSnapshotStore { get; } // Add this property
     }
 }
 #nullable disable

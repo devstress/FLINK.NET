@@ -23,6 +23,26 @@ Apache Flink has a sophisticated type system that automatically analyzes the dat
 
 Flink.NET will need to establish its own serialization strategy for C# objects, aiming for similar efficiency and capabilities as Flink's Java/Scala system.
 
+### Default Serializer Resolution and POCO Handling
+
+Flink.NET employs a `SerializerRegistry` to manage and provide serializers for different data types. When a serializer is requested for a type, the registry follows a specific order of precedence to ensure both performance and flexibility:
+
+1.  **Explicitly Registered Serializers:** If a serializer has been explicitly registered for a specific C# type (e.g., `string`, `int`, or a user-defined custom serializer for a specific POCO), that serializer is always chosen first. Basic types like `string`, `int`, `long`, `bool`, `double`, and `byte[]` have optimized serializers pre-registered.
+
+2.  **`MemoryPackSerializer` for `[MemoryPackable]` POCOs:** For Plain Old CLR Objects (POCOs) that are classes and explicitly annotated with the `[MemoryPackable]` attribute (from the MemoryPack library), Flink.NET will use the `MemoryPackSerializer<T>`. This is a high-performance binary serializer and is the **recommended approach for custom POCOs** to achieve optimal serialization speed and compactness.
+
+3.  **Best-Effort `MemoryPackSerializer` for other POCOs:** If a POCO class is *not* annotated with `[MemoryPackable]`, Flink.NET will still attempt to use `MemoryPackSerializer<T>` as a best-effort. MemoryPack can often serialize public POCOs without explicit attributes using reflection, though this may be less performant than when attributes are used and might not support all advanced MemoryPack features like versioning or complex object graphs as seamlessly.
+
+4.  **`JsonPocoSerializer` as Fallback for POCOs:** If `MemoryPackSerializer` cannot handle a POCO class (either because it's not `[MemoryPackable]` and the best-effort attempt fails, or if MemoryPack encounters an issue with the type), Flink.NET will then fall back to using `JsonPocoSerializer<T>`. This serializer uses `System.Text.Json` and is more robust for arbitrary POCOs but is generally less performant and produces larger serialized output compared to `MemoryPackSerializer`. It's primarily a fallback to ensure general POCOs can be serialized if not optimized for MemoryPack.
+
+5.  **Failure:** If none of the above steps yield a serializer for a given type (e.g., for complex structs or types for which none of the above serializers are suitable), the system will raise a `SerializationException`.
+
+**Recommendation:** For best performance with your custom data types (POCOs), it is highly recommended to:
+*   Annotate them with `[MemoryPackable]` and other relevant MemoryPack attributes.
+*   Ensure they follow MemoryPack's requirements for serialization (e.g., public parameterless constructor or constructor with all serializable members, public fields/properties or `[MemoryPackInclude]` attributes).
+
+This strategy aims to provide high default performance using `MemoryPackSerializer` where possible, while maintaining flexibility with `JsonPocoSerializer` as a fallback for general POCOs, and allowing users to register custom serializers for full control.
+
 **Key Considerations for Flink.NET Serialization:**
 
 1.  **POCOs (Plain Old CLR Objects):**

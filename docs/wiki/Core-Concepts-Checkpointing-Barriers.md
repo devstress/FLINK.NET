@@ -4,46 +4,53 @@ Checkpointing is a fundamental mechanism in Flink.NET for achieving fault tolera
 
 ## Barrier Definition
 
-A checkpoint barrier is a special marker that flows in-band with the data records through the job graph. When an operator receives a barrier, it understands that it should begin its part of the specified checkpoint.
+A checkpoint barrier is a special message that flows in-band with the data records through the job graph. When an operator receives a barrier, it understands that it should begin its part of the specified checkpoint.
 
 ### Barrier Message Structure
 
-To integrate barriers into the existing data flow, the `DataRecord` message (defined in `Protos/jobmanager_internal.proto`) will be extended. This allows barriers to be sent over the same gRPC streams as regular data.
+Checkpoint barriers are integrated into the data stream using the `DataRecord` message defined in `Protos/jobmanager_internal.proto`. This allows barriers to be sent over the same gRPC streams as regular data records.
 
-The proposed modification to `DataRecord` is:
+The `DataRecord` structure includes specific fields to designate a message as a barrier and carry checkpoint information:
 
 ```protobuf
-message DataRecord {
-  // Existing fields for routing and payload
-  string target_job_vertex_id = 1;
-  int32 target_subtask_index = 2;
-  bytes payload = 3;
-  // For regular data, this is the serialized user record.
-  // For barriers, this field might be unused or could carry additional barrier-specific metadata if checkpoint_id and timestamp are not sufficient.
+message CheckpointBarrier {
+  int64 checkpoint_id = 1;
+  int64 checkpoint_timestamp = 2;
+}
 
-  // New Checkpoint Barrier Fields
-  bool is_checkpoint_barrier = 4;     // If true, this DataRecord represents a checkpoint barrier.
-  int64 checkpoint_id = 5;            // Unique ID for this checkpoint. Valid if is_checkpoint_barrier is true.
-  int64 checkpoint_timestamp = 6;     // Timestamp when the checkpoint was initiated. Valid if is_checkpoint_barrier is true.
-  // bytes checkpoint_options = 7;    // Optional: For future extensions like type of checkpoint (e.g., full, incremental) or other flags.
+message DataRecord {
+    string targetJobVertexId = 1;     // Target JobVertex on the receiving TM
+    int32 targetSubtaskIndex = 2;     // Specific subtask index of the target operator
+
+    string source_job_vertex_id = 5;  // JobVertexId of the sending task
+    int32 source_subtask_index = 6;   // SubtaskIndex of the sending task
+
+    oneof payload_type {
+      bytes data_payload = 3;           // Serialized user data record
+      CheckpointBarrier barrier_payload = 4; // Contains id and timestamp for a barrier
+      Watermark watermark_payload = 7;    // For event time watermarks
+    }
+
+  bool is_checkpoint_barrier = 8; // If true, this DataRecord represents a checkpoint barrier,
+                                  // and barrier_payload is expected to be set.
+  bytes checkpoint_options = 9;   // Optional: For future extensions like type of checkpoint or other flags
 }
 ```
 
-**Fields:**
+**Key Fields for Barriers:**
 
-*   **`is_checkpoint_barrier` (bool):** A flag that explicitly marks this `DataRecord` as a checkpoint barrier. If `false`, it's a regular data record.
-*   **`checkpoint_id` (int64):** A unique identifier assigned to this specific checkpoint instance by the Checkpoint Coordinator in the JobManager. This ID is crucial for tracking the progress of a checkpoint across all parallel tasks and for recovery.
-*   **`checkpoint_timestamp` (int64):** The timestamp (e.g., milliseconds since epoch) when the checkpoint was triggered by the JobManager. This can be useful for metrics, logging, and potentially for some advanced time-based operations or state versioning.
-*   **`payload` (bytes):**
-    *   For regular data records (`is_checkpoint_barrier = false`), this field contains the serialized user data.
-    *   For checkpoint barriers (`is_checkpoint_barrier = true`), this field is typically not used for the primary barrier information (which is now in dedicated fields). However, it *could* be used in the future to carry additional barrier-specific metadata or options if needed, beyond what `checkpoint_options` might provide. For now, it can be empty for barriers.
-*   **`checkpoint_options` (bytes, optional):** A placeholder for future enhancements. This could serialize a small message containing flags for different checkpoint types (e.g., "savepoint", "full checkpoint", "incremental hint") or other checkpoint-related instructions.
+*   **`is_checkpoint_barrier` (bool, field 8):** Explicitly marks the `DataRecord` as a checkpoint barrier.
+*   **`barrier_payload` (CheckpointBarrier, field 4 within `oneof`):** If `is_checkpoint_barrier` is true, this field is populated. It's a nested message containing:
+    *   **`checkpoint_id` (int64):** Unique ID for the checkpoint, assigned by the JobManager's Checkpoint Coordinator.
+    *   **`checkpoint_timestamp` (int64):** Timestamp (ms since epoch) when the checkpoint was initiated.
+*   **`data_payload` (bytes, field 3 within `oneof`):** Used for actual user data when `is_checkpoint_barrier` is false. For barriers, this is not set.
+*   **`checkpoint_options` (bytes, field 9):** Reserved for future enhancements, like specifying checkpoint types (e.g., savepoint, incremental).
 
 ### Differentiation from Data Records
 
-*   Operators and data exchange components will primarily check the `is_checkpoint_barrier` flag.
-*   If `true`, the record is processed as a barrier, and `checkpoint_id` and `checkpoint_timestamp` are used.
-*   If `false`, the record is processed as regular data, and `payload` is deserialized as user data.
+Data processing components check the `is_checkpoint_barrier` flag.
+*   If `true`, the record is processed as a barrier, using the information from `barrier_payload`.
+*   If `false`, the `data_payload` is deserialized and processed as a regular user record.
 
 ## Barrier Serialization
 
