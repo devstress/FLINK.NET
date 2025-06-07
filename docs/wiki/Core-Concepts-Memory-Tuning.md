@@ -1,99 +1,100 @@
-# Core Concepts: Memory Tuning (Flink.NET)
+# Core Concepts: Memory Tuning in Flink.NET
 
-Memory tuning is essential for optimizing the performance and stability of your Flink.NET applications. This guide covers key aspects of tuning memory, from .NET runtime considerations to Flink.NET-specific configurations and Kubernetes resource management.
+Memory tuning is an essential operational aspect of running Flink (and Flink.NET) applications efficiently and reliably. It involves adjusting various memory configurations to optimize performance, prevent OutOfMemoryErrors (OOMs), and ensure good resource utilization.
 
-Reference: [Memory Overview](./Core-Concepts-Memory-Overview.md)
+This page provides general strategies and refers to Apache Flink's detailed guides, as Flink.NET will leverage Flink's underlying memory model.
 
-## General Principles for Flink.NET
+## Goals of Memory Tuning
 
-*   **Understand Your Application:** The most critical aspect of tuning is understanding your application's specific needs:
-    *   Data volume and velocity (especially for high-throughput scenarios aiming for millions of messages/sec).
-    *   Complexity of user-defined functions (UDFs) – efficient UDFs are paramount.
-    *   State size (if using stateful operations).
-    *   Windowing logic and event time processing.
-*   **Iterative Approach:** Memory tuning is often an iterative process. Start with reasonable defaults, monitor your application, identify bottlenecks, make adjustments, and repeat.
-*   **Monitoring is Key:** Utilize monitoring tools to observe memory usage, garbage collection behavior, and overall application performance.
-    *   **.NET Counters:** Use `dotnet-counters` to monitor GC stats (heap size, collections, pause times), CPU usage, etc.
-    *   **Kubernetes Metrics:** If deployed on Kubernetes, monitor pod memory usage (`kubectl top pod`), CPU, and network I/O using tools like Prometheus and Grafana.
-    *   **Flink.NET Metrics:** (Planned) Flink.NET will expose its own metrics related to memory usage (e.g., network buffer pools, state backend memory, backpressure indicators).
+*   **Maximize Performance:** Provide enough memory for tasks to operate efficiently, minimizing spills to disk and reducing GC overhead.
+*   **Ensure Stability:** Prevent OOM errors in JobManagers or TaskManagers.
+*   **Optimize Resource Usage:** Use available memory effectively without over-provisioning.
+*   **Control Predictability:** Achieve consistent job performance.
 
-## Tuning .NET Runtime Heap
+## General Approach to Memory Tuning
 
-The .NET managed heap is where your application objects and Flink.NET framework objects reside.
+1.  **Understand Flink's Memory Model:**
+    *   Familiarize yourself with [[JobManager Memory|Core-Concepts-Memory-JobManager]] and, more importantly, the detailed [[TaskManager Memory|Core-Concepts-Memory-TaskManager]] model.
+    *   Know the difference between Task Heap, Framework Heap, Managed Memory, and Network Memory.
 
-*   **Heap Size (e.g., `jobmanager.heap.memory.size`, `taskmanager.heap.memory.size` - Planned):**
-    *   Setting an appropriate heap size is a trade-off. Too small, and you'll experience frequent GCs and potential `OutOfMemoryException`s. Too large, and GC pauses might become longer, though less frequent.
-    *   For TaskManagers, this is particularly critical as it impacts UDF execution and data object storage. For high-throughput workloads, ensuring sufficient heap for UDFs to operate without excessive GC is vital.
-*   **.NET Garbage Collector (GC) Behavior:**
-    *   **Server GC vs. Workstation GC:** For production environments, especially multi-core TaskManagers and JobManagers, **Server GC** is generally recommended. It's designed for higher throughput and scalability. Workstation GC might be suitable for local development or very resource-constrained single-core scenarios. Flink.NET should ideally default to or allow configuration of Server GC.
-    *   **GC Pauses:** Monitor GC pause times. Long pauses can impact application latency, especially in stream processing.
-    *   **Large Object Heap (LOH):** Objects larger than ~85KB are allocated on the LOH. Frequent LOH allocations and compactions can be a performance issue. Analyze your application if you suspect LOH problems.
-*   **Avoid Excessive Object Creation in UDFs:** This is a cornerstone of performance in .NET data processing. Write efficient UDFs that minimize unnecessary object allocations (e.g., reuse objects, use structs where appropriate for small, short-lived data, avoid string concatenations in loops). Reduced GC pressure directly translates to better throughput and lower latency.
+2.  **Start with Defaults or Recommended Configurations:**
+    *   Apache Flink provides sensible defaults. Use these as a starting point.
+    *   Refer to the Flink documentation for how to set `taskmanager.memory.process.size` or the more granular `taskmanager.memory.flink.size` and its components (Task Heap, Managed Memory, Network, Framework Heap).
 
-## Tuning Network Buffers
+3.  **Monitor Key Metrics:**
+    *   **Flink Web UI:** This is your primary tool.
+        *   **JobManager:** Heap usage, GC activity.
+        *   **TaskManager:**
+            *   **JVM Heap Usage (Task Heap + Framework Heap):** Critical for Flink.NET C# code. Monitor `Status.JVM.Heap.Used`.
+            *   **Garbage Collection:** Look for `Status.JVM.GarbageCollector.*` metrics (count and time). Frequent or long GCs are problematic.
+            *   **Managed Memory Usage:** `Flink.TaskManager.Memory.Managed.Used` (especially if using RocksDB or operations that use managed memory).
+            *   **Network Buffer Usage:** `outPoolUsage` and `inPoolUsage`. High usage (near 1.0) indicates network memory bottlenecks.
+            *   **Backpressure:** The Web UI shows backpressure indicators. High backpressure can be related to memory issues (e.g., insufficient network buffers, slow operators due to GC).
+    *   **Task Manager Logs:** Look for OOM errors or GC-related warnings.
+    *   **.NET Profiling Tools (if applicable for Flink.NET):** If Flink.NET allows, attaching a .NET profiler to TaskManagers can give deep insights into C# object allocations and GC behavior on the Task Heap.
 
-Network buffers are crucial for data exchange between TaskManagers, especially for high-throughput applications.
+4.  **Iterative Adjustments:**
+    *   **Make one change at a time:** This helps isolate the impact of each adjustment.
+    *   **Observe the effect:** After a change, monitor the system for a reasonable period to see how metrics and job performance are affected.
+    *   **Be patient:** Tuning can be an iterative process.
 
-*   **Configuration (e.g., `taskmanager.network.memory.size` - Planned):**
-    *   This setting (or equivalent) will define the total memory allocated for network buffers in a TaskManager.
-    *   Insufficient network memory can lead to backpressure, where upstream tasks are slowed down because downstream tasks cannot receive data quickly enough. For high-throughput scenarios, do not be conservative with this allocation initially.
-*   **Calculating Requirements:**
-    *   The required network memory depends on the number of parallel tasks (degree of parallelism), the number of network connections (determined by the job graph), and the desired buffering capacity.
-    *   Refer to the [Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md) page for more detailed calculations and considerations.
-*   **Buffer Size (e.g., `taskmanager.network.buffer-size` - Planned):**
-    *   The size of individual network buffers can also be a tuning parameter. Larger buffers might be better for high-throughput batch workloads, while smaller buffers could be preferred for low-latency streaming.
+## Common Tuning Areas and Strategies for Flink.NET
 
-## Tuning State Backend Memory (If Applicable)
+*   **Task Heap (`taskmanager.memory.task.heap.size`):**
+    *   **Crucial for Flink.NET C# operators.**
+    *   **Increase if:**
+        *   You see .NET `OutOfMemoryException` in TaskManager logs.
+        *   Excessive .NET GC activity is observed (high frequency, long pauses), impacting operator performance. Your C# code might be creating too many objects or holding onto them for too long.
+    *   **Consider:**
+        *   Optimizing your C# code to be more memory-efficient (reduce object creation, manage object lifecycles).
+        *   Using appropriate data structures.
 
-*   If using a memory-intensive state backend (e.g., an in-memory state backend for testing):
-    *   Ensure the TaskManager heap (e.g., `taskmanager.heap.memory.size`) is large enough to hold all the state.
-    *   For production with large state, prefer disk-based state backends like RocksDB (if integrated).
-*   **RocksDB (If Integrated):**
-    *   While RocksDB stores data on disk, it uses memory for caches (block cache, write buffers, bloom filters).
-    *   Tuning these RocksDB memory components (via Flink.NET configuration passthrough, if available) can significantly impact state access performance. This is an advanced topic, often requiring careful adjustment of RocksDB's own tuning parameters. Flink.NET should provide guidance on how its configured memory for state relates to RocksDB's cache memory.
+*   **Managed Memory (`taskmanager.memory.managed.size` or `fraction`):**
+    *   **Increase if:**
+        *   Using RocksDB state backend and state size is large, or you see RocksDB memory-related errors.
+        *   Performing large-scale sorting, joining, or hashing operations that Flink can offload to managed memory. Performance might be slow due to data spilling to disk if managed memory is too small.
+    *   **Note:** RocksDB memory usage can be complex. It uses managed memory but also its own block cache and other off-heap structures. Flink's `taskmanager.memory.managed.size` constrains RocksDB's total off-heap usage.
 
-## Advanced .NET Performance Techniques (for UDFs)
+*   **Network Memory (`taskmanager.memory.network.*`):**
+    *   See [[Network Memory Tuning|Core-Concepts-Memory-Network]].
+    *   **Increase if:**
+        *   `outPoolUsage` or `inPoolUsage` is consistently high.
+        *   You encounter "Insufficient number of network buffers" errors.
+    *   **Adjust `taskmanager.memory.segment-size`:** Can impact throughput and latency.
 
-For users aiming to extract maximum performance from their UDFs, especially in critical data paths for high-throughput jobs, consider these advanced .NET features. Note that direct use might depend on how Flink.NET's operator APIs are designed:
+*   **Number of Task Slots (`taskmanager.numberOfTaskSlots`):**
+    *   Memory (Task Heap, Managed Memory share) is divided among slots. If you have many slots, each slot gets less memory.
+    *   If tasks are memory-intensive, reducing the number of slots per TaskManager (and potentially increasing the number of TaskManagers) can give each task more memory.
 
-*   **`Span<T>` and `Memory<T>`:** Use these types to work with memory in a type-safe way without allocations, reducing GC pressure. This is particularly useful for parsing or data manipulation tasks.
-*   **`System.Buffers.ArrayPool<T>`:** Rent and return arrays from a shared pool to avoid frequent allocations and deallocations of large arrays, reducing GC overhead and LOH fragmentation.
-*   **`System.IO.Pipelines`:** For high-performance I/O operations (e.g., custom sources/sinks, or complex serialization logic), Pipelines provide an efficient way to manage memory for stream processing.
-*   **Efficient Serialization:** Beyond Flink.NET's default serializers, if you have control over byte-level serialization within a UDF (e.g., for complex binary state), use efficient libraries or custom routines.
+*   **Flink.NET Specific .NET GC Tuning (Advanced/Future):**
+    *   Depending on how Flink.NET manages the .NET runtime, there might be opportunities to tune .NET GC settings (e.g., Server GC vs. Workstation GC, concurrent GC modes) for optimal performance. This would be an advanced topic for Flink.NET documentation.
 
-Leveraging these techniques typically requires more in-depth .NET knowledge but can yield significant performance gains in targeted areas.
+## Troubleshooting Common Memory Issues
 
-## Container Considerations (Kubernetes)
+*   **OutOfMemoryError (OOMs):**
+    *   **JVM Heap (Task Heap):** Most likely due to user code (C# operators in Flink.NET) allocating too many objects. Increase Task Heap, optimize code, or use managed memory for state/operations if possible.
+    *   **JVM Metaspace:** Less common, but could happen if too many classes are loaded. Increase `taskmanager.memory.jvm-metaspace.size`.
+    *   **Direct Memory / Off-Heap:** Could be related to network buffers, managed memory (e.g., RocksDB), or other native libraries. Check relevant configurations.
+    *   See [[Memory Troubleshooting|Core-Concepts-Memory-Troubleshooting]].
 
-*   **Set Realistic `requests.memory` and `limits.memory`:**
-    *   `requests.memory`: Should be a value your pod typically needs to run comfortably. This helps Kubernetes schedule pods efficiently.
-    *   `limits.memory`: The hard cap. This should be greater than or equal to the sum of all configured Flink.NET internal memory components (heap, network, off-heap if any, framework overhead).
-    *   If `limits.memory` is too close to the actual working set size, you risk pod OOMKills by Kubernetes.
-*   **Framework Overhead:** Always account for memory consumed by the Flink.NET framework itself and the .NET runtime, beyond just heap or network buffers. This is often a fixed overhead plus a percentage of other configured memory. Apache Flink has detailed models for this; Flink.NET will need to establish its own and provide guidance.
-*   **Avoid Over-Commitment:** Don't request significantly more memory than your application needs, as this wastes cluster resources.
+*   **Performance Degradation / High Latency:**
+    *   Often linked to GC pressure (Task Heap).
+    *   Could be insufficient network buffers.
+    *   Could be state backend performance (e.g., RocksDB needing more managed memory or I/O bottlenecks).
 
-## Common Scenarios & Recommendations
+## Relationship to Apache Flink
 
-*   **High Latency:**
-    *   Check GC pause times. If high, try increasing heap size (if OOM is not an issue) or optimizing UDFs (see "Avoid Excessive Object Creation" and "Advanced .NET Performance Techniques").
-    *   Check for backpressure caused by insufficient network buffers (see [Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)).
-*   **OutOfMemoryException (`System.OutOfMemoryException`):**
-    *   Increase .NET Runtime Heap size (e.g., `taskmanager.heap.memory.size` or `jobmanager.heap.memory.size`).
-    *   If in Kubernetes, ensure the pod `limits.memory` is sufficient for the total configured Flink.NET process memory plus overheads.
-    *   Analyze heap dumps to find memory leaks or unexpectedly large objects (see [Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)).
-*   **Pod OOMKilled (Kubernetes):**
-    *   The pod's total memory usage exceeded `limits.memory`.
-    *   Increase `limits.memory`.
-    *   Ensure Flink.NET internal memory configurations sum up to less than the pod limit, accounting for all .NET runtime and framework overheads.
-    *   Investigate if there's unexpected memory growth in any component using .NET profiling tools.
+Memory tuning for Flink.NET is fundamentally Flink memory tuning. The principles and configurations are the same. The main Flink.NET-specific aspect is that the **Task Heap** is where your C# code's memory behavior will be most directly visible and impactful, managed by the .NET GC.
 
----
+**Apache Flink References:**
 
-*Further Reading:*
-*   [Core Concepts: JobManager Memory (Flink.NET)](./Core-Concepts-Memory-JobManager.md)
-*   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
-*   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
-*   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+*   **Flink Memory Tuning Guide (Comprehensive):** [Apache Flink Memory Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/memory/mem_tuning/)
+*   [Setting up Flink Memory (Configuration Options)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
+*   [TaskManager Memory Details](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)
+*   [Network Memory Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/network_mem_tuning/)
 
----
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
+## Next Steps
+
+*   Familiarize yourself with specific memory areas: [[TaskManager Memory|Core-Concepts-Memory-TaskManager]] and [[Network Memory Tuning|Core-Concepts-Memory-Network]].
+*   Prepare for [[Memory Troubleshooting|Core-Concepts-Memory-Troubleshooting]] when issues arise.
+*   Understand [[Serialization Overview|Core-Concepts-Serialization]] as it impacts memory efficiency.

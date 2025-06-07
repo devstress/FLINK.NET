@@ -1,162 +1,134 @@
 # Getting Started with Flink.NET
 
-This guide provides a basic walkthrough of how to set up a Flink.NET project and write a simple streaming application.
+This guide will walk you through the process of setting up your development environment and writing a simple Flink.NET application.
 
 ## Prerequisites
 
-*   .NET SDK (refer to the main README for the recommended version, typically .NET 8 or later).
-*   An understanding of basic C# and stream processing concepts.
+*   **.NET SDK:** Ensure you have the .NET SDK (version X.X.X or higher) installed. You can download it from [here](https://dotnet.microsoft.com/download).
+*   **IDE (Optional but Recommended):** An IDE like Visual Studio, JetBrains Rider, or VS Code can greatly improve your development experience.
+*   **Apache Flink (for local execution):** To run Flink.NET applications locally, you'll need a local Apache Flink cluster.
+    *   Follow the [Apache Flink Local Installation Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/).
+    *   Ensure your Flink cluster is running before executing Flink.NET jobs.
 
-## 1. Project Setup
+## 1. Create a New .NET Project
 
-1.  **Create a new .NET Console Application:**
-    ```bash
-    dotnet new console -o MyFlinkApp
-    cd MyFlinkApp
-    ```
+Start by creating a new .NET console application. You can do this using the .NET CLI or your preferred IDE.
 
-2.  **Add Flink.NET NuGet Packages:**
-    You'll need to reference the core Flink.NET libraries. As package names might evolve, refer to the main project's README or `Directory.Packages.props` for the exact names. Conceptually, you would add packages like:
-    ```bash
-    # Placeholder package names - replace with actual ones
-    dotnet add package FlinkDotNet.Core.Api
-    dotnet add package FlinkDotNet.Core.Abstractions
-    # Add specific connectors if needed, e.g.:
-    # dotnet add package FlinkDotNet.Connectors.Sinks.Console
-    ```
+```bash
+dotnet new console -n MyFlinkApp
+cd MyFlinkApp
+```
 
-## 2. Writing a Simple Flink.NET Application
+## 2. Add Flink.NET NuGet Packages
 
-Let's create a simple application that reads a sequence of numbers, converts them to strings with a prefix, and prints them to the console.
+Add the necessary Flink.NET NuGet packages to your project. The core package required to get started is `FlinkDotNet.Core.Abstractions`. Others will be needed for specific operators or connectors.
+
+```bash
+dotnet add package FlinkDotNet.Core.Abstractions
+# Add other packages as needed, e.g., FlinkDotNet.Core
+```
+
+*(Note: Specific package names might change. Refer to the main [Readme.md](../../Readme.md) or the official NuGet feed for the latest package information.)*
+
+## 3. Write Your First Flink.NET Application
+
+Let's create a simple application that reads a list of numbers, filters out the even ones, and prints the odd numbers to the console.
 
 ```csharp
-// MyFlinkApp/Program.cs
-
+// Program.cs
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
-using FlinkDotNet.Core.Api;
-using FlinkDotNet.Core.Api.Streaming;
-using FlinkDotNet.Core.Abstractions.Sources;
-using FlinkDotNet.Core.Abstractions.Sinks;
-using FlinkDotNet.Core.Abstractions.Operators;
-using FlinkDotNet.Core.Abstractions.Context;
-using FlinkDotNet.Core.Abstractions.Serializers;
-// Assuming ConsoleSinkFunction is in a namespace like this:
-using FlinkDotNet.Connectors.Sinks.Console;
-
-// Simple Source Function
-public class NumberSource : ISourceFunction<long>
-{
-    private volatile bool _isRunning = true;
-    private readonly long _count;
-
-    public NumberSource(long count = 10)
-    {
-        _count = count;
-    }
-
-    public void Run(ISourceContext<long> ctx)
-    {
-        for (long i = 0; i < _count && _isRunning; i++)
-        {
-            ctx.Collect(i);
-            Thread.Sleep(100); // Simulate some delay
-        }
-    }
-
-    public void Cancel()
-    {
-        _isRunning = false;
-    }
-}
-
-// Simple Map Operator
-public class PrefixMapOperator : IMapOperator<long, string>
-{
-    public string Map(long value)
-    {
-        return $"Number: {value}";
-    }
-}
+using FlinkDotNet.Core.Abstractions; // Or the relevant 'using' for StreamExecutionEnvironment
+using FlinkDotNet.Core.Api; // Or the relevant 'using' for DataStream
 
 public class Program
 {
     public static async Task Main(string[] args)
     {
-        Console.WriteLine("Starting Flink.NET Getting Started Example...");
+        // 1. Set up the execution environment
+        // Note: The exact way to get the environment might vary based on the library version.
+        // This is a conceptual example.
+        var environment = StreamExecutionEnvironment.GetExecutionEnvironment();
 
-        // 1. Set up the StreamExecutionEnvironment
-        var env = StreamExecutionEnvironment.GetExecutionEnvironment();
+        // 2. Create a data stream from a collection
+        var numbers = environment.FromCollection(new List<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 });
 
-        // Register serializers if needed (e.g., for custom types or if defaults are not sufficient)
-        // For basic types like long and string, Flink.NET provides built-in serializers.
-        // env.SerializerRegistry.RegisterSerializer(typeof(long), typeof(LongSerializer));
-        // env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
+        // 3. Define a transformation: Filter for odd numbers
+        var oddNumbers = numbers.Filter(new OddNumberFilter());
 
-        // 2. Create a DataStream from a source
-        var source = new NumberSource(15);
-        DataStream<long> numberStream = env.AddSource(source, "number-source");
+        // 4. Define a sink: Print to console
+        oddNumbers.Print(); // Or a more specific sink operation
 
-        // 3. Apply transformations
-        var mapOperator = new PrefixMapOperator();
-        DataStream<string> stringStream = numberStream.Map(mapOperator, "prefix-mapper");
-
-        // 4. Add a sink to print results to the console
-        var consoleSink = new ConsoleSinkFunction<string>();
-        stringStream.AddSink(consoleSink, "console-sink");
-
-        // 5. Build the JobGraph
-        // The JobGraph is a serializable representation of your job's dataflow.
-        var jobGraph = env.CreateJobGraph("MySimpleFlinkJob");
-        Console.WriteLine($"JobGraph '{jobGraph.JobName}' created with {jobGraph.Vertices.Count} vertices.");
-
-        // 6. Execute the job
-        // In a real deployment, this JobGraph would be submitted to a Flink.NET JobManager.
-        // The FlinkJobSimulator project shows an example of gRPC submission:
-        // FlinkDotNetAspire/FlinkJobSimulator/Program.cs
-
-        // The StreamExecutionEnvironment.ExecuteAsync() method is currently a placeholder
-        // for potential local/embedded execution.
-        Console.WriteLine("Job execution would typically involve submitting the JobGraph to a JobManager.");
-        Console.WriteLine("For a local test without a full cluster, you might use a local executor (if available) or simulate parts of it.");
-        // await env.ExecuteAsync("MySimpleFlinkJob"); // This is currently a placeholder
-
-        Console.WriteLine("To run this job in a distributed manner, you would package this application and submit its JobGraph to a Flink.NET JobManager.");
-        Console.WriteLine("Please see the FlinkJobSimulator project for an example of how a JobGraph is built and submitted via gRPC.");
-        await Task.CompletedTask; // Keep console open for async Main
+        // 5. Execute the job
+        // The actual execution call might differ.
+        // This might involve specifying a job name or other configurations.
+        await environment.ExecuteAsync("My First Flink.NET Job");
     }
 }
 
+// Define a simple filter operator
+public class OddNumberFilter : IFilterFunction<int>
+{
+    public bool Filter(int value)
+    {
+        return value % 2 != 0;
+    }
+}
 ```
 
-## 3. Understanding the Code
+**Explanation:**
 
-*   **`StreamExecutionEnvironment`**: The entry point for creating Flink.NET jobs. It's used to register sources, define transformations, and build the `JobGraph`.
-*   **`ISourceFunction`**: Defines how data is ingested into the stream. Our `NumberSource` emits a sequence of numbers.
-*   **`IMapOperator`**: Defines a transformation that takes one element and produces one element. `PrefixMapOperator` converts numbers to formatted strings.
-*   **`ISinkFunction`**: Defines where the data goes after processing. `ConsoleSinkFunction` (assumed to be provided by a connector library) prints records to the console.
-*   **`DataStream<T>`**: Represents a stream of elements of type `T`. You apply operations like `Map`, `Filter`, `KeyBy`, `AddSink`, etc., to these streams.
-*   **`JobGraph`**: A graph representation of the dataflow, including sources, operators, sinks, and their connections. This is what gets executed by the Flink.NET runtime.
+*   **`StreamExecutionEnvironment.GetExecutionEnvironment()`**: This initializes the Flink execution environment.
+*   **`environment.FromCollection(...)`**: This creates a `DataStream<int>` from an in-memory collection. In real applications, you would use source connectors (e.g., Kafka, File).
+*   **`numbers.Filter(new OddNumberFilter())`**: This applies a filter transformation. The `OddNumberFilter` class implements the `IFilterFunction<int>` interface, defining the logic to keep only odd numbers.
+*   **`oddNumbers.Print()`**: This is a simple sink that prints each element of the stream to the console.
+*   **`environment.ExecuteAsync(...)`**: This triggers the execution of the Flink job.
 
-## 4. Running the Application (Conceptual)
+*(Disclaimer: The exact API calls and class names like `StreamExecutionEnvironment`, `FromCollection`, `Print`, `ExecuteAsync`, and `IFilterFunction` are illustrative. Refer to the specific Flink.NET library version you are using for the correct API usage and necessary `using` statements. The purpose of this example is to show the general structure.)*
 
-Currently, Flink.NET's primary execution model involves submitting the `JobGraph` to a separate **JobManager** process, which then coordinates execution with **TaskManagers**.
+## 4. Configure the Flink Runner (Conceptual)
 
-1.  **Build the JobGraph**: The example code shows how `env.CreateJobGraph()` generates this.
-2.  **Submit to JobManager**:
-    *   You would typically have a client utility or use gRPC directly to serialize the `JobGraph` (e.g., to Protobuf) and send it to the JobManager's submission endpoint.
-    *   The `FlinkDotNetAspire/FlinkJobSimulator/Program.cs` project in the Flink.NET repository provides a working example of this gRPC submission process.
-3.  **Local Execution (Future/Conceptual)**:
-    *   The `StreamExecutionEnvironment.ExecuteAsync()` method is a placeholder for a potential future local execution mode that could run a job within the same process, perhaps with an embedded JobManager/TaskManager for simple tests. This is not fully implemented for general use yet.
+To execute this job, Flink.NET needs to know how to communicate with your Flink cluster (or run in an embedded mode if supported). This configuration might involve:
+
+*   Setting environment variables.
+*   A configuration file (e.g., `appsettings.json`).
+*   Programmatic configuration.
+
+**Example (Conceptual `appsettings.json`):**
+
+```json
+{
+  "Flink": {
+    "JobManagerRestAddress": "http://localhost:8081"
+    // Other relevant configurations
+  }
+}
+```
+
+*(Refer to Flink.NET's specific documentation for details on how to configure the job submission and connection to Flink.)*
+
+## 5. Run Your Application
+
+Once your code is ready and the Flink connection is configured:
+
+1.  **Ensure your Apache Flink cluster is running.** You can typically start it by navigating to your Flink installation's `bin` directory and running `./start-cluster.sh` (on Linux/macOS) or `start-cluster.bat` (on Windows).
+2.  **Run your .NET application:**
+
+    ```bash
+    dotnet run
+    ```
+
+You should see the odd numbers (1, 3, 5, 7, 9) printed in the console output from your Flink job. You can also monitor the job through the Flink Web UI (usually at `http://localhost:8081`).
 
 ## Next Steps
 
-*   Explore the `FlinkDotNetAspire` solution to see how a JobManager, TaskManager, and a job-submitting client (`FlinkJobSimulator`) are run together.
-*   Dive deeper into the [Core Concepts](./Core-Concepts-Overview.md) of Flink.NET.
-*   Learn more about [Developing Operators](./Developing-Operators.md) and [Working with State](./Developing-State.md).
+*   Explore different [[Operators|Developing-Operators]] available in Flink.NET.
+*   Learn about [[Connectors|Connectors-Overview]] to read from and write to external systems.
+*   Understand [[State Management|Core-Concepts-State-Management-Overview]] for building stateful applications.
 
----
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
-Next: [Business Requirements](./Business-Requirements.md)
+**Apache Flink References:**
+
+*   [Flink DataStream API Programming Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/overview/)
+*   [Fundamental Concepts (Flink Architecture)](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/)

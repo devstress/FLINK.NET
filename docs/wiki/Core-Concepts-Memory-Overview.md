@@ -1,67 +1,71 @@
-# Core Concepts: Flink.NET Memory Overview
+# Core Concepts: Memory Management Overview in Flink.NET
 
-## Introduction
+Effective memory management is crucial for the performance and stability of distributed stream processing applications. Apache Flink has a sophisticated memory management system, and Flink.NET aims to align with these concepts to provide .NET developers with control and understanding of how memory is used.
 
-Memory management is crucial for achieving optimal performance, stability, and resource efficiency in Flink.NET applications. This document provides an overview of how Flink.NET processes manage memory, focusing on deployments in Kubernetes and local execution environments. Understanding these concepts will help you configure Flink.NET effectively.
+This page provides a high-level overview. Detailed Flink.NET specific configurations and recommendations will be added as the project evolves. The primary goal is to leverage Flink's existing memory management capabilities.
 
-## Flink.NET Process Memory Model (General)
+## Why is Memory Management Important?
 
-A Flink.NET process, whether a JobManager or a TaskManager, runs as a .NET Core application. Its memory footprint is composed of several areas:
+Flink processes large amounts of data, often keeping significant portions of it in memory for fast access (e.g., for stateful operations, windowing, sorting, and network buffering). How this memory is managed impacts:
 
-*   **Managed Heap:** This is the primary memory area managed by the .NET Garbage Collector (GC). It stores objects created by the Flink.NET framework, user-defined functions (UDFs), and application code. The size and behavior of the managed heap, along with GC activity (e.g., frequency, pauses), significantly impact performance.
-    *   *.NET Garbage Collector (GC):* Flink.NET utilizes the standard .NET GC. Understanding its behavior (e.g., generational collection, Large Object Heap for objects >85KB) is beneficial. Server GC is typically recommended for production workloads on multi-core machines due to its higher throughput, though Workstation GC might be used in resource-constrained local development.
-*   **Stack Memory:** Each thread within a Flink.NET process has its own stack for storing local variables and method call frames. This is generally smaller and managed automatically.
-*   **(Potential) Off-Heap Memory:** While .NET primarily relies on the managed heap, Flink.NET could theoretically utilize off-heap memory for specific high-performance components like custom network buffer pools or specialized state backends. However, direct off-heap management is less common in idiomatic .NET applications compared to JVM-based systems. If Flink.NET components use off-heap memory, their management will be detailed in relevant sections.
+*   **Performance:** Efficient memory usage can significantly reduce the need to spill data to disk, leading to faster processing.
+*   **Stability:** Proper memory configuration prevents `OutOfMemoryError` exceptions and ensures the application runs reliably.
+*   **Resource Utilization:** Optimizing memory allocation helps in making the best use of available cluster resources.
 
-## Interaction with Kubernetes
+## Key Areas of Memory Management in Flink (and Flink.NET)
 
-When deploying Flink.NET on Kubernetes, memory management involves two levels:
+Flink divides memory management into several key areas, primarily concerning the JobManager and TaskManagers.
 
-1.  **Kubernetes Pod Resources:**
-    *   You define memory requests (`resources.requests.memory`) and limits (`resources.limits.memory`) for each Flink.NET JobManager and TaskManager pod in your Kubernetes deployment specifications.
-    *   `requests.memory` guarantees that amount of memory for the pod.
-    *   `limits.memory` enforces a hard cap. If a pod exceeds this limit, Kubernetes may terminate it (OOMKilled).
-2.  **Flink.NET Internal Memory Configurations (Planned):**
-    *   Flink.NET aims to provide its own set of internal memory configurations (e.g., for total process memory, .NET heap size, network buffer sizes).
-    *   These configurations will guide how Flink.NET partitions and utilizes the memory allocated to its pod by Kubernetes. For example, you might allocate a 4Gi pod in Kubernetes, and then Flink.NET configurations would specify how much of that 4Gi is targeted for the .NET heap, network buffers, etc.
-    *   This allows for finer-grained control over Flink.NET's internal memory usage within the overall pod allocation.
+1.  **JobManager Memory:**
+    *   The JobManager typically does not require a large amount of memory compared to TaskManagers.
+    *   Its memory is primarily used for:
+        *   Coordinating the job (tracking tasks, checkpoints, recovery).
+        *   The Flink Web UI.
+        *   Heap for its own JVM processes (and in Flink.NET, the .NET runtime).
+    *   See [[JobManager Memory|Core-Concepts-Memory-JobManager]] for more details.
 
-## Configuration Approach
+2.  **TaskManager Memory:**
+    *   TaskManagers execute the actual data processing logic and require more careful memory configuration.
+    *   Flink has a detailed memory model for TaskManagers, which includes:
+        *   **Framework Heap Memory:** Memory used by Flink's internal framework components (non-operator code).
+        *   **Task Heap Memory:** Memory used by user-defined functions (operators) written in Java/Scala (and C# for Flink.NET).
+        *   **Managed Memory:** Memory explicitly managed by Flink for specific operations like sorting, hashing, and state backends (especially RocksDB). This memory is often off-heap.
+        *   **Network Buffers:** Memory allocated for transferring data between tasks (both locally and over the network).
+        *   **JVM Metaspace / Overhead (and .NET equivalent):** Memory for class metadata, thread stacks, etc.
+    *   See [[TaskManager Memory|Core-Concepts-Memory-TaskManager]] for a detailed breakdown.
 
-Flink.NET memory settings are planned to be configurable via:
+3.  **Network Memory (Network Buffers):**
+    *   A critical part of TaskManager memory dedicated to network communication.
+    *   Properly configuring network buffers is essential for achieving high throughput.
+    *   See [[Network Memory Tuning|Core-Concepts-Memory-Network]].
 
-*   **Configuration Files:** E.g., `appsettings.json` (standard .NET Core approach).
-*   **Environment Variables:** Allowing overrides in containerized environments.
-*   **Command-Line Arguments:** For ad-hoc adjustments.
+## Flink.NET Considerations
 
-Key configuration categories will likely include:
-*   Total memory available to the Flink.NET process.
-*   .NET runtime heap size.
-*   Memory allocated for network communication (network buffers).
-*   Memory for state backends (if they have tunable memory components).
+*   **.NET Runtime Memory:** Flink.NET applications will run within the .NET runtime on TaskManagers (and JobManager for its components). This means that the .NET Garbage Collector (GC) will manage the heap for C# objects.
+*   **Interoperability:** For state backends like RocksDB (which is native code) or when interacting with Flink's managed memory, there will be interoperability considerations between .NET managed memory and native/off-heap memory.
+*   **Serialization:** Efficient serialization plays a role in memory usage, as it affects the size of objects being sent over the network or stored in state. See [[Serialization Overview|Core-Concepts-Serialization]].
 
-Detailed parameters will be covered in the specific JobManager and TaskManager memory sections.
+## General Goals for Flink.NET Memory Management
 
-## Key Memory Components (High-Level)
+*   Provide clear guidelines on how to configure memory for Flink.NET applications.
+*   Expose relevant Flink memory configuration options to .NET developers.
+*   Offer best practices for writing memory-efficient C# operator logic.
+*   Develop strategies for [[Memory Tuning|Core-Concepts-Memory-Tuning]] and [[Memory Troubleshooting|Core-Concepts-Memory-Troubleshooting]].
 
-The memory requested by a Flink.NET JobManager or TaskManager is utilized by several internal components:
+## Relationship to Apache Flink Memory Management
 
-*   **.NET Runtime:** Overhead for the .NET runtime itself.
-*   **Flink.NET Framework Code:** Memory used by the core framework logic, job graph representation, coordination services, etc.
-*   **Application Code:** Memory consumed by user-defined functions, data objects, and application-specific logic.
-*   **Network Buffers:** Essential for data transfer between TaskManagers (shuffling data) and between JobManagers and TaskManagers.
-*   **State Backends:** If using memory-intensive state backends, they will contribute significantly to memory usage.
+Flink.NET will largely adopt Apache Flink's memory model. The documentation and understanding of Flink's memory management are directly applicable. Flink.NET's specific contribution will be in detailing how .NET applications fit into this model and any particular configurations or behaviors related to the .NET runtime.
 
----
+**Apache Flink References:**
 
-*Further Reading:*
-*   [Core Concepts: JobManager Memory (Flink.NET)](./Core-Concepts-Memory-JobManager.md)
-*   [Core Concepts: TaskManager Memory (Flink.NET)](./Core-Concepts-Memory-TaskManager.md)
-*   [Core Concepts: Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Tuning.md)
-*   [Core Concepts: Memory Troubleshooting (Flink.NET)](./Core-Concepts-Memory-Troubleshooting.md)
-*   [Core Concepts: Network Memory Tuning (Flink.NET)](./Core-Concepts-Memory-Network.md)
+*   [Flink Memory Management (General Overview - start here)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
+*   [JobManager Memory Configuration](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_jobmanager/)
+*   [TaskManager Memory Configuration](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)
+*   [Network Memory Configuration](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/network_mem_tuning/)
 
----
-Previous: [System Design Overview](./System-Design-Overview.md)
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
-Next: [Core Concepts: JobManager](./Core-Concepts-JobManager.md)
+## Next Steps
+
+*   Dive deeper into [[JobManager Memory|Core-Concepts-Memory-JobManager]].
+*   Understand the details of [[TaskManager Memory|Core-Concepts-Memory-TaskManager]].
+*   Learn about [[Network Memory Tuning|Core-Concepts-Memory-Network]].
+*   Explore strategies for [[Memory Tuning|Core-Concepts-Memory-Tuning]] and [[Memory Troubleshooting|Core-Concepts-Memory-Troubleshooting]].

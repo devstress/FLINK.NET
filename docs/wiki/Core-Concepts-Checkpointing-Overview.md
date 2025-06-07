@@ -1,40 +1,93 @@
-# Core Concepts: Checkpointing Overview
+# Core Concepts: Checkpointing & Fault Tolerance in Flink.NET
 
-### Table of Contents
-- [The Distributed Snapshotting Process](#the-distributed-snapshotting-process)
-- [Role in Fault Tolerance & Recovery](#role-in-fault-tolerance--recovery)
-- [Key Considerations](#key-considerations)
+Checkpointing is Apache Flink's core mechanism for ensuring fault tolerance and exactly-once processing semantics. Flink.NET inherits these powerful capabilities, allowing .NET applications to recover from failures and maintain data consistency.
 
-Checkpointing is fundamental to Flink.NET''s reliability. It is Flink.NET''s core mechanism for fault tolerance and exactly-once processing semantics. A checkpoint is a consistent snapshot of application state and stream positions. Apache Flink 2.0 continues to build upon this critical foundation, introducing architectural enhancements to further improve checkpointing efficiency and scalability.
+## What is Checkpointing?
 
-See also: [State Management Overview](./Core-Concepts-State-Management-Overview.md)
+Checkpointing is the process of creating consistent snapshots of an application's state at regular intervals. These snapshots include:
 
-*(Apache Flink Ref: [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/))*
+*   The current state of all stateful operators (e.g., values in `IValueState`, contents of `IListState`).
+*   The current reading position in input streams (e.g., Kafka offsets).
 
-## The Distributed Snapshotting Process
-Inspired by Apache Flink (Chandy-Lamport variant):
+If a failure occurs (e.g., a TaskManager crashes), Flink can restore the application's state from the latest completed checkpoint and resume processing from that point.
 
-1.  **Triggering:** The **[JobManager''s](./Core-Concepts-JobManager.md) Checkpoint Coordinator** triggers checkpoints periodically.
-2.  **Checkpoint Barriers:** Source Tasks inject barriers (with a Checkpoint ID) into data streams. Barriers flow inline with records.
-3.  **Operator State Snapshotting:** When an operator receives barriers from all inputs, it snapshots its state to a durable state backend (e.g., MinIO, S3, Azure Blob) and forwards the barrier. Apache Flink 2.0's disaggregated state management, for instance, aims to make this snapshotting process to remote durable storage more efficient and faster, especially for applications with very large states in cloud environments, by leveraging asynchronous operations and optimized backends.
-4.  **Alignment and Acknowledgement:** Multi-input operators align barriers. TaskManagers acknowledge snapshot completion (with state location) to the JobManager.
-5.  **Checkpoint Completion & Metadata:** The JobManager marks a checkpoint "COMPLETED" upon receiving all acks and stores its metadata (`CheckpointMetadata`) durably.
+## How Checkpointing Works in Flink.NET
 
-## Role in Fault Tolerance & Recovery
-If a failure occurs:
-1.  JobManager stops the job.
-2.  Selects the latest completed checkpoint from `CheckpointMetadata`.
-3.  Redeploys tasks.
-4.  Operators restore state from snapshots.
-5.  Sources reset to checkpointed offsets.
-6.  Processing resumes, ensuring exactly-once semantics.
+The checkpointing process in Flink.NET, mirroring Apache Flink, is orchestrated by the JobManager:
 
-## Key Considerations:
-*   **State Backend Choice:** Impacts performance and reliability.
-*   **Checkpoint Interval:** Balances recovery speed and overhead.
-*   **Exactly-Once Sinks:** Often require two-phase commit coordinated with checkpoints.
+1.  **Checkpoint Coordinator:** A component within the JobManager, called the CheckpointCoordinator, triggers checkpoints periodically.
+2.  **Stream Barriers:** The JobManager injects special records called "checkpoint barriers" into the input streams. These barriers flow downstream with the data.
+3.  **Operator Snapshots:**
+    *   When an operator receives a barrier from all its input streams, it means all data before that barrier has been processed.
+    *   The operator then takes a snapshot of its current state and sends it to the configured State Backend (e.g., distributed filesystem, RocksDB).
+    *   It then forwards the barrier to its output streams.
+4.  **Alignment:** Operators with multiple inputs might need to align barriers if they arrive at different times. This ensures that the snapshot represents a consistent point in time across all inputs.
+5.  **Checkpoint Acknowledgment:** Once an operator has successfully stored its state, it acknowledges the checkpoint to the JobManager.
+6.  **Completed Checkpoint:** When all operators in the job have acknowledged a checkpoint for a specific barrier, the JobManager marks that checkpoint as completed. This includes `CheckpointMetadata` and `OperatorStateMetadata` which store information about the checkpoint.
 
----
-Previous: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md)
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
-Next: [Core Concepts: Checkpointing - Barriers](./Core-Concepts-Checkpointing-Barriers.md)
+## Exactly-Once Semantics
+
+Checkpointing is fundamental to achieving exactly-once processing semantics. This means that even in the presence of failures:
+
+*   Every piece of data from the input sources will be processed exactly once by the operators.
+*   The final results will be consistent as if no failure occurred.
+
+Flink.NET, by implementing Flink's checkpointing model, aims to provide these strong consistency guarantees for .NET stream processing applications. This requires:
+
+*   **Replayable Sources:** Input sources must be able to rewind to a specific point in time (e.g., Kafka offsets).
+*   **Transactional Sinks (or Idempotent Writes):** Output sinks must be able to commit data transactionally based on checkpoints, or operations must be idempotent to avoid duplicate writes upon recovery.
+
+## Role of `CheckpointMetadata` and `OperatorStateMetadata`
+
+*   `CheckpointMetadata`: Contains information about the overall checkpoint, such as the checkpoint ID, timestamp, and pointers to the state handles of all tasks. This is stored by the JobManager.
+*   `OperatorStateMetadata`: Contains information specific to an operator's state within a checkpoint, like the location of its persisted state.
+
+These metadata objects are crucial for recovery, allowing Flink to locate and restore the necessary state for each operator.
+
+## Configuring Checkpointing
+
+Checkpointing is typically enabled and configured in the `StreamExecutionEnvironment`:
+
+```csharp
+// Conceptual example - actual API may vary
+var env = StreamExecutionEnvironment.GetExecutionEnvironment();
+
+// Enable checkpointing every 5 seconds (5000 milliseconds)
+env.EnableCheckpointing(5000);
+
+// Set checkpointing mode (ExactlyOnce is the default and recommended)
+env.GetCheckpointConfig().SetCheckpointingMode(CheckpointingMode.ExactlyOnce);
+
+// Configure minimum pause between checkpoints
+env.GetCheckpointConfig().SetMinPauseBetweenCheckpoints(500); // 0.5 seconds
+
+// Configure checkpoint timeout (if a checkpoint takes longer, it's discarded)
+env.GetCheckpointConfig().SetCheckpointTimeout(60000); // 1 minute
+
+// Configure how many concurrent checkpoints are allowed
+env.GetCheckpointConfig().SetMaxConcurrentCheckpoints(1);
+
+// Configure externalized checkpoints (to retain checkpoints on job cancellation)
+// env.GetCheckpointConfig().EnableExternalizedCheckpoints(ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
+
+// Configure a state backend (e.g., FsStateBackend, RocksDBStateBackend - planned)
+// env.SetStateBackend(new FsStateBackend("hdfs://namenode:port/flink/checkpoints"));
+```
+*(Disclaimer: The exact API calls are illustrative. Refer to the specific Flink.NET library version for correct usage.)*
+
+## Relationship to Apache Flink
+
+Flink.NET's checkpointing mechanism is a direct adoption of Apache Flink's well-established and robust fault tolerance model. The concepts, guarantees, and even configuration options are designed to be very similar, providing a consistent experience for developers familiar with Flink.
+
+**Apache Flink References:**
+
+*   [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/)
+*   [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
+*   [State Backends](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/state_backends/)
+*   [Restart Strategies](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/restart_strategies/)
+
+## Next Steps
+
+*   Understand [[State Management Overview|Core-Concepts-State-Management-Overview]].
+*   Learn about [[Exactly-Once Semantics|Core-Concepts-Exactly-Once-Semantics]] in more detail.
+*   Explore how to configure [[State Backends|Core-Concepts-State-Management-Overview#state-backends-planned]] (when available).

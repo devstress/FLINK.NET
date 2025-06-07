@@ -1,105 +1,93 @@
 # Core Concepts: Serialization in Flink.NET
 
-Serialization is a cornerstone of Flink.NET, enabling data to be transferred between distributed tasks, persisted for state checkpointing, and exchanged with external systems via sources and sinks. This guide provides an overview of how serialization works in Flink.NET and how to ensure your data types are handled efficiently.
+Serialization is a fundamental process in distributed systems like Apache Flink, and it's equally crucial for Flink.NET. It involves converting objects into a byte stream for transmission over the network (e.g., between TaskManagers), for storage in state backends, or for persisting in checkpoints. Efficient serialization is key to performance and can also impact memory usage.
 
-## `ITypeSerializer<T>`: The Core Abstraction
+## Why Serialization Matters in Flink.NET
 
-At the heart of Flink.NET's serialization is the `FlinkDotNet.Core.Abstractions.Serializers.ITypeSerializer<T>` interface. Any data type `T` that flows through a Flink.NET job or is used in state must have a corresponding `ITypeSerializer<T>` implementation. This interface defines methods for:
+*   **Performance:**
+    *   **Speed:** Faster serialization and deserialization mean less time spent on data conversion and more time on actual processing.
+    *   **Size:** A compact serialized form reduces the amount of data sent over the network, written to disk (for state or checkpoints), leading to lower I/O and network load.
+*   **Correctness:** Serialization must accurately represent the object's data and type information so it can be correctly reconstructed (deserialized).
+*   **Interoperability (Potentially):** If Flink.NET components need to exchange data with Java/Scala Flink components directly (though often communication is at a higher level), a compatible serialization format would be essential.
+*   **Evolution:** Schemas for serialized data might need to evolve over time (e.g., adding or removing fields in your C# POCOs). The serialization system should ideally support schema evolution.
 
-*   `Serialize(T record)`: Converts an object of type `T` into a `byte[]`.
-*   `Deserialize(byte[] serializedRecord)`: Converts a `byte[]` back into an object of type `T`.
-*   *(Other methods like `CreateInstance`, `Copy`, `GetLength` might exist or be added in the future for more advanced operations and optimizations.)*
+## Flink's Type System and Serializers
 
-## `SerializerRegistry`: Discovering Serializers
+Apache Flink has a sophisticated type system that automatically analyzes the data types used in applications and tries to infer efficient serializers.
 
-Flink.NET uses a `FlinkDotNet.Core.Abstractions.Execution.SerializerRegistry` to manage and provide serializers for different data types. When Flink.NET needs to serialize or deserialize an object of type `T`, it queries the `SerializerRegistry` for an appropriate `ITypeSerializer<T>`.
+*   **Basic Types:** For primitives (int, long, string, etc.), Flink has highly optimized built-in serializers.
+*   **Tuples, POJOs (Plain Old Java Objects), Case Classes (Scala):** Flink analyzes these structures and generates efficient serializers. For POJOs, fields must be public or have getters/setters.
+*   **Generic Types:** For types that Flink cannot analyze deeply (e.g., generic collections from standard libraries), it falls back to using Kryo, a general-purpose serialization library. Kryo is flexible but can be slower than Flink's custom serializers.
 
-The registry uses the following precedence:
+## Serialization in Flink.NET
 
-1.  **Explicitly Registered Custom Serializers:** If a custom `ITypeSerializer<T>` has been registered for a specific type `T`, that serializer will always be used.
-2.  **Built-in Basic Type Serializers:** Flink.NET provides optimized, built-in serializers for common .NET primitive types (`string`, `int`, `long`, `bool`, `double`, `byte[]`, etc.) and some basic collections of these. These are typically pre-registered.
-3.  **Default POCO Serializer (`MemoryPack`):** For Plain Old C# Objects (POCOs) that are not covered by the above, Flink.NET now defaults to using a high-performance binary serializer based on **`MemoryPack`**.
-4.  **Strict Fallback:** If no serializer can be found or determined for a type through the above mechanisms, Flink.NET will throw a `SerializationException` at job graph compilation or submission time.
+Flink.NET will need to establish its own serialization strategy for C# objects, aiming for similar efficiency and capabilities as Flink's Java/Scala system.
 
-For a detailed discussion of the strategy and rationale behind choosing `MemoryPack`, please see [Serialization Strategy](./Core-Concepts-Serialization-Strategy.md).
+**Key Considerations for Flink.NET Serialization:**
 
-## Using `MemoryPack` for POCOs (Recommended Default)
+1.  **POCOs (Plain Old CLR Objects):**
+    *   Similar to Flink's POJO handling, Flink.NET should be able to automatically analyze C# POCOs (classes with public properties or fields) and generate efficient serializers for them.
+    *   This would likely involve reflecting over the types, identifying serializable fields, and generating code or using expressions to read/write these fields.
 
-To ensure your POCOs are handled by the high-performance `MemoryPack` default serializer, you need to make them compatible with `MemoryPack`'s source generation requirements:
+2.  **.NET Primitive Types:**
+    *   Should use highly optimized serializers, similar to Flink's handling of Java primitives.
 
-1.  **Add `MemoryPack` NuGet Package:** Ensure your project containing the POCOs references the `MemoryPack` NuGet package (Flink.NET's core libraries that use it will have the reference, but your POCO project might also need it if you're pre-compiling or for attribute access).
-2.  **Annotate Your POCOs:**
-    *   Mark your class/struct with `[MemoryPackable]`.
-    *   Make the class `partial` to allow the source generator to extend it.
-    *   Ensure there's a constructor MemoryPack can use (e.g., a parameterless one, or one marked with `[MemoryPackConstructor]`).
-    *   Mark serializable members (fields or properties) with `[MemoryPackOrder(int)]`, where the integer is a unique, sequential tag for that member.
+3.  **Common .NET Collections:**
+    *   For `List<T>`, `Dictionary<K,V>`, `Array`, etc., Flink.NET should provide efficient, built-in serializers where possible, especially if `T`, `K`, `V` are themselves types with efficient serializers.
 
-**Example:**
+4.  **Fallback Serializer:**
+    *   For types that Flink.NET cannot automatically analyze or for which no custom serializer is registered, a fallback mechanism is needed.
+    *   Options:
+        *   **.NET's `BinaryFormatter` (Caution):** While built-in, it has security vulnerabilities and is generally not recommended for untrusted data. Its use is discouraged in modern .NET.
+        *   **Third-party .NET serializers:** Libraries like `MessagePack-CSharp`, `protobuf-net`, or `Newtonsoft.Json` (though JSON is text-based and less compact/performant for binary serialization) could be used or integrated. `MessagePack` is often a good candidate for performance and compactness.
+        *   **Kryo (if interoperability with Flink JVM is a concern):** Using Kryo within the .NET environment (e.g., via a .NET port or a custom C# implementation of Kryo's format) could be an option if direct byte-level compatibility with Flink's Kryo-serialized Java objects is required, but this is complex.
+
+5.  **Custom Serializers:**
+    *   Allow users to register custom serializers for specific types if they need fine-grained control or have types that are difficult for automatic analysis.
+
+6.  **Schema Evolution:**
+    *   Consider how changes to C# POCOs (adding/removing fields) will be handled. Some serializers offer attributes or mechanisms for versioning and managing schema changes gracefully (e.g., Protobuf, Avro concepts).
+
+7.  **Configuration:**
+    *   How users can register custom serializers or influence serialization behavior (e.g., via attributes on POCOs).
+
+## `TypeInformation` in Flink.NET
+
+Analogous to Flink's `TypeInformation` class, Flink.NET will need a way to describe types and provide access to their serializers. This metadata is crucial for the Flink.NET runtime to handle data correctly.
 
 ```csharp
-// Reference the MemoryPack NuGet package in your project
-//PM> Install-Package MemoryPack
-
-using MemoryPack;
-
-[MemoryPackable]
-public partial class MyCustomData
+// Conceptual example
+public abstract class TypeInformation<T>
 {
-    [MemoryPackOrder(0)]
-    public int Id { get; set; }
+    public abstract ITypeSerializer<T> CreateSerializer();
+    // Other methods related to type properties, arity (for tuples), etc.
+}
 
-    [MemoryPackOrder(1)]
-    public string? Name { get; set; }
-
-    [MemoryPackOrder(2)]
-    public List<double>? Values { get; set; }
-
-    // A parameterless constructor is often simplest for MemoryPack,
-    // or use [MemoryPackConstructor] on a specific constructor.
-    public MyCustomData() {}
+public interface ITypeSerializer<T>
+{
+    void Serialize(T record, IDataOutputView output);
+    T Deserialize(IDataInputView input);
+    // Other methods for efficiency, e.g., copy, duplicate
 }
 ```
 
-By following these conventions, `MemoryPackSerializer<MyCustomData>` will be automatically used by Flink.NET for this type, providing excellent performance.
+## Current Status & Future Direction (Illustrative)
 
-## Registering Custom Serializers
+*   Flink.NET will likely start by supporting common .NET primitives and aiming for good POCO serialization.
+*   A robust fallback serializer (e.g., based on MessagePack) will be chosen.
+*   Support for custom serializers will be provided.
+*   Schema evolution support will be a more advanced topic to address.
 
-If `MemoryPack` is not suitable for your type, or if your type is not a POCO (e.g., from an external library without `MemoryPack` annotations), or if you have a more optimized domain-specific serializer, you can register a custom `ITypeSerializer<T>` implementation.
+See [[Serialization Strategy|Core-Concepts-Serialization-Strategy]] for more on the planned approach.
 
-This is done via the `SerializerRegistry` instance, usually accessible from the `StreamExecutionEnvironment`:
+**Apache Flink References:**
 
-```csharp
-var env = StreamExecutionEnvironment.GetExecutionEnvironment();
+*   [Flink's Type System and Serialization](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/types_serialization/)
+*   [Custom Serializers (Flink Java/Scala)](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/custom_serializers/)
+*   [Type Information (Flink Java/Scala)](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/api_concepts/#type-information)
+*   [Kryo Serialization (Flink)](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/kryo_serialization/)
 
-// Option 1: Registering a serializer type (must have parameterless constructor)
-env.SerializerRegistry.RegisterSerializer<MySpecialType, MySpecialTypeSerializer>();
+## Next Steps
 
-// Option 2: Registering a serializer instance (useful if constructor needs arguments)
-// ITypeSerializer<AnotherType> myInstanceSerializer = new AnotherTypeSerializer("config_value");
-// env.SerializerRegistry.RegisterSerializer(typeof(AnotherType), myInstanceSerializer); // (Assuming an overload for instance registration exists or is added)
-```
-*(Note: The `SerializerRegistry` API for instance registration might vary; check its current methods. The primary method shown in current code is `RegisterSerializer(Type dataType, Type serializerType)` and a generic `RegisterSerializer<TData, TSerializer>()`)*
-
-Refer to the `ITypeSerializer<T>` interface and `SerializerRegistry` class for details on implementing and registering custom serializers.
-
-## Fallback and Troubleshooting
-
-If Flink.NET cannot find a serializer for your type (it's not a basic type, not `MemoryPack`-compatible, and no custom serializer is registered), it will throw a `SerializationException`. The exception message will typically guide you to:
-*   Annotate your POCO for `MemoryPack` compatibility.
-*   Or, register a custom `ITypeSerializer<T>`.
-
-## Legacy `JsonPocoSerializer`
-
-The `JsonPocoSerializer<T>` (which uses `System.Text.Json`) is still available within Flink.NET. However, it is **no longer the default fallback for arbitrary POCOs** due to performance considerations. If you specifically need JSON serialization for a type, you must explicitly register `JsonPocoSerializer<YourType>` for it:
-
-```csharp
-// Explicitly register JsonPocoSerializer for a specific type if JSON is needed
-env.SerializerRegistry.RegisterSerializer(typeof(MyTypeForJson), typeof(JsonPocoSerializer<MyTypeForJson>));
-```
-
-This ensures that JSON serialization, with its performance implications, is an explicit choice by the developer for types on the data path.
-
----
-Previous: [Core Concepts: Checkpointing - Barriers](./Core-Concepts-Checkpointing-Barriers.md)
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
-Next: [Core Concepts: Serialization Strategy](./Core-Concepts-Serialization-Strategy.md)
+*   Explore the proposed [[Serialization Strategy|Core-Concepts-Serialization-Strategy]].
+*   Understand how to define [[Data Types|Developing-Data-Types]] in Flink.NET, as this is closely related to how they are serialized.

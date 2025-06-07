@@ -1,46 +1,40 @@
-# Core Concepts: TaskManager
+# Core Concepts: TaskManager in Flink.NET
 
-### Table of Contents
-- [Key Responsibilities](#key-responsibilities)
-- [Deployment](#deployment)
+The TaskManager is a worker process in the Flink architecture, responsible for executing the tasks of a dataflow. Multiple TaskManagers can run in a Flink cluster, and they execute tasks in parallel.
 
-TaskManagers (TMs) are the worker nodes in the Flink.NET architecture. They execute the data processing tasks of a job. A Flink.NET deployment typically consists of one or more TaskManagers, running in parallel, often as Kubernetes pods.
+## Role in Flink.NET
 
-See also: [System Design Overview in Readme.md](../../../Readme.md#system-design-overview)
+In Flink.NET, the TaskManager's primary responsibilities include:
 
-*(Apache Flink Ref: [TaskManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager))*
+*   **Task Execution:** Running the actual data processing logic (operators like map, filter, reduce, etc.) defined in a Flink.NET application. Each TaskManager has one or more **TaskSlots**, which are the units of resource allocation.
+*   **Data Buffering and Exchange:** Managing network buffers for shuffling data between different tasks, both locally and across different TaskManagers.
+*   **State Management:** Storing and managing task state locally, interacting with configured state backends for durability.
+*   **Heartbeating and Reporting:** Sending heartbeats to the JobManager to indicate liveness and reporting task statuses.
+*   **Checkpoint Participation:** Participating in the checkpointing process by taking snapshots of its task states and reporting them to the JobManager.
 
-## Key Responsibilities:
+## Flink.NET Implementation Specifics
 
-1.  **Task Execution:**
-    *   Receives tasks from the [JobManager](./Core-Concepts-JobManager.md).
-    *   Executes user-defined operator code (e.g., `IMapOperator.Map()`).
-    *   Manages task lifecycle (`Open()`, `Close()` for Rich Functions).
+*   **.NET Task Execution:** Flink.NET TaskManagers are responsible for executing tasks written in C#. This involves:
+    *   Receiving serialized .NET code (or instructions to load it).
+    *   Setting up the necessary .NET runtime environment.
+    *   Executing the .NET operator logic.
+*   **Pod Structure (if applicable, e.g., in Kubernetes):** When deployed in containerized environments like Kubernetes, each TaskManager typically runs in its own pod. This allows for isolated resource management and scaling.
+*   **Communication with JobManager:** TaskManagers communicate with the JobManager to receive tasks, report status, and send checkpoint acknowledgments. This communication is typically handled via Flink's internal RPC mechanisms.
 
-2.  **Data Buffering and Exchange:**
-    *   Manages network buffers for data shuffling between TaskManagers.
+## Relationship to Apache Flink TaskManager
 
-3.  **State Management (Local Aspect):**
-    *   Manages actual state data for its tasks, interacting with the configured state backend. Future enhancements may be influenced by concepts like Apache Flink 2.0's disaggregated state management, potentially involving more direct or asynchronous interaction with remote distributed file systems for state operations.
-    *   Snapshots state to durable storage during checkpointing.
-    *   *(See Wiki Page: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md) for more details)*
+The Flink.NET TaskManager performs the same fundamental functions as its Apache Flink counterpart. It is the component where the user-defined business logic (operators) gets executed. The core principles of task slots, data exchange, and state handling are consistent.
 
-4.  **Heartbeating and Status Reporting:**
-    *   Sends heartbeats and task status updates to the JobManager.
+Flink.NET ensures that .NET developers can write their logic in C#, and the TaskManager environment is capable of executing this .NET code efficiently as part of a distributed Flink job.
 
-5.  **Resource Management (Slots - Conceptual):**
-    *   Offers resources (conceptually "task slots") for running parallel tasks.
+**Apache Flink References:**
 
-## Deployment
+*   [TaskManager (Flink Architecture)](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager)
+*   [Task Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_execution/)
+*   [TaskSlots and Resources](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#task-slots-and-resources)
 
-*   TaskManagers run as Kubernetes Pods, enabling scaling.
-*   The JobManager requests and assigns tasks to these pods.
+## Next Steps
 
-*(Apache Flink Ref: [Task Execution & Scheduling](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_scheduling/))*
-
-TaskManagers are the workhorses of the Flink.NET system.
-
----
-Previous: [Core Concepts: JobManager](./Core-Concepts-JobManager.md)
-[Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
-Next: [Core Concepts: State Management Overview](./Core-Concepts-State-Management-Overview.md)
+*   Understand the role of the [[JobManager|Core-Concepts-JobManager]].
+*   Learn about [[State Management Overview|Core-Concepts-State-Management-Overview]].
+*   Dive into [[Checkpointing & Fault Tolerance|Core-Concepts-Checkpointing-Overview]].
