@@ -91,9 +91,16 @@ When running the JobManager locally (e.g., for development or testing without Ku
 
 ### Default Values and Recommendations
 
-*   **(Placeholder)** This section will be filled in as Flink.NET matures and default configurations are established.
-*   Generally, JobManager memory does not need to be as large as TaskManager memory, but it scales with the number of concurrent jobs, the complexity of job graphs, and the amount of checkpoint metadata.
-*   Start with a reasonable default (e.g., 1-2 GiB for Kubernetes pod limit if using a JVM-based Flink as a reference, but .NET may have different characteristics – monitor closely) and monitor its actual usage. Adjust based on metrics and observed behavior.
+*   **(Under Development)** This section will be updated with specific default values and detailed sizing recommendations for Flink.NET JobManager memory as the framework matures and more performance benchmarks become available.
+*   **General Guidance (Current):**
+    *   JobManager memory requirements typically scale with factors such as the number of concurrently running jobs, the complexity of their `JobGraph`s (number of vertices and edges), the configured parallelism of operators, and the frequency and size of checkpoint metadata being managed.
+    *   Compared to TaskManagers, JobManagers generally require less memory, as they do not execute user code or buffer large amounts of in-flight data. However, ensuring sufficient heap space for managing job state and cluster coordination is vital.
+    *   **Initial Recommendation:** When deploying, start with a conservative estimate (e.g., for a Kubernetes pod, consider 1-2 GiB as a starting point, similar to JVM-based Flink, but monitor closely as .NET memory characteristics will differ). Observe actual memory usage and .NET GC performance under load.
+    *   **Monitoring:** Use .NET counters (`dotnet-counters`) for GC and heap analysis, and Kubernetes metrics (if applicable) to track pod memory usage. Adjust configurations based on these observations.
+*   **Future Content will include:**
+    *   Default values for planned Flink.NET specific configurations (e.g., `jobmanager.heap.memory.size`).
+    *   Guidance on how to estimate memory based on workload characteristics.
+    *   Troubleshooting common JobManager memory issues.
 
 ## Considerations for High Availability (HA)
 

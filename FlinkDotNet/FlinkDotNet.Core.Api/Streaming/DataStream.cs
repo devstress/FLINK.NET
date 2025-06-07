@@ -75,7 +75,22 @@ namespace FlinkDotNet.Core.Api.Streaming
         }
 
         // Add other common DataStream operations here like Filter, FlatMap, Sink, etc.
-        // public void AddSink(ISinkFunction<TElement> sinkFunction) { /* ... */ }
+        public void AddSink(ISinkFunction<TElement> sinkFunction, string name = "Sink")
+        {
+            if (sinkFunction == null)
+                throw new ArgumentNullException(nameof(sinkFunction));
+
+            var sinkTransformation = new SinkTransformation<TElement>(
+                this.Transformation,
+                name,
+                sinkFunction);
+
+            // Add to environment's list of transformations
+            this.Environment.AddTransformation(sinkTransformation);
+
+            // Link current transformation to this new sink transformation
+            this.Transformation.AddDownstreamTransformation(sinkTransformation, ShuffleMode.Forward);
+        }
 
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(
             Expression<Func<TElement, TKey>> keySelectorExpression)
@@ -274,6 +289,19 @@ namespace FlinkDotNet.Core.Api.Streaming
             SerializedKeySelectorRepresentation = serializedKeySelectorRepresentation;
             // This transformation itself doesn't change data type, it's a partitioning instruction.
             // The next applied operator will be connected via a JobEdge with ShuffleMode.Hash.
+        }
+    }
+
+    public class SinkTransformation<TElement> : Transformation<TElement>
+    {
+        public Transformation<TElement> Input { get; }
+        public object SinkFunction { get; } // ISinkFunction<TElement>
+
+        public SinkTransformation(Transformation<TElement> input, string name, object sinkFunction)
+            : base(name, input.OutputType) // OutputType is same as input, or could be typeof(void)
+        {
+            Input = input;
+            SinkFunction = sinkFunction;
         }
     }
 }

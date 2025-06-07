@@ -242,7 +242,6 @@ namespace FlinkDotNet.JobManager.Controllers
             }
             Console.WriteLine($"JobGraph for '{jobGraph.JobName}' (ID: {jobGraph.JobId}) successfully created with {jobGraph.Vertices.Count} vertices and {jobGraph.Edges.Count} edges.");
 
-            // TODO: Initiate checkpoint coordinator for this job
             var coordinatorConfig = new JobManagerConfig { /* Populate from jobDefinition or global config */ };
             // Pass the _jobRepository and logger to the CheckpointCoordinator constructor
             var coordinatorLogger = _loggerFactory.CreateLogger<CheckpointCoordinator>();
@@ -258,7 +257,6 @@ namespace FlinkDotNet.JobManager.Controllers
             }
 
 
-            // TODO: Trigger actual deployment of the job based on the JobGraph.
             // This will be covered in "Task Deployment from JobGraph" (Step 10).
             // Console.WriteLine($"Job '{jobGraph.JobName}' submitted. ID: {jobGraph.JobId}. Next step would be deployment."); // Moved this log
 
