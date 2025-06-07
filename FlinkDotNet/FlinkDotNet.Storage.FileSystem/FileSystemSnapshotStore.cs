@@ -1,100 +1,267 @@
+#nullable enable
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices; // For IAsyncEnumerable
+using System.Threading;
 using System.Threading.Tasks;
-using FlinkDotNet.Core.Abstractions.Storage;
+using FlinkDotNet.Core.Abstractions.Storage; // For IStateSnapshotStore, Writer, Reader
 
 namespace FlinkDotNet.Storage.FileSystem
 {
-    public class FileSystemSnapshotStoreOptions
-    {
-        public string BasePath { get; set; } = Path.Combine(Path.GetTempPath(), "flinkdotnet_snapshots");
-    }
-
     public class FileSystemSnapshotStore : IStateSnapshotStore
     {
-        private readonly FileSystemSnapshotStoreOptions _options;
+        private readonly string _basePath;
+        private const string RawStateExtension = ".raw_state";
+        private const string KeyedStateExtension = ".keyed_state";
+        private const string TempFileSuffix = ".tmp";
 
-        public FileSystemSnapshotStore(FileSystemSnapshotStoreOptions? options = null)
+        // Optional: File Header for versioning
+        private static readonly byte[] FileMagicNumber = { (byte)'F', (byte)'N', (byte)'K', (byte)'S' }; // FlinkNet Keyed State
+        private const ushort FileFormatVersion = 1;
+
+        public FileSystemSnapshotStore(string basePath)
         {
-            _options = options ?? new FileSystemSnapshotStoreOptions();
-            if (!Directory.Exists(_options.BasePath))
+            _basePath = Path.GetFullPath(basePath);
+            if (!Directory.Exists(_basePath))
             {
-                Directory.CreateDirectory(_options.BasePath);
-            }
-            Console.WriteLine($"FileSystemSnapshotStore initialized with base path: {_options.BasePath}");
-        }
-
-        private string GenerateFilePath(string jobId, long checkpointId, string taskManagerId, string operatorId)
-        {
-            // Sanitize inputs to create valid path segments if necessary
-            var jobDir = Path.Combine(_options.BasePath, SanitizePathComponent(jobId));
-            var cpDir = Path.Combine(jobDir, $"cp_{checkpointId}");
-            var taskDir = Path.Combine(cpDir, SanitizePathComponent(taskManagerId));
-            var filePath = Path.Combine(taskDir, $"{SanitizePathComponent(operatorId)}.dat");
-
-            Directory.CreateDirectory(jobDir);
-            Directory.CreateDirectory(cpDir);
-            Directory.CreateDirectory(taskDir);
-
-            return filePath;
-        }
-
-        private string SanitizePathComponent(string component) // Basic sanitizer
-        {
-            foreach (char invalidChar in Path.GetInvalidFileNameChars())
-            {
-                component = component.Replace(invalidChar, '_');
-            }
-            foreach (char invalidChar in Path.GetInvalidPathChars())
-            {
-                 component = component.Replace(invalidChar, '_');
-            }
-            return component;
-        }
-
-        public async Task<SnapshotHandle> StoreSnapshot(
-            string jobId,
-            long checkpointId,
-            string taskManagerId,
-            string operatorId,
-            byte[] snapshotData)
-        {
-            var filePath = GenerateFilePath(jobId, checkpointId, taskManagerId, operatorId);
-            try
-            {
-                await File.WriteAllBytesAsync(filePath, snapshotData);
-                Console.WriteLine($"Snapshot stored: {filePath}");
-                return new SnapshotHandle($"file://{filePath}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error storing snapshot to {filePath}: {ex.Message}");
-                throw; // Rethrow to indicate failure
+                Directory.CreateDirectory(_basePath);
             }
         }
 
-        public async Task<byte[]?> RetrieveSnapshot(SnapshotHandle handle)
+        private string GetOperatorSubtaskDirectory(string jobId, long checkpointId, string operatorId, string subtaskId)
         {
-            if (!handle.Value.StartsWith("file://"))
+            // OperatorId might contain invalid path chars if it's a user string; subtaskId usually int.toString().
+            // For now, assume they are safe or JobManager provides safe IDs.
+            // Sanitize operatorId and subtaskId for path safety
+            string safeOperatorId = SanitizePathComponent(operatorId);
+            string safeSubtaskId = SanitizePathComponent(subtaskId);
+            return Path.Combine(_basePath, SanitizePathComponent(jobId), $"cp_{checkpointId}", $"{safeOperatorId}_{safeSubtaskId}");
+        }
+
+        private string SanitizePathComponent(string component)
+        {
+            return Path.GetInvalidFileNameChars().Aggregate(component, (current, c) => current.Replace(c.ToString(), "_"));
+        }
+
+
+        public Task<IStateSnapshotWriter> CreateWriter(string jobId, long checkpointId, string operatorId, string subtaskId)
+        {
+            string directory = GetOperatorSubtaskDirectory(jobId, checkpointId, operatorId, subtaskId);
+            Directory.CreateDirectory(directory); // Ensure it exists
+            return Task.FromResult<IStateSnapshotWriter>(new FileSystemSnapshotWriterSession(directory));
+        }
+
+        public Task<IStateSnapshotReader> CreateReader(string snapshotHandle) // snapshotHandle is the directory path
+        {
+            if (string.IsNullOrEmpty(snapshotHandle) || !Directory.Exists(snapshotHandle))
             {
-                throw new ArgumentException("Invalid snapshot handle for FileSystemSnapshotStore.", nameof(handle));
+                // Return a reader that indicates no state, rather than throwing,
+                // to align with how operators might check for prior state.
+                // Or, JobManager ensures only valid handles are passed.
+                // For now, let's assume handle is valid or this indicates an issue.
+                Console.WriteLine($"[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: {snapshotHandle}. Returning empty reader.");
+                // Returning a "null" reader or an empty one.
+                // An empty one is safer for consumers that don't null check rigorously.
+                return Task.FromResult<IStateSnapshotReader>(new FileSystemSnapshotReaderSession(snapshotHandle, isEmpty: true));
+            }
+            return Task.FromResult<IStateSnapshotReader>(new FileSystemSnapshotReaderSession(snapshotHandle));
+        }
+
+        // --- Writer Session ---
+        private class FileSystemSnapshotWriterSession : IStateSnapshotWriter
+        {
+            private readonly string _operatorSubtaskDirectory;
+            private readonly Dictionary<string, (FileStream Stream, BinaryWriter Writer)> _activeKeyedStateWriters = new();
+            private readonly List<string> _writtenTempFiles = new List<string>();
+            private string? _currentActiveKeyedStateName; // To address WriteKeyedEntry ambiguity
+
+
+            public FileSystemSnapshotWriterSession(string operatorSubtaskDirectory)
+            {
+                _operatorSubtaskDirectory = operatorSubtaskDirectory;
             }
 
-            var filePath = handle.Value.Substring("file://".Length);
-            try
+            private string GetFilePath(string stateName, string extension, bool isTemporary = false)
             {
-                if (File.Exists(filePath))
-                {
-                    return await File.ReadAllBytesAsync(filePath);
+                string fileName = Path.GetInvalidFileNameChars().Aggregate(stateName, (current, c) => current.Replace(c.ToString(), "_")) + extension;
+                if (isTemporary) fileName += TempFileSuffix;
+                return Path.Combine(_operatorSubtaskDirectory, fileName);
+            }
+
+            public Stream GetStateOutputStream(string stateName)
+            {
+                string tempPath = GetFilePath(stateName, RawStateExtension, isTemporary: true);
+                _writtenTempFiles.Add(tempPath);
+                return new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            }
+
+            public Task BeginKeyedState(string stateName)
+            {
+                if (_activeKeyedStateWriters.ContainsKey(stateName))
+                    throw new InvalidOperationException($"Keyed state '{stateName}' is already open for writing.");
+                if (_currentActiveKeyedStateName != null) // Enforce one active keyed state at a time for WriteKeyedEntry
+                     throw new InvalidOperationException($"Another keyed state '{_currentActiveKeyedStateName}' is already active. End it before beginning a new one.");
+
+
+                string tempPath = GetFilePath(stateName, KeyedStateExtension, isTemporary: true);
+                var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                var binaryWriter = new BinaryWriter(fileStream);
+
+                binaryWriter.Write(FileMagicNumber);
+                binaryWriter.Write(FileFormatVersion);
+
+                _activeKeyedStateWriters[stateName] = (fileStream, binaryWriter);
+                _writtenTempFiles.Add(tempPath);
+                _currentActiveKeyedStateName = stateName; // Set current active
+                return Task.CompletedTask;
+            }
+
+            public Task WriteKeyedEntry(byte[] key, byte[] value)
+            {
+                if (_currentActiveKeyedStateName == null || !_activeKeyedStateWriters.TryGetValue(_currentActiveKeyedStateName, out var writerTuple)) {
+                     throw new InvalidOperationException("No keyed state is currently active via BeginKeyedState, or the active state is unknown.");
                 }
-                Console.WriteLine($"Snapshot file not found: {filePath}");
-                return null;
+                var activeWriter = writerTuple.Writer;
+
+                activeWriter.Write(key.Length);
+                activeWriter.Write(key);
+                activeWriter.Write(value.Length);
+                activeWriter.Write(value);
+                return Task.CompletedTask;
             }
-            catch (Exception ex)
+
+            public Task EndKeyedState(string stateName)
             {
-                Console.WriteLine($"Error retrieving snapshot from {filePath}: {ex.Message}");
-                throw; // Rethrow or handle as appropriate
+                if (_activeKeyedStateWriters.TryGetValue(stateName, out var writerTuple))
+                {
+                    writerTuple.Writer.Flush();
+                    writerTuple.Stream.Flush();
+                    writerTuple.Writer.Dispose();
+                    _activeKeyedStateWriters.Remove(stateName);
+                    if (_currentActiveKeyedStateName == stateName)
+                    {
+                        _currentActiveKeyedStateName = null; // Clear current active
+                    }
+                }
+                else throw new InvalidOperationException($"Keyed state '{stateName}' was not active or already ended.");
+                return Task.CompletedTask;
             }
+
+            public Task<string> CommitAndGetHandleAsync()
+            {
+                if (_activeKeyedStateWriters.Any())
+                {
+                    Console.WriteLine($"[FileSystemSnapshotWriterSession] WARNING: Commit called but these keyed states were not ended: {string.Join(", ", _activeKeyedStateWriters.Keys)}. Disposing them now.");
+                    foreach (var stateName in _activeKeyedStateWriters.Keys.ToList()) EndKeyedState(stateName).GetAwaiter().GetResult();
+                }
+
+                foreach (string tempPath in _writtenTempFiles)
+                {
+                    if (File.Exists(tempPath)) // Check if file actually exists (e.g. if stream wasn't used)
+                    {
+                        string finalPath = tempPath.Substring(0, tempPath.Length - TempFileSuffix.Length);
+                        if (File.Exists(finalPath)) File.Delete(finalPath);
+                        File.Move(tempPath, finalPath);
+                    }
+                }
+                _writtenTempFiles.Clear();
+                Console.WriteLine($"[FileSystemSnapshotWriterSession] Committed snapshot to directory: {_operatorSubtaskDirectory}");
+                return Task.FromResult(_operatorSubtaskDirectory);
+            }
+
+            public async ValueTask DisposeAsync() // Implement IAsyncDisposable
+            {
+                if (_activeKeyedStateWriters.Any())
+                {
+                     Console.WriteLine($"[FileSystemSnapshotWriterSession] DisposeAsync: Ending active keyed states: {string.Join(", ", _activeKeyedStateWriters.Keys)}.");
+                    foreach (var stateName in _activeKeyedStateWriters.Keys.ToList()) await EndKeyedState(stateName);
+                }
+                 _activeKeyedStateWriters.Clear(); // Ensure dictionary is cleared
+            }
+
+            void IDisposable.Dispose() // Explicit IDisposable for non-async paths if needed
+            {
+                DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        }
+
+        // --- Reader Session ---
+        private class FileSystemSnapshotReaderSession : IStateSnapshotReader
+        {
+            private readonly string _operatorSubtaskDirectory;
+            private readonly bool _isEmpty; // If the directory didn't exist / handle was invalid
+
+            public FileSystemSnapshotReaderSession(string operatorSubtaskDirectory, bool isEmpty = false)
+            {
+                _operatorSubtaskDirectory = operatorSubtaskDirectory;
+                _isEmpty = isEmpty;
+                if (_isEmpty && !Directory.Exists(_operatorSubtaskDirectory)) {
+                     // If it's marked as empty because dir doesn't exist, it's fine.
+                     // If not marked empty but dir doesn't exist, that's an issue usually caught by CreateReader.
+                } else if (!_isEmpty && !Directory.Exists(_operatorSubtaskDirectory)) {
+                    Console.WriteLine($"[FileSystemSnapshotReaderSession] WARNING: Directory {_operatorSubtaskDirectory} does not exist for a non-empty reader session.");
+                    // This might indicate an issue if we expect state.
+                }
+            }
+
+            private string GetFilePath(string stateName, string extension)
+            {
+                 return Path.Combine(_operatorSubtaskDirectory, Path.GetInvalidFileNameChars().Aggregate(stateName, (current, c) => current.Replace(c.ToString(), "_")) + extension);
+            }
+
+            public Stream GetStateInputStream(string stateName)
+            {
+                if (_isEmpty) throw new FileNotFoundException($"Snapshot is empty or directory not found. Cannot read state '{stateName}'.", GetFilePath(stateName, RawStateExtension));
+                string filePath = GetFilePath(stateName, RawStateExtension);
+                if (!File.Exists(filePath)) throw new FileNotFoundException($"Raw state file not found for state '{stateName}'.", filePath);
+                return new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            public bool HasState(string stateName) => !_isEmpty && File.Exists(GetFilePath(stateName, RawStateExtension));
+
+            public Task<bool> HasKeyedState(string stateName) => Task.FromResult(!_isEmpty && File.Exists(GetFilePath(stateName, KeyedStateExtension)));
+
+            public async IAsyncEnumerable<KeyValuePair<byte[], byte[]>> ReadKeyedStateEntries(
+                string stateName,
+                [EnumeratorCancellation] CancellationToken cancellationToken = default)
+            {
+                if (_isEmpty) yield break;
+
+                string filePath = GetFilePath(stateName, KeyedStateExtension);
+                if (!File.Exists(filePath))
+                {
+                    yield break;
+                }
+
+                using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                if (fileStream.Length == 0) yield break; // Empty file
+
+                using var reader = new BinaryReader(fileStream);
+
+                byte[] magic = reader.ReadBytes(FileMagicNumber.Length);
+                if (!magic.SequenceEqual(FileMagicNumber)) throw new IOException("Invalid magic number for keyed state file.");
+                ushort version = reader.ReadUInt16();
+                if (version != FileFormatVersion) throw new IOException($"Unsupported keyed state file version {version}. Expected {FileFormatVersion}.");
+
+                while (fileStream.Position < fileStream.Length)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    int keyLength = reader.ReadInt32();
+                    if (keyLength < 0) throw new IOException("Invalid key length found in state file.");
+                    byte[] keyBytes = reader.ReadBytes(keyLength);
+                    if (keyBytes.Length != keyLength) throw new EndOfStreamException("Unexpected end of stream while reading key.");
+
+                    int valueLength = reader.ReadInt32();
+                    if (valueLength < 0) throw new IOException("Invalid value length found in state file.");
+                    byte[] valueBytes = reader.ReadBytes(valueLength);
+                    if (valueBytes.Length != valueLength) throw new EndOfStreamException("Unexpected end of stream while reading value.");
+
+                    yield return new KeyValuePair<byte[], byte[]>(keyBytes, valueBytes);
+                }
+            }
+            public void Dispose() { }
         }
     }
 }
