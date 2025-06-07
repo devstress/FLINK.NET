@@ -136,8 +136,8 @@ message OperatorOutput { // Defines a connection to a specific downstream subtas
 
 message OutputEdgeKeyingInfo { // For TDD, if an output is hash partitioned
   string target_job_vertex_id = 1; 
-  string serialized_key_selector = 2; 
-  string key_type_name = 3;           
+  string serialized_key_selector = 2;
+  string key_type_name = 3;
   int32 downstream_parallelism = 4;
 }
 
