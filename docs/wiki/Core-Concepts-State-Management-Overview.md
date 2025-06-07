@@ -39,7 +39,8 @@ public class MyStatefulCounter : IRichMapOperator<string, string>
 
     public void Open(IRuntimeContext context)
     {
-        var descriptor = new ValueStateDescriptor<long>("myCounterState", defaultValue: 0L);
+        // Assuming FlinkDotNet.Core.Abstractions.Serializers.LongSerializer is in scope
+        var descriptor = new ValueStateDescriptor<long>("myCounterState", new LongSerializer(), defaultValue: 0L); // Assuming LongSerializer is available and appropriate
         _countState = context.GetValueState(descriptor);
     }
 

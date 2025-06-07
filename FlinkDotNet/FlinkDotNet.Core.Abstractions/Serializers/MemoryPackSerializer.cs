@@ -77,11 +77,6 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
                 throw new SerializationException($"An unexpected error occurred during MemoryPack deserialization for type {typeof(T).FullName}: {ex.Message}", ex);
             }
         }
-
-        // TODO: Implement other ITypeSerializer methods if they exist (e.g., CreateInstance, Copy, GetLength)
-        // For now, assuming ITypeSerializer only has Serialize and Deserialize for this PoC.
-        // If other methods are needed, MemoryPack might offer utilities or they'd need careful implementation.
-        // For example, a true deep copy with MemoryPack would be Deserialize(Serialize(record)).
     }
 
     // Custom SerializationException for Flink.NET (if not already defined elsewhere)

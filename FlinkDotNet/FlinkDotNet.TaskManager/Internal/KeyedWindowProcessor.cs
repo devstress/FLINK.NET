@@ -94,8 +94,60 @@ namespace FlinkDotNet.TaskManager.Internal
             }
         }
 
-        // TODO: SnapshotState and RestoreState methods for this KeyedWindowProcessor's state
-        // (windowPanes, windowAccumulators, trigger states via ITriggerContext)
+        public async Task SnapshotState(IStateSnapshotWriter writer, string stateNamePrefix, long checkpointId, long checkpointTimestamp)
+        {
+            // TODO: Implement full state snapshotting for KeyedWindowProcessor.
+            // This involves:
+            // 1. Serializing and writing active window panes (_windowPanes) if they exist.
+            //    Consider a naming convention like $"{stateNamePrefix}_pane_{windowSerializer.Serialize(window)}"
+            // 2. Serializing and writing window accumulators (_windowAccumulators).
+            //    Consider a naming convention like $"{stateNamePrefix}_acc_{windowSerializer.Serialize(window)}"
+            // 3. Requesting the Trigger (_trigger) to snapshot its state, if applicable.
+            //    (Triggers might need a method like `SnapshotTriggerState(ITriggerContext ctx, IStateSnapshotWriter writer)`).
+            // 4. Handling timers: Timers themselves need to be snapshotted by the TimerService. This method might
+            //    need to coordinate or simply acknowledge that timers are handled elsewhere.
+            // 5. Managing keyed state within the writer session (BeginKeyedState, WriteKeyedEntry, EndKeyedState).
+            Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: SnapshotState for {stateNamePrefix} at CP {checkpointId} - NOT YET FULLY IMPLEMENTED.");
+
+            // Example of how one might start writing keyed state for accumulators:
+            // if (_windowAccumulators.Any()) {
+            //     await writer.BeginKeyedState($"{stateNamePrefix}_accumulators");
+            //     foreach (var entry in _windowAccumulators)
+            //     {
+            //         byte[] windowBytes = _windowSerializer.Serialize(entry.Key);
+            //         // byte[] accBytes = _accumulatorSerializer.Serialize(entry.Value); // Need accumulator serializer
+            //         // await writer.WriteKeyedEntry(windowBytes, accBytes);
+            //     }
+            //     await writer.EndKeyedState($"{stateNamePrefix}_accumulators");
+            // }
+            await Task.CompletedTask; // Placeholder
+        }
+
+        public async Task RestoreState(IStateSnapshotReader reader, string stateNamePrefix)
+        {
+            // TODO: Implement full state restoration for KeyedWindowProcessor.
+            // This involves:
+            // 1. Reading and deserializing window panes.
+            // 2. Reading and deserializing window accumulators.
+            // 3. Requesting the Trigger to restore its state.
+            // 4. Restoring timers via the TimerService.
+            Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: RestoreState for {stateNamePrefix} - NOT YET FULLY IMPLEMENTED.");
+
+            // Example of how one might start reading keyed state for accumulators:
+            // string accumulatorsStateName = $"{stateNamePrefix}_accumulators";
+            // if (await reader.HasKeyedState(accumulatorsStateName))
+            // {
+            //     _windowAccumulators.Clear();
+            //     await foreach (var entry in reader.ReadKeyedStateEntries(accumulatorsStateName))
+            //     {
+            //         TWindow window = _windowSerializer.Deserialize(entry.Key);
+            //         // TAccumulator acc = _accumulatorSerializer.Deserialize(entry.Value); // Need accumulator serializer
+            //         // _windowAccumulators[window] = acc;
+            //         // Also, re-register any necessary timers for this restored window and accumulator.
+            //     }
+            // }
+            await Task.CompletedTask; // Placeholder
+        }
     }
 }
 #nullable disable
