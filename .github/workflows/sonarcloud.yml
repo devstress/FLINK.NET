@@ -59,7 +59,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
         shell: powershell # Using PowerShell
         run: |
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false
           dotnet build FlinkDotNet/FlinkDotNet.sln
           dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln

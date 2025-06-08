@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.ServiceDe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkJobSimulator", "FlinkJobSimulator\FlinkJobSimulator.csproj", "{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IntegrationTestVerifier", "IntegrationTestVerifier\IntegrationTestVerifier.csproj", "{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +28,10 @@ Global
 		{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

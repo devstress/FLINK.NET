@@ -1,0 +1,125 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch: # Allows manual triggering
+
+env:
+  SIMULATOR_NUM_MESSAGES_CI: "500" # Number of messages for CI tests
+
+jobs:
+  run-integration-tests:
+    name: Run Flink.NET Integration Tests
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 9.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install .NET Aspire Workload
+        run: dotnet workload install aspire
+
+      - name: Restore .NET Workloads for Solutions
+        run: |
+          dotnet workload restore FlinkDotNet/FlinkDotNet.sln
+          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
+          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+
+      - name: Build Solution (including Verifier)
+        run: |
+          echo "Building FlinkDotNetAspire solution..."
+          Push-Location FlinkDotNetAspire
+          dotnet build FlinkDotNetAspire.sln --configuration Release
+          Pop-Location
+
+      - name: Start .NET Aspire Application
+        run: |
+          echo "Starting Aspire AppHost with SIMULATOR_NUM_MESSAGES_CI=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
+          Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
+
+          # Start Aspire in the background. Pass SIMULATOR_NUM_MESSAGES to the environment of the process
+          # Aspire AppHost will propagate this to the flinkjobsimulator if it's configured to read it.
+          # Note: For Start-Process, environment variables are typically inherited or need specific setup.
+          # A robust way is to ensure FlinkJobSimulator/Program.cs reads this variable.
+          # For now, relying on inheritance or existing AppHost logic to pick up SIMULATOR_NUM_MESSAGES.
+          # If FlinkJobSimulator's Program.cs is not reading it, it will use its internal default.
+          # This might require a change in FlinkJobSimulator's Program.cs to respect SIMULATOR_NUM_MESSAGES.
+          $env:SIMULATOR_NUM_MESSAGES = $env:SIMULATOR_NUM_MESSAGES_CI
+          Write-Host "Environment SIMULATOR_NUM_MESSAGES set to $env:SIMULATOR_NUM_MESSAGES for Aspire AppHost process"
+
+          Start-Process dotnet -ArgumentList "run, --project, FlinkDotNetAspire.AppHost.csproj, --no-launch-profile, --no-build" -NoNewWindow -PassThru
+          Pop-Location
+
+          echo "Aspire AppHost started. Beginning health checks..."
+
+      - name: Health Check Loop
+        env:
+          # Aspire automatically sets DOTNET_REDIS_URL, DOTNET_KAFKA_BOOTSTRAP_SERVERS etc.
+          # for processes launched by the AppHost. For the verifier, running separately,
+          # we would typically need to fetch these from Aspire's service discovery.
+          # However, if the verifier runs *after* Aspire has written its output or if we can query Aspire,
+          # that would be ideal. For now, this assumes Aspire's default ports might be hit on localhost,
+          # or that the environment variables are somehow available globally (less likely for separate process).
+          # THIS IS A KEY AREA THAT MIGHT NEED REFINEMENT - HOW VERIFIER GETS SERVICE URLS.
+          # For now, let's assume Aspire's default behavior might make them discoverable or use fixed ports if possible for CI.
+          # The verifier code already tries to read DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS.
+          # These are typically set by the Aspire HOST for child services. The verifier isn't a child here.
+          # For the health check, we assume the verifier can find the services.
+          # This might require running the verifier *through* `dotnet run --project FlinkDotNetAspire.AppHost.csproj exec IntegrationTestVerifier --health-check`
+          # if Aspire supports such a command, or by querying the Aspire dashboard for endpoints.
+          # For simplicity now, we'll call it directly and hope for localhost defaults or inherited env vars.
+          DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
+        run: |
+          $maxAttempts = 10
+          $delaySeconds = 15
+          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net9.0/FlinkDotNet.IntegrationTestVerifier.exe"
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            echo "Health check attempt $attempt/$maxAttempts..."
+            & $verifierPath --health-check
+            if ($LASTEXITCODE -eq 0) {
+              echo "Health check PASSED."
+              break
+            }
+            echo "Health check FAILED. Waiting $delaySeconds seconds before retry..."
+            Start-Sleep -Seconds $delaySeconds
+            if ($attempt -eq $maxAttempts) {
+              echo "Max health check attempts reached. Failing workflow."
+              exit 1
+            }
+          }
+
+      - name: Run Verification Tests
+        env:
+          # Same challenge as health check for service URLs.
+          # SIMULATOR_NUM_MESSAGES needs to be the same as used by the job simulator.
+          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES_CI }}
+          DOTNET_ENVIRONMENT: "Development"
+        run: |
+          echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
+          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net9.0/FlinkDotNet.IntegrationTestVerifier.exe"
+          & $verifierPath
+          if ($LASTEXITCODE -ne 0) {
+            echo "Verification tests FAILED."
+            exit 1
+          }
+          echo "Verification tests PASSED."
+
+      - name: Stop .NET Aspire Application (Best Effort)
+        if: always()
+        run: |
+          echo "Attempting to stop .NET Aspire AppHost..."
+          # Get all dotnet processes that are running the AppHost and stop them.
+          # This is a bit broad but should catch the background process.
+          Get-Process dotnet | Where-Object { $_.CommandLine -like "*FlinkDotNetAspire.AppHost.csproj*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          echo "Cleanup: Any remaining Docker containers launched by Aspire should be managed by the runner's cleanup or manually if needed."
