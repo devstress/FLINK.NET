@@ -7,7 +7,7 @@ namespace FlinkDotNet.Core.Abstractions.Windowing
     /// Represents a window defined by a start and end timestamp.
     /// The window typically includes elements with timestamps `T` where `Start <= T < End`.
     /// </summary>
-    public class TimeWindow : Window
+    public sealed class TimeWindow : IWindow
     {
         /// <summary>
         /// Gets the start timestamp of the window (inclusive).
@@ -33,7 +33,7 @@ namespace FlinkDotNet.Core.Abstractions.Windowing
         /// Returns the last millisecond that is still part of this window.
         /// This is `End - 1`.
         /// </summary>
-        public override long MaxTimestamp() => End - 1;
+        public long MaxTimestamp() => End - 1;
 
         /// <summary>
         /// Checks if this window intersects with another TimeWindow.
