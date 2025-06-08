@@ -1,4 +1,5 @@
 @page "/jobs"
+@using System.Linq // Required for .AsQueryable()
 @using FlinkDotNet.WebUI.Models
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
@@ -19,7 +20,7 @@ else if (!jobs.Any())
 }
 else
 {
-    <FluentDataGrid Items="@jobs" GridTemplateColumns="1fr 2fr 2fr 1fr 1fr 1fr" Style="width: 100%;">
+    <FluentDataGrid Items="@jobs.AsQueryable()" GridTemplateColumns="1fr 2fr 2fr 1fr 1fr 1fr" Style="width: 100%;">
         <TemplateColumn Title="Job ID" TooltipText="JobId">
             <FluentAnchor Href="#" @onclick="@(() => NavigateToJobDetails(context.JobId!))" Appearance="Appearance.Hypertext">
                 @context.JobId?.Substring(0, 8)

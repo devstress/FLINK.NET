@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Microsoft.Extensions.ServiceDiscovery; // For .UseServiceDiscovery()
+using OpenTelemetry.Exporter; // For .UseOtlpExporter()
 
 namespace Microsoft.Extensions.Hosting;
 

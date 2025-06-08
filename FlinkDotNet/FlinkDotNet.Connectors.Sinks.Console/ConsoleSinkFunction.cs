@@ -27,17 +27,5 @@ namespace FlinkDotNet.Connectors.Sinks.Console
             System.Console.WriteLine($"[{_taskName}] ConsoleSinkFunction closed."); // Explicitly System.Console
         }
     }
-
-    // Implementation for ISinkContext for ConsoleSink - can be very basic or live elsewhere
-    // For now, let's assume a basic context is provided by the TaskManager when executing the sink.
-    // If ISinkContext needs to be more elaborate, it might be better to have a default implementation
-    // in Core.Abstractions or provided by the runtime.
-
-    // Example of a simple SinkContext that could be used by the TaskManager when calling Invoke.
-    // This might not need to be in this file but shows what ISinkContext requires.
-    // public class BasicSinkContext : ISinkContext
-    // {
-    //     public long CurrentProcessingTimeMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    // }
 }
 #nullable disable

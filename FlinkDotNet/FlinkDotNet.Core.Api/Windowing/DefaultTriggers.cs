@@ -1,3 +1,5 @@
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window
+
 namespace FlinkDotNet.Core.Api.Windowing
 {
     // --- Concrete Trigger Implementations (Stubs for now) ---

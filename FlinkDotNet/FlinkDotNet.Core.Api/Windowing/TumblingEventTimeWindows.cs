@@ -29,17 +29,6 @@ namespace FlinkDotNet.Core.Api.Windowing
         }
     }
 
-    // Placeholder for EventTimeTrigger, will be fully defined later.
-    // This derives from the Trigger stub created in WindowAssigner.cs
-    public class EventTimeTrigger<TElement, TWindow> : Trigger<TElement, TWindow> where TWindow : Window
-    {
-        // Actual trigger logic would go here. For now, it's a stub.
-        // public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx) => TriggerResult.CONTINUE;
-        // public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.FIRE;
-        // public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.CONTINUE;
-        // public override void Clear(TWindow window, ITriggerContext ctx) { }
-    }
-
 
     public class TumblingEventTimeWindows<TElement> : WindowAssigner<TElement, TimeWindow>
     {

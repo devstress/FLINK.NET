@@ -16,12 +16,12 @@ namespace FlinkDotNet.Core.Networking
         private readonly int _segmentSize;
         private readonly int _totalSegments;
         private readonly ConcurrentQueue<byte[]> _availableSegments;
-        private bool _disposed = false;
+        private bool _disposed; // CA1805: Removed explicit default
 
         public NetworkBufferPool(int totalSegments, int segmentSize)
         {
-            if (totalSegments <= 0) throw new ArgumentOutOfRangeException(nameof(totalSegments));
-            if (segmentSize <= 0) throw new ArgumentOutOfRangeException(nameof(segmentSize));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(totalSegments); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(segmentSize);   // CA1512
 
             _totalSegments = totalSegments;
             _segmentSize = segmentSize;
@@ -46,13 +46,13 @@ namespace FlinkDotNet.Core.Networking
         /// <returns>A byte array segment, or null if no segments are available.</returns>
         public byte[]? RequestMemorySegment()
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(NetworkBufferPool));
+            ObjectDisposedException.ThrowIf(_disposed, this); // CA1513
 
             if (_availableSegments.TryDequeue(out byte[]? segment))
             {
                 return segment;
             }
-            // Console.WriteLine("[NetworkBufferPool] No memory segments available."); // Optional: for high-frequency logging
+            // Console.WriteLine("[NetworkBufferPool] No memory segments available.");
             return null;
         }
 
@@ -62,7 +62,7 @@ namespace FlinkDotNet.Core.Networking
         /// <param name="segment">The segment to recycle.</param>
         public void RecycleMemorySegment(byte[] segment)
         {
-            if (segment == null) throw new ArgumentNullException(nameof(segment));
+            ArgumentNullException.ThrowIfNull(segment); // CA1510
 
             // Basic check: ensure segment is of the correct size for this pool,
             // though ArrayPool might return slightly larger buffers than requested.
@@ -91,7 +91,7 @@ namespace FlinkDotNet.Core.Networking
         // Implementation of INetworkBufferPool methods (Revised Task 4)
         public INetworkBuffer? RequestBuffer(int minCapacity = 0)
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(NetworkBufferPool));
+            ObjectDisposedException.ThrowIf(_disposed, this); // CA1513
 
             // minCapacity can be used to decide if multiple segments are needed,
             // but for now, NetworkBuffer wraps a single segment from this pool.
@@ -116,31 +116,45 @@ namespace FlinkDotNet.Core.Networking
 
         public void ReturnBuffer(INetworkBuffer buffer)
         {
-            if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            ArgumentNullException.ThrowIfNull(buffer); // CA1510
             // The NetworkBuffer's Dispose method should call the recycle action,
             // which is now directly RecycleMemorySegment.
             // Calling buffer.Dispose() is the standard way to ensure recycling.
             buffer.Dispose();
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // Dispose managed state (managed objects).
+                    // Return all currently available segments back to ArrayPool.Shared
+                    int returnedCount = 0;
+                    while (_availableSegments.TryDequeue(out byte[]? segment))
+                    {
+                        ArrayPool<byte>.Shared.Return(segment);
+                        returnedCount++;
+                    }
+                    // Console.WriteLine($"[NetworkBufferPool] Disposed. Returned {returnedCount} segments to ArrayPool.Shared."); // S125
+                }
+                // Free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // Set large fields to null.
+                _disposed = true;
+            }
+        }
+
         public void Dispose()
         {
-            if (_disposed) return;
-            _disposed = true;
-
-            // Return all currently available segments back to ArrayPool.Shared
-            int returnedCount = 0;
-            while (_availableSegments.TryDequeue(out byte[]? segment))
-            {
-                ArrayPool<byte>.Shared.Return(segment);
-                returnedCount++;
-            }
-            Console.WriteLine($"[NetworkBufferPool] Disposed. Returned {returnedCount} segments to ArrayPool.Shared.");
-
-            // Segments that were "leased out" (i.e., requested via RequestMemorySegment or RequestBuffer
-            // and not yet recycled) will be returned to ArrayPool.Shared by their holders (NetworkBuffer instances)
-            // when they call RecycleMemorySegment, which will see that the pool is disposed.
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
+
+        // Optional: Finalizer if this class directly owns unmanaged resources.
+        // ~NetworkBufferPool()
+        // {
+        //     Dispose(false);
+        // }
     }
 }

@@ -13,14 +13,6 @@ namespace FlinkDotNet.Connectors.Sources.File
         private readonly ITypeSerializer<TOut> _serializer;
         private volatile bool _isRunning = true;
 
-        // Constructor for when TOut is string and no specific serializer is needed beyond UTF8.
-        // This constructor is a bit problematic because ISourceFunction<string> would expect ITypeSerializer<string>.
-        // It's better to always require a serializer.
-        // public FileSourceFunction(string filePath)
-        //    : this(filePath, null!) // Will only work if TOut is string and serializer is handled internally
-        // {
-        // }
-
         public FileSourceFunction(string filePath, ITypeSerializer<TOut> serializer)
         {
             if (string.IsNullOrEmpty(filePath))
@@ -81,4 +73,3 @@ namespace FlinkDotNet.Connectors.Sources.File
         }
     }
 }
-#nullable disable
