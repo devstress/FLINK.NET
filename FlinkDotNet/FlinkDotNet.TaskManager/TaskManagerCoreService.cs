@@ -19,6 +19,7 @@ public class TaskManagerCoreService : IHostedService // new
     private readonly Config _config;
     private Timer? _heartbeatTimer;
     private TaskManagerRegistration.TaskManagerRegistrationClient? _client;
+    private JobManagerInternalService.JobManagerInternalServiceClient? _jobManagerInternalClient; // Added for ReportFailedCheckpoint
     private bool _registered = false;
     private CancellationTokenSource? _internalCts;
     private string _jobManagerId = string.Empty; // Added to store JM Id
@@ -38,6 +39,7 @@ public class TaskManagerCoreService : IHostedService // new
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} starting...");
         var channel = GrpcChannel.ForAddress(_config.JobManagerGrpcAddress); // _jobManagerChannel could be a field
         _client = new TaskManagerRegistration.TaskManagerRegistrationClient(channel); // _jmRegistrationClient is _client
+        _jobManagerInternalClient = new JobManagerInternalService.JobManagerInternalServiceClient(channel); // Initialize the new client
 
         try
         {
@@ -200,6 +202,90 @@ public class TaskManagerCoreService : IHostedService // new
         catch (Exception ex)
         {
             Console.WriteLine($"TaskManagerCoreService: Error sending AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}: {ex.Message}");
+        }
+    }
+
+    public async Task SendFailedCheckpointAsync(
+        string jobId,
+        long checkpointId,
+        string jobVertexId,
+        int subtaskIndex,
+        string failureReason)
+    {
+        if (!_registered || _jobManagerInternalClient == null)
+        {
+            Console.WriteLine($"TaskManagerCoreService: JobManagerInternal client not initialized or TM not registered. Cannot send FailedCheckpoint for CP {checkpointId}.");
+            return;
+        }
+
+        var request = new ReportFailedCheckpointRequest
+        {
+            JobId = jobId,
+            CheckpointId = checkpointId,
+            JobVertexId = jobVertexId,
+            SubtaskIndex = subtaskIndex,
+            FailureReason = failureReason ?? string.Empty,
+            TaskManagerId = _config.TaskManagerId
+        };
+
+        try
+        {
+            Console.WriteLine($"TaskManagerCoreService: Sending FailedCheckpoint for Job {jobId}, CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}, Reason: {failureReason}");
+            var response = await _jobManagerInternalClient.ReportFailedCheckpointAsync(request);
+            if (response.Acknowledged)
+            {
+                Console.WriteLine($"TaskManagerCoreService: FailedCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex} successfully sent to JobManager.");
+            }
+            else
+            {
+                Console.WriteLine($"TaskManagerCoreService: JobManager did not acknowledge FailedCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"TaskManagerCoreService: Error sending FailedCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}: {ex.Message}");
+        }
+    }
+
+    public async Task SendTaskStartupFailureAsync(string jobId, string jobVertexId, int subtaskIndex, string failureReason)
+    {
+        if (_jobManagerInternalClient == null)
+        {
+            Console.WriteLine($"[TaskManagerCoreService] JobManagerInternal client not available. Cannot send task startup failure for {jobVertexId}_{subtaskIndex}.");
+            return;
+        }
+
+        if (!_registered)
+        {
+            Console.WriteLine($"[TaskManagerCoreService] TaskManager not registered. Cannot send task startup failure for {jobVertexId}_{subtaskIndex}.");
+            return;
+        }
+
+        var request = new ReportTaskStartupFailureRequest
+        {
+            JobId = jobId,
+            JobVertexId = jobVertexId,
+            SubtaskIndex = subtaskIndex,
+            TaskManagerId = _config.TaskManagerId,
+            FailureReason = failureReason ?? string.Empty
+        };
+
+        try
+        {
+            Console.WriteLine($"[TaskManagerCoreService] Sending task startup failure report for Job {jobId}, Task {jobVertexId}_{subtaskIndex}. Reason: {failureReason}");
+            var response = await _jobManagerInternalClient.ReportTaskStartupFailureAsync(request);
+            if (response.Acknowledged)
+            {
+                Console.WriteLine($"[TaskManagerCoreService] Task startup failure report for {jobVertexId}_{subtaskIndex} successfully acknowledged by JobManager.");
+            }
+            else
+            {
+                Console.WriteLine($"[TaskManagerCoreService] JobManager did not acknowledge task startup failure report for {jobVertexId}_{subtaskIndex}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[TaskManagerCoreService] Failed to send task startup failure report for {jobVertexId}_{subtaskIndex}: {ex.Message}");
         }
     }
 }
