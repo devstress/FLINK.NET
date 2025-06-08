@@ -20,7 +20,7 @@ namespace FlinkDotNet.Core.Api
     {
         private static StreamExecutionEnvironment? _defaultInstance;
         public SerializerRegistry SerializerRegistry { get; }
-        public List<FlinkDotNet.Core.Api.Streaming.Transformation> Transformations { get; } = new List<FlinkDotNet.Core.Api.Streaming.Transformation>(); // Correctly typed list
+        public List<FlinkDotNet.Core.Api.Streaming.Transformation<object>> Transformations { get; } = new List<FlinkDotNet.Core.Api.Streaming.Transformation<object>>(); // Correctly typed list
 
         private bool _isChainingEnabled = true;
         private ChainingStrategy _defaultChainingStrategy = ChainingStrategy.ALWAYS; // Align with Flink's common operator default
@@ -38,7 +38,7 @@ namespace FlinkDotNet.Core.Api
             return _defaultInstance;
         }
 
-        internal void AddTransformation(FlinkDotNet.Core.Api.Streaming.Transformation transformation) // Corrected parameter type
+        internal void AddTransformation(FlinkDotNet.Core.Api.Streaming.Transformation<object> transformation) // Corrected parameter type
         {
             Transformations.Add(transformation);
         }
@@ -60,13 +60,13 @@ namespace FlinkDotNet.Core.Api
                                                                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
             };
 
-            var transformationToJobVertexIdMap = new Dictionary<FlinkDotNet.Core.Api.Streaming.Transformation, Guid>();
-            var visitedTransformations = new HashSet<FlinkDotNet.Core.Api.Streaming.Transformation>();
+            var transformationToJobVertexIdMap = new Dictionary<FlinkDotNet.Core.Api.Streaming.Transformation<object>, Guid>();
+            var visitedTransformations = new HashSet<FlinkDotNet.Core.Api.Streaming.Transformation<object>>();
 
             foreach (var rootTransform in Transformations)
             {
-                // Ensure all transformations are treated as FlinkDotNet.Core.Api.Streaming.Transformation
-                var streamingRootTransform = rootTransform as FlinkDotNet.Core.Api.Streaming.Transformation;
+                // Ensure all transformations are treated as FlinkDotNet.Core.Api.Streaming.Transformation<object>
+                var streamingRootTransform = rootTransform as FlinkDotNet.Core.Api.Streaming.Transformation<object>;
                 if (streamingRootTransform == null)
                 {
                     // This should not happen if Transformations list is correctly populated
@@ -83,12 +83,12 @@ namespace FlinkDotNet.Core.Api
         }
 
         private void BuildGraphNodeRecursive(
-            FlinkDotNet.Core.Api.Streaming.Transformation currentTransform,
+            FlinkDotNet.Core.Api.Streaming.Transformation<object> currentTransform,
             JobGraph jobGraph,
-            Dictionary<FlinkDotNet.Core.Api.Streaming.Transformation, Guid> transformationToJobVertexIdMap,
-            HashSet<FlinkDotNet.Core.Api.Streaming.Transformation> visited,
+            Dictionary<FlinkDotNet.Core.Api.Streaming.Transformation<object>, Guid> transformationToJobVertexIdMap,
+            HashSet<FlinkDotNet.Core.Api.Streaming.Transformation<object>> visited,
             JobVertex? currentChainHeadVertex,
-            FlinkDotNet.Core.Api.Streaming.Transformation? previousTransformInChain)
+            FlinkDotNet.Core.Api.Streaming.Transformation<object>? previousTransformInChain)
         {
             visited.Add(currentTransform);
 
@@ -96,12 +96,12 @@ namespace FlinkDotNet.Core.Api
             object? operatorInstance = null;
 
             // Correctly get Operator Type and Instance based on actual Transformation type
-            if (currentTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object> srcT) // Assuming generic type for casting
+            if (currentTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object> srcT)
             {
                 operatorInstance = srcT.SourceFunction;
                 operatorClrType = operatorInstance.GetType();
             }
-            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.OneInputTransformation<object, object> oneInT) // Assuming generic types
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.OneInputTransformation<object, object> oneInT)
             {
                 operatorInstance = oneInT.Operator;
                 operatorClrType = operatorInstance.GetType();
@@ -111,7 +111,7 @@ namespace FlinkDotNet.Core.Api
                 operatorInstance = sinkT.SinkFunction;
                 operatorClrType = operatorInstance.GetType();
             }
-            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyT)
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyT) // This cast might need to be <object, object> if TKey is object
             {
                 // KeyedTransformation might not have a direct "operator" instance in the same way.
                 // It represents a state/partitioning characteristic.
@@ -134,11 +134,12 @@ namespace FlinkDotNet.Core.Api
             {
                 opInputTypeName = previousTransformInChain.OutputType.AssemblyQualifiedName;
             }
-            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.OneInputTransformation<object, object> oneInputNode) // If head of chain is an operator
+            // Casts to specific transformation types to access their 'Input' property
+            else if (currentTransform is FlinkDotNet.Core.Api.Streaming.OneInputTransformation<object, object> oneInputNode)
             {
                  opInputTypeName = oneInputNode.Input.OutputType.AssemblyQualifiedName;
             }
-             else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyedNode) // If head of chain is a keyed Op
+             else if (currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyedNode) // Assuming TKey is object for KeyedTransformation
             {
                  opInputTypeName = keyedNode.Input.OutputType.AssemblyQualifiedName;
             }
@@ -199,7 +200,8 @@ namespace FlinkDotNet.Core.Api
                 {
                     // Get strategies. Transformation.ChainingStrategy defaults to ALWAYS.
                     ChainingStrategy upstreamStrategy = currentTransform.ChainingStrategy;
-                    ChainingStrategy downstreamStrategy = downstreamTransform.ChainingStrategy;
+                    // Downstream is Transformation<object>, but its concrete type (e.g. OneInputTransformation) will have ChainingStrategy
+                    ChainingStrategy downstreamStrategy = ((FlinkDotNet.Core.Api.Streaming.Transformation<object>)downstreamTransform).ChainingStrategy;
 
                     bool strategiesAllow = true;
                     if (upstreamStrategy == ChainingStrategy.NEVER || downstreamStrategy == ChainingStrategy.NEVER)
@@ -222,7 +224,7 @@ namespace FlinkDotNet.Core.Api
                     if (strategiesAllow)
                     {
                         canChain = (shuffleMode == ShuffleMode.Forward &&
-                                    currentTransform.Parallelism == downstreamTransform.Parallelism &&
+                                    currentTransform.Parallelism == ((FlinkDotNet.Core.Api.Streaming.Transformation<object>)downstreamTransform).Parallelism &&
                                     !(downstreamTransform is FlinkDotNet.Core.Api.Streaming.SourceTransformation<object>));
                                     // Ensure downstream is not a source.
                                     // Add other fundamental chaining conditions if any (e.g. not a sink that must terminate a chain if such a type exists).
@@ -232,19 +234,19 @@ namespace FlinkDotNet.Core.Api
 
                 if (canChain)
                 {
-                    BuildGraphNodeRecursive(downstreamTransform, jobGraph, transformationToJobVertexIdMap, visited, currentChainHeadVertex, currentTransform);
+                        BuildGraphNodeRecursive((FlinkDotNet.Core.Api.Streaming.Transformation<object>)downstreamTransform, jobGraph, transformationToJobVertexIdMap, visited, currentChainHeadVertex, currentTransform);
                 }
                 else
                 {
                     Guid targetVertexIdForEdge;
-                    if (transformationToJobVertexIdMap.TryGetValue(downstreamTransform, out var existingTargetId))
+                        if (transformationToJobVertexIdMap.TryGetValue((FlinkDotNet.Core.Api.Streaming.Transformation<object>)downstreamTransform, out var existingTargetId))
                     {
                         targetVertexIdForEdge = existingTargetId;
                     }
                     else
                     {
-                        BuildGraphNodeRecursive(downstreamTransform, jobGraph, transformationToJobVertexIdMap, visited, null, null);
-                        targetVertexIdForEdge = transformationToJobVertexIdMap[downstreamTransform];
+                            BuildGraphNodeRecursive((FlinkDotNet.Core.Api.Streaming.Transformation<object>)downstreamTransform, jobGraph, transformationToJobVertexIdMap, visited, null, null);
+                            targetVertexIdForEdge = transformationToJobVertexIdMap[(FlinkDotNet.Core.Api.Streaming.Transformation<object>)downstreamTransform];
                     }
 
                     var edge = new JobEdge(
@@ -256,7 +258,7 @@ namespace FlinkDotNet.Core.Api
                     );
                     jobGraph.AddEdge(edge);
 
-                    if (shuffleMode == ShuffleMode.Hash && currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyedSource)
+                        if (shuffleMode == ShuffleMode.Hash && currentTransform is FlinkDotNet.Core.Api.Streaming.KeyedTransformation<object,object> keyedSource) // Assuming TKey is object
                     {
                          currentPhysicalVertex.OutputEdgeKeying[edge.Id] = new KeyingInfo(
                             keyedSource.SerializedKeySelectorRepresentation,

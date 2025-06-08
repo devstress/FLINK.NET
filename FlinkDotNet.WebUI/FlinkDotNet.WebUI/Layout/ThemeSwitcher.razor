@@ -5,8 +5,8 @@
 
 <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" Gap="10">
     <FluentLabel>Light</FluentLabel>
-    <FluentSwitch CurrentValue="@(ThemeService.CurrentLuminance == BaseLayerLuminance.Dark)"
-                  CurrentValueChanged="@OnThemeToggleClicked"
+    <FluentSwitch CurrentValue="@(ThemeService.CurrentLuminance == BaseLayerLuminance.DarkMode)"
+                  CurrentValueChanged="@((bool val) => OnThemeToggleClicked(val))"
                   Label="Theme"
                   HideLabel="true" />
     <FluentLabel>Dark</FluentLabel>
@@ -15,6 +15,6 @@
 @code {
     private async Task OnThemeToggleClicked(bool isDark)
     {
-        await ThemeService.SetLuminanceAsync(isDark ? BaseLayerLuminance.Dark : BaseLayerLuminance.Light);
+        await ThemeService.SetLuminanceAsync(isDark ? BaseLayerLuminance.DarkMode : BaseLayerLuminance.LightMode);
     }
 }

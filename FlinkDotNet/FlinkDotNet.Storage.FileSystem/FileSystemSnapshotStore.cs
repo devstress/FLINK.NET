@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -67,6 +66,61 @@ namespace FlinkDotNet.Storage.FileSystem
                 return Task.FromResult<IStateSnapshotReader>(new FileSystemSnapshotReaderSession(snapshotHandle, isEmpty: true));
             }
             return Task.FromResult<IStateSnapshotReader>(new FileSystemSnapshotReaderSession(snapshotHandle));
+        }
+
+        public async Task<SnapshotHandle> StoreSnapshot(
+            string jobId,
+            long checkpointId,
+            string taskManagerId, // Corresponds to subtaskId for directory structure
+            string operatorId,    // Corresponds to operatorId for directory, and can be part of filename for uniqueness
+            byte[] snapshotData)
+        {
+            // Use taskManagerId as subtaskId and operatorId as operatorId for directory structure
+            string directory = GetOperatorSubtaskDirectory(jobId, checkpointId, operatorId, taskManagerId);
+            Directory.CreateDirectory(directory); // Ensure it exists
+
+            // Use a unique name for the snapshot file itself, perhaps based on operatorId or a fixed name if only one raw snapshot per location
+            // For now, let's use a fixed name "raw_snapshot.dat" as an example, assuming one blob per call.
+            // If operatorId is unique per call for this subtask, it could be part of filename.
+            // Let's use operatorId as the filename to distinguish if multiple calls are made for different "states"
+            // within the same operator subtask for the same checkpoint.
+            string snapshotFileName = SanitizePathComponent(operatorId) + ".snapshot.dat"; // Ensure unique and safe filename
+            string filePath = Path.Combine(directory, snapshotFileName);
+
+            await File.WriteAllBytesAsync(filePath, snapshotData);
+
+            // The handle should be enough to retrieve this specific file.
+            // Here, the handle is the full file path.
+            return new SnapshotHandle(filePath);
+        }
+
+        public async Task<byte[]?> RetrieveSnapshot(SnapshotHandle handle)
+        {
+            if (handle == null || string.IsNullOrEmpty(handle.Handle))
+            {
+                // Or throw new ArgumentNullException(nameof(handle));
+                return null;
+            }
+
+            string filePath = handle.Handle; // Assuming handle directly stores the full file path
+
+            if (!File.Exists(filePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                return await File.ReadAllBytesAsync(filePath);
+            }
+            catch (IOException ex)
+            {
+                // Log exception, e.g., Console.WriteLine($"Error reading snapshot file {filePath}: {ex.Message}");
+                // Depending on policy, could rethrow or return null.
+                // For now, let's return null indicating retrieval failure.
+                Console.WriteLine($"[FileSystemSnapshotStore] Error reading snapshot file {filePath}: {ex.Message}");
+                return null;
+            }
         }
 
         // --- Writer Session ---
@@ -265,4 +319,3 @@ namespace FlinkDotNet.Storage.FileSystem
         }
     }
 }
-#nullable disable

@@ -33,17 +33,6 @@ namespace FlinkDotNet.Core.Api.Windowing
         public GlobalWindow Deserialize(byte[] bytes) => GlobalWindow.Instance; // Always return the singleton
     }
 
-    // Placeholder for NeverTrigger, will be fully defined later.
-    // This derives from the Trigger stub created in WindowAssigner.cs
-    public class NeverTrigger<TElement, TWindow> : Trigger<TElement, TWindow> where TWindow : Window
-    {
-        // Actual trigger logic would go here. For now, it's a stub.
-        // public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx) => TriggerResult.CONTINUE;
-        // public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.CONTINUE; // Never fires on time
-        // public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.CONTINUE; // Never fires on time
-        // public override void Clear(TWindow window, ITriggerContext ctx) { }
-    }
-
 
     /// <summary>
     /// Assigns all elements to a single <see cref="GlobalWindow"/>.

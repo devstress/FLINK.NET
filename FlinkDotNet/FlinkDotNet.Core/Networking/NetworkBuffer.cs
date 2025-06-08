@@ -19,7 +19,7 @@ namespace FlinkDotNet.Core.Networking
         /// The offset within the UnderlyingBuffer where valid data starts.
         /// For buffers obtained from ArrayPool, this is typically 0.
         /// </summary>
-        public int DataOffset { get; private set; } // Usually 0 if buffer is exclusively for this NetworkBuffer
+        public int DataOffset { get; } // RCS1170: Changed to readonly (get;)
 
         /// <summary>
         /// The length of the valid data currently stored in the UnderlyingBuffer.
@@ -48,7 +48,7 @@ namespace FlinkDotNet.Core.Networking
         public long CheckpointTimestamp { get; private set; }
 
         private readonly Action<NetworkBuffer>? _returnToPoolAction;
-        private bool _isDisposed = false;
+        private bool _isDisposed; // CA1805: Removed explicit default
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NetworkBuffer"/> class.
@@ -113,7 +113,7 @@ namespace FlinkDotNet.Core.Networking
         /// </summary>
         public Memory<byte> GetMemory()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             return new Memory<byte>(UnderlyingBuffer, DataOffset, DataLength);
         }
 
@@ -122,7 +122,7 @@ namespace FlinkDotNet.Core.Networking
         /// </summary>
         public ReadOnlyMemory<byte> GetReadOnlyMemory()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             return new ReadOnlyMemory<byte>(UnderlyingBuffer, DataOffset, DataLength);
         }
 
@@ -134,7 +134,7 @@ namespace FlinkDotNet.Core.Networking
         /// <returns>A MemoryStream configured for writing.</returns>
         public Stream GetWriteStream()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             // Reset DataLength for writing, assuming fresh write or overwrite.
             // Or, if appending, current DataOffset + DataLength would be the start.
             // For simplicity, let's assume GetWriteStream prepares for a new payload.
@@ -154,7 +154,7 @@ namespace FlinkDotNet.Core.Networking
         /// <returns>A MemoryStream configured for reading.</returns>
         public Stream GetReadStream()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             return new MemoryStream(UnderlyingBuffer, DataOffset, DataLength, writable: false);
         }
 
@@ -166,7 +166,7 @@ namespace FlinkDotNet.Core.Networking
         /// <exception cref="ArgumentOutOfRangeException">If length is negative or exceeds buffer capacity from offset.</exception>
         public void SetDataLength(int length)
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             if (length < 0 || DataOffset + length > Capacity)
             {
                 throw new ArgumentOutOfRangeException(nameof(length),
@@ -181,7 +181,7 @@ namespace FlinkDotNet.Core.Networking
         /// </summary>
         public void Reset()
         {
-            if (_isDisposed) throw new ObjectDisposedException(nameof(NetworkBuffer));
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             DataLength = 0;
             IsBarrierPayload = false;
             CheckpointId = 0;

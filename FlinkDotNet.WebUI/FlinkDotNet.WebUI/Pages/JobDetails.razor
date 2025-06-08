@@ -4,6 +4,7 @@
 @inject NavigationManager NavigationManager
 @using Microsoft.Fast.Components.FluentUI
 @using System.Net
+@using System.Linq // Required for .AsQueryable()
 
 <PageTitle>Job Details - @(jobDetails?.JobName ?? JobIdString)</PageTitle>
 
@@ -52,7 +53,7 @@ else if (jobDetails != null)
             <h2>Vertices</h2>
             @if (jobDetails.Vertices != null && jobDetails.Vertices.Any())
             {
-                <FluentDataGrid Items="@jobDetails.Vertices" GridTemplateColumns="2fr 1fr 1fr 1fr 1fr 1fr" Style="width: 100%;">
+                <FluentDataGrid Items="@(jobDetails.Vertices?.AsQueryable())" GridTemplateColumns="2fr 1fr 1fr 1fr 1fr 1fr" Style="width: 100%;">
                     <PropertyColumn Property="@(v => v.Name)" Sortable="true" Title="Name" />
                     <PropertyColumn Property="@(v => v.VertexType ?? v.TypeName)" Sortable="true" Title="Type" />
                     <PropertyColumn Property="@(v => v.Parallelism)" Sortable="true" Title="Parallelism" />
@@ -71,7 +72,7 @@ else if (jobDetails != null)
             <h2>Edges (Connections)</h2>
             @if (jobDetails.Edges != null && jobDetails.Edges.Any())
             {
-                 <FluentDataGrid Items="@jobDetails.Edges" GridTemplateColumns="2fr 1fr 2fr 1fr" Style="width: 100%;">
+                 <FluentDataGrid Items="@(jobDetails.Edges?.AsQueryable())" GridTemplateColumns="2fr 1fr 2fr 1fr" Style="width: 100%;">
                     <TemplateColumn Title="Source">
                         @GetVertexName(context.SourceVertexId)
                     </TemplateColumn>
@@ -103,7 +104,7 @@ else if (jobDetails != null)
             }
             else if (jobVertexMetrics != null && jobVertexMetrics.Any())
             {
-                <FluentDataGrid Items="@jobVertexMetrics" GridTemplateColumns="2fr 1fr 1fr" Style="width: 100%;">
+                <FluentDataGrid Items="@(jobVertexMetrics?.AsQueryable())" GridTemplateColumns="2fr 1fr 1fr" Style="width: 100%;">
                     <PropertyColumn Property="@(m => m.VertexName)" Sortable="true" Title="Vertex Name" />
                     <PropertyColumn Property="@(m => m.RecordsIn)" Sortable="true" Title="Records In" />
                     <PropertyColumn Property="@(m => m.RecordsOut)" Sortable="true" Title="Records Out" />
@@ -130,7 +131,7 @@ else if (jobDetails != null)
             }
             else if (jobCheckpoints != null && jobCheckpoints.Any())
             {
-                <FluentDataGrid Items="@jobCheckpoints" GridTemplateColumns="1fr 1fr 2fr 1fr 1fr" Style="width: 100%;">
+                <FluentDataGrid Items="@(jobCheckpoints?.AsQueryable())" GridTemplateColumns="1fr 1fr 2fr 1fr 1fr" Style="width: 100%;">
                     <PropertyColumn Property="@(c => c.CheckpointId)" Sortable="true" Title="ID" />
                     <PropertyColumn Property="@(c => c.Status)" Sortable="true" Title="Status" />
                     <PropertyColumn Property="@(c => c.Timestamp)" Sortable="true" Title="Timestamp" Format="yyyy-MM-dd HH:mm:ss UTC" />
@@ -153,19 +154,11 @@ else if (jobDetails != null)
             }
             else if (jobLogs != null && jobLogs.Any())
             {
-                <FluentDataGrid Items="@jobLogs" GridTemplateColumns="2fr 1fr 5fr" Style="width: 100%;" RowsDataRepeatStrategy="DataGridRowsDataRepeatStrategy.All">
+                <FluentDataGrid Items="@(jobLogs?.AsQueryable())" GridTemplateColumns="2fr 1fr 5fr" Style="width: 100%;" RowsDataRepeatStrategy="DataGridRowsDataRepeatStrategy.All">
                     <PropertyColumn Property="@(l => l.Timestamp)" Sortable="true" Title="Timestamp" Format="yyyy-MM-dd HH:mm:ss.fff UTC" />
                     <PropertyColumn Property="@(l => l.Level)" Sortable="true" Title="Level" />
                     <PropertyColumn Property="@(l => l.Message)" Title="Message" />
                 </FluentDataGrid>
-                @* Alternative simpler display:
-                <div style="max-height: 300px; overflow-y: auto; font-family: monospace; background-color: var(--neutral-fill-stealth-rest); padding: 8px;">
-                    @foreach (var logEntry in jobLogs.OrderBy(l => l.Timestamp))
-                    {
-                        <div><span style="color: var(--neutral-foreground-hint);">@logEntry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff")</span> [<span style="font-weight:bold;">@logEntry.Level</span>] @logEntry.Message</div>
-                    }
-                </div>
-                *@
             }
             else
             {
@@ -200,7 +193,6 @@ else
         errorMessage = null;
         metricsErrorMessage = null;
         jobDetails = null;
-        // jobMetrics = null; // No longer needed
         jobVertexMetrics = null;
         jobCheckpoints = null;
         jobLogs = null;
@@ -212,9 +204,25 @@ else
             return;
         }
 
+        await LoadJobDetailsAsync();
+
+        if (jobDetails != null && string.IsNullOrEmpty(errorMessage))
+        {
+            await Task.WhenAll(
+                LoadCheckpointsAsync(),
+                LoadLogsAsync(),
+                LoadMetricsAsync()
+            );
+        }
+
+        isLoading = false;
+    }
+
+    private async Task LoadJobDetailsAsync()
+    {
         try
         {
-            var detailsResponse = await Http.GetAsync($"api/jobmanager/jobs/{JobIdString}");
+            var detailsResponse = await Http.GetAsync($"api/jobmanager/jobs/{JobIdString!}"); // JobIdString is checked for null/whitespace above
 
             if (detailsResponse.IsSuccessStatusCode)
             {
@@ -232,78 +240,54 @@ else
         catch (Exception ex)
         {
             errorMessage = $"Exception while fetching job details: {ex.Message}";
-            Console.WriteLine(ex); // Log full exception
+            Console.WriteLine(ex.ToString()); // Log full exception details
         }
+    }
 
-        // The old jobMetrics (JobMetricsDto with just Message and JobId) is no longer needed here
-        // as we are fetching List<VertexMetricsUIDto> below.
-        // The placeholder message for "Operator Metrics" card will be handled by metricsErrorMessage
-        // or the absence of jobVertexMetrics.
-
-        // Fetch checkpoints and logs only if job details were loaded successfully
-        if (jobDetails != null && string.IsNullOrEmpty(errorMessage))
+    private async Task LoadCheckpointsAsync()
+    {
+        try
         {
-            try
-            {
-                jobCheckpoints = await Http.GetFromJsonAsync<List<CheckpointInfoUIDto>>($"api/jobmanager/jobs/{JobIdString}/checkpoints");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error fetching checkpoints: {ex.Message}");
-                jobCheckpoints = new List<CheckpointInfoUIDto>();
-            }
-
-            // Fetch logs
-            try
-            {
-                var logResponse = await Http.GetFromJsonAsync<JobLogsResponseDto>($"api/jobmanager/jobs/{JobIdString}/logs");
-                if (logResponse != null)
-                {
-                    jobLogs = logResponse.Logs;
-                    // Optionally, display logResponse.Message somewhere if needed, though the UI card for logs has its own "No logs" text.
-                    if (jobLogs == null || !jobLogs.Any())
-                    {
-                        // This could be a place to set a specific message like logResponse.Message if it's informative
-                        // For now, the existing UI handles empty jobLogs fine.
-                        // Console.WriteLine($"Log API Message: {logResponse.Message}");
-                    }
-                }
-                else
-                {
-                    jobLogs = new List<LogEntryUIDto>();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error fetching job logs: {ex.Message}");
-                jobLogs = new List<LogEntryUIDto>();
-            }
-
-            // Fetch Vertex Metrics
-            try
-            {
-                jobVertexMetrics = await Http.GetFromJsonAsync<List<VertexMetricsUIDto>>($"api/jobmanager/jobs/{JobIdString}/metrics");
-                if (jobVertexMetrics == null || !jobVertexMetrics.Any())
-                {
-                    // This condition might be hit if API returns empty list or null for a valid, but no-metrics-yet job
-                    // metricsErrorMessage = "No metrics data returned from the server for vertices.";
-                    // Let's rely on the grid's "No items" message for this case, unless specific error is desired.
-                }
-            }
-            catch (System.Net.Http.HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.NotImplemented)
-            {
-                metricsErrorMessage = "Vertex metrics are not yet fully implemented for this job (API returned 501).";
-                jobVertexMetrics = new List<VertexMetricsUIDto>(); // Ensure it's not null for UI logic
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Error fetching job vertex metrics: {ex}");
-                metricsErrorMessage = "An error occurred while fetching vertex metrics.";
-                jobVertexMetrics = new List<VertexMetricsUIDto>(); // Ensure it's not null
-            }
+            jobCheckpoints = await Http.GetFromJsonAsync<List<CheckpointInfoUIDto>>($"api/jobmanager/jobs/{JobIdString!}/checkpoints");
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching checkpoints: {ex.Message}");
+            jobCheckpoints = new List<CheckpointInfoUIDto>(); // Ensure not null for UI
+        }
+    }
 
-        isLoading = false;
+    private async Task LoadLogsAsync()
+    {
+        try
+        {
+            var logResponse = await Http.GetFromJsonAsync<JobLogsResponseDto>($"api/jobmanager/jobs/{JobIdString!}/logs");
+            jobLogs = logResponse?.Logs ?? new List<LogEntryUIDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching job logs: {ex.Message}");
+            jobLogs = new List<LogEntryUIDto>(); // Ensure not null for UI
+        }
+    }
+
+    private async Task LoadMetricsAsync()
+    {
+        try
+        {
+            jobVertexMetrics = await Http.GetFromJsonAsync<List<VertexMetricsUIDto>>($"api/jobmanager/jobs/{JobIdString!}/metrics");
+        }
+        catch (System.Net.Http.HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.NotImplemented)
+        {
+            metricsErrorMessage = "Vertex metrics are not yet fully implemented for this job (API returned 501).";
+            jobVertexMetrics = new List<VertexMetricsUIDto>();
+        }
+        catch (Exception ex)
+        {
+            await Console.Error.WriteLineAsync($"Error fetching job vertex metrics: {ex}"); // S6966
+            metricsErrorMessage = "An error occurred while fetching vertex metrics.";
+            jobVertexMetrics = new List<VertexMetricsUIDto>();
+        }
     }
 
     private string GetVertexName(Guid vertexId)
@@ -313,9 +297,9 @@ else
     }
 
     // Helper DTO for deserializing the logs API response
-    private class JobLogsResponseDto
+    sealed private class JobLogsResponseDto // S3260: Made sealed private
     {
-        public string? Message { get; set; }
-        public List<LogEntryUIDto>? Logs { get; set; }
+        public string? Message { get; set; } = default!; // S1144/S3459: Initialized or ensure set by deserializer
+        public List<LogEntryUIDto>? Logs { get; set; } = default!; // S1144/S3459: Initialized or ensure set by deserializer
     }
 }

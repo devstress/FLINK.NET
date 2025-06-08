@@ -8,7 +8,10 @@ namespace FlinkDotNet.Core.Abstractions.Operators
     /// <typeparam name="TIn">The type of the input elements.</typeparam>
     /// <typeparam name="TAgg">The type of the accumulator.</typeparam>
     /// <typeparam name="TOut">The type of the output (result) elements.</typeparam>
+    // TODO: SonarCloud S2436 - Consider refactoring to reduce generic parameters if feasible without major API disruption.
+#pragma warning disable S2436
     public interface IRichAggregateOperator<in TIn, TAgg, out TOut> : IAggregateOperator<TIn, TAgg, TOut>, IOperatorLifecycle
+#pragma warning restore S2436
     {
     }
 }
