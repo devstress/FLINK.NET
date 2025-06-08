@@ -1,5 +1,4 @@
-#nullable enable
-namespace FlinkDotNet.Core.Api.Windowing
+namespace FlinkDotNet.Core.Abstractions.Windowing
 {
     /// <summary>
     /// Base class for all window types (e.g., TimeWindow, GlobalWindow).
@@ -21,4 +20,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         public abstract override int GetHashCode();
     }
 }
-#nullable disable

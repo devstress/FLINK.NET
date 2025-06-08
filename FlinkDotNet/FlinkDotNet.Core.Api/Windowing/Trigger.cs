@@ -1,5 +1,5 @@
-#nullable enable
 using System.Collections.Generic; // For ICollection
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window
 
 namespace FlinkDotNet.Core.Api.Windowing
 {
@@ -92,4 +92,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         void MergeState(TWindow target, ICollection<TWindow> mergedWindows);
     }
 }
-#nullable disable

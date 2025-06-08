@@ -9,7 +9,7 @@ namespace FlinkDotNet.Core.Abstractions.Sources
     /// Sources must be serializable if they are part of a JobGraph that gets serialized.
     /// </summary>
     /// <typeparam name="TOut">The type of the records produced by the source.</typeparam>
-    public interface ISourceFunction<TOut> // Consider if this needs to be IAsyncSourceFunction later
+    public interface ISourceFunction<out TOut> // Consider if this needs to be IAsyncSourceFunction later
     {
         /// <summary>
         /// Starts the source. Implementations can run in a loop to continuously read data.

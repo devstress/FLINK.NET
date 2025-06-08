@@ -1,8 +1,8 @@
-#nullable enable
 using System; // For DateTimeOffset, ArgumentNullException
 using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer
 using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment (if needed by GetDefaultTrigger)
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window, Trigger
 
 namespace FlinkDotNet.Core.Api.Windowing
 {
@@ -65,4 +65,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         public abstract bool IsEventTime { get; }
     }
 }
-#nullable disable

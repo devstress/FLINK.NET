@@ -2,6 +2,7 @@ using System;
 using System.Buffers; // For ArrayPool<byte>
 using System.Collections.Concurrent; // For ConcurrentBag or other thread-safe collections
 using System.Threading;
+using FlinkDotNet.Core.Abstractions.Networking; // Added for INetworkBufferPool
 
 namespace FlinkDotNet.Core.Networking
 {
@@ -88,7 +89,7 @@ namespace FlinkDotNet.Core.Networking
         }
 
         // Implementation of INetworkBufferPool methods (Revised Task 4)
-        public NetworkBuffer? RequestBuffer(int minCapacity = 0)
+        public INetworkBuffer? RequestBuffer(int minCapacity = 0)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(NetworkBufferPool));
 
@@ -113,7 +114,7 @@ namespace FlinkDotNet.Core.Networking
             return null;
         }
 
-        public void ReturnBuffer(NetworkBuffer buffer)
+        public void ReturnBuffer(INetworkBuffer buffer)
         {
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
             // The NetworkBuffer's Dispose method should call the recycle action,
@@ -143,4 +144,3 @@ namespace FlinkDotNet.Core.Networking
         }
     }
 }
-#nullable disable

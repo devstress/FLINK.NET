@@ -5,6 +5,9 @@ using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode (might need to 
 using System.Linq.Expressions; // For KeyBy expression overload
 using System.Reflection; // For KeyBy expression overload
 using FlinkDotNet.Core.Abstractions.Functions; // For IKeySelector
+using FlinkDotNet.Core.Abstractions.Sinks; // For ISinkFunction
+using FlinkDotNet.Core.Abstractions.Windowing; // Proactively added
+using FlinkDotNet.Core.Abstractions.Common; // Proactively added
 
 // Assuming StreamExecutionEnvironment is in FlinkDotNet.Core.Api
 // If it's in FlinkDotNet.Core.Api.Streaming, this using might not be strictly necessary
@@ -305,4 +308,3 @@ namespace FlinkDotNet.Core.Api.Streaming
         }
     }
 }
-#nullable disable

@@ -18,6 +18,5 @@ namespace FlinkDotNet.Core.Abstractions.Collectors
         // managed by the operator lifecycle. For now, we will omit it to keep
         // this interface minimal, focusing on the primary Collect action.
         // It can be added later if a specific use case for explicit collector closing arises.
-        // void Close();
     }
 }

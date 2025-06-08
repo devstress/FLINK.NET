@@ -18,9 +18,9 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
         // if ITypeSerializer instances are managed that way by SerializerRegistry.
         // For now, assume it's instantiated per type as needed.
 
-        public byte[] Serialize(T record)
+        public byte[] Serialize(T obj)
         {
-            if (record == null)
+            if (obj == null)
             {
                 // MemoryPack might handle nulls, but explicit handling can be clearer
                 // or conform to a specific null representation if needed by Flink.NET.
@@ -28,12 +28,12 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
                 // Let's assume for now an empty array or specific marker for null if that's a Flink.NET convention.
                 // However, MemoryPack itself can serialize a null object.
                 // If T is a value type, it cannot be null unless T is Nullable<TValue>.
-                // For simplicity, let MemoryPack handle it. If record is null, it serializes as such.
+                // For simplicity, let MemoryPack handle it. If obj is null, it serializes as such.
             }
 
             try
             {
-                return MemoryPack.MemoryPackSerializer.Serialize(record);
+                return MemoryPack.MemoryPackSerializer.Serialize(obj);
             }
             catch (MemoryPackSerializationException mpex)
             {
@@ -47,9 +47,9 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
             }
         }
 
-        public T Deserialize(byte[] serializedRecord)
+        public T? Deserialize(byte[] bytes)
         {
-            if (serializedRecord == null)
+            if (bytes == null)
             {
                 // Handle null or empty byte array if it represents null according to Flink.NET conventions
                 // For now, assume MemoryPack.Deserialize can handle what it produces for nulls.
@@ -57,14 +57,14 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
             }
 
             // MemoryPack typically deserializes from ReadOnlySpan<byte>
-            // If serializedRecord is empty and represents a null object from Serialize,
+            // If bytes is empty and represents a null object from Serialize,
             // MemoryPack.Deserialize<T>(ReadOnlySpan<byte>.Empty) might throw or return default(T).
             // This needs to be consistent with Serialize(null).
             // MemoryPack typically expects a non-empty span for non-null objects.
 
             try
             {
-                return MemoryPack.MemoryPackSerializer.Deserialize<T>(serializedRecord);
+                return MemoryPack.MemoryPackSerializer.Deserialize<T>(bytes);
             }
             catch (MemoryPackSerializationException mpex)
             {
@@ -77,19 +77,5 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
                 throw new SerializationException($"An unexpected error occurred during MemoryPack deserialization for type {typeof(T).FullName}: {ex.Message}", ex);
             }
         }
-    }
-
-    // Custom SerializationException for Flink.NET (if not already defined elsewhere)
-    // If it is defined elsewhere (e.g., in Core.Abstractions), this can be removed.
-    // For now, adding it here for completeness of the snippet.
-    // [Serializable] // Not strictly needed if not crossing AppDomain boundaries or for basic exception
-    public class SerializationException : Exception
-    {
-        public SerializationException() { }
-        public SerializationException(string message) : base(message) { }
-        public SerializationException(string message, Exception inner) : base(message, inner) { }
-        // protected SerializationException(
-        //   System.Runtime.Serialization.SerializationInfo info,
-        //   System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
     }
 }

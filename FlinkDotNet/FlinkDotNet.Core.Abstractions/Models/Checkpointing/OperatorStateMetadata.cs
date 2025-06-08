@@ -1,4 +1,3 @@
-#nullable enable
 namespace FlinkDotNet.Core.Abstractions.Models.Checkpointing
 {
     /// <summary>
@@ -31,7 +30,6 @@ namespace FlinkDotNet.Core.Abstractions.Models.Checkpointing
         /// </summary>
         public string? KeyHash { get; set; }
         // Consider also storing the actual key if its not too large and useful for debugging/management.
-        // public string Key {get; set;}
 
         /// <summary>
         /// Placeholder for the actual serialized state data or a pointer/reference to it.

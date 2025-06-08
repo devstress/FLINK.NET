@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Concurrent; // For ConcurrentDictionary
 using FlinkDotNet.Core.Abstractions.Context;
@@ -24,23 +23,23 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         public IStateSnapshotStore StateSnapshotStore => _stateSnapshotStore; // Added
 
         private object? _currentKey; // Stores the current key for keyed state
-        // private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new(); // Assuming this is how state is managed
+        private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new(); // Assuming this is how state is managed
         private readonly IStateSnapshotStore _stateSnapshotStore; // Added
 
         public BasicRuntimeContext(
+            IStateSnapshotStore stateSnapshotStore, // Moved to be the first parameter
             string jobName = "DefaultJob",
             string taskName = "DefaultTask",
             int numberOfParallelSubtasks = 1,
             int indexOfThisSubtask = 0,
-            JobConfiguration? jobConfiguration = null,
-            IStateSnapshotStore stateSnapshotStore = null) // Added, made optional for now to avoid breaking other tests not aware of this
+            JobConfiguration? jobConfiguration = null)
         {
             JobName = jobName;
             TaskName = taskName;
             NumberOfParallelSubtasks = numberOfParallelSubtasks;
             IndexOfThisSubtask = indexOfThisSubtask;
             JobConfiguration = jobConfiguration ?? new JobConfiguration();
-            _stateSnapshotStore = stateSnapshotStore ?? new FlinkDotNet.Storage.FileSystem.FileSystemSnapshotStore(); // Added, provide default for now
+            _stateSnapshotStore = stateSnapshotStore; // Direct assignment
             _currentKey = null; // Explicitly initialize
         }
 
@@ -60,10 +59,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
 
         public IValueState<T> GetValueState<T>(ValueStateDescriptor<T> stateDescriptor)
         {
-            if (stateDescriptor == null)
-            {
-                throw new ArgumentNullException(nameof(stateDescriptor));
-            }
+            ArgumentNullException.ThrowIfNull(stateDescriptor);
 
             if (_currentKey == null)
             {
@@ -73,7 +69,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             var statesForCurrentKey = _keyedStates.GetOrAdd(_currentKey, _ => new ConcurrentDictionary<string, object>());
 
             object state = statesForCurrentKey.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryValueState<T>(stateDescriptor.DefaultValue ?? default!, stateDescriptor.Serializer)); // Pass serializer
+                new InMemoryValueState<T>(stateDescriptor, this)); // Corrected arguments
 
             if (state is IValueState<T> typedState)
             {
@@ -88,10 +84,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
 
         public IListState<T> GetListState<T>(ListStateDescriptor<T> stateDescriptor)
         {
-            if (stateDescriptor == null)
-            {
-                throw new ArgumentNullException(nameof(stateDescriptor));
-            }
+            ArgumentNullException.ThrowIfNull(stateDescriptor);
 
             if (_currentKey == null)
             {
@@ -101,7 +94,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             var statesForCurrentKey = _keyedStates.GetOrAdd(_currentKey, _ => new ConcurrentDictionary<string, object>());
 
             object state = statesForCurrentKey.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryListState<T>(stateDescriptor.ElementSerializer)); // Pass serializer
+                new InMemoryListState<T>(stateDescriptor.ElementSerializer));
 
             if (state is IListState<T> typedState)
             {
@@ -116,10 +109,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
 
         public IMapState<TK, TV> GetMapState<TK, TV>(MapStateDescriptor<TK, TV> stateDescriptor) where TK : notnull
         {
-            if (stateDescriptor == null)
-            {
-                throw new ArgumentNullException(nameof(stateDescriptor));
-            }
+            ArgumentNullException.ThrowIfNull(stateDescriptor);
 
             if (_currentKey == null)
             {
@@ -129,7 +119,7 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             var statesForCurrentKey = _keyedStates.GetOrAdd(_currentKey, _ => new ConcurrentDictionary<string, object>());
 
             object state = statesForCurrentKey.GetOrAdd(stateDescriptor.Name, _ =>
-                new InMemoryMapState<TK, TV>(stateDescriptor.KeySerializer, stateDescriptor.ValueSerializer)); // Pass serializers
+                new InMemoryMapState<TK, TV>(stateDescriptor.KeySerializer, stateDescriptor.ValueSerializer));
 
             if (state is IMapState<TK, TV> typedState)
             {

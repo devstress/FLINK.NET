@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Serializers;
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window, GlobalWindow, Trigger
 using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment
 
 namespace FlinkDotNet.Core.Api.Windowing
@@ -75,4 +76,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         public override string ToString() => "GlobalWindows";
     }
 }
-#nullable disable

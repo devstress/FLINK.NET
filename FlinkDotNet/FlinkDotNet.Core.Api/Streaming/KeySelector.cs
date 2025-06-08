@@ -9,4 +9,3 @@ namespace FlinkDotNet.Core.Api.Streaming
     /// <returns>The extracted key.</returns>
     public delegate TKey KeySelector<in TElement, out TKey>(TElement element);
 }
-#nullable disable

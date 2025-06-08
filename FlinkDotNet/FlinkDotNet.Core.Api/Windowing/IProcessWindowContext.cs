@@ -68,4 +68,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         // public abstract void Output<X>(OutputTag<X> outputTag, X value);
     }
 }
-#nullable disable

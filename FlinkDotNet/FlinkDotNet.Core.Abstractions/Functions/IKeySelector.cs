@@ -11,4 +11,3 @@ namespace FlinkDotNet.Core.Abstractions.Functions
         TKey GetKey(TIn element);
     }
 }
-#nullable disable

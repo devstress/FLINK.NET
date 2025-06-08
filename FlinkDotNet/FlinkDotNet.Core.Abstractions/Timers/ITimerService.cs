@@ -1,17 +1,14 @@
-#nullable enable
-using FlinkDotNet.Core.Api.Windowing; // For Window
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window
 
 namespace FlinkDotNet.Core.Abstractions.Timers
 {
-    public enum TimerType { ProcessingTime, EventTime }
-
     /// <summary>
     /// Service responsible for managing and firing timers for keyed window operations.
     /// An instance is typically scoped per operator subtask.
     /// </summary>
     /// <typeparam name="TKey">The type of the key.</typeparam>
     /// <typeparam name="TWindow">The type of the window.</typeparam>
-    public interface ITimerService<TKey, TWindow> where TWindow : Window
+    public interface ITimerService<in TKey, in TWindow> where TWindow : Window
     {
         void RegisterProcessingTimeTimer(TKey key, TWindow window, long timestamp);
         void DeleteProcessingTimeTimer(TKey key, TWindow window, long timestamp);
@@ -37,10 +34,5 @@ namespace FlinkDotNet.Core.Abstractions.Timers
         /// </summary>
         /// <param name="newWatermark">The new global watermark.</param>
         void AdvanceGlobalWatermark(long newWatermark);
-
-        // Methods for checkpointing timer state would also be here
-        // Task SnapshotStateAsync(IStateSnapshotWriter writer, string timersStateName);
-        // Task RestoreStateAsync(IStateSnapshotReader reader, string timersStateName);
     }
 }
-#nullable disable

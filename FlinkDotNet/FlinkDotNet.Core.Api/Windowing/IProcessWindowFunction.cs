@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Collectors; // For ICollector
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window
 
 namespace FlinkDotNet.Core.Api.Windowing
 {
@@ -39,4 +40,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         void Clear(TKey key, IProcessWindowContext<TKey, TWindow> context); // Added Clear method
     }
 }
-#nullable disable

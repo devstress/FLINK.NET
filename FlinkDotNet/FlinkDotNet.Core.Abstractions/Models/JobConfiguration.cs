@@ -1,4 +1,3 @@
-#nullable enable
 using System.Collections.Generic;
 
 namespace FlinkDotNet.Core.Abstractions.Models
@@ -12,15 +11,9 @@ namespace FlinkDotNet.Core.Abstractions.Models
     /// </summary>
     public class JobConfiguration
     {
-        // Example: User-defined parameters
-        // public IDictionary<string, string> GlobalJobParameters { get; set; } = new Dictionary<string, string>();
-
-        // Example: Enable/disable certain features
-        // public bool IsObjectReuseEnabled { get; set; }
-
         // For now, keeping it simple as a placeholder.
         // Actual properties will be determined by what global configurations are needed.
-        public string? GetString(string key, string? defaultValue) => defaultValue; // Example method
-        public int GetInt(string key, int defaultValue) => defaultValue; // Example method
+        public static string? GetString(string key, string? defaultValue) => defaultValue; // Example method
+        public static int GetInt(string key, int defaultValue) => defaultValue; // Example method
     }
 }

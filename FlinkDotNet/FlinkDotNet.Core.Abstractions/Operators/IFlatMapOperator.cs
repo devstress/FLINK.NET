@@ -9,7 +9,7 @@ namespace FlinkDotNet.Core.Abstractions.Operators
     /// </summary>
     /// <typeparam name="TIn">The type of the input elements.</typeparam>
     /// <typeparam name="TOut">The type of the output elements.</typeparam>
-    public interface IFlatMapOperator<in TIn, TOut> // Changed TOut to be invariant
+    public interface IFlatMapOperator<in TIn, out TOut> // Changed TOut to be invariant
     {
         /// <summary>
         /// Transforms the input element into zero, one, or more output elements,

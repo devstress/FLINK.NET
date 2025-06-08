@@ -1,5 +1,6 @@
 using System;
 using System.IO; // For Stream, MemoryStream
+using FlinkDotNet.Core.Abstractions.Networking;
 
 namespace FlinkDotNet.Core.Networking
 {
@@ -7,7 +8,7 @@ namespace FlinkDotNet.Core.Networking
     /// Represents a segment of memory, typically pooled, used for network I/O.
     /// It provides stream-based access for reading and writing, and manages its return to a pool via IDisposable.
     /// </summary>
-    public sealed class NetworkBuffer : IDisposable
+    public sealed class NetworkBuffer : INetworkBuffer
     {
         /// <summary>
         /// The underlying byte array from a pool.
@@ -205,4 +206,3 @@ namespace FlinkDotNet.Core.Networking
         }
     }
 }
-#nullable disable

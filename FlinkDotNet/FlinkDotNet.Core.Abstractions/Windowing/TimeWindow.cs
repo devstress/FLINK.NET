@@ -1,7 +1,7 @@
 using System;
-using FlinkDotNet.Core.Api.Common; // For Time struct, if needed by static helpers, though not directly used in this version of TimeWindow properties
+using FlinkDotNet.Core.Abstractions.Common; // For Time struct, if needed by static helpers, though not directly used in this version of TimeWindow properties
 
-namespace FlinkDotNet.Core.Api.Windowing
+namespace FlinkDotNet.Core.Abstractions.Windowing
 {
     /// <summary>
     /// Represents a window defined by a start and end timestamp.
@@ -22,7 +22,9 @@ namespace FlinkDotNet.Core.Api.Windowing
         public TimeWindow(long start, long end)
         {
             if (start >= end)
+            {
                 throw new ArgumentException($"TimeWindow start timestamp {start} must be less than end timestamp {end}.");
+            }
             Start = start;
             End = end;
         }
@@ -73,9 +75,10 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// <returns>The start timestamp of the window.</returns>
         public static long GetWindowStartWithOffset(long timestamp, long offset, long windowSize)
         {
-            if (windowSize <= 0) throw new ArgumentOutOfRangeException(nameof(windowSize), "Window size must be positive.");
-            // Ensure offset is positive and less than windowSize for standard modulo behavior.
-            // long positiveOffset = (offset % windowSize + windowSize) % windowSize;
+            if (windowSize <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(windowSize), "Window size must be positive.");
+            }
             // The formula from Flink's WindowAssigner.java: timestamp - (timestamp - offset + windowSize) % windowSize
             // This handles negative timestamps correctly as well if windowSize is positive.
             // Example: timestamp = -5, offset = 0, windowSize = 10. Expected start = -10.
@@ -86,4 +89,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         }
     }
 }
-#nullable disable
