@@ -16,7 +16,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.Runtime
     {
         private readonly StringSerializer _stringSerializer = new StringSerializer();
         private readonly IntSerializer _intSerializer = new IntSerializer();
-        private readonly PocoSerializer<double> _doubleSerializer = new PocoSerializer<double>();
+        private readonly JsonPocoSerializer<double> _doubleSerializer = new JsonPocoSerializer<double>();
         private const string DummyKey = "dummy_key_for_non_keyed_tests";
 
         [Fact]

@@ -54,7 +54,7 @@ namespace FlinkDotNet.Core.Abstractions.States
             // For non-nullable value types, they can't be set to null.
             // Let's refine this: if T is a reference type or Nullable<U>, and value is null, then clear. Otherwise, update.
             // The original _descriptor.DefaultValue check was potentially problematic.
-            if (default(T) == null && value == null) // Check if T is nullable and value is null
+            if (default(T) is null && EqualityComparer<T>.Default.Equals(value, default(T))) // Check if T is nullable and value is null
             {
                  _keyedStorage.Remove(keyToUse);
             }
@@ -87,21 +87,21 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// </summary>
         internal void SetKeyedStateEntries(IEnumerable<KeyValuePair<object, T>> entries)
         {
-            _keyedStorage.Clear();
-            if (entries != null)
+            _keyedStorage.Clear(); // This line remains as is
+            if (entries == null)
             {
-                foreach (var entry in entries)
+                return;
+            }
+
+            foreach (var entry in entries)
+            {
+                // Simplified condition: only store if key is not the placeholder instance.
+                if (object.ReferenceEquals(entry.Key, NonKeyedScopePlaceholder))
                 {
-                    // Ensure placeholder isn't used as a persisted key if it was somehow snapshotted,
-                    // though GetKeyedStateEntries should ideally not return it if it represents a "cleared" state.
-                    // This check might be overly cautious depending on how NonKeyedScopePlaceholder is handled during snapshot.
-                    // If NonKeyedScopePlaceholder itself could be a valid key a user provides, this logic is flawed.
-                    // For now, assume user keys won't be the exact same object instance as NonKeyedScopePlaceholder.
-                    if (entry.Key != NonKeyedScopePlaceholder || !object.ReferenceEquals(entry.Key, NonKeyedScopePlaceholder))
-                    {
-                        _keyedStorage[entry.Key] = entry.Value;
-                    }
+                    continue;
                 }
+
+                _keyedStorage[entry.Key] = entry.Value;
             }
         }
     }
