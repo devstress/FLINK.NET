@@ -1,7 +1,13 @@
 name: Integration Tests
 
 on:
-  workflow_dispatch: # Allows manual triggering
+  push:
+    branches:
+      - main # Or your primary branch name
+  pull_request:
+    branches:
+      - main # Or your primary branch name
+  workflow_dispatch: # Retain manual triggering
 
 env:
   SIMULATOR_NUM_MESSAGES_CI: "500" # Number of messages for CI tests
@@ -47,6 +53,10 @@ jobs:
           echo "Starting Aspire AppHost with SIMULATOR_NUM_MESSAGES_CI=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
           Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
 
+          echo "Generating Aspire manifest..."
+          dotnet run --project FlinkDotNetAspire.AppHost.csproj --publisher manifest --output-path ../aspire-manifest.json --no-build
+          Write-Host "Aspire manifest generated at ../aspire-manifest.json"
+
           # Start Aspire in the background. Pass SIMULATOR_NUM_MESSAGES to the environment of the process
           # Aspire AppHost will propagate this to the flinkjobsimulator if it's configured to read it.
           # Note: For Start-Process, environment variables are typically inherited or need specific setup.
@@ -58,26 +68,67 @@ jobs:
           Write-Host "Environment SIMULATOR_NUM_MESSAGES set to $env:SIMULATOR_NUM_MESSAGES for Aspire AppHost process"
 
           Start-Process dotnet -ArgumentList "run, --project, FlinkDotNetAspire.AppHost.csproj, --no-launch-profile, --no-build" -NoNewWindow -PassThru
+          Write-Host "Waiting for Aspire AppHost to initialize..."
+          Start-Sleep -Seconds 20
           Pop-Location
 
-          echo "Aspire AppHost started. Beginning health checks..."
+      - name: Parse Aspire Manifest and Set Service URLs
+        run: |
+          $manifestPath = "./FlinkDotNetAspire/aspire-manifest.json"
+          Write-Host "Looking for Aspire manifest at $manifestPath..."
+
+          if (-not (Test-Path $manifestPath)) {
+            Write-Error "Aspire manifest not found at $manifestPath!"
+            exit 1
+          }
+
+          Write-Host "Aspire manifest found. Parsing..."
+          $manifestContent = Get-Content $manifestPath | ConvertFrom-Json
+          if ($null -eq $manifestContent) {
+            Write-Error "Failed to parse Aspire manifest JSON."
+            exit 1
+          }
+
+          # Extract Redis URL
+          $redisConnectionString = $manifestContent.resources.redis.connectionString
+          if ($redisConnectionString) {
+            Write-Host "Found Redis connection string: $redisConnectionString"
+            echo "##vso[task.setvariable variable=DOTNET_REDIS_URL]$redisConnectionString"
+          } else {
+            Write-Warning "Redis connection string not found in manifest. Verifier might fail if it relies on it."
+          }
+
+          # Extract Kafka URL
+          # Attempt common patterns: direct bootstrapServers or host/port from bindings/endpoints
+          $kafkaBootstrapServers = $null
+          if ($manifestContent.resources.kafka.bootstrapServers) {
+            $kafkaBootstrapServers = $manifestContent.resources.kafka.bootstrapServers
+          } elseif ($manifestContent.resources.kafka.bindings.default.host -and $manifestContent.resources.kafka.bindings.default.allocatedPort) {
+            $kafkaHost = $manifestContent.resources.kafka.bindings.default.host
+            $kafkaPort = $manifestContent.resources.kafka.bindings.default.allocatedPort
+            $kafkaBootstrapServers = "$kafkaHost`:$kafkaPort"
+          } elseif ($manifestContent.resources.kafka.endpoints.default.host -and $manifestContent.resources.kafka.endpoints.default.allocatedPort) {
+            # Alternative if 'bindings' is not the structure, try 'endpoints'
+            $kafkaHost = $manifestContent.resources.kafka.endpoints.default.host
+            $kafkaPort = $manifestContent.resources.kafka.endpoints.default.allocatedPort
+            $kafkaBootstrapServers = "$kafkaHost`:$kafkaPort"
+          }
+
+
+          if ($kafkaBootstrapServers) {
+            Write-Host "Found Kafka bootstrap servers: $kafkaBootstrapServers"
+            echo "##vso[task.setvariable variable=DOTNET_KAFKA_BOOTSTRAP_SERVERS]$kafkaBootstrapServers"
+          } else {
+            Write-Warning "Kafka bootstrap servers not found in manifest using common patterns. Verifier might fail if it relies on it."
+            Write-Host "Attempted to find: \$manifestContent.resources.kafka.bootstrapServers"
+            Write-Host "Attempted to find: \$manifestContent.resources.kafka.bindings.default.host / allocatedPort"
+            Write-Host "Attempted to find: \$manifestContent.resources.kafka.endpoints.default.host / allocatedPort"
+          }
+
+          Write-Host "Service URL setup complete."
 
       - name: Health Check Loop
         env:
-          # Aspire automatically sets DOTNET_REDIS_URL, DOTNET_KAFKA_BOOTSTRAP_SERVERS etc.
-          # for processes launched by the AppHost. For the verifier, running separately,
-          # we would typically need to fetch these from Aspire's service discovery.
-          # However, if the verifier runs *after* Aspire has written its output or if we can query Aspire,
-          # that would be ideal. For now, this assumes Aspire's default ports might be hit on localhost,
-          # or that the environment variables are somehow available globally (less likely for separate process).
-          # THIS IS A KEY AREA THAT MIGHT NEED REFINEMENT - HOW VERIFIER GETS SERVICE URLS.
-          # For now, let's assume Aspire's default behavior might make them discoverable or use fixed ports if possible for CI.
-          # The verifier code already tries to read DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS.
-          # These are typically set by the Aspire HOST for child services. The verifier isn't a child here.
-          # For the health check, we assume the verifier can find the services.
-          # This might require running the verifier *through* `dotnet run --project FlinkDotNetAspire.AppHost.csproj exec IntegrationTestVerifier --health-check`
-          # if Aspire supports such a command, or by querying the Aspire dashboard for endpoints.
-          # For simplicity now, we'll call it directly and hope for localhost defaults or inherited env vars.
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
         run: |
           $maxAttempts = 10
@@ -101,12 +152,13 @@ jobs:
 
       - name: Run Verification Tests
         env:
-          # Same challenge as health check for service URLs.
           # SIMULATOR_NUM_MESSAGES needs to be the same as used by the job simulator.
           SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES_CI }}
           DOTNET_ENVIRONMENT: "Development"
         run: |
           echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
+          Write-Host "DOTNET_REDIS_URL from env: $env:DOTNET_REDIS_URL"
+          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS from env: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
           $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net9.0/FlinkDotNet.IntegrationTestVerifier.exe"
           & $verifierPath
           if ($LASTEXITCODE -ne 0) {
