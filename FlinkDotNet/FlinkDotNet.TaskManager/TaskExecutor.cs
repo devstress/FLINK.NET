@@ -530,15 +530,18 @@ namespace FlinkDotNet.TaskManager
 
         public async Task ExecuteFromDescriptor(
             TaskDeploymentDescriptor tdd,
-            Dictionary<string, string> operatorProperties, 
+            Dictionary<string, string> operatorProperties,
             CancellationToken cancellationToken)
         {
+            // Initial logging and registration
             _activeTaskRegistry.RegisterTask(this, tdd.JobGraphJobId, tdd.JobVertexId, tdd.SubtaskIndex, tdd.TaskName);
-
             Console.WriteLine($"[{tdd.TaskName}] Attempting to execute task from TDD. Head Operator: {tdd.FullyQualifiedOperatorName}");
-            var runtimeContext = new BasicRuntimeContext(
-                jobName: tdd.JobGraphJobId,
-                taskName: tdd.TaskName,
+
+            try // Broad try block for setup and execution phases
+            {
+                var runtimeContext = new BasicRuntimeContext(
+                    jobName: tdd.JobGraphJobId,
+                    taskName: tdd.TaskName,
                 numberOfParallelSubtasks: tdd.Parallelism, // Using TDD parallelism
                 indexOfThisSubtask: tdd.SubtaskIndex,
                 stateSnapshotStore: _stateStore // Pass the TaskExecutor's state store
@@ -677,6 +680,7 @@ namespace FlinkDotNet.TaskManager
                 var expectedInputIds = tdd.Inputs.Select(inp => $"{inp.UpstreamJobVertexId}_{inp.UpstreamSubtaskIndex}").ToList();
                 Func<FlinkDotNet.Core.Abstractions.Models.Checkpointing.CheckpointBarrier, Task> onAlignedCallback = async (alignedBarrier) => {
                     Console.WriteLine($"[{tdd.TaskName}] All barriers for CP {alignedBarrier.CheckpointId} aligned. Starting snapshot and forwarding.");
+                    var checkpointStartTime = System.Diagnostics.Stopwatch.StartNew(); // Start timing
                     bool allSnapshotsOk = true;
                     var snapshotResults = new List<OperatorStateSnapshot>();
 
@@ -693,6 +697,9 @@ namespace FlinkDotNet.TaskManager
                         }
                     }
 
+                    checkpointStartTime.Stop(); // Stop timing
+                    long snapshotDurationMs = checkpointStartTime.ElapsedMilliseconds; // Get duration
+
                     if (allSnapshotsOk) {
                             if (Program.CoreServiceInstance != null) {
                                 string representativeHandle = "empty_snapshot_handle";
@@ -703,13 +710,13 @@ namespace FlinkDotNet.TaskManager
                                     totalSize = snapshotResults.Sum(s => s.StateSize);
                                 }
 
-                                Console.WriteLine($"[{tdd.TaskName}] Sending AcknowledgeCheckpoint for CP {alignedBarrier.CheckpointId}, Handle: {representativeHandle}, TotalSize: {totalSize}");
+                                Console.WriteLine($"[{tdd.TaskName}] Sending AcknowledgeCheckpoint for CP {alignedBarrier.CheckpointId}, Handle: {representativeHandle}, TotalSize: {totalSize}, Duration: {snapshotDurationMs}ms");
                                 await Program.CoreServiceInstance.SendAcknowledgeCheckpointAsync(
                                     jobId: tdd.JobGraphJobId,
                                     checkpointId: alignedBarrier.CheckpointId,
                                     snapshotHandle: representativeHandle,
                                     snapshotSize: totalSize,
-                                    duration: 50, // Placeholder
+                                    duration: snapshotDurationMs, // Use calculated duration
                                     jobVertexId: tdd.JobVertexId,
                                     subtaskIndex: tdd.SubtaskIndex,
                                     sourceOffsets: new Dictionary<string, long>() // Empty for non-source
@@ -718,9 +725,22 @@ namespace FlinkDotNet.TaskManager
                                 Console.WriteLine($"[{tdd.TaskName}] CRITICAL - TaskManagerCoreService instance not available to send AcknowledgeCheckpoint for CP {alignedBarrier.CheckpointId}.");
                         }
                     } else {
-                         Console.WriteLine($"[{tdd.TaskName}] Snapshotting failed for CP {alignedBarrier.CheckpointId}.");
-                         // TODO: Report checkpoint failure
-                             return; // Do not forward barrier if snapshotting failed
+                         string failureReason = $"Snapshotting failed for checkpoint {alignedBarrier.CheckpointId} in task {tdd.TaskName} ({tdd.JobVertexId}_{tdd.SubtaskIndex}).";
+                         Console.WriteLine($"[{tdd.TaskName}] {failureReason}");
+                         if (Program.CoreServiceInstance != null)
+                         {
+                             await Program.CoreServiceInstance.SendFailedCheckpointAsync(
+                                 jobId: tdd.JobGraphJobId,
+                                 checkpointId: alignedBarrier.CheckpointId,
+                                 jobVertexId: tdd.JobVertexId,
+                                 subtaskIndex: tdd.SubtaskIndex,
+                                 failureReason: failureReason);
+                         }
+                         else
+                         {
+                             Console.WriteLine($"[{tdd.TaskName}] CRITICAL - TaskManagerCoreService instance not available to send FailedCheckpoint for CP {alignedBarrier.CheckpointId}.");
+                         }
+                         return; // Do not forward barrier if snapshotting failed
                     }
 
                     if (allCollectors.LastOrDefault() is List<INetworkedCollector> outputSenders) {
@@ -807,7 +827,11 @@ namespace FlinkDotNet.TaskManager
                         networkedOutputs, // Pass List<INetworkedCollector>
                         sourceTaskWrapper.BarrierChannelReader,
                         cancellationToken,
-                        new Action(headSourceFunction.Cancel)
+                        new Action(headSourceFunction.Cancel),
+                        sourceTaskWrapper.JobId,          // New argument
+                        sourceTaskWrapper.JobVertexId,    // New argument
+                        sourceTaskWrapper.SubtaskIndex,   // New argument
+                        tdd.TaskName                      // New argument (for logging)
                     })!;
                 } else { // Source with no defined output type or no network outputs
                      await Task.Run(() => headSourceFunction.Run(new SimpleSourceContext<object>(record => {})), cancellationToken);
@@ -823,30 +847,74 @@ namespace FlinkDotNet.TaskManager
             }
 
             // Cleanup
-            try {
-                foreach (var opInstance in allOperatorInstances) { if (opInstance is IOperatorLifecycle lifecycle) lifecycle.Close(); }
-                
-                if (allCollectors.LastOrDefault() is List<INetworkedCollector> finalOutputSenders) {
-                    await Task.WhenAll(finalOutputSenders.Select(s => s.CloseAsync()));
+                // ... existing setup logic ...
+                // ... THE ENTIRE REST OF THE METHOD including the if/else for source/non-source and the main execution loops/waits ...
+
+                // If execution completes normally without throwing an exception that gets caught by the below catch block,
+                // it implies successful execution, or at least that it didn't fail during what we're broadly defining as 'startup + execution'.
+                // Cleanup is handled in the finally block.
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{tdd.TaskName}] CRITICAL FAILURE during task execution setup or runtime: {ex.Message} {ex.StackTrace}");
+                if (Program.CoreServiceInstance != null)
+                {
+                    await Program.CoreServiceInstance.SendTaskStartupFailureAsync(
+                        tdd.JobGraphJobId,
+                        tdd.JobVertexId,
+                        tdd.SubtaskIndex,
+                        $"Task {tdd.TaskName} ({tdd.FullyQualifiedOperatorName}) failed during execution: {ex.GetType().Name} - {ex.Message}"
+                    );
                 }
-                var barrierHandlerKeyToRemove = $"{tdd.JobVertexId}_{tdd.SubtaskIndex}";
-                if (_operatorBarrierHandlers.TryRemove(barrierHandlerKeyToRemove, out var removedHandler)) {
-                    removedHandler.Dispose();
+                else
+                {
+                    Console.WriteLine($"[{tdd.TaskName}] CRITICAL - TaskManagerCoreService instance not available to report startup/runtime failure.");
                 }
-                 _activeTaskRegistry.UnregisterTask(tdd.JobGraphJobId, tdd.JobVertexId, tdd.SubtaskIndex, tdd.TaskName);
-            } finally {
-                 if (!isHeadSource && inputDataSerializer != null) DataReceiverRegistry.UnregisterReceiver(tdd.JobVertexId, tdd.SubtaskIndex);
-                 Console.WriteLine($"[{tdd.TaskName}] Execution finished and cleaned up.");
+                // Rethrowing might crash the TM if nothing higher up handles it.
+                // For now, report and allow the task to terminate.
+            }
+            finally
+            {
+                // Cleanup
+                try
+                {
+                    foreach (var opInstance in allOperatorInstances) { if (opInstance is IOperatorLifecycle lifecycle) lifecycle.Close(); }
+
+                    if (allCollectors.LastOrDefault() is List<INetworkedCollector> finalOutputSenders)
+                    {
+                        await Task.WhenAll(finalOutputSenders.Select(s => s.CloseAsync()));
+                    }
+                    var barrierHandlerKeyToRemove = $"{tdd.JobVertexId}_{tdd.SubtaskIndex}";
+                    if (_operatorBarrierHandlers.TryRemove(barrierHandlerKeyToRemove, out var removedHandler))
+                    {
+                        removedHandler.Dispose();
+                    }
+                }
+                catch(Exception cleanupEx)
+                {
+                    Console.WriteLine($"[{tdd.TaskName}] Exception during cleanup: {cleanupEx.Message}");
+                }
+                finally // Nested finally to ensure these critical lines always run
+                {
+                     if (!isHeadSource && inputDataSerializer != null) DataReceiverRegistry.UnregisterReceiver(tdd.JobVertexId, tdd.SubtaskIndex);
+                    _activeTaskRegistry.UnregisterTask(tdd.JobGraphJobId, tdd.JobVertexId, tdd.SubtaskIndex, tdd.TaskName); // Ensure unregistration
+                    Console.WriteLine($"[{tdd.TaskName}] Execution (potentially failed) finished and cleanup sequence completed.");
+                }
             }
         }
         
         // RunSourceWithBarrierInjection from main
         private async Task RunSourceWithBarrierInjection<TOut>(
             ISourceFunction<TOut> sourceFunction,
-            List<INetworkedCollector> collectors, 
+            List<INetworkedCollector> collectors,
             ChannelReader<BarrierInjectionRequest> barrierRequests,
             CancellationToken taskOverallCancellation,
-            Action cancelSourceFunctionAction)
+            Action cancelSourceFunctionAction,
+            string JobId,                     // New parameter
+            string JobVertexId,               // New parameter
+            int SubtaskIndex,                 // New parameter
+            string TaskName                   // New parameter (for logging as tdd.TaskName)
+        )
         {
             var sourceCts = CancellationTokenSource.CreateLinkedTokenSource(taskOverallCancellation);
             bool sourceRunCompleted = false;
@@ -889,7 +957,100 @@ namespace FlinkDotNet.TaskManager
                         foreach (INetworkedCollector collector in collectors) {
                             barrierTasks.Add(collector.CollectObject(barrier, taskOverallCancellation));
                         }
-                        await Task.WhenAll(barrierTasks);
+                        await Task.WhenAll(barrierTasks); // After barrier is sent through all collectors
+
+                        Console.WriteLine($"[{TaskName}] Source task {sourceFunction.GetType().Name} processed barrier {barrierRequest.CheckpointId}. Now attempting to snapshot source state and acknowledge.");
+
+                        OperatorStateSnapshot? sourceSnapshotResult = null;
+                        bool sourceSnapshotOk = true;
+                        Dictionary<string, long> currentSourceOffsets = new Dictionary<string, long>(); // Placeholder
+
+                        if (sourceFunction is ICheckpointableOperator sourceAsCheckpointable)
+                        {
+                            try
+                            {
+                                // TODO: The ICheckpointableOperator.SnapshotState might need to be adapted for sources
+                                // to also return their specific offsets, or ISourceFunction needs a dedicated method.
+                                // For now, we proceed with snapshotting its general state.
+                                // The actual offsets would come from the source's specific logic.
+                                // For example, a KafkaSource would know its topic-partition-offsets.
+                                // We'll use a placeholder for `currentSourceOffsets` for now.
+                                // A more advanced implementation might involve the source populating these offsets
+                                // as part of its state snapshot or via a separate mechanism.
+
+                                sourceSnapshotResult = await sourceAsCheckpointable.SnapshotState(barrierRequest.CheckpointId, barrierRequest.CheckpointTimestamp);
+                                if (sourceSnapshotResult == null)
+                                {
+                                    sourceSnapshotOk = false;
+                                    Console.WriteLine($"[{TaskName}] Snapshot for source {sourceFunction.GetType().Name} returned null for CP {barrierRequest.CheckpointId}.");
+                                }
+                                else
+                                {
+                                    // Placeholder: If source provides offsets, they should be extracted here.
+                                    // Example: currentSourceOffsets = ExtractOffsetsFromSnapshot(sourceSnapshotResult);
+                                    // For now, it remains empty or with dummy data.
+                                    currentSourceOffsets.Add("placeholder_offset_key", barrierRequest.CheckpointId); // Example placeholder
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[{TaskName}] Error snapshotting source {sourceFunction.GetType().Name} for CP {barrierRequest.CheckpointId}: {ex.Message}");
+                                sourceSnapshotOk = false;
+                            }
+                        }
+                        else
+                        {
+                            // Source is not ICheckpointableOperator, so no specific state to snapshot here.
+                            // Offsets would still be relevant if it's a source like Kafka.
+                            // This indicates a need for a clearer pattern for sources to provide offsets.
+                            Console.WriteLine($"[{TaskName}] Source {sourceFunction.GetType().Name} is not ICheckpointableOperator. Using empty snapshot handle for CP {barrierRequest.CheckpointId}.");
+                            // Placeholder:
+                            currentSourceOffsets.Add("placeholder_offset_key_non_checkpointable", barrierRequest.CheckpointId); // Example placeholder
+                        }
+
+                        if (sourceSnapshotOk)
+                        {
+                            if (Program.CoreServiceInstance != null)
+                            {
+                                var ackStartTime = System.Diagnostics.Stopwatch.StartNew();
+                                await Program.CoreServiceInstance.SendAcknowledgeCheckpointAsync(
+                                    jobId: JobId, // Available from SourceTaskWrapper
+                                    checkpointId: barrierRequest.CheckpointId,
+                                    snapshotHandle: sourceSnapshotResult?.StateHandle ?? "source_no_state_handle",
+                                    snapshotSize: sourceSnapshotResult?.StateSize ?? 0,
+                                    duration: 0, // Placeholder: duration of source snapshotting could be measured too
+                                    jobVertexId: JobVertexId, // Available from SourceTaskWrapper
+                                    subtaskIndex: SubtaskIndex, // Available from SourceTaskWrapper
+                                    sourceOffsets: currentSourceOffsets // Pass the collected/placeholder offsets
+                                );
+                                ackStartTime.Stop();
+                                Console.WriteLine($"[{TaskName}] Source task {JobVertexId}_{SubtaskIndex} sent AcknowledgeCheckpoint for CP {barrierRequest.CheckpointId} with {currentSourceOffsets.Count} offsets. Duration: {ackStartTime.ElapsedMilliseconds}ms.");
+                            }
+                            else
+                            {
+                                Console.WriteLine($"[{TaskName}] CRITICAL - TaskManagerCoreService instance not available for source to send AcknowledgeCheckpoint for CP {barrierRequest.CheckpointId}.");
+                            }
+                        }
+                        else
+                        {
+                            if (Program.CoreServiceInstance != null)
+                            {
+                                Console.WriteLine($"[{TaskName}] Source task {JobVertexId}_{SubtaskIndex} reporting failed checkpoint for CP {barrierRequest.CheckpointId}.");
+                                await Program.CoreServiceInstance.SendFailedCheckpointAsync(
+                                    jobId: JobId,
+                                    checkpointId: barrierRequest.CheckpointId,
+                                    jobVertexId: JobVertexId,
+                                    subtaskIndex: SubtaskIndex,
+                                    failureReason: $"Source {sourceFunction.GetType().Name} failed to snapshot state for CP {barrierRequest.CheckpointId}."
+                                );
+                            }
+                            else
+                            {
+                                Console.WriteLine($"[{TaskName}] CRITICAL - TaskManagerCoreService instance not available for source to send FailedCheckpoint for CP {barrierRequest.CheckpointId}.");
+                            }
+                            // If source snapshot fails, we might not want to continue the source, or it depends on policy.
+                            // For now, it just reports and continues.
+                        }
                     }
                     if (sourceRunTask.IsCompleted || sourceRunTask.IsFaulted || sourceRunTask.IsCanceled) break;
                 }
@@ -909,12 +1070,17 @@ namespace FlinkDotNet.TaskManager
     {
         private string _taskName = nameof(SimpleStringToUpperMapOperator);
         private IRuntimeContext? _context; 
+        private string _restoredStateContent = "No state restored yet.";
 
         public void Open(IRuntimeContext context) {
             _taskName = context.TaskName; _context = context; 
-            Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator opened."); 
+            Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator opened. Initial restored state: '{_restoredStateContent}'");
         }
-        public object Map(object record) => record.ToString()?.ToUpper() ?? "";
+        public object Map(object record)
+        {
+            // Console.WriteLine($"[{_taskName}] Processing record. Current restored state was: '{_restoredStateContent}'");
+            return record.ToString()?.ToUpper() + $" (Restored: {_restoredStateContent})";
+        }
         public void Close() { Console.WriteLine($"[{_taskName}] SimpleStringToUpperMapOperator closed."); }
 
         public async Task<OperatorStateSnapshot> SnapshotState(long checkpointId, long checkpointTimestamp) {
@@ -951,10 +1117,35 @@ namespace FlinkDotNet.TaskManager
             return snapshot;
         }
         
-        public Task RestoreState(OperatorStateSnapshot snapshot) {
-             Console.WriteLine($"[{_taskName}] RestoreState called. Snapshot Handle: {snapshot.StateHandle}");
-             // In a real scenario, you would use snapshotStore.ReadSnapshot and deserialize.
-             return Task.CompletedTask;
+        public async Task RestoreState(OperatorStateSnapshot snapshot) {
+            Console.WriteLine($"[{_taskName}] Attempting to restore state. Snapshot Handle: {snapshot.StateHandle}");
+
+            if (_context == null || _context.StateSnapshotStore == null)
+            {
+                Console.WriteLine($"[{_taskName}] ERROR: RuntimeContext or StateSnapshotStore not available in RestoreState.");
+                return;
+            }
+
+            try
+            {
+                byte[]? stateData = await _context.StateSnapshotStore.ReadSnapshot(snapshot.StateHandle);
+
+                if (stateData == null || stateData.Length == 0)
+                {
+                    Console.WriteLine($"[{_taskName}] No state data found or state data is empty for handle {snapshot.StateHandle}.");
+                    _restoredStateContent = "State data was empty or null.";
+                    return;
+                }
+
+                string deserializedState = System.Text.Encoding.UTF8.GetString(stateData);
+                _restoredStateContent = deserializedState;
+                Console.WriteLine($"[{_taskName}] Successfully restored state for CP. Handle: {snapshot.StateHandle}. Content: '{deserializedState}'");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] EXCEPTION during RestoreState for handle {snapshot.StateHandle}: {ex.Message}");
+                _restoredStateContent = $"Failed to restore: {ex.Message}";
+            }
         }
     }
 }
