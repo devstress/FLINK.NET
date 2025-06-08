@@ -38,7 +38,7 @@ namespace FlinkDotNet.Core.Abstractions.States
         }
 
         /// <inheritdoc/>
-        public IEnumerable<T> Get()
+        public IEnumerable<T> GetValues()
         {
             // Return a copy or read-only view to prevent external modification of the internal list.
             // For simplicity of this in-memory version, we can return the list directly
@@ -60,10 +60,11 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <inheritdoc/>
         public void AddAll(IEnumerable<T> values)
         {
-            if (values != null)
+            if (values == null)
             {
-                _list.AddRange(values);
+                return;
             }
+            _list.AddRange(values);
         }
 
         /// <inheritdoc/>
@@ -71,10 +72,11 @@ namespace FlinkDotNet.Core.Abstractions.States
         {
             // Update replaces the entire list content
             _list.Clear();
-            if (values != null)
+            if (values == null)
             {
-                _list.AddRange(values);
+                return;
             }
+            _list.AddRange(values);
         }
 
         /// <inheritdoc/>

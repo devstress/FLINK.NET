@@ -8,8 +8,8 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States // Adjusted name
     {
         private readonly IntSerializer _intSerializer = new IntSerializer();
         private readonly StringSerializer _stringSerializer = new StringSerializer();
-        private readonly PocoSerializer<object?> _objectSerializer = new PocoSerializer<object?>();
-        private readonly PocoSerializer<MyStruct> _myStructSerializer = new PocoSerializer<MyStruct>();
+        private readonly JsonPocoSerializer<object?> _objectSerializer = new JsonPocoSerializer<object?>();
+        private readonly JsonPocoSerializer<MyStruct> _myStructSerializer = new JsonPocoSerializer<MyStruct>();
 
         [Fact]
         public void Value_Initial_ReturnsInitialValue() // Renamed to reflect new constructor

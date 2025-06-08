@@ -20,17 +20,6 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
 
         public byte[] Serialize(T obj)
         {
-            if (obj == null)
-            {
-                // MemoryPack might handle nulls, but explicit handling can be clearer
-                // or conform to a specific null representation if needed by Flink.NET.
-                // MemoryPack.MemoryPackSerializer.Serialize<T>(null) typically works.
-                // Let's assume for now an empty array or specific marker for null if that's a Flink.NET convention.
-                // However, MemoryPack itself can serialize a null object.
-                // If T is a value type, it cannot be null unless T is Nullable<TValue>.
-                // For simplicity, let MemoryPack handle it. If obj is null, it serializes as such.
-            }
-
             try
             {
                 return MemoryPack.MemoryPackSerializer.Serialize(obj);

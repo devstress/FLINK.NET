@@ -19,7 +19,6 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         public string TaskName { get; }
         public int NumberOfParallelSubtasks { get; }
         public int IndexOfThisSubtask { get; }
-        public JobConfiguration JobConfiguration { get; }
         public IStateSnapshotStore StateSnapshotStore => _stateSnapshotStore; // Added
 
         private object? _currentKey; // Stores the current key for keyed state
@@ -31,14 +30,12 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
             string jobName = "DefaultJob",
             string taskName = "DefaultTask",
             int numberOfParallelSubtasks = 1,
-            int indexOfThisSubtask = 0,
-            JobConfiguration? jobConfiguration = null)
+            int indexOfThisSubtask = 0)
         {
             JobName = jobName;
             TaskName = taskName;
             NumberOfParallelSubtasks = numberOfParallelSubtasks;
             IndexOfThisSubtask = indexOfThisSubtask;
-            JobConfiguration = jobConfiguration ?? new JobConfiguration();
             _stateSnapshotStore = stateSnapshotStore; // Direct assignment
             _currentKey = null; // Explicitly initialize
         }

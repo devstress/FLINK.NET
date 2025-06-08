@@ -32,11 +32,6 @@ namespace FlinkDotNet.Core.Abstractions.Context
         /// </summary>
         int IndexOfThisSubtask { get; }
 
-        /// <summary>
-        /// Gets the global job configuration.
-        /// </summary>
-        JobConfiguration JobConfiguration { get; }
-
         // --- State Access Methods ---
 
         /// <summary>

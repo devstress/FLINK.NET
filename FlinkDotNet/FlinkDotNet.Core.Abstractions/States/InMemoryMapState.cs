@@ -44,7 +44,7 @@ namespace FlinkDotNet.Core.Abstractions.States
         }
 
         /// <inheritdoc/>
-        public TV Get(TK key)
+        public TV GetValueForKey(TK key)
         {
             // If TV is a non-nullable reference type, IMapState<TK, TV>.Get implies it should not return null.
             // Standard Dictionary<TK,TV>.TryGetValue sets `value` to default(TV) (which is null for ref types) if key not found.
@@ -68,12 +68,14 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <inheritdoc/>
         public void PutAll(IDictionary<TK, TV> map)
         {
-            if (map != null)
+            if (map == null)
             {
-                foreach (var entry in map)
-                {
-                    _dictionary[entry.Key] = entry.Value;
-                }
+                return;
+            }
+
+            foreach (var entry in map)
+            {
+                _dictionary[entry.Key] = entry.Value;
             }
         }
 

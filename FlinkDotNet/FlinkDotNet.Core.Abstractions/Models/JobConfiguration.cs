@@ -9,7 +9,7 @@ namespace FlinkDotNet.Core.Abstractions.Models
     /// Flinks equivalent is org.apache.flink.api.common.ExecutionConfig
     /// and the Configuration object passed to RichFunctions.
     /// </summary>
-    public class JobConfiguration
+    public static class JobConfiguration
     {
         // For now, keeping it simple as a placeholder.
         // Actual properties will be determined by what global configurations are needed.

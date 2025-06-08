@@ -11,11 +11,11 @@ namespace FlinkDotNet.Core.Abstractions.States
     public interface IMapState<TK, TV>
     {
         /// <summary>
-        /// Retrieves the value associated with the given key.
+        /// Retrieves the value associated with the given key using GetValueForKey.
         /// </summary>
         /// <param name="key">The key to retrieve.</param>
         /// <returns>The value, or default(TV) if the key is not present.</returns>
-        TV Get(TK key);
+        TV GetValueForKey(TK key);
 
         /// <summary>
         /// Associates the given value with the given key.

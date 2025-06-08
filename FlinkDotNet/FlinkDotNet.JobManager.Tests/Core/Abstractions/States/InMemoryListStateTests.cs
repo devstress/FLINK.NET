@@ -10,7 +10,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
     {
         private readonly IntSerializer _intSerializer = new IntSerializer();
         private readonly StringSerializer _stringSerializer = new StringSerializer();
-        private readonly PocoSerializer<double> _doubleSerializer = new PocoSerializer<double>(); // Assuming Poco for double or a specific DoubleSerializer
+        private readonly JsonPocoSerializer<double> _doubleSerializer = new JsonPocoSerializer<double>(); // Assuming Poco for double or a specific DoubleSerializer
 
         [Fact]
         public void Get_NewState_ReturnsEmptyEnumerable()

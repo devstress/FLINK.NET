@@ -10,10 +10,10 @@ namespace FlinkDotNet.Core.Abstractions.States
     public interface IListState<T>
     {
         /// <summary>
-        /// Retrieves all elements currently in the list.
+        /// Retrieves all elements currently in the list. (Renamed from Get to GetValues)
         /// </summary>
         /// <returns>An enumerable of elements, or an empty enumerable if the list is empty or not set.</returns>
-        IEnumerable<T> Get();
+        IEnumerable<T> GetValues();
 
         /// <summary>
         /// Adds a single value to the list.
