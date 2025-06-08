@@ -9,4 +9,9 @@
     <PackageReference Include="MemoryPack" Version="1.9.15" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNet.Core.Api\FlinkDotNet.Core.Api.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Core\FlinkDotNet.Core.csproj" />
+  </ItemGroup>
+
 </Project>

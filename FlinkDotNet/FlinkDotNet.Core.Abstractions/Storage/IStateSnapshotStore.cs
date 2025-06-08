@@ -1,3 +1,4 @@
+#nullable enable
 using System.Threading.Tasks;
 
 namespace FlinkDotNet.Core.Abstractions.Storage
@@ -41,4 +42,3 @@ namespace FlinkDotNet.Core.Abstractions.Storage
         // Task<IEnumerable<SnapshotHandle>> ListSnapshots(string jobId, long? checkpointId = null);
     }
 }
-#nullable disable

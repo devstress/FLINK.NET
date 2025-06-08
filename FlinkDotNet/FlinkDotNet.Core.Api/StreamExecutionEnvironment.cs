@@ -1,4 +1,5 @@
 using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
+using FlinkDotNet.Core.Abstractions.Sources; // For ISourceFunction
 // Potentially other using statements like FlinkDotNet.JobManager.Models.JobGraph
 using System.Linq; // Added for ToDictionary
 using System.Threading.Tasks; // Added for Task
