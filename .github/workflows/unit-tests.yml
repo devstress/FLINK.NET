@@ -1,0 +1,76 @@
+name: Unit Tests
+
+on:
+  push:
+    branches:
+      - main # Or your primary branch name
+  pull_request:
+    branches:
+      - main # Or your primary branch name
+    types: [opened, synchronize, reopened]
+
+jobs:
+  run-unit-tests:
+    name: Run .NET Unit Tests
+    runs-on: windows-latest # Consistent with other workflows
+
+    defaults:
+      run:
+        shell: pwsh # Using PowerShell for consistency
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for accurate test coverage, if applicable
+
+      - name: Set up .NET 9.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x' # Consistent with other workflows
+
+      - name: Install .NET Aspire Workload
+        run: dotnet workload install aspire
+
+      - name: Restore .NET Workloads for Solutions
+        run: |
+          echo "Restoring workloads for FlinkDotNet.sln..."
+          dotnet workload restore FlinkDotNet/FlinkDotNet.sln -v q
+          echo "Restoring workloads for FlinkDotNetAspire.sln..."
+          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln -v q
+          echo "Restoring workloads for FlinkDotNet.WebUI.sln..."
+          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln -v q
+          echo "Workload restoration complete."
+
+      - name: Run tests for FlinkDotNet solution
+        run: |
+          echo "Running tests for FlinkDotNet/FlinkDotNet.sln..."
+          Push-Location FlinkDotNet
+          dotnet test FlinkDotNet.sln --configuration Release --logger "trx;LogFileName=flinkdotnet_tests.trx" --results-directory "TestResults"
+          Pop-Location
+
+      - name: Run tests for FlinkDotNetAspire solution
+        run: |
+          echo "Running tests for FlinkDotNetAspire/FlinkDotNetAspire.sln..."
+          Push-Location FlinkDotNetAspire
+          dotnet test FlinkDotNetAspire.sln --configuration Release --logger "trx;LogFileName=flinkdotnetaspire_tests.trx" --results-directory "TestResults"
+          Pop-Location
+
+      - name: Run tests for FlinkDotNet.WebUI solution
+        run: |
+          echo "Running tests for FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln..."
+          Push-Location FlinkDotNet.WebUI
+          # Assuming FlinkDotNet.WebUI.sln is directly in FlinkDotNet.WebUI, adjust if it's nested further
+          dotnet test FlinkDotNet.WebUI.sln --configuration Release --logger "trx;LogFileName=flinkdotnetwebui_tests.trx" --results-directory "TestResults"
+          Pop-Location
+
+      - name: Upload Test Results
+        if: always() # Run this step even if tests fail, to upload partial results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: |
+            FlinkDotNet/TestResults/*.trx
+            FlinkDotNetAspire/TestResults/*.trx
+            FlinkDotNet.WebUI/TestResults/*.trx
+          retention-days: 7

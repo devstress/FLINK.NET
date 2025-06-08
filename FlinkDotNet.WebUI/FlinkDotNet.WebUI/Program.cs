@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Fast.Components.FluentUI;
+using FlinkDotNet.WebUI.Services; // Add this for ThemeService
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
-
-using FlinkDotNet.WebUI.Services; // Add this for ThemeService
 
 builder.Services.AddFluentUI();
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
