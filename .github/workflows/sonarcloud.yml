@@ -48,7 +48,10 @@ jobs:
       # New step to install .NET workloads
       - name: Install .NET Aspire Workload
         shell: powershell # Or bash, ensure consistency with other script steps if needed
-        run: dotnet workload restore FlinkDotNet/FlinkDotNet.sln
+        run: |
+          dotnet workload restore FlinkDotNet/FlinkDotNet.sln
+          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
+          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
       - name: Build and analyze
         env:
@@ -57,5 +60,7 @@ jobs:
         shell: powershell # Using PowerShell
         run: |
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
-          dotnet build FlinkDotNet/FlinkDotNet.sln # Specific solution file
+          dotnet build FlinkDotNet/FlinkDotNet.sln
+          dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln
+          dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
