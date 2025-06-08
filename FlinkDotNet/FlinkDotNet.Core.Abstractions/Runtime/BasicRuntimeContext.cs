@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Concurrent; // For ConcurrentDictionary
 using FlinkDotNet.Core.Abstractions.Context;
@@ -142,4 +143,3 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         }
     }
 }
-#nullable disable

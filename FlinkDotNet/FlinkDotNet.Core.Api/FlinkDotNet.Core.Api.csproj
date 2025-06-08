@@ -7,6 +7,10 @@
     <AssemblyName>FlinkDotNet.Core.Api</AssemblyName>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+  </ItemGroup>
+
   <!-- Default SDK globbing should include all .cs files.
        If specific includes/excludes are needed later, they can be added here.
   <ItemGroup>

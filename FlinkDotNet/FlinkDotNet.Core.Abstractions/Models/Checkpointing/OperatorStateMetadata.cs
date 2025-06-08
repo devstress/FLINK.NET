@@ -1,3 +1,4 @@
+#nullable enable
 namespace FlinkDotNet.Core.Abstractions.Models.Checkpointing
 {
     /// <summary>

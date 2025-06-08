@@ -1,3 +1,4 @@
+#nullable enable
 using FlinkDotNet.Core.Abstractions.Models;
 using FlinkDotNet.Core.Abstractions.Models.State;
 using FlinkDotNet.Core.Abstractions.States;
@@ -83,4 +84,3 @@ namespace FlinkDotNet.Core.Abstractions.Context
         IStateSnapshotStore StateSnapshotStore { get; } // Add this property
     }
 }
-#nullable disable

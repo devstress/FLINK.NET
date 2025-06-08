@@ -9,42 +9,8 @@ using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode, assuming it's 
 // These would ideally be in their own files in appropriate namespaces.
 // Adding them here to make WindowedStream.cs self-contained for this step.
 
-namespace FlinkDotNet.Core.Api.Windowing // Or a more specific Abstractions.Windowing
-{
-    /// <summary>
-    /// Placeholder for Evictor. Evictors can remove elements from a window
-    /// after a trigger fires but before the window function is applied.
-    /// </summary>
-    public abstract class Evictor<TElement, TWindow> where TWindow : Window
-    {
-        // public abstract void EvictBefore(IEnumerable<TimestampedValue<TElement>> elements, int size, TWindow window, IEvictorContext evictorContext);
-        // public abstract void EvictAfter(IEnumerable<TimestampedValue<TElement>> elements, int size, TWindow window, IEvictorContext evictorContext);
-    }
-
-    // Placeholder for IEvictorContext if needed by a full Evictor stub
-    // public interface IEvictorContext { /* ... */ }
-
-    /// <summary>
-    /// Placeholder for IProcessWindowFunction. Processes all elements in a window.
-    /// </summary>
-    public interface IProcessWindowFunction<TElement, TResult, TKey, TWindow>
-        where TWindow : Window
-    {
-        void Process(TKey key, ProcessWindowContext<TWindow> context, IEnumerable<TElement> elements, ICollector<TResult> outCollector);
-    }
-
-    /// <summary>
-    /// Placeholder for context provided to IProcessWindowFunction.
-    /// </summary>
-    public abstract class ProcessWindowContext<TWindow> where TWindow : Window
-    {
-        public abstract TWindow Window { get; }
-        public abstract long CurrentProcessingTime { get; }
-        public abstract long CurrentWatermark { get; }
-        // public abstract IKeyedState GlobalState { get; } // Access to global, non-windowed state
-        // public abstract IKeyedState WindowState { get; } // Access to per-window, per-key state
-    }
-}
+// The namespace FlinkDotNet.Core.Api.Windowing and its contents (Evictor, IProcessWindowFunction, ProcessWindowContext stubs)
+// have been removed as they are expected to be defined elsewhere.
 
 namespace FlinkDotNet.Core.Abstractions.Collectors
 {
@@ -63,80 +29,8 @@ namespace FlinkDotNet.Core.Abstractions.Collectors
 namespace FlinkDotNet.Core.Api.Streaming
 {
     // --- Transformation Stubs for Windowed Operations ---
-    // These are simplified. A full implementation would handle serializers, type info etc.
-    public class WindowedTransformation<TElement, TKey, TWindow> : Transformation<TElement>
-        where TWindow : Window
-    {
-        public KeyedTransformation<TKey, TElement> InputTransformation { get; }
-        public WindowAssigner<TElement, TWindow> Assigner { get; }
-        public Trigger<TElement, TWindow>? Trigger { get; set; }
-        public Evictor<TElement, TWindow>? Evictor { get; set; }
-        public Time? AllowedLateness { get; set; }
-        public ITypeSerializer<TWindow> WindowSerializer { get; }
-
-
-        public WindowedTransformation(
-            KeyedTransformation<TKey, TElement> input,
-            WindowAssigner<TElement, TWindow> assigner)
-            : base(input.Name + ".Windowed", typeof(TElement)) // Output type of windowing itself is still TElement before window function
-        {
-            InputTransformation = input;
-            Assigner = assigner;
-            Trigger = assigner.GetDefaultTrigger(null!); // Pass actual environment if needed by default trigger
-            WindowSerializer = assigner.GetWindowSerializer();
-        }
-    }
-
-    public class WindowReduceTransformation<TElement, TKey, TWindow> : Transformation<TElement>
-        where TWindow : Window
-    {
-        public WindowedTransformation<TElement, TKey, TWindow> InputWindowedTransformation { get; }
-        public IReduceOperator<TElement> ReduceFunction { get; }
-
-        public WindowReduceTransformation(
-            WindowedTransformation<TElement, TKey, TWindow> input,
-            IReduceOperator<TElement> reduceFunction,
-            Type outputType)
-            : base(input.Name + ".Reduce", outputType)
-        {
-            InputWindowedTransformation = input;
-            ReduceFunction = reduceFunction;
-        }
-    }
-
-    public class WindowAggregateTransformation<TElement, TAccumulator, TResult, TKey, TWindow> : Transformation<TResult>
-        where TWindow : Window
-    {
-        public WindowedTransformation<TElement, TKey, TWindow> InputWindowedTransformation { get; }
-        public IAggregateOperator<TElement, TAccumulator, TResult> AggregateFunction { get; }
-
-        public WindowAggregateTransformation(
-            WindowedTransformation<TElement, TKey, TWindow> input,
-            IAggregateOperator<TElement, TAccumulator, TResult> aggregateFunction,
-            Type outputType)
-            : base(input.Name + ".Aggregate", outputType)
-        {
-            InputWindowedTransformation = input;
-            AggregateFunction = aggregateFunction;
-        }
-    }
-
-    public class WindowProcessTransformation<TElement, TResult, TKey, TWindow> : Transformation<TResult>
-        where TWindow : Window
-    {
-        public WindowedTransformation<TElement, TKey, TWindow> InputWindowedTransformation { get; }
-        public IProcessWindowFunction<TElement, TResult, TKey, TWindow> ProcessWindowFunction { get; }
-
-        public WindowProcessTransformation(
-            WindowedTransformation<TElement, TKey, TWindow> input,
-            IProcessWindowFunction<TElement, TResult, TKey, TWindow> processWindowFunction,
-            Type outputType)
-            : base(input.Name + ".Process", outputType)
-        {
-            InputWindowedTransformation = input;
-            ProcessWindowFunction = processWindowFunction;
-        }
-    }
+    // These (WindowedTransformation, WindowReduceTransformation, WindowAggregateTransformation, WindowProcessTransformation)
+    // have been removed as they are expected to be defined elsewhere, likely in a Transformations.cs file or similar.
 
 
     // --- WindowedStream Class ---

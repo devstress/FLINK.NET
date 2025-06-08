@@ -35,11 +35,11 @@ jobs:
       - name: Restore .NET Workloads for Solutions
         run: |
           echo "Restoring workloads for FlinkDotNet.sln..."
-          dotnet workload restore FlinkDotNet/FlinkDotNet.sln -v q
+          dotnet workload restore FlinkDotNet/FlinkDotNet.sln
           echo "Restoring workloads for FlinkDotNetAspire.sln..."
-          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln -v q
+          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           echo "Restoring workloads for FlinkDotNet.WebUI.sln..."
-          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln -v q
+          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
           echo "Workload restoration complete."
 
       - name: Run tests for FlinkDotNet solution
