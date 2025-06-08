@@ -15,54 +15,54 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// </summary>
         /// <param name="key">The key to retrieve.</param>
         /// <returns>The value, or default(TV) if the key is not present.</returns>
-        TV Get(TK key); // Flink: UV get(UK key) throws Exception;
+        TV Get(TK key);
 
         /// <summary>
         /// Associates the given value with the given key.
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="value">The value.</param>
-        void Put(TK key, TV value); // Flink: void put(UK key, UV value) throws Exception;
+        void Put(TK key, TV value);
 
         /// <summary>
         /// Copies all mappings from the specified dictionary to this map.
         /// </summary>
         /// <param name="map">The dictionary of key-value pairs to add.</param>
-        void PutAll(IDictionary<TK, TV> map); // Flink: void putAll(Map<UK, UV> map) throws Exception;
+        void PutAll(IDictionary<TK, TV> map);
 
         /// <summary>
         /// Checks if the map contains a mapping for the specified key.
         /// </summary>
         /// <param name="key">The key to check.</param>
         /// <returns>True if the key exists, false otherwise.</returns>
-        bool Contains(TK key); // Flink: boolean contains(UK key) throws Exception;
+        bool Contains(TK key);
 
         /// <summary>
         /// Removes the mapping for the specified key.
         /// </summary>
         /// <param name="key">The key to remove.</param>
-        void Remove(TK key); // Flink: void remove(UK key) throws Exception;
+        void Remove(TK key);
 
         /// <summary>
         /// Retrieves an enumerable of all keys in the map.
         /// </summary>
-        IEnumerable<TK> Keys(); // Flink: Iterable<UK> keys() throws Exception;
+        IEnumerable<TK> Keys();
 
         /// <summary>
         /// Retrieves an enumerable of all values in the map.
         /// </summary>
-        IEnumerable<TV> Values(); // Flink: Iterable<UV> values() throws Exception;
+        IEnumerable<TV> Values();
 
         /// <summary>
         /// Retrieves an enumerable of all key-value pairs (entries) in the map.
         /// </summary>
-        IEnumerable<KeyValuePair<TK, TV>> Entries(); // Flink: Iterable<Map.Entry<UK, UV>> entries() throws Exception;
+        IEnumerable<KeyValuePair<TK, TV>> Entries();
 
         /// <summary>
         /// Checks if the map contains no key-value mappings.
         /// </summary>
         /// <returns>True if the map is empty, false otherwise.</returns>
-        bool IsEmpty(); // Flink: boolean isEmpty() throws Exception;
+        bool IsEmpty();
 
         /// <summary>
         /// Removes all mappings from the map.

@@ -12,8 +12,8 @@ namespace FlinkDotNet.Core.Abstractions.States
     /// <typeparam name="T">The type of the values in the list.</typeparam>
     public class InMemoryListState<T> : IListState<T>
     {
-        private List<T> _list;
-        private readonly ITypeSerializer<T> _elementSerializer;
+        private readonly List<T> _list;
+        // private readonly ITypeSerializer<T> _elementSerializer; // S4487: Unread private field
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InMemoryListState{T}"/> class.
@@ -21,7 +21,7 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <param name="elementSerializer">The serializer for the elements in the list.</param>
         public InMemoryListState(ITypeSerializer<T> elementSerializer)
         {
-            _elementSerializer = elementSerializer;
+            // _elementSerializer = elementSerializer; // S4487: Unread private field
             _list = new List<T>();
         }
 
@@ -33,7 +33,7 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <param name="elementSerializer">The serializer for the elements in the list.</param>
         internal InMemoryListState(IEnumerable<T> initialElements, ITypeSerializer<T> elementSerializer)
         {
-            _elementSerializer = elementSerializer;
+            // _elementSerializer = elementSerializer; // S4487: Unread private field
             _list = new List<T>(initialElements);
         }
 
@@ -84,4 +84,3 @@ namespace FlinkDotNet.Core.Abstractions.States
         }
     }
 }
-#nullable disable

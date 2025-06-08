@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic; // Required for ICollection, List
-using FlinkDotNet.Core.Api.Common; // For Time
-using FlinkDotNet.Core.Api.Windowing;
+using FlinkDotNet.Core.Abstractions.Common; // For Time
+using FlinkDotNet.Core.Abstractions.Windowing; // For Window, TimeWindow, Evictor, Trigger
+using FlinkDotNet.Core.Api.Windowing; // Retain for other API-specific windowing types if any
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode, assuming it's here from previous generations
 
@@ -102,4 +103,3 @@ namespace FlinkDotNet.Core.Api.Streaming
         }
     }
 }
-#nullable disable

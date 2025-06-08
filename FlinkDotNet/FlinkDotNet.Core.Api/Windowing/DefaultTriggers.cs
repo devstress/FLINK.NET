@@ -1,4 +1,3 @@
-#nullable enable
 namespace FlinkDotNet.Core.Api.Windowing
 {
     // --- Concrete Trigger Implementations (Stubs for now) ---
@@ -50,4 +49,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         public override void Clear(TWindow window, ITriggerContext ctx) { }
     }
 }
-#nullable disable

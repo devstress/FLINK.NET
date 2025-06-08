@@ -1,14 +1,7 @@
-#nullable enable
 using System.Threading.Tasks;
 
 namespace FlinkDotNet.Core.Abstractions.Storage
 {
-    /// <summary>
-    /// Represents a handle to a stored state snapshot.
-    /// Could be a file path, a URI, or an opaque ID.
-    /// </summary>
-    public record SnapshotHandle(string Value);
-
     /// <summary>
     /// Interface for a service that stores and retrieves state snapshots.
     /// </summary>
@@ -38,7 +31,5 @@ namespace FlinkDotNet.Core.Abstractions.Storage
         Task<byte[]?> RetrieveSnapshot(SnapshotHandle handle);
 
         // Optional: Methods for listing, deleting, or managing metadata about snapshots.
-        // Task DeleteSnapshot(SnapshotHandle handle);
-        // Task<IEnumerable<SnapshotHandle>> ListSnapshots(string jobId, long? checkpointId = null);
     }
 }

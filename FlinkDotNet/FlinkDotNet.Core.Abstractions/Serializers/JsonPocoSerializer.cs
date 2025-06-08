@@ -13,18 +13,13 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
     /// <typeparam name="T">The type of the object to serialize/deserialize.</typeparam>
     public class JsonPocoSerializer<T> : ITypeSerializer<T>
     {
-        private static readonly JsonSerializerOptions _defaultOptions;
-
-        static JsonPocoSerializer()
+        private static readonly JsonSerializerOptions _defaultOptions = new JsonSerializerOptions
         {
-            _defaultOptions = new JsonSerializerOptions
-            {
-                IncludeFields = true,
-                PropertyNameCaseInsensitive = false,
-                PropertyNamingPolicy = null,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            };
-        }
+            IncludeFields = true,
+            PropertyNameCaseInsensitive = false,
+            PropertyNamingPolicy = null,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        };
 
         public byte[] Serialize(T obj)
         {
@@ -49,11 +44,8 @@ namespace FlinkDotNet.Core.Abstractions.Serializers
             catch (JsonException ex)
             {
                 Console.WriteLine($"[JsonPocoSerializer] Error deserializing type {typeof(T).FullName}. Bytes length: {bytes.Length}. Error: {ex.Message}");
-                // Optionally log part of the bytes if small and safe for logging.
-                // For example: Console.WriteLine($"Bytes (first 50): {System.Text.Encoding.UTF8.GetString(bytes, 0, Math.Min(50, bytes.Length))}");
                 throw;
             }
         }
     }
 }
-#nullable disable

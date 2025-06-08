@@ -29,7 +29,7 @@ namespace FlinkDotNet.Core.Abstractions.States
             return _runtimeContext.GetCurrentKey() ?? NonKeyedScopePlaceholder;
         }
 
-        public T Value()
+        public T? Value()
         {
             object keyToUse = GetEffectiveKey();
             if (_keyedStorage.TryGetValue(keyToUse, out T? value))

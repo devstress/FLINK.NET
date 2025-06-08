@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using FlinkDotNet.Core.Abstractions.Networking; // Added for INetworkBufferPool and INetworkBuffer
 
 namespace FlinkDotNet.Core.Networking
 {
@@ -14,12 +15,12 @@ namespace FlinkDotNet.Core.Networking
         private readonly NetworkBufferPool _globalBufferPool;
         private readonly int _minRequiredSegments;
         private readonly int _maxConfiguredSegments;
-        private readonly ConcurrentQueue<NetworkBuffer> _availableLocalBuffers = new ConcurrentQueue<NetworkBuffer>();
+        private readonly ConcurrentQueue<INetworkBuffer> _availableLocalBuffers = new ConcurrentQueue<INetworkBuffer>();
         private int _numLeasedSegmentsFromGlobal = 0;
         private bool _isDestroyed = false;
 
         // New fields for asynchronous requests and callbacks
-        private readonly ConcurrentQueue<TaskCompletionSource<NetworkBuffer>> _pendingRequests = new ConcurrentQueue<TaskCompletionSource<NetworkBuffer>>();
+        private readonly ConcurrentQueue<TaskCompletionSource<INetworkBuffer>> _pendingRequests = new ConcurrentQueue<TaskCompletionSource<INetworkBuffer>>();
         private Action<LocalBufferPool, int>? _onBufferReturnedToLocalPoolCallback;
         private string _poolIdentifier;
 
@@ -59,7 +60,7 @@ namespace FlinkDotNet.Core.Networking
             }
         }
 
-        private void ReturnSegmentToLocalPool(NetworkBuffer buffer)
+        private void ReturnSegmentToLocalPool(NetworkBuffer buffer) // Reverted parameter type to NetworkBuffer
         {
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
 
@@ -67,25 +68,10 @@ namespace FlinkDotNet.Core.Networking
             {
                 if (_isDestroyed)
                 {
-                    // If this LocalBufferPool is destroyed, return the segment directly to the global pool.
                     _globalBufferPool.RecycleMemorySegment(buffer.UnderlyingBuffer);
-                    // It's tricky to reliably decrement _numLeasedSegmentsFromGlobal here if multiple threads
-                    // are returning segments after destruction, as the lock state might be contended.
-                    // However, the primary goal is to return the segment to its origin (ArrayPool via global pool).
                     return;
                 }
 
-                // Check if the local pool is already over its desired maximum due to concurrent returns
-                // or if it should recycle to global pool to maintain its quota.
-                // The condition checks if keeping this buffer would exceed maxConfiguredSegments,
-                // considering buffers currently available locally and those given out but still owned by this LBP.
-                // Current total segments "owned" by LBP = _numLeasedSegmentsFromGlobal
-                // Buffers currently "out on loan" from LBP = _numLeasedSegmentsFromGlobal - _availableLocalBuffers.Count
-                // If we add this buffer back, new available = _availableLocalBuffers.Count + 1
-                // We should recycle to global if _numLeasedSegmentsFromGlobal > _maxConfiguredSegments
-                // AND if keeping it locally would still keep us over the max (this part is tricky)
-                // Simpler: If we have _numLeasedSegmentsFromGlobal > _maxConfiguredSegments, it means we have an excess segment from global.
-                // So, returning this one to global helps reduce that excess.
                 if (_numLeasedSegmentsFromGlobal > _maxConfiguredSegments)
                 {
                      _globalBufferPool.RecycleMemorySegment(buffer.UnderlyingBuffer);
@@ -93,43 +79,36 @@ namespace FlinkDotNet.Core.Networking
                 }
                 else
                 {
-                     buffer.Reset(); // Prepare for reuse
+                     buffer.Reset();
                     _availableLocalBuffers.Enqueue(buffer);
                 }
 
-                // After successfully re-enqueuing or deciding not to (if over max),
-                // check if there are pending requests that can now be fulfilled.
-                // This check should happen regardless of whether the buffer was re-queued or returned to global,
-                // as a slot might have "conceptually" freed up or a pending request could use this specific buffer.
-                // However, if it was returned to global, we don't have a buffer instance to give to a pending request.
-                // So, only fulfill pending if the buffer was re-enqueued locally.
-                if (_availableLocalBuffers.Contains(buffer)) // Check if it was actually enqueued (not returned to global)
+                // Cast to INetworkBuffer for Contains check if _availableLocalBuffers is INetworkBuffer
+                // Or ensure _availableLocalBuffers stores NetworkBuffer if this path is taken.
+                // Given other changes, _availableLocalBuffers is ConcurrentQueue<INetworkBuffer>
+                // So, buffer (which is NetworkBuffer) is implicitly convertible.
+                if (_availableLocalBuffers.Contains(buffer))
                 {
-                    if (_pendingRequests.TryDequeue(out TaskCompletionSource<NetworkBuffer>? tcsToFulfill))
+                    if (_pendingRequests.TryDequeue(out TaskCompletionSource<INetworkBuffer>? tcsToFulfill))
                     {
-                        // Dequeue the buffer we just enqueued to give to the pending request
-                        if (_availableLocalBuffers.TryDequeue(out NetworkBuffer? dequeuedBufferForTcs))
+                        if (_availableLocalBuffers.TryDequeue(out INetworkBuffer? dequeuedBufferForTcs))
                         {
                             if (tcsToFulfill.TrySetResult(dequeuedBufferForTcs))
                             {
                                 Console.WriteLine($"[{_poolIdentifier}] Fulfilled pending buffer request.");
-                                return; // Buffer given to a waiter
+                                return;
                             }
                             else
                             {
-                                // TCS was already completed/cancelled, re-enqueue buffer
                                 Console.WriteLine($"[{_poolIdentifier}] Pending request TCS already completed/cancelled. Re-enqueuing buffer.");
-                                dequeuedBufferForTcs.Reset(); // Reset again as it was dequeued
+                                ((NetworkBuffer)dequeuedBufferForTcs).Reset();
                                 _availableLocalBuffers.Enqueue(dequeuedBufferForTcs);
-                                // Fall through to general callback if any, as this buffer is now "available" again.
                             }
                         }
                         else
                         {
-                             // Should not happen if we just enqueued it and are under lock.
                              Console.WriteLine($"[{_poolIdentifier}] CRITICAL: Failed to dequeue buffer for pending request immediately after enqueuing.");
-                             // Re-queue TCS if buffer not available.
-                             _pendingRequests.Enqueue(tcsToFulfill); // Simplistic re-queue, might need better handling.
+                             _pendingRequests.Enqueue(tcsToFulfill);
                         }
                     }
                 }
@@ -149,7 +128,7 @@ namespace FlinkDotNet.Core.Networking
 
         public int AvailablePoolBuffers => _availableLocalBuffers.Count;
 
-        public NetworkBuffer? RequestBuffer(int minCapacity = 0)
+        public INetworkBuffer? RequestBuffer(int minCapacity = 0)
         {
             if (minCapacity > BufferSegmentSize)
             {
@@ -160,7 +139,7 @@ namespace FlinkDotNet.Core.Networking
             {
                 if (_isDestroyed) throw new ObjectDisposedException(nameof(LocalBufferPool), $"Pool {_poolIdentifier} is disposed.");
 
-                if (_availableLocalBuffers.TryDequeue(out NetworkBuffer? buffer))
+                if (_availableLocalBuffers.TryDequeue(out INetworkBuffer? buffer))
                 {
                     // Console.WriteLine($"[{_poolIdentifier}] Provided buffer from local queue.");
                     return buffer;
@@ -174,22 +153,21 @@ namespace FlinkDotNet.Core.Networking
                     {
                         Interlocked.Increment(ref _numLeasedSegmentsFromGlobal);
                         Console.WriteLine($"[{_poolIdentifier}] Leased new segment from global. Total leased: {_numLeasedSegmentsFromGlobal}");
-                        return new NetworkBuffer(segment, ReturnSegmentToLocalPool, 0, segment.Length);
+                        return new NetworkBuffer(segment, ReturnSegmentToLocalPool, 0, segment.Length); // Pass matching Action<NetworkBuffer>
                     }
                 }
-                // Console.WriteLine($"[{_poolIdentifier}] No buffer available immediately (local empty, global constraint).");
                 return null;
             }
         }
 
-        public async ValueTask<NetworkBuffer> RequestBufferAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<INetworkBuffer> RequestBufferAsync(CancellationToken cancellationToken = default)
         {
-            TaskCompletionSource<NetworkBuffer> tcs;
+            TaskCompletionSource<INetworkBuffer> tcs;
             lock (_lock)
             {
                 if (_isDestroyed) throw new ObjectDisposedException(nameof(LocalBufferPool), $"Pool {_poolIdentifier} is disposed.");
 
-                if (_availableLocalBuffers.TryDequeue(out NetworkBuffer? buffer))
+                if (_availableLocalBuffers.TryDequeue(out INetworkBuffer? buffer))
                 {
                     // Console.WriteLine($"[{_poolIdentifier}] Async request: Provided buffer from local queue.");
                     return buffer;
@@ -202,13 +180,13 @@ namespace FlinkDotNet.Core.Networking
                     {
                         Interlocked.Increment(ref _numLeasedSegmentsFromGlobal);
                         Console.WriteLine($"[{_poolIdentifier}] Async request: Leased new segment from global. Total leased: {_numLeasedSegmentsFromGlobal}");
-                        return new NetworkBuffer(segment, ReturnSegmentToLocalPool, 0, segment.Length);
+                        return new NetworkBuffer(segment, ReturnSegmentToLocalPool, 0, segment.Length); // Pass matching Action<NetworkBuffer>
                     }
                 }
 
                 // No buffer immediately available, queue the request
                 // Console.WriteLine($"[{_poolIdentifier}] Async request: Queuing request. Pending: {_pendingRequests.Count + 1}");
-                tcs = new TaskCompletionSource<NetworkBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
+                tcs = new TaskCompletionSource<INetworkBuffer>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _pendingRequests.Enqueue(tcs);
             }
 
@@ -227,7 +205,7 @@ namespace FlinkDotNet.Core.Networking
             }
         }
 
-        public void ReturnBuffer(NetworkBuffer buffer)
+        public void ReturnBuffer(INetworkBuffer buffer)
         {
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
             // The NetworkBuffer's Dispose method calls the _returnToPoolAction,
@@ -244,10 +222,10 @@ namespace FlinkDotNet.Core.Networking
 
                 Console.WriteLine($"[LocalBufferPool] Disposing. {_availableLocalBuffers.Count} available locally. {_numLeasedSegmentsFromGlobal} leased from global.");
                 int recycledToGlobalCount = 0;
-                while (_availableLocalBuffers.TryDequeue(out NetworkBuffer? bufferToRecycle))
+                while (_availableLocalBuffers.TryDequeue(out INetworkBuffer? bufferToRecycle))
                 {
-                    _globalBufferPool.RecycleMemorySegment(bufferToRecycle.UnderlyingBuffer);
-                    Interlocked.Decrement(ref _numLeasedSegmentsFromGlobal); // Decrement as we are returning one leased segment
+                    _globalBufferPool.RecycleMemorySegment(((NetworkBuffer)bufferToRecycle).UnderlyingBuffer);
+                    Interlocked.Decrement(ref _numLeasedSegmentsFromGlobal);
                     recycledToGlobalCount++;
                 }
                  Console.WriteLine($"[LocalBufferPool] Returned {recycledToGlobalCount} segments to global pool during dispose.");
@@ -259,4 +237,3 @@ namespace FlinkDotNet.Core.Networking
         }
     }
 }
-#nullable disable

@@ -1,6 +1,6 @@
 using System;
 
-namespace FlinkDotNet.Core.Api.Common
+namespace FlinkDotNet.Core.Abstractions.Common
 {
     /// <summary>
     /// Represents a time interval, typically used for window sizes, slides, or gaps.
@@ -15,7 +15,9 @@ namespace FlinkDotNet.Core.Api.Common
         private Time(long milliseconds)
         {
             if (milliseconds < 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(milliseconds), "Time interval cannot be negative.");
+            }
             Milliseconds = milliseconds;
         }
 
@@ -53,4 +55,3 @@ namespace FlinkDotNet.Core.Api.Common
         public override string ToString() => $"{Milliseconds} ms";
     }
 }
-#nullable disable

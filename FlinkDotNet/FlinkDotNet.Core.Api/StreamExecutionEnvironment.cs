@@ -1,5 +1,6 @@
 using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
 using FlinkDotNet.Core.Abstractions.Sources; // For ISourceFunction
+using FlinkDotNet.Core.Abstractions.Common; // For Time, if needed by API
 // Potentially other using statements like FlinkDotNet.JobManager.Models.JobGraph
 using System.Linq; // Added for ToDictionary
 using System.Threading.Tasks; // Added for Task
@@ -297,4 +298,3 @@ namespace FlinkDotNet.Core.Api
         }
     }
 }
-#nullable disable

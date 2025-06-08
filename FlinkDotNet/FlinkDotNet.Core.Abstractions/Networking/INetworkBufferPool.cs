@@ -1,6 +1,6 @@
 using System.Threading.Tasks; // For ValueTask if RequestBufferAsync is preferred
 
-namespace FlinkDotNet.Core.Networking
+namespace FlinkDotNet.Core.Abstractions.Networking
 {
     /// <summary>
     /// Defines a pool for managing NetworkBuffer instances to reduce GC pressure
@@ -32,16 +32,14 @@ namespace FlinkDotNet.Core.Networking
         /// <param name="minCapacity">The minimum capacity required for the buffer.
         /// The pool will try to provide a buffer of at least this size, typically its standard BufferSegmentSize.</param>
         /// <returns>A NetworkBuffer instance, or null if no buffer is available and the pool is non-blocking.</returns>
-        NetworkBuffer? RequestBuffer(int minCapacity = 0); // minCapacity might often be just BufferSegmentSize
+        INetworkBuffer? RequestBuffer(int minCapacity = 0); // minCapacity might often be just BufferSegmentSize
 
         // Alternative async version if blocking is handled by async waits:
-        // ValueTask<NetworkBuffer?> RequestBufferAsync(int minCapacity = 0, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Returns a NetworkBuffer (and its underlying byte array) to the pool.
         /// </summary>
         /// <param name="buffer">The NetworkBuffer to return.</param>
-        void ReturnBuffer(NetworkBuffer buffer);
+        void ReturnBuffer(INetworkBuffer buffer);
     }
 }
-#nullable disable

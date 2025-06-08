@@ -1,9 +1,9 @@
-#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO; // For MemoryStream, BinaryWriter, BinaryReader
 using FlinkDotNet.Core.Abstractions.Serializers;
-using FlinkDotNet.Core.Api.Common;
+using FlinkDotNet.Core.Abstractions.Common; // For Time
+using FlinkDotNet.Core.Abstractions.Windowing; // For TimeWindow, Window, Trigger
 using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment
 
 namespace FlinkDotNet.Core.Api.Windowing
@@ -93,4 +93,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         public override string ToString() => $"TumblingEventTimeWindows({Size.Milliseconds}ms, {Offset.Milliseconds}ms)";
     }
 }
-#nullable disable

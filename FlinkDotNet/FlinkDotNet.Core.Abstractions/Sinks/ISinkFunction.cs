@@ -9,7 +9,7 @@ namespace FlinkDotNet.Core.Abstractions.Sinks
     /// Sinks must be serializable if they are part of a JobGraph.
     /// </summary>
     /// <typeparam name="TIn">The type of the records consumed by the sink.</typeparam>
-    public interface ISinkFunction<TIn>
+    public interface ISinkFunction<in TIn>
     {
         /// <summary>
         /// Called once when the sink is initialized.
@@ -34,4 +34,3 @@ namespace FlinkDotNet.Core.Abstractions.Sinks
         void Close(); // Consider Task CloseAsync
     }
 }
-#nullable disable

@@ -9,7 +9,7 @@ namespace FlinkDotNet.Core.Abstractions.Operators
     /// </summary>
     /// <typeparam name="TIn">The input element type.</typeparam>
     /// <typeparam name="TOut">The output element type after window processing.</typeparam>
-    public interface IWindowOperator<in TIn, out TOut>
+    public interface IWindowOperator // Remove TIn, TOut as they are unused
     {
         // Placeholder: Actual methods will depend on the chosen windowing model
         // (e.g., Process(IWindow window, IEnumerable<TIn> input, ICollector<TOut> out))

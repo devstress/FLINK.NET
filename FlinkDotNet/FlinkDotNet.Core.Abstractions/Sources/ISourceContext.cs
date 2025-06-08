@@ -4,7 +4,7 @@ namespace FlinkDotNet.Core.Abstractions.Sources
     /// Context that is available to source functions, allowing them to emit records.
     /// </summary>
     /// <typeparam name="TOut">The type of the records produced by the source.</typeparam>
-    public interface ISourceContext<TOut>
+    public interface ISourceContext<in TOut>
     {
         /// <summary>
         /// Emits a record from the source.

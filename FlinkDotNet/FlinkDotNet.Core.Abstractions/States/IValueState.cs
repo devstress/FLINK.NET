@@ -11,13 +11,13 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// Retrieves the current value of the state.
         /// </summary>
         /// <returns>The current value, or default(T) if not set.</returns>
-        T Value(); // Flink: T value() throws IOException;
+        T? Value();
 
         /// <summary>
         /// Updates the value of the state.
         /// </summary>
         /// <param name="value">The new value.</param>
-        void Update(T value); // Flink: void update(T value) throws IOException;
+        void Update(T value);
 
         /// <summary>
         /// Deletes the value in the state, resetting it to default.

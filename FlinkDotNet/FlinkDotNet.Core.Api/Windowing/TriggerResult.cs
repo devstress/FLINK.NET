@@ -1,4 +1,3 @@
-#nullable enable
 namespace FlinkDotNet.Core.Api.Windowing
 {
     /// <summary>
@@ -27,4 +26,3 @@ namespace FlinkDotNet.Core.Api.Windowing
         public static bool IsPurge(this TriggerResult result) => (result & TriggerResult.Purge) != 0;
     }
 }
-#nullable disable
