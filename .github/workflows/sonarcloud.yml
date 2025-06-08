@@ -1,0 +1,66 @@
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches:
+      - main # Or your primary branch name
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build and Analyze
+    runs-on: windows-latest # Using windows-latest as per user's provided workflow
+    steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17' # SonarScanner needs Java
+          distribution: 'zulu'
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for SonarCloud analysis to correctly track changes
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~\sonar\cache # Windows specific path for SonarQube/SonarCloud scanner cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Cache SonarCloud scanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v4
+        with:
+          path: .\.sonar\scanner # Local path for the SonarScanner CLI
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarCloud scanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+        shell: powershell # Using PowerShell as per user's provided workflow
+        run: |
+          New-Item -Path .\.sonar\scanner -ItemType Directory
+          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
+
+      # New step to install .NET workloads
+      - name: Install .NET Aspire Workload
+        shell: powershell # Or bash, ensure consistency with other script steps if needed
+        run: |
+          dotnet workload restore FlinkDotNet/FlinkDotNet.sln
+          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
+          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+
+      - name: Build and analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For PR decoration and SonarCloud <-> GitHub integration
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
+        shell: powershell # Using PowerShell
+        run: |
+          .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
+          dotnet build FlinkDotNet/FlinkDotNet.sln
+          dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln
+          dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
