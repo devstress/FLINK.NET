@@ -23,6 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Core.Api\FlinkDotNet.Core.Api.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj" />
   </ItemGroup>
 
 </Project>
