@@ -29,8 +29,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify Docker is available
-        run: docker version
+      - name: Ensure Docker is running
+        run: |
+          sudo systemctl start docker || sudo service docker start || true
+          docker info
 
       - name: Set up .NET 8.0
         uses: actions/setup-dotnet@v4
