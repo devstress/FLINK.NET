@@ -20,25 +20,22 @@ namespace FlinkDotNet.JobManager.Controllers
     public class JobManagerController : ControllerBase // Removed IJobManagerApi for now as methods change
     {
         // Temporary storage for JobGraphs - made public static for TaskManagerRegistrationService access (TEMPORARY DESIGN)
-        public static readonly ConcurrentDictionary<Guid, JobGraph> _jobGraphs = new();
-        // Corrected key type from Guid to string to match TaskManagerRegistrationServiceImpl.JobCoordinators and CheckpointCoordinator's expectation of string JobId
-        private static readonly ConcurrentDictionary<string, CheckpointCoordinator> _jobCoordinators = TaskManagerRegistrationServiceImpl.JobCoordinators; // This remains private static as it's used internally by controller and checkpoint coordinator via static dictionary in TaskManagerRegistrationService
+        internal static readonly ConcurrentDictionary<Guid, JobGraph> JobGraphs = new();
         private readonly IJobRepository _jobRepository;
         private readonly ILogger<JobManagerController> _logger;
-        private readonly ILoggerFactory _loggerFactory;
 
-        public JobManagerController(IJobRepository jobRepository, ILogger<JobManagerController> logger, ILoggerFactory loggerFactory)
+        private const string JobIdEmptyMessage = "Job ID cannot be empty.";
+
+        public JobManagerController(IJobRepository jobRepository, ILogger<JobManagerController> logger)
         {
             _jobRepository = jobRepository;
             _logger = logger;
-            _loggerFactory = loggerFactory;
         }
 
         // Convenience constructor used in unit tests
         public JobManagerController(IJobRepository jobRepository)
             : this(jobRepository,
-                   Microsoft.Extensions.Logging.Abstractions.NullLogger<JobManagerController>.Instance,
-                   Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance)
+                   Microsoft.Extensions.Logging.Abstractions.NullLogger<JobManagerController>.Instance)
         {
         }
 
@@ -52,7 +49,7 @@ namespace FlinkDotNet.JobManager.Controllers
         [HttpGet("jobs")]
         public IActionResult GetJobs()
         {
-            var jobOverviews = _jobGraphs.Values.Select(jg => new JobOverviewDto
+            var jobOverviews = JobGraphs.Values.Select(jg => new JobOverviewDto
             {
                 JobId = jg.JobId.ToString(),
                 JobName = jg.JobName,
@@ -72,7 +69,7 @@ namespace FlinkDotNet.JobManager.Controllers
                 return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
             }
 
-            if (_jobGraphs.TryGetValue(parsedGuid, out var jobGraph))
+            if (JobGraphs.TryGetValue(parsedGuid, out var jobGraph))
             {
                 return Ok(jobGraph);
             }
@@ -91,13 +88,13 @@ namespace FlinkDotNet.JobManager.Controllers
                 return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
             }
 
-            if (!_jobGraphs.ContainsKey(parsedGuid))
+            if (!JobGraphs.ContainsKey(parsedGuid))
             {
                 return NotFound($"Job with ID {jobId} not found. Cannot retrieve metrics.");
             }
 
             // Actual implementation:
-            if (!_jobGraphs.TryGetValue(parsedGuid, out var jobGraph))
+            if (!JobGraphs.TryGetValue(parsedGuid, out var jobGraph))
             {
                 return NotFound($"Job with ID {jobId} not found.");
             }
@@ -175,7 +172,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
@@ -193,7 +190,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             if (scaleParameters == null || scaleParameters.DesiredParallelism <= 0)
@@ -224,7 +221,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
@@ -250,7 +247,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
@@ -276,7 +273,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             var checkpoints = await _jobRepository.GetCheckpointsAsync(jobId);
@@ -297,7 +294,7 @@ namespace FlinkDotNet.JobManager.Controllers
                 return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
             }
 
-            if (!_jobGraphs.ContainsKey(parsedGuid))
+            if (!JobGraphs.ContainsKey(parsedGuid))
             {
                 _logger.LogWarning("GetJobLogs called for non-existent Job ID: {JobId}", jobId);
                 return NotFound($"Job with ID {jobId} not found.");
@@ -314,7 +311,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
@@ -341,7 +338,7 @@ namespace FlinkDotNet.JobManager.Controllers
         {
             if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Job ID cannot be empty.");
+                return BadRequest(JobIdEmptyMessage);
             }
 
             bool accepted = await _jobRepository.RequestBatchDlqResubmissionAsync(jobId);

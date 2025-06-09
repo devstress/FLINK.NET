@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Logging; // For optional logging
 using FlinkDotNet.JobManager.Interfaces; // For IJobRepository
-using FlinkDotNet.JobManager.Controllers; // For JobManagerController._jobGraphs (temporary)
+using FlinkDotNet.JobManager.Controllers; // For JobManagerController.JobGraphs
 using FlinkDotNet.JobManager.Models.JobGraph; // For JobGraph
 using FlinkDotNet.JobManager.Checkpointing; // For CheckpointCoordinator
 using FlinkDotNet.JobManager.Models; // For TaskManagerInfo, JobManagerConfig
@@ -72,7 +72,7 @@ namespace FlinkDotNet.JobManager.Services
                 {
                     _logger.LogInformation($"Edge: {edge.Id} from {edge.SourceVertexId} to {edge.TargetVertexId} (Mode: {edge.ShuffleMode})");
                 }
-                bool stored = JobManagerController._jobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
+                bool stored = JobManagerController.JobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
                 if (stored)
                 {
                     _logger.LogInformation($"JobGraph for '{jobGraphModel.JobName}' (ID: {jobGraphModel.JobId}) stored in static dictionary.");

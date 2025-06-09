@@ -10,7 +10,7 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         public Guid Id { get; }
         public Guid SourceVertexId { get; }
         public Guid TargetVertexId { get; }
-        public ShuffleMode ShuffleMode { get; set; } = ShuffleMode.Forward;
+        public ShuffleMode ShuffleMode { get; set; }
 
         /// <summary>
         /// Configuration for key-based partitioning if ShuffleMode is Hash.
