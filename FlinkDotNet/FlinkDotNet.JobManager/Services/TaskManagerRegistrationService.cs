@@ -118,7 +118,6 @@ public class TaskManagerRegistrationServiceImpl : Proto.TaskManagerRegistration.
                 if (parts.Length >= 1) // At least JobVertexId should be there
                 {
                     jobVertexIdStr = parts[0];
-                    // if (parts.Length > 1) int.TryParse(parts[1], out subtaskIndex);
                 }
 
                 if (Guid.TryParse(jobVertexIdStr, out jobVertexGuid))

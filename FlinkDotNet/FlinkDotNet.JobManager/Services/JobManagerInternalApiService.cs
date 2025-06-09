@@ -238,15 +238,6 @@ namespace FlinkDotNet.JobManager.Services
 
             // In a real implementation, this would trigger checkpoint cancellation or recovery logic.
             // For now, just acknowledge the report.
-            // Example: Find the CheckpointCoordinator for the job and notify it.
-            // if (TaskManagerRegistrationServiceImpl.JobCoordinators.TryGetValue(request.JobId, out var coordinator))
-            // {
-            //     coordinator.HandleFailedCheckpoint(request.CheckpointId, request.JobVertexId, request.SubtaskIndex, request.FailureReason);
-            // }
-            // else
-            // {
-            //     _logger.LogError($"Could not find CheckpointCoordinator for JobId {request.JobId} to report failed checkpoint {request.CheckpointId}.");
-            // }
 
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportFailedCheckpointResponse
             {
@@ -259,7 +250,6 @@ namespace FlinkDotNet.JobManager.Services
         {
             _logger.LogWarning($"[JobManager] Received task startup failure report from TM {request.TaskManagerId} for Job {request.JobId}, Task {request.JobVertexId}_{request.SubtaskIndex}. Reason: {request.FailureReason}");
             // For now, just log and acknowledge.
-            // Example: _jobRepository.UpdateTaskStatus(request.JobId, request.JobVertexId, request.SubtaskIndex, JobStatus.Failed, request.FailureReason);
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureResponse { Acknowledged = true });
         }
     }
