@@ -69,7 +69,11 @@ namespace FlinkDotNet.Core.Networking
             long checkpointId = 0,
             long checkpointTimestamp = 0)
         {
-            UnderlyingBuffer = rentedBuffer ?? throw new ArgumentNullException(nameof(rentedBuffer));
+            ArgumentNullException.ThrowIfNull(rentedBuffer); // CA1510 (already effectively done by ??)
+            ArgumentOutOfRangeException.ThrowIfNegative(initialDataOffset, nameof(initialDataOffset)); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegative(initialDataLength, nameof(initialDataLength)); // CA1512
+
+            UnderlyingBuffer = rentedBuffer; // No longer needs ?? due to ThrowIfNull
             _returnToPoolAction = returnToPoolAction;
             DataOffset = initialDataOffset;
             DataLength = initialDataLength;
@@ -95,6 +99,7 @@ namespace FlinkDotNet.Core.Networking
         /// <param name="checkpointTimestamp">The checkpoint timestamp, used if isBarrier is true.</param>
         public void SetBarrierInfo(bool isBarrier, long checkpointId = 0, long checkpointTimestamp = 0)
         {
+            ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
             IsBarrierPayload = isBarrier;
             if (IsBarrierPayload)
             {
@@ -167,10 +172,11 @@ namespace FlinkDotNet.Core.Networking
         public void SetDataLength(int length)
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
-            if (length < 0 || DataOffset + length > Capacity)
+            ArgumentOutOfRangeException.ThrowIfNegative(length, nameof(length)); // CA1512
+            if (DataOffset + length > Capacity) // Simplified check after validating length separately
             {
                 throw new ArgumentOutOfRangeException(nameof(length),
-                    $"Length must be non-negative and not exceed buffer capacity from offset. Offset: {DataOffset}, Length: {length}, Capacity: {Capacity}");
+                    $"Length must not exceed buffer capacity from offset. Offset: {DataOffset}, Length: {length}, Capacity: {Capacity}");
             }
             DataLength = length;
         }
@@ -198,10 +204,9 @@ namespace FlinkDotNet.Core.Networking
             {
                 _returnToPoolAction?.Invoke(this);
                 _isDisposed = true;
-                // To prevent accidental reuse of the UnderlyingBuffer if it's from ArrayPool,
+                // S125: To prevent accidental reuse of the UnderlyingBuffer if it's from ArrayPool,
                 // it's good practice to "clear" it or make this NetworkBuffer instance unusable.
                 // The _isDisposed flag helps with this.
-                // UnderlyingBuffer = null; // Or Array.Empty<byte>(); if not handled by pool on return
             }
         }
     }

@@ -8,7 +8,7 @@ namespace FlinkDotNet.Core.Abstractions.Timers
     /// </summary>
     /// <typeparam name="TKey">The type of the key.</typeparam>
     /// <typeparam name="TWindow">The type of the window.</typeparam>
-    public interface ITimerService<in TKey, in TWindow> where TWindow : IWindow
+    public interface ITimerService<in TKey, in TWindow> where TWindow : Window
     {
         void RegisterProcessingTimeTimer(TKey key, TWindow window, long timestamp);
         void DeleteProcessingTimeTimer(TKey key, TWindow window, long timestamp);

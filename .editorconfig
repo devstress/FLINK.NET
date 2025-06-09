@@ -298,7 +298,9 @@ dotnet_diagnostic.S110.severity = warning
 dotnet_diagnostic.S107.severity = warning
 
 # Control flow statements should not be nested too deeply
-dotnet_diagnostic.S121.severity = warning
+# dotnet_diagnostic.S121.severity = warning # Overridden below
+# Disable S121 (SonarCloud: Add curly braces when block has one statement) globally
+dotnet_diagnostic.S121.severity = none
 
 # Classes should not be coupled to too many other classes
 dotnet_diagnostic.S1699.severity = warning

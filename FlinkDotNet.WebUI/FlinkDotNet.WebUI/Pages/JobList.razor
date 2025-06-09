@@ -3,7 +3,7 @@
 @using FlinkDotNet.WebUI.Models
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
-@using Microsoft.Fast.Components.FluentUI
+@* @using Microsoft.Fast.Components.FluentUI -- Replaced by global import *@
 
 <PageTitle>Job List</PageTitle>
 
@@ -20,7 +20,7 @@ else if (!jobs.Any())
 }
 else
 {
-    <FluentDataGrid Items="@jobs.AsQueryable()" GridTemplateColumns="1fr 2fr 2fr 1fr 1fr 1fr" Style="width: 100%;">
+    <FluentDataGrid TGridItem="JobOverviewDto" Items="@jobs.AsQueryable()" GridTemplateColumns="1fr 2fr 2fr 1fr 1fr 1fr" Style="width: 100%;">
         <TemplateColumn Title="Job ID" TooltipText="JobId">
             <FluentAnchor Href="#" @onclick="@(() => NavigateToJobDetails(context.JobId!))" Appearance="Appearance.Hypertext">
                 @context.JobId?.Substring(0, 8)
