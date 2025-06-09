@@ -19,24 +19,27 @@ namespace FlinkDotNet.Core.Abstractions.Runtime
         public string TaskName { get; }
         public int NumberOfParallelSubtasks { get; }
         public int IndexOfThisSubtask { get; }
-        public IStateSnapshotStore StateSnapshotStore => _stateSnapshotStore; // Added
+        public JobConfiguration JobConfiguration { get; }
+        public IStateSnapshotStore StateSnapshotStore => _stateSnapshotStore;
 
         private object? _currentKey; // Stores the current key for keyed state
         private readonly ConcurrentDictionary<object, ConcurrentDictionary<string, object>> _keyedStates = new(); // Assuming this is how state is managed
-        private readonly IStateSnapshotStore _stateSnapshotStore; // Added
+        private readonly IStateSnapshotStore _stateSnapshotStore;
 
         public BasicRuntimeContext(
-            IStateSnapshotStore stateSnapshotStore, // Moved to be the first parameter
+            IStateSnapshotStore? stateSnapshotStore = null,
             string jobName = "DefaultJob",
             string taskName = "DefaultTask",
             int numberOfParallelSubtasks = 1,
-            int indexOfThisSubtask = 0)
+            int indexOfThisSubtask = 0,
+            JobConfiguration? jobConfiguration = null)
         {
             JobName = jobName;
             TaskName = taskName;
             NumberOfParallelSubtasks = numberOfParallelSubtasks;
             IndexOfThisSubtask = indexOfThisSubtask;
-            _stateSnapshotStore = stateSnapshotStore; // Direct assignment
+            _stateSnapshotStore = stateSnapshotStore ?? new InMemoryStateSnapshotStore();
+            JobConfiguration = jobConfiguration ?? new JobConfiguration();
             _currentKey = null; // Explicitly initialize
         }
 

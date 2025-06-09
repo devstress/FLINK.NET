@@ -2,8 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Grpc.Core;
-using FlinkDotNet.Proto.Internal; // Namespace from your .proto file
+using Proto = FlinkDotNet.Proto.Internal;
 using FlinkDotNet.JobManager.Models; // For TaskManagerInfo
+using FlinkDotNet.JobManager.Controllers;
 using FlinkDotNet.JobManager.Checkpointing; // For CheckpointCoordinator
 using Microsoft.Extensions.Logging; // Added for ILogger
 
@@ -16,7 +17,7 @@ public static class TaskManagerTracker
 
 // TaskManagerInfo class has been moved to FlinkDotNet.JobManager.Models/TaskManagerInfo.cs
 
-public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskManagerRegistrationBase
+public class TaskManagerRegistrationServiceImpl : Proto.TaskManagerRegistration.TaskManagerRegistrationBase
 {
     private readonly string _jobManagerId = $"JM-{Guid.NewGuid()}"; // Example JobManager ID
     public static ConcurrentDictionary<string, CheckpointCoordinator> JobCoordinators { get; } = new();
@@ -27,8 +28,8 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
         _logger = logger;
     }
 
-    public override Task<RegisterTaskManagerResponse> RegisterTaskManager(
-        RegisterTaskManagerRequest request, ServerCallContext context)
+    public override Task<Proto.RegisterTaskManagerResponse> RegisterTaskManager(
+        Proto.RegisterTaskManagerRequest request, ServerCallContext context)
     {
         _logger.LogInformation("Received registration request from TaskManager ID: {TaskManagerId}, Address: {Address}:{Port}", request.TaskManagerId, request.Address, request.Port);
 
@@ -45,7 +46,7 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
         if (added)
         {
             _logger.LogInformation("TaskManager {TaskManagerId} registered successfully.", request.TaskManagerId);
-            return Task.FromResult(new RegisterTaskManagerResponse
+            return Task.FromResult(new Proto.RegisterTaskManagerResponse
             {
                 Success = true,
                 JobManagerId = _jobManagerId
@@ -59,19 +60,19 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
             {
                  existingTmInfo.LastHeartbeat = DateTime.UtcNow; // Update heartbeat on re-registration
                  _logger.LogInformation("TaskManager {TaskManagerId} was already registered. Updated heartbeat.", request.TaskManagerId);
-                 return Task.FromResult(new RegisterTaskManagerResponse
+                 return Task.FromResult(new Proto.RegisterTaskManagerResponse
                  {
                      Success = true,
                      JobManagerId = _jobManagerId
                  });
             }
             _logger.LogWarning("Failed to add TaskManager {TaskManagerId} to tracker. Concurrent add issue?", request.TaskManagerId);
-            return Task.FromResult(new RegisterTaskManagerResponse { Success = false });
+            return Task.FromResult(new Proto.RegisterTaskManagerResponse { Success = false });
         }
     }
 
-    public override Task<HeartbeatResponse> SendHeartbeat(
-        HeartbeatRequest request, ServerCallContext context)
+    public override Task<Proto.HeartbeatResponse> SendHeartbeat(
+        Proto.HeartbeatRequest request, ServerCallContext context)
     {
         _logger.LogDebug("Received heartbeat from TaskManager ID: {TaskManagerId}", request.TaskManagerId);
 
@@ -99,7 +100,7 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
                 // Find the JobGraph that contains this vertex. This is the tricky part without a direct JobId in TaskMetricData.
                 // We iterate all known JobGraphs. This is NOT scalable.
                 // A better approach: TaskManager should report JobId with metrics, or TaskId should be globally unique and include JobId.
-                JobGraph? targetJobGraph = null;
+                global::FlinkDotNet.JobManager.Models.JobGraph.JobGraph? targetJobGraph = null;
                 Guid jobVertexGuid = Guid.Empty;
 
                 // Assuming metricData.TaskId is JobVertexId_SubtaskIndex
@@ -122,7 +123,7 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
 
                 if (Guid.TryParse(jobVertexIdStr, out jobVertexGuid))
                 {
-                    foreach (var jobGraphPair in Controllers.JobManagerController._jobGraphs) // Accessing static member
+                    foreach (var jobGraphPair in JobManagerController._jobGraphs) // Accessing static member
                     {
                         if (jobGraphPair.Value.Vertices.Any(v => v.Id == jobVertexGuid))
                         {
@@ -138,7 +139,7 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
                     // Key for TaskInstanceMetrics is "JobVertexId_SubtaskIndex" which is metricData.TaskId
                     targetJobGraph.TaskInstanceMetrics.AddOrUpdate(
                         metricData.TaskId, // Key: "JobVertexId_SubtaskIndex"
-                        addValueFactory: _ => new FlinkDotNet.TaskManager.Models.TaskMetrics // Using TaskManager's DTO
+                        addValueFactory: _ => new FlinkDotNet.JobManager.Models.TaskMetrics
                         {
                             TaskId = metricData.TaskId,
                             RecordsIn = metricData.RecordsIn,
@@ -158,28 +159,28 @@ public class TaskManagerRegistrationServiceImpl : TaskManagerRegistration.TaskMa
                     _logger.LogDebug("Could not find JobGraph for task metric: {TaskId}", metricData.TaskId);
                 }
             }
-            return Task.FromResult(new HeartbeatResponse { Acknowledged = true });
+            return Task.FromResult(new Proto.HeartbeatResponse { Acknowledged = true });
         }
         else
         {
             _logger.LogWarning("Heartbeat from unknown TaskManager ID: {TaskManagerId}. Registration might be lost.", request.TaskManagerId);
-            return Task.FromResult(new HeartbeatResponse { Acknowledged = false }); // Ask TM to re-register
+            return Task.FromResult(new Proto.HeartbeatResponse { Acknowledged = false }); // Ask TM to re-register
         }
     }
 
-    public override Task<AcknowledgeCheckpointResponse> AcknowledgeCheckpoint(
-        AcknowledgeCheckpointRequest request, ServerCallContext context)
+    public override Task<Proto.AcknowledgeCheckpointResponse> AcknowledgeCheckpoint(
+        Proto.AcknowledgeCheckpointRequest request, ServerCallContext context)
     {
         _logger.LogInformation("Received AcknowledgeCheckpoint for JobID: {JobId}, CheckpointID: {CheckpointId}, TM: {TaskManagerId}", request.JobId, request.CheckpointId, request.TaskManagerId);
         if (JobCoordinators.TryGetValue(request.JobId, out var coordinator))
         {
             coordinator.AcknowledgeCheckpoint(request.JobId, request.CheckpointId, request.TaskManagerId, request.SnapshotHandle /*, pass other details like size, duration */);
-            return Task.FromResult(new AcknowledgeCheckpointResponse { Success = true });
+            return Task.FromResult(new Proto.AcknowledgeCheckpointResponse { Success = true });
         }
         else
         {
             _logger.LogWarning("No CheckpointCoordinator found for JobID: {JobId}. Cannot acknowledge checkpoint for CP {CheckpointId} from TM {TaskManagerId}.", request.JobId, request.CheckpointId, request.TaskManagerId);
-            return Task.FromResult(new AcknowledgeCheckpointResponse { Success = false });
+            return Task.FromResult(new Proto.AcknowledgeCheckpointResponse { Success = false });
         }
     }
 }

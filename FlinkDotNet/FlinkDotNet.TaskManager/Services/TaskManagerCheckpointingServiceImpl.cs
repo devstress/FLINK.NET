@@ -7,6 +7,7 @@ using FlinkDotNet.Storage.FileSystem; // Added for FileSystemSnapshotStore
 using System.Text; // Added for Encoding.UTF8
 using FlinkDotNet.TaskManager.Models; // Added
 using System.Linq; // Added
+using FlinkDotNet.TaskManager;
 
 namespace FlinkDotNet.TaskManager.Services
 {

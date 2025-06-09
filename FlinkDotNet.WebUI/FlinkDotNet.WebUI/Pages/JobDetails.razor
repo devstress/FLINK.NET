@@ -2,7 +2,7 @@
 @using FlinkDotNet.WebUI.Models
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
-@using Microsoft.Fast.Components.FluentUI
+@using Microsoft.FluentUI.AspNetCore.Components
 @using System.Net
 @using System.Linq // Required for .AsQueryable()
 
@@ -32,20 +32,20 @@ else if (jobDetails != null)
         <FluentCard Style="padding: 1rem;">
             <h2>Overview</h2>
             <FluentStack Orientation="Orientation.Horizontal" Gap="20">
-                <FluentStackItem Grow="1">
+                <div>
                     <FluentTextField Value="@jobDetails.JobId.ToString()" ReadOnly="true" Label="Job ID" Style="width: 100%;" />
-                </FluentStackItem>
-                <FluentStackItem Grow="1">
+                </div>
+                <div>
                     <FluentTextField Value="@jobDetails.JobName" ReadOnly="true" Label="Job Name" Style="width: 100%;" />
-                </FluentStackItem>
+                </div>
             </FluentStack>
             <FluentStack Orientation="Orientation.Horizontal" Gap="20" Style="margin-top: 10px;">
-                <FluentStackItem Grow="1">
+                <div>
                     <FluentTextField Value="@jobDetails.SubmissionTime.ToString("yyyy-MM-dd HH:mm:ss UTC")" ReadOnly="true" Label="Submitted" Style="width: 100%;" />
-                </FluentStackItem>
-                <FluentStackItem Grow="1">
+                </div>
+                <div>
                     <FluentTextField Value="@jobDetails.Status" ReadOnly="true" Label="Status" Style="width: 100%;" />
-                </FluentStackItem>
+                </div>
             </FluentStack>
         </FluentCard>
 

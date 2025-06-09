@@ -67,7 +67,6 @@ namespace FlinkDotNet.TaskManager
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                .AddServiceDefaults() // Added ServiceDefaults
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Register TaskManagerCoreService (previously TaskManagerService)

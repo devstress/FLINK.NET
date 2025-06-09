@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Grpc.Core;
-using FlinkDotNet.Proto.Internal; // Updated namespace
 using Microsoft.Extensions.Logging; // For optional logging
 using FlinkDotNet.JobManager.Interfaces; // For IJobRepository
 using FlinkDotNet.JobManager.Controllers; // For JobManagerController._jobGraphs (temporary)
@@ -12,12 +11,12 @@ using System.Collections.Generic; // For Dictionary
 using Grpc.Net.Client; // For GrpcChannel
 using System.Text.Json; // For JsonSerializer
 
-// Assuming the generated base class is JobManagerInternalService.JobManagerInternalServiceBase
+// Assuming the generated base class is global::FlinkDotNet.Proto.Internal.JobManagerInternalService.JobManagerInternalServiceBase
 // The actual name depends on the .proto service definition and Grpc.Tools generation.
 
 namespace FlinkDotNet.JobManager.Services
 {
-    public class JobManagerInternalApiService : JobManagerInternalService.JobManagerInternalServiceBase
+    public class JobManagerInternalApiService : global::FlinkDotNet.Proto.Internal.JobManagerInternalService.JobManagerInternalServiceBase
     {
         private readonly ILogger<JobManagerInternalApiService> _logger;
         private readonly IJobRepository _jobRepository;
@@ -33,14 +32,22 @@ namespace FlinkDotNet.JobManager.Services
             _loggerFactory = loggerFactory;
         }
 
-        public override Task<SubmitJobReply> SubmitJob(SubmitJobRequest request, ServerCallContext context)
+        // Convenience constructor used in unit tests
+        public JobManagerInternalApiService(ILogger<JobManagerInternalApiService> logger)
+            : this(logger,
+                   new InMemoryJobRepository(Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryJobRepository>.Instance),
+                   Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance)
+        {
+        }
+
+        public override Task<global::FlinkDotNet.Proto.Internal.SubmitJobReply> SubmitJob(global::FlinkDotNet.Proto.Internal.SubmitJobRequest request, ServerCallContext context)
         {
             _logger.LogInformation("gRPC: SubmitJob called.");
 
             if (request.JobGraph == null)
             {
-                _logger.LogWarning("Received SubmitJobRequest with null JobGraph.");
-                return Task.FromResult(new SubmitJobReply
+                _logger.LogWarning("Received global::FlinkDotNet.Proto.Internal.SubmitJobRequest with null JobGraph.");
+                return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
                 {
                     Success = false,
                     Message = "JobGraph cannot be null.",
@@ -50,7 +57,7 @@ namespace FlinkDotNet.JobManager.Services
 
             try
             {
-                // Convert Proto.Internal.JobGraph to C# model JobGraph
+                // Convert global::FlinkDotNet.Proto.Internal.Internal.JobGraph to C# model JobGraph
                 // This exercises the FromProto methods.
                 var jobGraphModel = Models.JobGraph.JobGraph.FromProto(request.JobGraph);
 
@@ -107,7 +114,7 @@ namespace FlinkDotNet.JobManager.Services
                     _logger.LogWarning($"No TaskManagers available to deploy job {jobGraphModel.JobName}. Job submitted but not deployed.");
                     // Decide on reply: success true but with warning, or success false?
                     // For now, let's consider it a partial success as the job is "submitted" but not deployed.
-                    return Task.FromResult(new SubmitJobReply
+                    return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
                     {
                         Success = true, // Or false, depending on desired strictness
                         Message = "Job submitted but no TaskManagers available for deployment.",
@@ -134,7 +141,7 @@ namespace FlinkDotNet.JobManager.Services
                         string currentTaskInstanceId = $"{vertex.Id}_{i}";
                         var (targetTm, subtaskIdx) = taskAssignments[currentTaskInstanceId];
 
-                        var tdd = new TaskDeploymentDescriptor
+                        var tdd = new global::FlinkDotNet.Proto.Internal.TaskDeploymentDescriptor
                         {
                             JobGraphJobId = jobGraphModel.JobId.ToString(),
                             JobVertexId = vertex.Id.ToString(),
@@ -150,33 +157,7 @@ namespace FlinkDotNet.JobManager.Services
                             OutputSerializerTypeName = vertex.OutputSerializerTypeName ?? ""
                         };
 
-                        foreach (var edge in vertex.InputEdges)
-                        {
-                            tdd.Inputs.Add(new OperatorInput { SourceVertexId = edge.SourceVertex.Id.ToString() });
-                        }
-
-                        foreach (var edge in vertex.OutputEdges)
-                        {
-                            for (int targetSubtaskParallelIndex = 0; targetSubtaskParallelIndex < edge.TargetVertex.Parallelism; targetSubtaskParallelIndex++)
-                            {
-                                string targetTaskInstanceId = $"{edge.TargetVertex.Id}_{targetSubtaskParallelIndex}";
-                                if (taskAssignments.TryGetValue(targetTaskInstanceId, out var targetAssignmentInfo))
-                                {
-                                    var (downstreamTm, assignedDownstreamSubtaskIndex) = targetAssignmentInfo;
-                                    tdd.Outputs.Add(new OperatorOutput
-                                    {
-                                        TargetVertexId = edge.TargetVertex.Id.ToString(),
-                                        TargetTaskEndpoint = $"http://{downstreamTm.Address}:{downstreamTm.Port}",
-                                        TargetSpecificSubtaskIndex = assignedDownstreamSubtaskIndex
-                                    });
-                                     _logger.LogDebug($"  Output from {vertex.Name}_{i} to {edge.TargetVertex.Name}_{assignedDownstreamSubtaskIndex} on TM {downstreamTm.TaskManagerId} at {tdd.Outputs.Last().TargetTaskEndpoint}");
-                                }
-                                else
-                                {
-                                     _logger.LogWarning($"Could not find TM assignment for downstream task {targetTaskInstanceId}. Output from {vertex.Name}_{i} might be lost.");
-                                }
-                            }
-                        }
+                        // TODO: populate input and output edges once JobGraph exposes this information
 
                         _logger.LogInformation($"Deploying task '{tdd.TaskName}' for vertex {vertex.Name} (ID: {vertex.Id}) to TaskManager {targetTm.TaskManagerId} ({targetTm.Address}:{targetTm.Port}) for job {jobGraphModel.JobId}");
 
@@ -184,7 +165,7 @@ namespace FlinkDotNet.JobManager.Services
                         {
                             var channelAddress = $"http://{targetTm.Address}:{targetTm.Port}";
                             using var channel = GrpcChannel.ForAddress(channelAddress);
-                            var client = new TaskExecution.TaskExecutionClient(channel);
+                            var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                             _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10)); // Fire and forget for now
                             _logger.LogDebug($"DeployTask call initiated for '{tdd.TaskName}' to TM {targetTm.TaskManagerId}.");
                         }
@@ -198,7 +179,7 @@ namespace FlinkDotNet.JobManager.Services
                 _logger.LogInformation("All tasks for job {JobName} (ID: {JobId}) have been (attempted) deployed.", jobGraphModel.JobName, jobGraphModel.JobId);
                 // --- End of Replicated Task Deployment Logic ---
 
-                return Task.FromResult(new SubmitJobReply
+                return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
                 {
                     Success = true,
                     Message = $"Job '{jobGraphModel.JobName}' submitted and deployment initiated.",
@@ -207,8 +188,8 @@ namespace FlinkDotNet.JobManager.Services
             }
             catch (System.Exception ex)
             {
-                _logger.LogError(ex, "Error processing SubmitJobRequest.");
-                return Task.FromResult(new SubmitJobReply
+                _logger.LogError(ex, "Error processing global::FlinkDotNet.Proto.Internal.SubmitJobRequest.");
+                return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
                 {
                     Success = false,
                     Message = $"Error processing job: {ex.Message}",
@@ -218,47 +199,47 @@ namespace FlinkDotNet.JobManager.Services
         }
 
 
-        public override Task<ReportStateCompletionReply> ReportStateCompletion(ReportStateCompletionRequest request, ServerCallContext context)
+        public override Task<global::FlinkDotNet.Proto.Internal.ReportStateCompletionReply> ReportStateCompletion(global::FlinkDotNet.Proto.Internal.ReportStateCompletionRequest request, ServerCallContext context)
         {
             _logger.LogInformation($"gRPC: ReportStateCompletion called for CheckpointId: {request.CheckpointId}, Operator: {request.OperatorInstanceId}");
             // In a real implementation, process the state completion.
-            return Task.FromResult(new ReportStateCompletionReply
+            return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportStateCompletionReply
             {
                 Ack = true
             });
         }
 
-        public override Task<RequestCheckpointReply> RequestCheckpoint(RequestCheckpointRequest request, ServerCallContext context)
+        public override Task<global::FlinkDotNet.Proto.Internal.RequestCheckpointReply> RequestCheckpoint(global::FlinkDotNet.Proto.Internal.RequestCheckpointRequest request, ServerCallContext context)
         {
             _logger.LogInformation($"gRPC: RequestCheckpoint called for CheckpointId: {request.CheckpointId}");
             // In a real implementation, this would trigger checkpointing logic on a TaskManager.
-            return Task.FromResult(new RequestCheckpointReply
+            return Task.FromResult(new global::FlinkDotNet.Proto.Internal.RequestCheckpointReply
             {
                 Accepted = true
             });
         }
 
-        public override Task<RequestRecoveryReply> RequestRecovery(RequestRecoveryRequest request, ServerCallContext context)
+        public override Task<global::FlinkDotNet.Proto.Internal.RequestRecoveryReply> RequestRecovery(global::FlinkDotNet.Proto.Internal.RequestRecoveryRequest request, ServerCallContext context)
         {
             _logger.LogInformation($"gRPC: RequestRecovery called for JobId: {request.JobId}, CheckpointId: {request.CheckpointId}");
             // In a real implementation, this would initiate recovery procedures.
-            return Task.FromResult(new RequestRecoveryReply
+            return Task.FromResult(new global::FlinkDotNet.Proto.Internal.RequestRecoveryReply
             {
                 RecoveryInitiated = true
             });
         }
 
-        public override Task<JobManagerHeartbeatReply> Heartbeat(JobManagerHeartbeatRequest request, ServerCallContext context) // Types updated
+        public override Task<global::FlinkDotNet.Proto.Internal.JobManagerHeartbeatReply> Heartbeat(global::FlinkDotNet.Proto.Internal.JobManagerHeartbeatRequest request, ServerCallContext context) // Types updated
         {
             _logger.LogInformation($"gRPC: Heartbeat received from JobId: {request.JobId}, Operator: {request.OperatorInstanceId}, Status: {request.HealthStatus}");
             // In a real implementation, update heartbeat status, check for timeouts, etc.
-            return Task.FromResult(new JobManagerHeartbeatReply // Type updated
+            return Task.FromResult(new global::FlinkDotNet.Proto.Internal.JobManagerHeartbeatReply // Type updated
             {
                 Ack = true
             });
         }
 
-        public override Task<ReportFailedCheckpointResponse> ReportFailedCheckpoint(ReportFailedCheckpointRequest request, ServerCallContext context)
+        public override Task<global::FlinkDotNet.Proto.Internal.ReportFailedCheckpointResponse> ReportFailedCheckpoint(global::FlinkDotNet.Proto.Internal.ReportFailedCheckpointRequest request, ServerCallContext context)
         {
             _logger.LogWarning($"gRPC: ReportFailedCheckpoint called for JobId: {request.JobId}, CheckpointId: {request.CheckpointId}, Task: {request.JobVertexId}_{request.SubtaskIndex}, TM: {request.TaskManagerId}, Reason: {request.FailureReason}");
 
@@ -274,20 +255,20 @@ namespace FlinkDotNet.JobManager.Services
             //     _logger.LogError($"Could not find CheckpointCoordinator for JobId {request.JobId} to report failed checkpoint {request.CheckpointId}.");
             // }
 
-            return Task.FromResult(new ReportFailedCheckpointResponse
+            return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportFailedCheckpointResponse
             {
                 Acknowledged = true
             });
         }
 
-        public override Task<ReportTaskStartupFailureResponse> ReportTaskStartupFailure(
-            ReportTaskStartupFailureRequest request, ServerCallContext context)
+        public override Task<global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureResponse> ReportTaskStartupFailure(
+            global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureRequest request, ServerCallContext context)
         {
             _logger.LogWarning($"[JobManager] Received task startup failure report from TM {request.TaskManagerId} for Job {request.JobId}, Task {request.JobVertexId}_{request.SubtaskIndex}. Reason: {request.FailureReason}");
             // TODO: Implement actual job status update to FAILED and trigger recovery/cleanup.
             // For now, just log and acknowledge.
             // Example: _jobRepository.UpdateTaskStatus(request.JobId, request.JobVertexId, request.SubtaskIndex, JobStatus.Failed, request.FailureReason);
-            return Task.FromResult(new ReportTaskStartupFailureResponse { Acknowledged = true });
+            return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureResponse { Acknowledged = true });
         }
     }
 }

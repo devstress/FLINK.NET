@@ -6,11 +6,13 @@ package FlinkDotNet.Proto;
 
 // ----- JobManagerInternalService and related messages (mostly from feature branch) -----
 service JobManagerInternalService {
+  rpc SubmitJob (SubmitJobRequest) returns (SubmitJobReply);
   rpc ReportStateCompletion (ReportStateCompletionRequest) returns (ReportStateCompletionReply);
   rpc RequestCheckpoint (RequestCheckpointRequest) returns (RequestCheckpointReply);
   rpc RequestRecovery (RequestRecoveryRequest) returns (RequestRecoveryReply);
   rpc ReportFailedCheckpoint(ReportFailedCheckpointRequest) returns (ReportFailedCheckpointResponse);
   rpc ReportTaskStartupFailure(ReportTaskStartupFailureRequest) returns (ReportTaskStartupFailureResponse);
+  rpc Heartbeat (JobManagerHeartbeatRequest) returns (JobManagerHeartbeatReply);
   // Heartbeat was part of this service in one version, but seems to be part of TaskManagerRegistration in another.
   // Let's assume TaskManagerRegistration.SendHeartbeat is the one to keep, and JobManagerInternalService.Heartbeat might be deprecated or for a different purpose.
   // For this merge, I will OMIT JobManagerInternalService.Heartbeat if TaskManagerRegistration.SendHeartbeat exists and is more complete.
@@ -315,3 +317,52 @@ message JobVertex {
 
 // Import for google.protobuf.Struct, if not already implicitly available by tools
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// Additional messages to support job submission and heartbeats
+
+enum ShuffleMode {
+  FORWARD = 0;
+  BROADCAST = 1;
+  RESCALE = 2;
+  HASH = 3;
+}
+
+message JobEdge {
+  string id = 1;
+  string source_vertex_id = 2;
+  string target_vertex_id = 3;
+  ShuffleMode shuffle_mode = 4;
+  string data_type_name = 5;
+  string serializer_type_name = 6;
+  OutputKeyingConfig output_keying_config = 7;
+}
+
+message JobGraph {
+  string job_name = 1;
+  string status = 2;
+  google.protobuf.Timestamp submission_time = 3;
+  repeated JobVertex vertices = 4;
+  repeated JobEdge edges = 5;
+  map<string, string> serializer_type_registrations = 6;
+}
+
+message SubmitJobRequest {
+  JobGraph job_graph = 1;
+}
+
+message SubmitJobReply {
+  bool success = 1;
+  string job_id = 2;
+  string message = 3;
+}
+
+message JobManagerHeartbeatRequest {
+  string job_id = 1;
+  string operator_instance_id = 2;
+  string health_status = 3;
+}
+
+message JobManagerHeartbeatReply {
+  bool ack = 1;
+}

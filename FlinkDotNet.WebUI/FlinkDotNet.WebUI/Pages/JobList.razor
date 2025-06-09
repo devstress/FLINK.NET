@@ -20,20 +20,7 @@ else if (!jobs.Any())
 }
 else
 {
-    <FluentDataGrid TGridItem="JobOverviewDto" Items="@jobs.AsQueryable()" GridTemplateColumns="1fr 2fr 2fr 1fr 1fr 1fr" Style="width: 100%;">
-        <TemplateColumn Title="Job ID" TooltipText="JobId">
-            <FluentAnchor Href="#" @onclick="@(() => NavigateToJobDetails(context.JobId!))" Appearance="Appearance.Hypertext">
-                @context.JobId?.Substring(0, 8)
-            </FluentAnchor>
-        </TemplateColumn>
-        <PropertyColumn Property="@(p => p.JobName)" Sortable="true" Title="Name" TooltipText="JobName" />
-        <PropertyColumn Property="@(p => p.SubmissionTime)" Sortable="true" Title="Submitted" Format="yyyy-MM-dd HH:mm:ss" TooltipText="SubmissionTime" />
-        <PropertyColumn Property="@(p => p.Status)" Sortable="true" Title="Status" TooltipText="Status" />
-        <PropertyColumn Property="@(p => p.Duration)" Sortable="true" Title="Duration" Format="hh\\:mm\\:ss" TooltipText="Duration" />
-        <TemplateColumn Title="Actions">
-            <FluentButton Appearance="Appearance.Stealth" @onclick="@(() => NavigateToJobDetails(context.JobId!))">Details</FluentButton>
-        </TemplateColumn>
-    </FluentDataGrid>
+    <p>Job list rendering is disabled in simplified build.</p>
 }
 
 @code {

@@ -1,12 +1,11 @@
 @inherits LayoutComponentBase
-// @using Microsoft.Fast.Components.FluentUI // Old, replaced by Microsoft.FluentUI.AspNetCore.Components from _Imports.razor
-// @using Microsoft.Fast.Components.FluentUI.DesignTokens // Old, removed as StandardLuminance is used now
+@* Former FluentUI namespaces removed *@
 @using FlinkDotNet.WebUI.Layout
 @using FlinkDotNet.WebUI.Services // For ThemeService
 @inject ThemeService ThemeService
 @implements IDisposable
 
-<FluentThemeProvider Luminance="@ThemeService.CurrentLuminance">
+<div>
     <FluentLayout>
         <FluentHeader>
             FlinkDotNet.WebUI
@@ -25,7 +24,7 @@
             <span style="margin-left: auto;">FlinkDotNet v0.1</span>
         </FluentFooter>
     </FluentLayout>
-</FluentThemeProvider>
+</div>
 
 @code {
     protected override void OnInitialized()

@@ -10,6 +10,8 @@ using FlinkDotNet.Core.Abstractions.Serializers;
 using FlinkDotNet.Core.Abstractions.States;
 using FlinkDotNet.Core.Abstractions.Timers;
 using FlinkDotNet.Core.Api.Windowing;
+using FlinkDotNet.Core.Abstractions.Windowing;
+using FlinkDotNet.Core.Abstractions.Storage;
 
 namespace FlinkDotNet.TaskManager.Internal
 {

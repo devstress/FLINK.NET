@@ -158,7 +158,7 @@ namespace FlinkDotNet.Architecture.Tests
         }
 
         // Helper method to format failing types for assertion messages
-        private static string GetFailingTypes(TestResult result)
+        private static string GetFailingTypes(NetArchTest.Rules.TestResult result)
         {
             if (result.IsSuccessful) return string.Empty;
             return "Failing types: " + string.Join(", ", result.FailingTypes?.Select(t => t.FullName) ?? Enumerable.Empty<string>());

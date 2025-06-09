@@ -84,9 +84,9 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         public static JobEdge FromProto(Proto.Internal.JobEdge protoEdge)
         {
             OutputKeyingConfig? keyingConfig = null;
-            if (protoEdge.HasOutputKeyingConfig) // Check if the optional field is set
+            if (protoEdge.OutputKeyingConfig != null)
             {
-                keyingConfig = OutputKeyingConfig.FromProto(protoEdge.OutputKeyingConfig); // Assumes OutputKeyingConfig has FromProto
+                keyingConfig = OutputKeyingConfig.FromProto(protoEdge.OutputKeyingConfig);
             }
 
             var edge = new JobEdge(

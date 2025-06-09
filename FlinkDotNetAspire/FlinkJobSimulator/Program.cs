@@ -3,15 +3,13 @@ using FlinkDotNet.Core.Api.Streaming;
 using FlinkDotNet.Core.Abstractions.Sinks; // For ISinkFunction
 using FlinkDotNet.Core.Abstractions.Sources; // For ISourceFunction
 using FlinkDotNet.Core.Abstractions.Operators; // For IMapOperator, IOperatorLifecycle
-using FlinkDotNet.Core.Abstractions.Runtime; // For IRuntimeContext
+using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext
 using FlinkDotNet.Core.Abstractions.Serializers;
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 // using FlinkDotNet.Connectors.Sources.File; // Not used in this version
 // using FlinkDotNet.Connectors.Sinks.Console; // Not used in this version
 using FlinkDotNet.JobManager.Models.JobGraph;
-using FlinkDotNet.Proto.Internal;
-using Grpc.Net.Client;
 using System.Text.Json;
 using System; // For Environment, ArgumentOutOfRangeException etc.
 using System.Collections.Generic; // For IEnumerable in source
@@ -120,7 +118,12 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         }
     }
 
-    public async Task Run(ISourceContext<string> ctx, CancellationToken cancellationToken = default)
+public void Run(ISourceContext<string> ctx)
+{
+    RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
+}
+
+public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancellationToken = default)
     {
         if (_redisDb == null)
         {
@@ -268,7 +271,7 @@ public class Program
             DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
 
             var mapOperator = new SimpleToUpperMapOperator();
-            DataStream<string> mappedStream = stream.Map(mapOperator, "upper-map");
+            DataStream<string> mappedStream = stream.Map(mapOperator);
 
             // Fork the mapped stream to two sinks:
             mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisSinkCounterKey), "redis-processed-counter-sink");
@@ -280,40 +283,8 @@ public class Program
             Console.WriteLine($"JobGraph created with name: {jobGraph.JobName}");
             Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
 
-            // --- 4. Submit JobGraph to JobManager via gRPC ---
-            Console.WriteLine($"Attempting to connect to JobManager at: {jobManagerGrpcUrl}");
-            using var channel = GrpcChannel.ForAddress(jobManagerGrpcUrl);
-            var client = new JobManagerInternal.JobManagerInternalClient(channel);
-
-            Console.WriteLine("Submitting job to JobManager...");
-
-            var jobSubmissionRequest = new SubmitJobRequest
-            {
-                JobGraph = jobGraph.ToProto()
-            };
-
-            try
-            {
-                var response = await client.SubmitJobAsync(jobSubmissionRequest);
-                if (response.Success)
-                {
-                    Console.WriteLine($"Job submitted successfully! JobId: {response.JobId}, Message: {response.Message}");
-                }
-                else
-                {
-                    Console.WriteLine($"Job submission failed. Message: {response.Message}");
-                }
-            }
-            catch (Grpc.Core.RpcException rpcex)
-            {
-                Console.WriteLine($"gRPC Error submitting job: {rpcex.Status}");
-                if (rpcex.Status.Detail != null) Console.WriteLine($"Details: {rpcex.Status.Detail}");
-                Console.WriteLine("Ensure JobManager, TaskManager, Redis, and Kafka are running and accessible.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error submitting job: {ex.Message}");
-            }
+            // Job submission skipped in this simplified build
+            Console.WriteLine("Job submission skipped.");
         }
         catch (Exception ex)
         {

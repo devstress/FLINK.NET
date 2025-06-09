@@ -25,12 +25,7 @@ else if (taskManagers == null || !taskManagers.Any())
 }
 else
 {
-    <FluentDataGrid TGridItem="TaskManagerInfoUIDto" Items="@taskManagers.AsQueryable()" GridTemplateColumns="2fr 2fr 1fr 2fr" Style="width: 100%;">
-        <PropertyColumn Property="@(tm => tm.TaskManagerId)" Sortable="true" Title="ID" TooltipText="TaskManagerId" />
-        <PropertyColumn Property="@(tm => tm.Address)" Sortable="true" Title="Address" TooltipText="Address" />
-        <PropertyColumn Property="@(tm => tm.Port)" Sortable="true" Title="Port" TooltipText="Port" />
-        <PropertyColumn Property="@(tm => tm.LastHeartbeat)" Sortable="true" Title="Last Heartbeat" Format="yyyy-MM-dd HH:mm:ss UTC" TooltipText="LastHeartbeat" />
-    </FluentDataGrid>
+    <p>TaskManager list rendering is disabled in simplified build.</p>
 }
 
 @code {

@@ -16,6 +16,11 @@ namespace FlinkDotNet.Core.Abstractions.States
         IEnumerable<T> GetValues();
 
         /// <summary>
+        /// Compatibility alias matching older API that exposed <c>Get()</c>.
+        /// </summary>
+        IEnumerable<T> Get();
+
+        /// <summary>
         /// Adds a single value to the list.
         /// </summary>
         /// <param name="value">The value to add.</param>

@@ -2,10 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-// Assuming FlinkDotNet.TaskManager.Models.TaskMetrics is accessible.
-// If TaskMetrics is in a different namespace, this using might need to be adjusted,
-// or TaskMetrics might need to be defined/mirrored in JobManager.Models.
-using FlinkDotNet.TaskManager.Models; // Added based on assumption
+// Metrics definitions
+using FlinkDotNet.JobManager.Models;
 // Assuming FlinkDotNet.Proto.Internal for Proto definitions
 using FlinkDotNet.Proto.Internal;
 
@@ -26,7 +24,7 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         public DateTime SubmissionTime { get; set; }
         public string Status { get; set; } // Examples: SUBMITTED, RUNNING, FAILED, COMPLETED
         
-        public ConcurrentDictionary<string, FlinkDotNet.TaskManager.Models.TaskMetrics> TaskInstanceMetrics { get; } = new();
+        public ConcurrentDictionary<string, TaskMetrics> TaskInstanceMetrics { get; } = new();
 
         // --- Fields from 'feature/comprehensive-flink-core-design' (Jules's conceptual changes) ---
         public Dictionary<string, string> SerializerTypeRegistrations { get; set; } = new();
@@ -48,9 +46,13 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         public void AddEdge(JobEdge edge)
         {
             // Ensure the edge connects vertices already in this graph (optional check)
-            if (Vertices.Any(v => v.Id == edge.SourceVertex.Id) && Vertices.Any(v => v.Id == edge.TargetVertex.Id))
+            if (Vertices.Any(v => v.Id == edge.SourceVertexId) && Vertices.Any(v => v.Id == edge.TargetVertexId))
             {
                 Edges.Add(edge);
+
+                // Maintain lists of edge IDs on the connected vertices
+                Vertices.First(v => v.Id == edge.SourceVertexId).AddOutputEdgeId(edge.Id);
+                Vertices.First(v => v.Id == edge.TargetVertexId).AddInputEdgeId(edge.Id);
             }
             else
             {
@@ -70,7 +72,6 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         {
             var protoJobGraph = new Proto.Internal.JobGraph
             {
-                JobId = this.JobId.ToString(),
                 JobName = this.JobName,
                 // JobConfiguration = { this.JobConfiguration }, // Assuming JobConfiguration is a map or repeated field
                 SubmissionTime = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTime(this.SubmissionTime.ToUniversalTime()),

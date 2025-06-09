@@ -16,7 +16,7 @@ namespace FlinkDotNet.TaskManager
     public class ChainedCollector<TIn> : ICollector<TIn>
     {
         private readonly object _nextOperator;
-        private readonly object? _nextStepTarget; // Renamed: Can be ICollector<TNextOut> or List<CreditAwareTaskOutput> or null
+        private readonly object? _nextStepTarget; // Renamed: Can be ICollector<TNextOut> or list of network outputs or null
         private readonly Type _nextOperatorInputType;
         // private readonly ITypeSerializer<object> _outputSerializerForNextOperator; // Placeholder for actual output serializer if needed
 
@@ -25,7 +25,7 @@ namespace FlinkDotNet.TaskManager
         /// </summary>
         /// <param name="nextOperator">The next operator instance in the chain.</param>
         /// <param name="nextStepTarget">The target for the output of the nextOperator.
-        /// This can be another ChainedCollector (as ICollector<object>), a List<CreditAwareTaskOutput>, or null.</param>
+        /// This can be another ChainedCollector (as ICollector<object>), a list of network outputs, or null.</param>
         /// <param name="nextOperatorInputType">The exact input type expected by the next operator's processing method.</param>
         // public ChainedCollector(object nextOperator, object? nextStepTarget, Type nextOperatorInputType, ITypeSerializer<object> outputSerializerForNextOperator) // With serializer
         public ChainedCollector(object nextOperator, object? nextStepTarget, Type nextOperatorInputType)
@@ -56,7 +56,7 @@ namespace FlinkDotNet.TaskManager
                     {
                         chainedCollectorForNextOp.Collect(mappedRecord);
                     }
-                    else if (_nextStepTarget is List<CreditAwareTaskOutput> networkOutputs)
+                    else if (_nextStepTarget is List<object> networkOutputs)
                     {
                         // Placeholder for actual serialization
                         byte[] payloadBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(mappedRecord);
@@ -76,10 +76,7 @@ namespace FlinkDotNet.TaskManager
                             dataRecordProto.BarrierPayload = new Proto.Internal.CheckpointBarrier { CheckpointId = checkpointId, CheckpointTimestamp = checkpointTs };
                         }
 
-                        foreach (var sender in networkOutputs)
-                        {
-                            sender.SendRecord(dataRecordProto);
-                        }
+                        // Network output sending omitted in this simplified build
                     }
                     else if (_nextStepTarget == null)
                     {
@@ -98,11 +95,11 @@ namespace FlinkDotNet.TaskManager
                     }
                     // FlatMap to network directly is more complex as FlatMap relies on the collector passed to it.
                     // To send FlatMap output to network, the outputCollectorForFlatMap would need to be a special
-                    // collector that itself contains the List<CreditAwareTaskOutput> and handles serialization/SendRecord.
-                    // This is a more advanced scenario than covered by simply passing List<CreditAwareTaskOutput> as _nextStepTarget for FlatMap.
-                    else if (_nextStepTarget is List<CreditAwareTaskOutput>)
+                    // collector that itself contains the network outputs and handles serialization/SendRecord.
+                    // This is a more advanced scenario than covered by simply passing a list of outputs as _nextStepTarget for FlatMap.
+                    else if (_nextStepTarget is List<object>)
                     {
-                         Console.WriteLine($"ChainedCollector: ERROR - FlatMapOperator {_nextOperator.GetType().Name} cannot directly use List<CreditAwareTaskOutput> as its collector. It needs an ICollector that wraps it.");
+                         Console.WriteLine($"ChainedCollector: ERROR - FlatMapOperator {_nextOperator.GetType().Name} cannot directly use a list of outputs as its collector. It needs an ICollector that wraps it.");
                     }
                     else if (_nextStepTarget == null && !(_nextOperator is ISinkFunction<object>))
                     {

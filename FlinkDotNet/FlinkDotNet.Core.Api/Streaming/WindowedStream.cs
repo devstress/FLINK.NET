@@ -78,7 +78,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             if (reduceFunction == null) throw new ArgumentNullException(nameof(reduceFunction));
             var reduceTrans = new WindowReduceTransformation<TElement, TKey, TWindow>(
                 Transformation, reduceFunction, typeof(TElement));
-            Transformation.InputTransformation.AddDownstreamTransformation(reduceTrans, ShuffleMode.Forward); // Edges connect from KeyedTransform to Window*Function*Transform
+            Transformation.Input.AddDownstreamTransformation(reduceTrans, ShuffleMode.Forward); // Edges connect from KeyedTransform to Window*Function*Transform
             return new DataStream<TElement>(this.Environment, reduceTrans);
         }
 
@@ -88,7 +88,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             if (aggregateFunction == null) throw new ArgumentNullException(nameof(aggregateFunction));
             var aggTrans = new WindowAggregateTransformation<TElement, TAccumulator, TResult, TKey, TWindow>(
                 Transformation, aggregateFunction, typeof(TResult));
-            Transformation.InputTransformation.AddDownstreamTransformation(aggTrans, ShuffleMode.Forward);
+            Transformation.Input.AddDownstreamTransformation(aggTrans, ShuffleMode.Forward);
             return new DataStream<TResult>(this.Environment, aggTrans);
         }
 
@@ -98,7 +98,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             if (processWindowFunction == null) throw new ArgumentNullException(nameof(processWindowFunction));
             var procTrans = new WindowProcessTransformation<TElement, TResult, TKey, TWindow>(
                 Transformation, processWindowFunction, typeof(TResult));
-            Transformation.InputTransformation.AddDownstreamTransformation(procTrans, ShuffleMode.Forward);
+            Transformation.Input.AddDownstreamTransformation(procTrans, ShuffleMode.Forward);
             return new DataStream<TResult>(this.Environment, procTrans);
         }
     }

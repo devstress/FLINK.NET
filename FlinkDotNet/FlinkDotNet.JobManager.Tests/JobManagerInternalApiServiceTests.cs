@@ -4,7 +4,7 @@ using Moq;
 using Microsoft.Extensions.Logging;
 using Grpc.Core; // Required for ServerCallContext
 using FlinkDotNet.JobManager.Services; // The gRPC service implementation
-using FlinkDotNet.JobManager.InternalApi.Grpc; // The generated gRPC C# classes
+using FlinkDotNet.Proto.Internal; // The generated gRPC C# classes
 
 namespace FlinkDotNet.JobManager.Tests
 {
@@ -101,7 +101,12 @@ namespace FlinkDotNet.JobManager.Tests
         public async Task Heartbeat_ReturnsAckTrue()
         {
             // Arrange
-            var request = new HeartbeatRequest { JobId = "job2", OperatorInstanceId = "opHeartbeat", HealthStatus = "HEALTHY" };
+            var request = new JobManagerHeartbeatRequest
+            {
+                JobId = "job2",
+                OperatorInstanceId = "opHeartbeat",
+                HealthStatus = "HEALTHY"
+            };
 
             // Act
             var reply = await _service.Heartbeat(request, MockServerCallContext());
