@@ -109,46 +109,18 @@ namespace IntegrationTestVerifier
                 return 1;
             }
 
+            var verificationStopwatch = Stopwatch.StartNew();
+
             bool allChecksPassed = true;
-            const int maxAttempts = 5;
-            const int delayBetweenAttemptsMs = 20000;
+            allChecksPassed &= await VerifyRedisAsync(redisConnectionStringFull, expectedMessages, globalSequenceKey, sinkCounterKey, 1);
+            allChecksPassed &= VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages);
 
-            for (int attempts = 1; attempts <= maxAttempts; attempts++)
+            verificationStopwatch.Stop();
+            Console.WriteLine($"Verification time for {expectedMessages} messages: {verificationStopwatch.ElapsedMilliseconds} ms");
+            if (verificationStopwatch.ElapsedMilliseconds > 1000)
             {
-                Console.WriteLine($"\n--- Verification Attempt {attempts}/{maxAttempts} ---");
-                allChecksPassed = true; // Reset for current attempt
-
-                allChecksPassed &= await VerifyRedisAsync(redisConnectionStringFull, expectedMessages, globalSequenceKey, sinkCounterKey, attempts);
-
-                if (!allChecksPassed)
-                {
-                    if (attempts < maxAttempts) {
-                        Console.WriteLine($"Redis checks failed on attempt {attempts}. Waiting {delayBetweenAttemptsMs / 1000}s before retrying...");
-                        await Task.Delay(delayBetweenAttemptsMs);
-                        continue;
-                    } else {
-                        Console.WriteLine($"Redis checks failed after {maxAttempts} attempts.");
-                        break;
-                    }
-                }
-
-                // Proceed to Kafka checks only if Redis checks passed for this attempt or it's the final attempt for Redis
-                allChecksPassed &= VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages); // CS1998/S1172: Removed await and attempts
-
-                if (allChecksPassed)
-                {
-                    Console.WriteLine($"\n--- All checks PASSED on attempt {attempts} ---");
-                    break;
-                }
-                else if (attempts < maxAttempts)
-                {
-                    Console.WriteLine($"\n--- Some checks FAILED on attempt {attempts}. Waiting {delayBetweenAttemptsMs / 1000}s before retrying... ---");
-                    await Task.Delay(delayBetweenAttemptsMs);
-                }
-                else
-                {
-                    Console.WriteLine($"\n--- Some checks FAILED after {maxAttempts} attempts. ---");
-                }
+                Console.WriteLine("Processing exceeded 1 second.");
+                allChecksPassed = false;
             }
 
             Console.WriteLine(allChecksPassed ? "\nIntegration tests PASSED." : "\nIntegration tests FAILED.");

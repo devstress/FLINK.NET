@@ -10,7 +10,7 @@ on:
   workflow_dispatch: # Retain manual triggering
 
 env:
-  SIMULATOR_NUM_MESSAGES_CI: "500" # Number of messages for CI tests
+  SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests
 
 jobs:
   run-integration-tests:
@@ -27,10 +27,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up .NET 9.0
+      - name: Set up .NET 8.0
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '8.0.x'
 
       - name: Install .NET Aspire Workload
         run: dotnet workload install aspire

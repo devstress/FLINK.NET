@@ -26,7 +26,7 @@ builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
     .WithReference(jobManager.GetEndpoint("grpc"))
     .WithReference(redis) // Makes "ConnectionStrings__redis" available
     .WithReference(kafka) // Makes "ConnectionStrings__kafka" available (or similar for bootstrap servers)
-    .WithEnvironment("SIMULATOR_NUM_MESSAGES", "10000") // Default to 10k for quicker local tests
+    .WithEnvironment("SIMULATOR_NUM_MESSAGES", "1000000") // Use 1M messages for integration test
     .WithEnvironment("SIMULATOR_REDIS_KEY", "flinkdotnet:sample:counter") // Default Redis key
     .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic") // Default Kafka topic
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
