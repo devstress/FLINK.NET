@@ -144,13 +144,28 @@ namespace FlinkDotNet.JobManager.Controllers
         // ... (existing methods like GetStatus, GetJobs etc. might need adjustment or removal if IJobManagerApi is removed/changed)
 
         [HttpPost("submit")]
-        public Task<IActionResult> SubmitJob([FromBody] JobDefinitionDto jobDefinition)
+        public async Task<IActionResult> SubmitJob([FromBody] JobDefinitionDto jobDefinition)
         {
-            if (jobDefinition == null)
+            if (jobDefinition == null || string.IsNullOrWhiteSpace(jobDefinition.JobName))
             {
-                return Task.FromResult<IActionResult>(BadRequest("Job definition is null."));
+                return BadRequest("Job definition or job name cannot be empty.");
             }
-            return Task.FromResult<IActionResult>(StatusCode(501, "SubmitJob not implemented."));
+
+            var jobId = Guid.NewGuid().ToString();
+            var status = new JobStatusDto
+            {
+                JobId = jobId,
+                Status = "SUBMITTED",
+                LastUpdated = DateTime.UtcNow
+            };
+
+            bool created = await _jobRepository.CreateJobAsync(jobId, jobDefinition, status);
+            if (!created)
+            {
+                return StatusCode(500, "Failed to create and store job.");
+            }
+
+            return Ok(status);
         }
 
 
@@ -158,133 +173,116 @@ namespace FlinkDotNet.JobManager.Controllers
         [HttpGet("/jobs/{jobId}")]
         public async Task<IActionResult> GetJobStatus(string jobId)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                return BadRequest("Job ID cannot be empty.");
+            }
 
-            // var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
+            var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
 
-            // if (jobStatus == null)
-            // {
-            //     return NotFound($"Job with ID {jobId} not found.");
-            // }
-            // return Ok(jobStatus);
-            return StatusCode(501, "GetJobStatus not implemented with JobGraph storage yet.");
+            if (jobStatus == null)
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
+            return Ok(jobStatus);
         }
 
         // PUT /jobs/{jobId}/scale
         [HttpPut("/jobs/{jobId}/scale")]
         public async Task<IActionResult> ScaleJob(string jobId, [FromBody] ScaleParametersDto scaleParameters)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                return BadRequest("Job ID cannot be empty.");
+            }
 
-            // if (scaleParameters == null || scaleParameters.DesiredParallelism <= 0)
-            // {
-            //     return BadRequest("Scale parameters must be provided and desired parallelism must be greater than 0.");
-            // }
+            if (scaleParameters == null || scaleParameters.DesiredParallelism <= 0)
+            {
+                return BadRequest("Scale parameters must be provided and desired parallelism must be greater than 0.");
+            }
 
-            // var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
-            // if (jobStatus == null)
-            // {
-            //     return NotFound($"Job with ID {jobId} not found.");
-            // }
+            var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
+            if (jobStatus == null)
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
 
-            // jobStatus.Status = "SCALING_REQUESTED";
-            // jobStatus.LastUpdated = DateTime.UtcNow;
+            jobStatus.Status = "SCALING_REQUESTED";
+            jobStatus.LastUpdated = DateTime.UtcNow;
 
-            // bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
-            // if (!updated)
-            // {
-            //     return StatusCode(500, $"Failed to update status for job {jobId} to SCALING_REQUESTED.");
-            // }
-            // return Ok(jobStatus);
-            return StatusCode(501, "ScaleJob not implemented with JobGraph storage yet.");
+            bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
+            if (!updated)
+            {
+                return StatusCode(500, $"Failed to update status for job {jobId} to SCALING_REQUESTED.");
+            }
+            return Ok(jobStatus);
         }
 
         // POST /jobs/{jobId}/stop
         [HttpPost("/jobs/{jobId}/stop")]
         public async Task<IActionResult> StopJob(string jobId)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                return BadRequest("Job ID cannot be empty.");
+            }
 
-            // var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
-            // if (jobStatus == null)
-            // {
-            //     return NotFound($"Job with ID {jobId} not found.");
-            // }
+            var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
+            if (jobStatus == null)
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
 
-            // jobStatus.Status = "STOPPING";
-            // jobStatus.LastUpdated = DateTime.UtcNow;
+            jobStatus.Status = "STOPPING";
+            jobStatus.LastUpdated = DateTime.UtcNow;
 
-            // bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
-            // if (!updated)
-            // {
-            //     return StatusCode(500, $"Failed to update status for job {jobId} to STOPPING.");
-            // }
-            // return Ok(jobStatus);
-            return StatusCode(501, "StopJob not implemented with JobGraph storage yet.");
+            bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
+            if (!updated)
+            {
+                return StatusCode(500, $"Failed to update status for job {jobId} to STOPPING.");
+            }
+            return Ok(jobStatus);
         }
 
         // POST /jobs/{jobId}/cancel
         [HttpPost("/jobs/{jobId}/cancel")]
         public async Task<IActionResult> CancelJob(string jobId)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
-
-            // var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
-            // if (jobStatus == null)
-            // {
-            //     return NotFound($"Job with ID {jobId} not found.");
-            // }
-
-            // jobStatus.Status = "CANCELLING";
-            // jobStatus.LastUpdated = DateTime.UtcNow;
-
-            // bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
-            // if (!updated)
-            // {
-            //     return StatusCode(500, $"Failed to update status for job {jobId} to CANCELLING.");
-            // }
-            // return Ok(jobStatus);
-            return StatusCode(501, "CancelJob not implemented with JobGraph storage yet.");
-        }
-
-        // GET /jobs/{jobId}/checkpoints
-        [HttpGet("jobs/{jobId}/checkpoints")] // Corrected route as per subtask (removed leading slash if it was there)
-        public async Task<IActionResult> GetJobCheckpoints(string jobId)
-        {
-            if (!Guid.TryParse(jobId, out var parsedGuid))
+            if (string.IsNullOrWhiteSpace(jobId))
             {
-                return BadRequest("Invalid Job ID format. Job ID must be a valid GUID.");
+                return BadRequest("Job ID cannot be empty.");
             }
 
-            // Check if the job itself exists in the primary JobGraph storage
-            if (!_jobGraphs.ContainsKey(parsedGuid))
+            var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
+            if (jobStatus == null)
             {
                 return NotFound($"Job with ID {jobId} not found.");
             }
 
-            var checkpoints = await _jobRepository.GetCheckpointsAsync(jobId);
+            jobStatus.Status = "CANCELLING";
+            jobStatus.LastUpdated = DateTime.UtcNow;
 
-            // The mock logic in repository should provide mock data if no real checkpoints exist.
-            // If GetCheckpointsAsync itself returns null (e.g., if the repository logic changes to indicate job not found there for checkpoints)
-            // then it might also warrant a NotFound, but current repo mock logic prevents this if job exists.
+            bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
+            if (!updated)
+            {
+                return StatusCode(500, $"Failed to update status for job {jobId} to CANCELLING.");
+            }
+            return Ok(jobStatus);
+        }
+
+        // GET /jobs/{jobId}/checkpoints
+        [HttpGet("jobs/{jobId}/checkpoints")]
+        public async Task<IActionResult> GetJobCheckpoints(string jobId)
+        {
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                return BadRequest("Job ID cannot be empty.");
+            }
+
+            var checkpoints = await _jobRepository.GetCheckpointsAsync(jobId);
             if (checkpoints == null)
             {
-                 // This case might indicate the job ID was valid Guid but not found by repository's own check,
-                 // though our _jobGraphs check above should be the primary job existence check.
-                 // For safety, or if repo could have jobs not in _jobGraphs (unlikely with current setup).
-                return NotFound($"Checkpoint information not available for job {jobId}, or job not found by repository.");
+                return NotFound($"Job with ID {jobId} not found, or no checkpoint information available.");
             }
 
             return Ok(checkpoints);
@@ -314,79 +312,75 @@ namespace FlinkDotNet.JobManager.Controllers
         [HttpPost("/jobs/{jobId}/restart")]
         public async Task<IActionResult> RestartJob(string jobId)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                return BadRequest("Job ID cannot be empty.");
+            }
 
-            // var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
-            // if (jobStatus == null)
-            // {
-            //     return NotFound($"Job with ID {jobId} not found.");
-            // }
+            var jobStatus = await _jobRepository.GetJobStatusAsync(jobId);
+            if (jobStatus == null)
+            {
+                return NotFound($"Job with ID {jobId} not found.");
+            }
 
-            // jobStatus.Status = "RESTARTING";
-            // jobStatus.LastUpdated = DateTime.UtcNow;
-            // jobStatus.ErrorMessage = null;
+            jobStatus.Status = "RESTARTING";
+            jobStatus.LastUpdated = DateTime.UtcNow;
+            jobStatus.ErrorMessage = null;
 
-            // bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
-            // if (!updated)
-            // {
-            //     return StatusCode(500, $"Failed to update status for job {jobId} to RESTARTING.");
-            // }
-            // return Ok(jobStatus);
-            return StatusCode(501, "RestartJob not implemented with JobGraph storage yet.");
+            bool updated = await _jobRepository.UpdateJobStatusAsync(jobId, jobStatus);
+            if (!updated)
+            {
+                return StatusCode(500, $"Failed to update status for job {jobId} to RESTARTING.");
+            }
+            return Ok(jobStatus);
         }
 
         // POST /dlq/{jobId}/resubmit
         [HttpPost("/dlq/{jobId}/resubmit")]
         public async Task<IActionResult> ResubmitDlqMessages(string jobId)
         {
-            // if (string.IsNullOrWhiteSpace(jobId))
-            // {
-            //     return BadRequest("Job ID cannot be empty.");
-            // }
+            if (string.IsNullOrWhiteSpace(jobId))
+            {
+                return BadRequest("Job ID cannot be empty.");
+            }
 
-            // bool accepted = await _jobRepository.RequestBatchDlqResubmissionAsync(jobId);
-            // if (!accepted)
-            // {
-            //     return NotFound($"Failed to request DLQ resubmission for job {jobId}, or job not found.");
-            // }
+            bool accepted = await _jobRepository.RequestBatchDlqResubmissionAsync(jobId);
+            if (!accepted)
+            {
+                return NotFound($"Failed to request DLQ resubmission for job {jobId}, or job not found.");
+            }
 
-            // Console.WriteLine($"Controller: DLQ resubmission requested for job {jobId}");
-            // return Accepted($"Request to resubmit DLQ messages for job {jobId} has been accepted.");
-            return StatusCode(501, "ResubmitDlqMessages not implemented with JobGraph storage yet.");
+            return Accepted($"Request to resubmit DLQ messages for job {jobId} has been accepted.");
         }
 
         // PUT /dlq/{jobId}/messages/{messageId}
         [HttpPut("/dlq/{jobId}/messages/{messageId}")]
         public async Task<IActionResult> ModifyDlqMessage(string jobId, string messageId, [FromBody] DlqMessageDto messageData)
         {
-            // if (string.IsNullOrWhiteSpace(jobId) || string.IsNullOrWhiteSpace(messageId))
-            // {
-            //     return BadRequest("Job ID and Message ID cannot be empty.");
-            // }
+            if (string.IsNullOrWhiteSpace(jobId) || string.IsNullOrWhiteSpace(messageId))
+            {
+                return BadRequest("Job ID and Message ID cannot be empty.");
+            }
 
-            // if (messageData == null || messageData.NewPayload == null)
-            // {
-            //     return BadRequest("Message data with new payload must be provided.");
-            // }
+            if (messageData == null || messageData.NewPayload == null)
+            {
+                return BadRequest("Message data with new payload must be provided.");
+            }
 
-            // var existingMessage = await _jobRepository.GetDlqMessageAsync(jobId, messageId);
-            // if (existingMessage == null)
-            // {
-            //     return NotFound($"DLQ message with ID {messageId} for job {jobId} not found.");
-            // }
+            var existingMessage = await _jobRepository.GetDlqMessageAsync(jobId, messageId);
+            if (existingMessage == null)
+            {
+                return NotFound($"DLQ message with ID {messageId} for job {jobId} not found.");
+            }
 
-            // bool updated = await _jobRepository.UpdateDlqMessagePayloadAsync(jobId, messageId, messageData.NewPayload);
-            // if (!updated)
-            // {
-            //     return StatusCode(500, $"Failed to update DLQ message {messageId} for job {jobId}.");
-            // }
+            bool updated = await _jobRepository.UpdateDlqMessagePayloadAsync(jobId, messageId, messageData.NewPayload);
+            if (!updated)
+            {
+                return StatusCode(500, $"Failed to update DLQ message {messageId} for job {jobId}.");
+            }
 
-            // var updatedMessage = await _jobRepository.GetDlqMessageAsync(jobId, messageId);
-            // return Ok(updatedMessage);
-            return StatusCode(501, "ModifyDlqMessage not implemented with JobGraph storage yet.");
+            var updatedMessage = await _jobRepository.GetDlqMessageAsync(jobId, messageId);
+            return Ok(updatedMessage);
         }
         // The private ObjectResult NotImplemented(string message) method has been removed.
     }

@@ -50,32 +50,13 @@ namespace FlinkDotNet.Core.Abstractions.States
         public void Update(T value)
         {
             object keyToUse = GetEffectiveKey();
-            // Standard Flink behavior: if value to update is null (for nullable types) or default for value types,
-            // the state for that key is cleared.
-            // For simplicity here, we check against _descriptor.DefaultValue.
-            // A more robust check might involve EqualityComparer<T>.Default.Equals(value, _descriptor.DefaultValue)
-            // or specific checks for null if T is a reference type or Nullable<U>.
-
-            // If T can be null (reference type or Nullable<ValueType>) and the value is null,
-            // or if T is a value type and value is its default (which isn't what descriptor.DefaultValue usually means for clearing state),
-            // Flink typically clears state if updated with null.
-            // For non-nullable value types, they can't be set to null.
-            // Let's refine this: if T is a reference type or Nullable<U>, and value is null, then clear. Otherwise, update.
-            // The original _descriptor.DefaultValue check was potentially problematic.
-            if (default(T) is null && EqualityComparer<T>.Default.Equals(value, default(T))) // Check if T is nullable and value is null
-            {
-                 _keyedStorage.Remove(keyToUse);
-            }
-            else
-            {
-                _keyedStorage[keyToUse] = value;
-            }
+            _keyedStorage[keyToUse] = value;
         }
 
         public void Clear()
         {
             object keyToUse = GetEffectiveKey();
-            _keyedStorage.Remove(keyToUse);
+            _keyedStorage[keyToUse] = default!;
         }
 
         /// <summary>
