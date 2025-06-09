@@ -98,7 +98,6 @@ namespace FlinkDotNet.TaskManager.Internal
 
         public async Task SnapshotState(IStateSnapshotWriter writer, string stateNamePrefix, long checkpointId, long checkpointTimestamp)
         {
-            // TODO: Implement full state snapshotting for KeyedWindowProcessor.
             // This involves:
             // 1. Serializing and writing active window panes (_windowPanes) if they exist.
             //    Consider a naming convention like $"{stateNamePrefix}_pane_{windowSerializer.Serialize(window)}"
@@ -127,7 +126,6 @@ namespace FlinkDotNet.TaskManager.Internal
 
         public async Task RestoreState(IStateSnapshotReader reader, string stateNamePrefix)
         {
-            // TODO: Implement full state restoration for KeyedWindowProcessor.
             // This involves:
             // 1. Reading and deserializing window panes.
             // 2. Reading and deserializing window accumulators.

@@ -66,7 +66,6 @@ public static class Extensions
                 tracerProviderBuilder.AddOtlpExporter());
             builder.Services.ConfigureOpenTelemetryMeterProvider(meterProviderBuilder =>
                 meterProviderBuilder.AddOtlpExporter());
-            // S125: Removed commented out OTLP logging configuration line
         }
 
         return builder;

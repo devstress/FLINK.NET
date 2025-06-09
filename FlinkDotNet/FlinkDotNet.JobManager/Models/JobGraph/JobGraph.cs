@@ -145,7 +145,6 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
                 jobGraph.SerializerTypeRegistrations.Add(kvp.Key, kvp.Value);
             }
 
-            // TODO: Reconstruct JobConfiguration if it's more complex than simple properties
 
             return jobGraph;
         }
