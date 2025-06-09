@@ -17,6 +17,8 @@ using System.Threading; // For CancellationToken, Interlocked, Timer
 using System.Threading.Tasks; // For Task
 // using FlinkJobSimulator; // Not strictly needed if all classes are in the same file or top-level in the same project namespace
 
+namespace FlinkJobSimulator
+{
 // Helper classes are defined below in this file.
 
 // Counting Sink Function (remains from previous step, not directly used in Main anymore but kept for now)
@@ -58,9 +60,11 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
 
     private ConnectionMultiplexer? _redisConnection;
     private IDatabase? _redisDb;
-    private string _globalSequenceRedisKey;
+    private readonly string _globalSequenceRedisKey;
 
-    private static IConfiguration? _configuration;
+    private static readonly IConfiguration Configuration = new ConfigurationBuilder()
+        .AddEnvironmentVariables()
+        .Build();
 
     // --- Checkpoint Barrier Injection Fields ---
     private long _messagesSentSinceLastBarrier = 0;
@@ -68,20 +72,13 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
     private static long _nextCheckpointId = 1; // Static to ensure unique IDs across potential re-instantiations in some test scenarios (though for a single run, instance field is fine)
 
 
-    static HighVolumeSourceFunction()
-    {
-        _configuration = new ConfigurationBuilder()
-            .AddEnvironmentVariables()
-            .Build();
-    }
-
     public HighVolumeSourceFunction(long numberOfMessagesToGenerate, ITypeSerializer<string> serializer)
     {
         _numberOfMessagesToGenerate = numberOfMessagesToGenerate;
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         if (numberOfMessagesToGenerate <= 0) throw new ArgumentOutOfRangeException(nameof(numberOfMessagesToGenerate), "Number of messages must be positive.");
 
-        _globalSequenceRedisKey = _configuration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
+        _globalSequenceRedisKey = Configuration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
         Console.WriteLine($"[HighVolumeSourceFunction] Configured to use global sequence Redis key: '{_globalSequenceRedisKey}'");
     }
 
@@ -90,7 +87,7 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         _taskName = context.TaskName;
         Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
 
-        string? redisConnectionString = _configuration?["ConnectionStrings__redis"];
+        string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
         if (string.IsNullOrEmpty(redisConnectionString))
         {
             Console.WriteLine($"[{_taskName}] ERROR: Redis connection string 'ConnectionStrings__redis' not found in environment variables for source.");
@@ -118,10 +115,41 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         }
     }
 
-public void Run(ISourceContext<string> ctx)
-{
-    RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
-}
+    public void Run(ISourceContext<string> ctx)
+    {
+        RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    private void InjectBarrierIfNeeded(ISourceContext<string> ctx)
+    {
+        if (_messagesSentSinceLastBarrier >= MessagesPerBarrier)
+        {
+            long checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            if (checkpointIdToInject == 0)
+            {
+                checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            }
+
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string barrierMessage = $"BARRIER_{checkpointIdToInject}_{timestamp}";
+            Console.WriteLine($"[{_taskName}] Injecting Barrier: {barrierMessage}");
+            ctx.Collect(barrierMessage);
+            _messagesSentSinceLastBarrier = 0;
+        }
+    }
+
+    private async Task EmitMessageAsync(ISourceContext<string> ctx, long currentSequenceId, long emittedCount)
+    {
+        string message = $"MessagePayload_Seq-{currentSequenceId}";
+        ctx.Collect(message);
+        _messagesSentSinceLastBarrier++;
+
+        if (emittedCount % 100000 == 0)
+        {
+            Console.WriteLine($"[{_taskName}] Emitted {emittedCount} messages. Last sequence ID: {currentSequenceId}");
+            await Task.Yield();
+        }
+    }
 
 public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancellationToken = default)
     {
@@ -141,33 +169,13 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
                 break;
             }
 
-            // --- Barrier Injection Logic ---
-            if (_messagesSentSinceLastBarrier >= MessagesPerBarrier)
-            {
-                long checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) -1; // Use current value then increment for next
-                if (checkpointIdToInject == 0) checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) -1; // ensure it starts from 1
-
-                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                string barrierMessage = $"BARRIER_{checkpointIdToInject}_{timestamp}";
-                Console.WriteLine($"[{_taskName}] Injecting Barrier: {barrierMessage}");
-                ctx.Collect(barrierMessage); // Collect the special barrier marker string
-                _messagesSentSinceLastBarrier = 0;
-            }
+            InjectBarrierIfNeeded(ctx);
 
             try
             {
                 long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
-                string message = $"MessagePayload_Seq-{currentSequenceId}";
-                ctx.Collect(message);
                 emittedCount++;
-                _messagesSentSinceLastBarrier++;
-
-
-                if (emittedCount % 100000 == 0 && emittedCount > 0)
-                {
-                    Console.WriteLine($"[{_taskName}] Emitted {emittedCount} messages. Last sequence ID: {currentSequenceId}");
-                    await Task.Yield();
-                }
+                await EmitMessageAsync(ctx, currentSequenceId, emittedCount);
             }
             catch (Exception ex)
             {
@@ -177,9 +185,14 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             }
         }
         // Send one final barrier after all data messages (optional, but good for some checkpointing models)
-        if (_isRunning && emittedCount > 0) {
-            long finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) -1;
-             if (finalCheckpointId == 0) finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) -1;
+        if (_isRunning && emittedCount > 0)
+        {
+            long finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            if (finalCheckpointId == 0)
+            {
+                finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            }
+
             long finalTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string finalBarrierMessage = $"BARRIER_{finalCheckpointId}_{finalTimestamp}_FINAL";
             Console.WriteLine($"[{_taskName}] Injecting Final Barrier: {finalBarrierMessage}");
@@ -227,7 +240,7 @@ public class SimpleToUpperMapOperator : IMapOperator<string, string>
 // RedisIncrementSinkFunction and KafkaSinkFunction are assumed to be in their own files:
 // RedisIncrementSinkFunction.cs and KafkaSinkFunction.cs within the FlinkJobSimulator namespace/project.
 
-public class Program
+public static class Program
 {
     public static void Main(string[] args)
     {
@@ -252,7 +265,8 @@ public class Program
         var jobManagerGrpcUrl = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
         if (string.IsNullOrEmpty(jobManagerGrpcUrl))
         {
-            jobManagerGrpcUrl = "http://localhost:50051";
+            var builder = new UriBuilder("http", "localhost", 50051);
+            jobManagerGrpcUrl = builder.Uri.ToString();
             Console.WriteLine($"JobManager gRPC URL not found in environment variables. Using default: {jobManagerGrpcUrl}");
         }
         else
@@ -295,4 +309,5 @@ public class Program
         Console.WriteLine("Flink Job Simulator finished. Note: Job execution is asynchronous on the cluster.");
         Console.WriteLine($"Observe JobManager & TaskManager logs, Aspire dashboard, Redis key '{redisSinkCounterKey}', and Kafka topic '{kafkaTopic}'.");
     }
+}
 }

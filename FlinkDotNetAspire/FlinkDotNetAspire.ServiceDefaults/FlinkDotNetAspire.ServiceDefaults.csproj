@@ -3,9 +3,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsAspireSharedProject>true</IsAspireSharedProject>
-    <!-- This library is referenced by the Aspire AppHost but is not an executa
-         ble project. Mark it as a non-resource to avoid build warnings. -->
     <IsAspireProjectResource>false</IsAspireProjectResource>
+    <ProjectGuid>eed3bc6f-bd98-47a5-b103-8a8a8a1aec37</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

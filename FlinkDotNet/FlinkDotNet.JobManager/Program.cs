@@ -71,7 +71,7 @@ app.MapGet("/weatherforecast", () =>
 // For now, assuming JobManagerController (REST API) is correctly mapped by existing setup.
 
 
-app.Run();
+await app.RunAsync();
 
 namespace FlinkDotNet.JobManager
 {

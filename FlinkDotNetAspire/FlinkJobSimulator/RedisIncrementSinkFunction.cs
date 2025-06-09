@@ -13,21 +13,15 @@ namespace FlinkJobSimulator
     {
         private ConnectionMultiplexer? _redisConnection;
         private IDatabase? _redisDb;
-        private string _redisKey = "flinkdotnet:sample:counter"; // Default key, make configurable if needed
+        private readonly string _redisKey = "flinkdotnet:sample:counter"; // Default key, make configurable if needed
         private string _taskName = nameof(RedisIncrementSinkFunction<T>);
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
 
         // Configuration to hold connection string
-        private static IConfiguration? _configuration;
-
-        // Static constructor to build configuration once
-        static RedisIncrementSinkFunction()
-        {
-            _configuration = new ConfigurationBuilder()
-                .AddEnvironmentVariables()
-                .Build();
-        }
+        private static readonly IConfiguration Configuration = new ConfigurationBuilder()
+            .AddEnvironmentVariables()
+            .Build();
 
         public RedisIncrementSinkFunction(string? redisKey = null)
         {
@@ -43,9 +37,8 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening RedisIncrementSinkFunction for key '{_redisKey}'.");
 
-            // Retrieve connection string (Aspire sets "ConnectionStrings__redis")
-            string? redisConnectionString = _configuration?["ConnectionStrings__redis"];
-                                         // Or Environment.GetEnvironmentVariable("ConnectionStrings__redis");
+        // Retrieve connection string (Aspire sets "ConnectionStrings__redis")
+        string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
 
             if (string.IsNullOrEmpty(redisConnectionString))
             {
@@ -66,8 +59,6 @@ namespace FlinkJobSimulator
                 Console.WriteLine($"[{_taskName}] Successfully connected to Redis at {redisConnectionString.Split(',')[0]}.");
 
                 // Optionally, reset the key for a fresh run of the sample
-                // _redisDb.KeyDelete(_redisKey);
-                // Console.WriteLine($"[{_taskName}] Deleted key '{_redisKey}' for a fresh start.");
 
             }
             catch (RedisConnectionException ex)

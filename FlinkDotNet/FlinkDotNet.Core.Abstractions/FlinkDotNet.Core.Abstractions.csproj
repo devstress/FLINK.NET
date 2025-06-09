@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ProjectGuid>00b3c21d-105a-4064-b743-4bdb49e457a0</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>
