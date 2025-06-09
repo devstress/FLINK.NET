@@ -71,9 +71,12 @@ jobs:
           $env:SIMULATOR_NUM_MESSAGES = $env:SIMULATOR_NUM_MESSAGES_CI
           Write-Host "Environment SIMULATOR_NUM_MESSAGES set to $env:SIMULATOR_NUM_MESSAGES for Aspire AppHost process"
 
-          Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build" -PassThru
+          $aspireLog = "../../aspire-apphost.log"
+          $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -RedirectStandardOutput $aspireLog -RedirectStandardError $aspireLog -PassThru
+          $env:ASPIRE_APPHOST_PID = $process.Id
+          Write-Host "Aspire AppHost started with PID $env:ASPIRE_APPHOST_PID"
           Write-Host "Waiting for Aspire AppHost to initialize..."
-          Start-Sleep -Seconds 20
+          Start-Sleep -Seconds 30
           Pop-Location
 
 
@@ -129,7 +132,13 @@ jobs:
         if: always()
         run: |
           echo "Attempting to stop .NET Aspire AppHost..."
-          # Get all dotnet processes that are running the AppHost and stop them.
-          # This is a bit broad but should catch the background process.
+          if ($env:ASPIRE_APPHOST_PID) {
+            try {
+              Stop-Process -Id $env:ASPIRE_APPHOST_PID -Force -ErrorAction Stop
+            } catch {
+              Write-Host "Failed to stop process $env:ASPIRE_APPHOST_PID : $_"
+            }
+          }
+          # Fallback: stop any remaining dotnet processes running the AppHost.
           Get-Process dotnet | Where-Object { $_.CommandLine -like "*FlinkDotNetAspire.AppHost.csproj*" } | Stop-Process -Force -ErrorAction SilentlyContinue
-          echo "Cleanup: Any remaining Docker containers launched by Aspire should be managed by the runner's cleanup or manually if needed."
+          echo "Cleanup complete."
