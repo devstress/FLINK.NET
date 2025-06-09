@@ -114,7 +114,11 @@ namespace FlinkJobSimulator
             Console.WriteLine($"[{_taskName}] Closing RedisIncrementSinkFunction. Processed {_processedCount} records for key '{_redisKey}'.");
             try
             {
-                long finalValue = (long)_redisDb?.StringGet(_redisKey);
+                long finalValue = 0;
+                if (_redisDb != null)
+                {
+                    finalValue = (long)_redisDb.StringGet(_redisKey);
+                }
                 Console.WriteLine($"[{_taskName}] Final value of Redis key '{_redisKey}': {finalValue}");
             }
             catch(Exception ex)

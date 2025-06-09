@@ -23,10 +23,10 @@ jobs:
         with:
           fetch-depth: 0  # Required for SonarCloud analysis to correctly track changes
 
-      - name: Set up .NET 9.0
+      - name: Set up .NET 8.0
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '8.0.x'
 
       - name: Cache SonarCloud packages
         uses: actions/cache@v4

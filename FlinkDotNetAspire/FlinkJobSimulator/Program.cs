@@ -229,7 +229,7 @@ public class SimpleToUpperMapOperator : IMapOperator<string, string>
 
 public class Program
 {
-    public static async Task Main(string[] args)
+    public static void Main(string[] args)
     {
         Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
 

@@ -24,10 +24,10 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for accurate test coverage, if applicable
 
-      - name: Set up .NET 9.0
+      - name: Set up .NET 8.0
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x' # Consistent with other workflows
+          dotnet-version: '8.0.x'
 
       - name: Install .NET Aspire Workload
         run: dotnet workload install aspire
