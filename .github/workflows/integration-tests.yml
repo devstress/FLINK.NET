@@ -86,6 +86,8 @@ jobs:
       - name: Health Check Loop
         env:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
+          DOTNET_REDIS_URL: localhost:6379
+          DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
           $maxAttempts = 10
           $delaySeconds = 15
@@ -111,6 +113,8 @@ jobs:
           # SIMULATOR_NUM_MESSAGES needs to be the same as used by the job simulator.
           SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES_CI }}
           DOTNET_ENVIRONMENT: "Development"
+          DOTNET_REDIS_URL: localhost:6379
+          DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
           echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
           Write-Host "DOTNET_REDIS_URL from env: $env:DOTNET_REDIS_URL"
