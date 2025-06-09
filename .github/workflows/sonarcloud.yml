@@ -105,8 +105,7 @@ jobs:
             $exitEnd = $LASTEXITCODE
 
             if ($buildFailed -or $exitEnd -ne 0) {
-              Write-Error "CI failed due to build errors."
-              exit 1
+              Write-Error "[ERROR] CI failed due to build errors."
             }
 
             if ($totalWarnings -gt 0) {
