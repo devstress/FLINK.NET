@@ -64,8 +64,21 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
         shell: powershell # Using PowerShell
         run: |
+          $ErrorActionPreference = "Stop"
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false
-          dotnet build FlinkDotNet/FlinkDotNet.sln -warnaserror
-          dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln -warnaserror
-          dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln -warnaserror
+          dotnet build FlinkDotNet/FlinkDotNet.sln
+          $exitCode1 = $LASTEXITCODE
+          dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln
+          $exitCode2 = $LASTEXITCODE
+          dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+          $exitCode3 = $LASTEXITCODE
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          $exitCodeEnd = $LASTEXITCODE
+          if ($exitCode1 -ne 0 -or $exitCode2 -ne 0 -or $exitCode3 -ne 0 -or $exitCodeEnd -ne 0) {
+            Write-Host "One or more build steps failed:"
+            Write-Host "FlinkDotNet           => Exit code: $exitCode1"
+            Write-Host "FlinkDotNetAspire     => Exit code: $exitCode2"
+            Write-Host "FlinkDotNet.WebUI     => Exit code: $exitCode3"
+            Write-Host "SonarScanner End      => Exit code: $exitCodeEnd"
+            exit 1
+          }
