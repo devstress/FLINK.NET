@@ -17,6 +17,8 @@ using System.Threading; // For CancellationToken, Interlocked, Timer
 using System.Threading.Tasks; // For Task
 // using FlinkJobSimulator; // Not strictly needed if all classes are in the same file or top-level in the same project namespace
 
+namespace FlinkJobSimulator
+{
 // Helper classes are defined below in this file.
 
 // Counting Sink Function (remains from previous step, not directly used in Main anymore but kept for now)
@@ -58,9 +60,11 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
 
     private ConnectionMultiplexer? _redisConnection;
     private IDatabase? _redisDb;
-    private string _globalSequenceRedisKey;
+    private readonly string _globalSequenceRedisKey;
 
-    private static IConfiguration? _configuration;
+    private static readonly IConfiguration Configuration = new ConfigurationBuilder()
+        .AddEnvironmentVariables()
+        .Build();
 
     // --- Checkpoint Barrier Injection Fields ---
     private long _messagesSentSinceLastBarrier = 0;
@@ -68,20 +72,13 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
     private static long _nextCheckpointId = 1; // Static to ensure unique IDs across potential re-instantiations in some test scenarios (though for a single run, instance field is fine)
 
 
-    static HighVolumeSourceFunction()
-    {
-        _configuration = new ConfigurationBuilder()
-            .AddEnvironmentVariables()
-            .Build();
-    }
-
     public HighVolumeSourceFunction(long numberOfMessagesToGenerate, ITypeSerializer<string> serializer)
     {
         _numberOfMessagesToGenerate = numberOfMessagesToGenerate;
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         if (numberOfMessagesToGenerate <= 0) throw new ArgumentOutOfRangeException(nameof(numberOfMessagesToGenerate), "Number of messages must be positive.");
 
-        _globalSequenceRedisKey = _configuration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
+        _globalSequenceRedisKey = Configuration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
         Console.WriteLine($"[HighVolumeSourceFunction] Configured to use global sequence Redis key: '{_globalSequenceRedisKey}'");
     }
 
@@ -90,7 +87,7 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         _taskName = context.TaskName;
         Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
 
-        string? redisConnectionString = _configuration?["ConnectionStrings__redis"];
+        string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
         if (string.IsNullOrEmpty(redisConnectionString))
         {
             Console.WriteLine($"[{_taskName}] ERROR: Redis connection string 'ConnectionStrings__redis' not found in environment variables for source.");
@@ -227,7 +224,7 @@ public class SimpleToUpperMapOperator : IMapOperator<string, string>
 // RedisIncrementSinkFunction and KafkaSinkFunction are assumed to be in their own files:
 // RedisIncrementSinkFunction.cs and KafkaSinkFunction.cs within the FlinkJobSimulator namespace/project.
 
-public class Program
+public static class Program
 {
     public static void Main(string[] args)
     {
@@ -295,4 +292,5 @@ public class Program
         Console.WriteLine("Flink Job Simulator finished. Note: Job execution is asynchronous on the cluster.");
         Console.WriteLine($"Observe JobManager & TaskManager logs, Aspire dashboard, Redis key '{redisSinkCounterKey}', and Kafka topic '{kafkaTopic}'.");
     }
+}
 }

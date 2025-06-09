@@ -61,29 +61,29 @@ namespace FlinkDotNet.JobManager.Services
                 // This exercises the FromProto methods.
                 var jobGraphModel = Models.JobGraph.JobGraph.FromProto(request.JobGraph);
 
-                _logger.LogInformation($"Successfully converted submitted JobGraph. JobName: '{jobGraphModel.JobName}', JobId (model): {jobGraphModel.JobId}");
-                _logger.LogInformation($"Number of vertices: {jobGraphModel.Vertices.Count}");
-                _logger.LogInformation($"Number of edges: {jobGraphModel.Edges.Count}");
+                _logger.LogInformation("Successfully converted submitted JobGraph. JobName: '{JobName}', JobId (model): {JobId}", jobGraphModel.JobName, jobGraphModel.JobId);
+                _logger.LogInformation("Number of vertices: {VertexCount}", jobGraphModel.Vertices.Count);
+                _logger.LogInformation("Number of edges: {EdgeCount}", jobGraphModel.Edges.Count);
                 foreach(var vertex in jobGraphModel.Vertices)
                 {
-                    _logger.LogInformation($"Vertex: {vertex.Name} (ID: {vertex.Id}, Type: {vertex.Type}, Op: {vertex.OperatorDefinition.FullyQualifiedName}, Parallelism: {vertex.Parallelism})");
+                    _logger.LogInformation("Vertex: {Name} (ID: {Id}, Type: {Type}, Op: {Operator}, Parallelism: {Parallelism})", vertex.Name, vertex.Id, vertex.Type, vertex.OperatorDefinition.FullyQualifiedName, vertex.Parallelism);
                 }
                  foreach(var edge in jobGraphModel.Edges)
                 {
-                    _logger.LogInformation($"Edge: {edge.Id} from {edge.SourceVertexId} to {edge.TargetVertexId} (Mode: {edge.ShuffleMode})");
+                    _logger.LogInformation("Edge: {EdgeId} from {Source} to {Target} (Mode: {Mode})", edge.Id, edge.SourceVertexId, edge.TargetVertexId, edge.ShuffleMode);
                 }
                 bool stored = JobManagerController.JobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
                 if (stored)
                 {
-                    _logger.LogInformation($"JobGraph for '{jobGraphModel.JobName}' (ID: {jobGraphModel.JobId}) stored in static dictionary.");
+                    _logger.LogInformation("JobGraph for '{JobName}' (ID: {JobId}) stored in static dictionary.", jobGraphModel.JobName, jobGraphModel.JobId);
                 }
                 else
                 {
-                    _logger.LogWarning($"Failed to store JobGraph for '{jobGraphModel.JobName}' (ID: {jobGraphModel.JobId}) in static dictionary. It might already exist.");
+                    _logger.LogWarning("Failed to store JobGraph for '{JobName}' (ID: {JobId}) in static dictionary. It might already exist.", jobGraphModel.JobName, jobGraphModel.JobId);
                     // Potentially return error if this is unexpected
                 }
                 // --- Replicated Task Deployment Logic ---
-                _logger.LogInformation($"Job '{jobGraphModel.JobName}' (ID: {jobGraphModel.JobId}): Preparing for task deployment...");
+                _logger.LogInformation("Job '{JobName}' (ID: {JobId}): Preparing for task deployment...", jobGraphModel.JobName, jobGraphModel.JobId);
 
                 var coordinatorConfig = new JobManagerConfig { /* Populate as needed, e.g., from request or global config */ };
                 var coordinatorLogger = _loggerFactory.CreateLogger<CheckpointCoordinator>();
@@ -97,7 +97,7 @@ namespace FlinkDotNet.JobManager.Services
                 }
                 else
                 {
-                    _logger.LogWarning($"Could not add/start CheckpointCoordinator for job {jobGraphModel.JobId}. It might already exist.");
+                    _logger.LogWarning("Could not add/start CheckpointCoordinator for job {JobId}. It might already exist.", jobGraphModel.JobId);
                 }
 
                 var taskAssignments = new Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)>();
@@ -106,7 +106,7 @@ namespace FlinkDotNet.JobManager.Services
 
                 if (!availableTaskManagers.Any())
                 {
-                    _logger.LogWarning($"No TaskManagers available to deploy job {jobGraphModel.JobName}. Job submitted but not deployed.");
+                    _logger.LogWarning("No TaskManagers available to deploy job {JobName}. Job submitted but not deployed.", jobGraphModel.JobName);
                     // Decide on reply: success true but with warning, or success false?
                     // For now, let's consider it a partial success as the job is "submitted" but not deployed.
                     return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
@@ -152,7 +152,8 @@ namespace FlinkDotNet.JobManager.Services
                             OutputSerializerTypeName = vertex.OutputSerializerTypeName ?? ""
                         };
 
-                        _logger.LogInformation($"Deploying task '{tdd.TaskName}' for vertex {vertex.Name} (ID: {vertex.Id}) to TaskManager {targetTm.TaskManagerId} ({targetTm.Address}:{targetTm.Port}) for job {jobGraphModel.JobId}");
+                        _logger.LogInformation("Deploying task '{TaskName}' for vertex {VertexName} (ID: {VertexId}) to TaskManager {TaskManagerId} ({Address}:{Port}) for job {JobId}",
+                            tdd.TaskName, vertex.Name, vertex.Id, targetTm.TaskManagerId, targetTm.Address, targetTm.Port, jobGraphModel.JobId);
 
                         try
                         {
@@ -160,11 +161,11 @@ namespace FlinkDotNet.JobManager.Services
                             using var channel = GrpcChannel.ForAddress(channelAddress);
                             var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                             _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10)); // Fire and forget for now
-                            _logger.LogDebug($"DeployTask call initiated for '{tdd.TaskName}' to TM {targetTm.TaskManagerId}.");
+                            _logger.LogDebug("DeployTask call initiated for '{TaskName}' to TM {TaskManagerId}.", tdd.TaskName, targetTm.TaskManagerId);
                         }
                         catch (System.Exception ex)
                         {
-                            _logger.LogError(ex, $"Failed to send DeployTask for '{tdd.TaskName}' to TM {targetTm.TaskManagerId}: {ex.Message}");
+                            _logger.LogError(ex, "Failed to send DeployTask for '{TaskName}' to TM {TaskManagerId}: {ErrorMessage}", tdd.TaskName, targetTm.TaskManagerId, ex.Message);
                             // Potentially collect failures and report them
                         }
                     }

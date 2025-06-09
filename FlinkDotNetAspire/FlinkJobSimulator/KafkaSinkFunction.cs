@@ -13,23 +13,18 @@ namespace FlinkJobSimulator
     public class KafkaSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle where T : class // Assuming T will be string for this sample
     {
         private IProducer<Null, T>? _producer;
-        private string _topic;
+        private readonly string _topic;
         private string _taskName = nameof(KafkaSinkFunction<T>);
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
 
-        private static IConfiguration? _configuration;
-
-        static KafkaSinkFunction()
-        {
-            _configuration = new ConfigurationBuilder()
-                .AddEnvironmentVariables()
-                .Build();
-        }
+        private static readonly IConfiguration Configuration = new ConfigurationBuilder()
+            .AddEnvironmentVariables()
+            .Build();
 
         public KafkaSinkFunction(string? topic = null) // Constructor allows overriding topic
         {
-            _topic = topic ?? _configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.default.topic";
+            _topic = topic ?? Configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.default.topic";
             Console.WriteLine($"KafkaSinkFunction will use Kafka topic: '{_topic}'");
         }
 
@@ -38,7 +33,7 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            string? bootstrapServers = _configuration?["ConnectionStrings__kafka"];
+            string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
             if (string.IsNullOrEmpty(bootstrapServers))
             {
                 Console.WriteLine($"[{_taskName}] ERROR: Kafka bootstrap servers 'ConnectionStrings__kafka' not found in environment variables.");

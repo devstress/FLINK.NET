@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using FlinkDotNet.JobManager.Interfaces;
 using FlinkDotNet.JobManager.Models;
 using System.Linq;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
 using System.Collections.Concurrent; // Added
 using FlinkDotNet.JobManager.Models.JobGraph; // Added
 using FlinkDotNet.JobManager.Services; // For TaskManagerRegistrationServiceImpl
@@ -40,6 +42,7 @@ namespace FlinkDotNet.JobManager.Controllers
         }
 
         [HttpGet("taskmanagers")]
+        [ProducesResponseType(typeof(List<TaskManagerInfo>), StatusCodes.Status200OK)]
         public IActionResult GetTaskManagers()
         {
             var taskManagers = TaskManagerTracker.RegisteredTaskManagers.Values.ToList();
@@ -47,6 +50,7 @@ namespace FlinkDotNet.JobManager.Controllers
         }
 
         [HttpGet("jobs")]
+        [ProducesResponseType(typeof(List<JobOverviewDto>), StatusCodes.Status200OK)]
         public IActionResult GetJobs()
         {
             var jobOverviews = JobGraphs.Values.Select(jg => new JobOverviewDto
@@ -62,6 +66,7 @@ namespace FlinkDotNet.JobManager.Controllers
         }
 
         [HttpGet("jobs/{jobId}")]
+        [ProducesResponseType(typeof(JobGraph), StatusCodes.Status200OK)]
         public IActionResult GetJobDetails(string jobId)
         {
             if (!Guid.TryParse(jobId, out var parsedGuid))
@@ -80,6 +85,7 @@ namespace FlinkDotNet.JobManager.Controllers
         }
 
         [HttpGet("jobs/{jobId}/metrics")]
+        [ProducesResponseType(typeof(List<VertexMetricsDto>), StatusCodes.Status200OK)]
         public IActionResult GetJobMetrics(string jobId)
         {
             // Placeholder: Basic check for Job ID format and existence (optional for a placeholder)
@@ -286,6 +292,7 @@ namespace FlinkDotNet.JobManager.Controllers
         }
 
         [HttpGet("jobs/{jobId}/logs")]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         public IActionResult GetJobLogs(string jobId)
         {
             if (!Guid.TryParse(jobId, out var parsedGuid))
