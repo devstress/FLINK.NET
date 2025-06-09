@@ -4,8 +4,10 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Add resources
-var redis = builder.AddRedis("redis");
-var kafka = builder.AddKafka("kafka"); // Add Kafka resource
+// Bind Redis and Kafka containers to their default ports so tests can reliably
+// connect using localhost addresses without parsing the Aspire manifest.
+var redis = builder.AddRedis("redis", port: 6379);
+var kafka = builder.AddKafka("kafka", port: 9092); // Add Kafka resource
 
 var jobManagerHttpEndpoint = "http://localhost:8088";
 var jobManagerGrpcEndpoint = "http://localhost:50051";

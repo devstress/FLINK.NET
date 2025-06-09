@@ -76,60 +76,14 @@ jobs:
           Start-Sleep -Seconds 20
           Pop-Location
 
-      - name: Parse Aspire Manifest and Set Service URLs
+
+      # The AppHost binds Redis and Kafka to their default ports so the verifier
+      # can use localhost addresses directly. Expose these connection strings to
+      # later steps via environment variables.
+      - name: Set Service URLs
         run: |
-          $manifestPath = "./FlinkDotNetAspire/aspire-manifest.json"
-          Write-Host "Looking for Aspire manifest at $manifestPath..."
-
-          if (-not (Test-Path $manifestPath)) {
-            Write-Error "Aspire manifest not found at $manifestPath!"
-            exit 1
-          }
-
-          Write-Host "Aspire manifest found. Parsing..."
-          $manifestContent = Get-Content $manifestPath | ConvertFrom-Json
-          if ($null -eq $manifestContent) {
-            Write-Error "Failed to parse Aspire manifest JSON."
-            exit 1
-          }
-
-          # Extract Redis URL
-          $redisConnectionString = $manifestContent.resources.redis.connectionString
-          if ($redisConnectionString) {
-            Write-Host "Found Redis connection string: $redisConnectionString"
-            Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_REDIS_URL=$redisConnectionString"
-          } else {
-            Write-Warning "Redis connection string not found in manifest. Verifier might fail if it relies on it."
-          }
-
-          # Extract Kafka URL
-          # Attempt common patterns: direct bootstrapServers or host/port from bindings/endpoints
-          $kafkaBootstrapServers = $null
-          if ($manifestContent.resources.kafka.bootstrapServers) {
-            $kafkaBootstrapServers = $manifestContent.resources.kafka.bootstrapServers
-          } elseif ($manifestContent.resources.kafka.bindings.default.host -and $manifestContent.resources.kafka.bindings.default.allocatedPort) {
-            $kafkaHost = $manifestContent.resources.kafka.bindings.default.host
-            $kafkaPort = $manifestContent.resources.kafka.bindings.default.allocatedPort
-            $kafkaBootstrapServers = "$kafkaHost`:$kafkaPort"
-          } elseif ($manifestContent.resources.kafka.endpoints.default.host -and $manifestContent.resources.kafka.endpoints.default.allocatedPort) {
-            # Alternative if 'bindings' is not the structure, try 'endpoints'
-            $kafkaHost = $manifestContent.resources.kafka.endpoints.default.host
-            $kafkaPort = $manifestContent.resources.kafka.endpoints.default.allocatedPort
-            $kafkaBootstrapServers = "$kafkaHost`:$kafkaPort"
-          }
-
-
-          if ($kafkaBootstrapServers) {
-            Write-Host "Found Kafka bootstrap servers: $kafkaBootstrapServers"
-            Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_KAFKA_BOOTSTRAP_SERVERS=$kafkaBootstrapServers"
-          } else {
-            Write-Warning "Kafka bootstrap servers not found in manifest using common patterns. Verifier might fail if it relies on it."
-            Write-Host "Attempted to find: \$manifestContent.resources.kafka.bootstrapServers"
-            Write-Host "Attempted to find: \$manifestContent.resources.kafka.bindings.default.host / allocatedPort"
-            Write-Host "Attempted to find: \$manifestContent.resources.kafka.endpoints.default.host / allocatedPort"
-          }
-
-          Write-Host "Service URL setup complete."
+          Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_REDIS_URL=localhost:6379"
+          Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:9092"
 
       - name: Health Check Loop
         env:
