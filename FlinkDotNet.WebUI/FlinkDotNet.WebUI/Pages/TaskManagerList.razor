@@ -2,7 +2,7 @@
 @using System.Linq // Required for .AsQueryable()
 @using FlinkDotNet.WebUI.Models
 @inject HttpClient Http
-@using Microsoft.Fast.Components.FluentUI
+@* @using Microsoft.Fast.Components.FluentUI -- Replaced by global import *@
 
 <PageTitle>TaskManagers</PageTitle>
 
@@ -25,7 +25,7 @@ else if (taskManagers == null || !taskManagers.Any())
 }
 else
 {
-    <FluentDataGrid Items="@taskManagers.AsQueryable()" GridTemplateColumns="2fr 2fr 1fr 2fr" Style="width: 100%;">
+    <FluentDataGrid TGridItem="TaskManagerInfoUIDto" Items="@taskManagers.AsQueryable()" GridTemplateColumns="2fr 2fr 1fr 2fr" Style="width: 100%;">
         <PropertyColumn Property="@(tm => tm.TaskManagerId)" Sortable="true" Title="ID" TooltipText="TaskManagerId" />
         <PropertyColumn Property="@(tm => tm.Address)" Sortable="true" Title="Address" TooltipText="Address" />
         <PropertyColumn Property="@(tm => tm.Port)" Sortable="true" Title="Port" TooltipText="Port" />

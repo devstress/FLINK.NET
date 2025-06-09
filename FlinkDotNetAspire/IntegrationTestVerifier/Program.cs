@@ -1,3 +1,4 @@
+#pragma warning disable S3776 // Cognitive Complexity of methods is too high
 // S1118, CA1050, S3903, RCS1102: Added namespace and made class static
 namespace IntegrationTestVerifier
 {
@@ -13,8 +14,7 @@ namespace IntegrationTestVerifier
 
     public static class Program // Made static
     {
-        // S1450: _configuration made local to Main or passed as argument
-        // private static IConfigurationRoot? _configuration;
+        // S125: Commented out code removed.
 
         public static async Task<int> Main(string[] args)
         {
@@ -133,7 +133,7 @@ namespace IntegrationTestVerifier
                 }
 
                 // Proceed to Kafka checks only if Redis checks passed for this attempt or it's the final attempt for Redis
-                allChecksPassed &= await VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages, attempts);
+                allChecksPassed &= VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages); // CS1998/S1172: Removed await and attempts
 
                 if (allChecksPassed)
                 {
@@ -164,7 +164,10 @@ namespace IntegrationTestVerifier
             {
                 redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
                 // S112: More specific exception
-                if (!redis.IsConnected) throw new InvalidOperationException("Failed to connect to Redis.");
+                if (!redis.IsConnected)
+                { // S121: Added curly braces
+                    throw new InvalidOperationException("Failed to connect to Redis.");
+                }
                 Console.WriteLine("Successfully connected to Redis.");
                 IDatabase db = redis.GetDatabase();
 
@@ -200,7 +203,7 @@ namespace IntegrationTestVerifier
             return redisVerified;
         }
 
-        private static async Task<bool> VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages, int attemptNumber)
+        private static bool VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages) // CS1998: Removed async. S1172: Removed attemptNumber
         {
             Console.WriteLine("\nConnecting to Kafka...");
             bool kafkaVerified = true;
@@ -234,7 +237,10 @@ namespace IntegrationTestVerifier
                                 kafkaVerified = false;
                                 break;
                             }
-                            if (messagesConsumed.Count >= expectedMessages) break;
+                            if (messagesConsumed.Count >= expectedMessages)
+                            { // S121: Added curly braces
+                                break;
+                            }
                             continue;
                         }
                         messagesConsumed.Add(consumeResult.Message.Value);

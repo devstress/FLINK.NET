@@ -11,13 +11,7 @@ namespace FlinkDotNet.JobManager.Services
     /// <summary>
     /// Mock implementation of IJobRepository using in-memory ConcurrentDictionaries.
     /// </summary>
-using Microsoft.Extensions.Logging; // Added for ILogger
-
-namespace FlinkDotNet.JobManager.Services
-{
-    /// <summary>
-    /// Mock implementation of IJobRepository using in-memory ConcurrentDictionaries.
-    /// </summary>
+    // Removed duplicated using and namespace block below
     public class InMemoryJobRepository : IJobRepository
     {
         private readonly ConcurrentDictionary<string, JobDefinitionDto> _jobDefinitions = new();

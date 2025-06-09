@@ -16,7 +16,9 @@ namespace FlinkDotNet.Connectors.Sources.File
         public FileSourceFunction(string filePath, ITypeSerializer<TOut> serializer)
         {
             if (string.IsNullOrEmpty(filePath))
+            { // S121: Added curly braces
                 throw new ArgumentNullException(nameof(filePath));
+            }
             _filePath = filePath;
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         }
@@ -30,8 +32,8 @@ namespace FlinkDotNet.Connectors.Sources.File
                 string? line;
                 while (_isRunning && (line = reader.ReadLine()) != null)
                 {
-                    if (!_isRunning) break;
-
+                    // S2589: Removed redundant check, as the while condition already checks _isRunning.
+                    // The volatile nature of _isRunning ensures visibility for the while loop check.
                     try
                     {
                         // For this basic version, we assume the serializer can handle raw UTF-8 bytes of a line.
@@ -39,8 +41,16 @@ namespace FlinkDotNet.Connectors.Sources.File
                         // (e.g., if it expects a structured format rather than just a line of text).
                         // If TOut is string and StringSerializer is used, this should be fine.
                         var recordBytes = Encoding.UTF8.GetBytes(line);
-                        TOut record = _serializer.Deserialize(recordBytes);
-                        ctx.Collect(record);
+                        TOut? recordOrNull = _serializer.Deserialize(recordBytes); // Handle possible null from Deserialize
+                        if (recordOrNull is not null) // S2955: Changed from '!= null' to 'is not null'
+                        {
+                            ctx.Collect(recordOrNull);
+                        }
+                        else
+                        {
+                            // Optional: Log that a null record was deserialized and skipped
+                            Console.WriteLine($"FileSourceFunction: Deserialized a null record from line '{line}'. Skipping.");
+                        }
                     }
                     catch (Exception ex)
                     {

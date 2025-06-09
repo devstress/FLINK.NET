@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
   </ItemGroup>
 
   <!-- Default SDK globbing should include all .cs files.

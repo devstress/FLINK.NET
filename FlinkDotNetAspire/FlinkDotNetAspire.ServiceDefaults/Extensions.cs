@@ -23,7 +23,7 @@ public static class Extensions
             // Turn on resilience by default
             http.AddStandardResilienceHandler();
             // Turn on service discovery by default
-            http.UseServiceDiscovery();
+            http.AddServiceDiscovery(); // Changed from UseServiceDiscovery()
         });
 
         return builder;
@@ -61,16 +61,13 @@ public static class Extensions
 
         if (useOtlpExporter)
         {
-            builder.Services.AddOpenTelemetry().UseOtlpExporter();
+            // Configure OTLP exporter for tracing and metrics
+            builder.Services.ConfigureOpenTelemetryTracerProvider(tracerProviderBuilder =>
+                tracerProviderBuilder.AddOtlpExporter());
+            builder.Services.ConfigureOpenTelemetryMeterProvider(meterProviderBuilder =>
+                meterProviderBuilder.AddOtlpExporter());
+            // S125: Removed commented out OTLP logging configuration line
         }
-
-        // Uncomment the following lines to enable the Prometheus exporter (requires the OpenTelemetry.Exporter.Prometheus.AspNetCore package)
-        // builder.Services.AddOpenTelemetry()
-        //    .WithMetrics(metrics => metrics.AddPrometheusExporter());
-
-        // Uncomment the following lines to enable the Azure Monitor exporter (requires the Azure.Monitor.OpenTelemetry.Exporter package)
-        // builder.Services.AddOpenTelemetry()
-        //    .UseAzureMonitor();
 
         return builder;
     }
