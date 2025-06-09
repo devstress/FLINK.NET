@@ -7,6 +7,7 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <RootNamespace>FlinkDotNet.Core.Api</RootNamespace>
     <AssemblyName>FlinkDotNet.Core.Api</AssemblyName>
+    <ProjectGuid>cc858103-4346-4c8d-b286-b0f5cacab275</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>

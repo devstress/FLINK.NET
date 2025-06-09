@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>FlinkDotNet.IntegrationTestVerifier</AssemblyName>
+    <ProjectGuid>73064d61-d049-40b4-8161-29060044c6ed</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>

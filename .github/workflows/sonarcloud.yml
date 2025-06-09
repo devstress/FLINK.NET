@@ -64,45 +64,46 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
         shell: powershell # Using PowerShell
         run: |
-            function RunBuildWithWarningCheck($project) {
-              Write-Host "Building $project"
-              $output = dotnet build $project 2>&1
+            function RunCommandWithWarningCheck($command, $description) {
+              Write-Host "Running $description"
+              $output = & $command 2>&1
 
               $output | ForEach-Object { Write-Host $_ }
 
               if ($LASTEXITCODE -ne 0) {
-                Write-Host "[FAIL] Build failed for $project"
+                Write-Host "[FAIL] $description failed"
                 return -1
               }
 
-              $warnings = $output | Where-Object { $_ -match "(?i)warning" }
+              $warnings = $output | Where-Object { $_ -match "(?i)Warning:" }
               if ($warnings.Count -gt 0) {
-                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $project"
+                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description"
               } else {
-                Write-Host "[OK] $project built successfully with no warnings."
+                Write-Host "[OK] $description completed successfully with no warnings."
               }
 
               return $warnings.Count
             }
 
-            .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false }
+            $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
-            $exit1 = RunBuildWithWarningCheck "FlinkDotNet/FlinkDotNet.sln"
-            $exit2 = RunBuildWithWarningCheck "FlinkDotNetAspire/FlinkDotNetAspire.sln"
-            $exit3 = RunBuildWithWarningCheck "FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln"
+            $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
+            $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
+            $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
+
+            $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
+            $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end"
 
             $totalWarnings = 0
             $buildFailed = $false
-            foreach ($exit in @($exit1, $exit2, $exit3)) {
+            foreach ($exit in @($exitBegin, $exit1, $exit2, $exit3, $exitEnd)) {
               if ($exit -lt 0) {
                 $buildFailed = $true
               } elseif ($exit -gt 0) {
                 $totalWarnings += $exit
               }
             }
-
-            .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-            $exitEnd = $LASTEXITCODE
 
             if ($buildFailed -or $exitEnd -ne 0) {
               Write-Error "[ERROR] CI failed due to build errors."
