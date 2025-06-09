@@ -77,7 +77,8 @@ jobs:
           $env:DOTNET_DASHBOARD_OTLP_ENDPOINT_URL = "http://localhost:4317"
 
           $aspireLog = "../../aspire-apphost.log"
-          $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -RedirectStandardOutput $aspireLog -RedirectStandardError $aspireLog -PassThru
+          $aspireErr = "../../aspire-apphost.err.log"
+          $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -RedirectStandardOutput $aspireLog -RedirectStandardError $aspireErr -PassThru
           $env:ASPIRE_APPHOST_PID = $process.Id
           Write-Host "Aspire AppHost started with PID $env:ASPIRE_APPHOST_PID"
           Write-Host "Waiting for Aspire AppHost to initialize..."
