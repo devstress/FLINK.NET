@@ -70,8 +70,8 @@ namespace FlinkDotNet.Core.Networking
             long checkpointTimestamp = 0)
         {
             ArgumentNullException.ThrowIfNull(rentedBuffer); // CA1510 (already effectively done by ??)
-            ArgumentOutOfRangeException.ThrowIfNegative(initialDataOffset, nameof(initialDataOffset)); // CA1512
-            ArgumentOutOfRangeException.ThrowIfNegative(initialDataLength, nameof(initialDataLength)); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegative(initialDataOffset); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegative(initialDataLength); // CA1512
 
             UnderlyingBuffer = rentedBuffer; // No longer needs ?? due to ThrowIfNull
             _returnToPoolAction = returnToPoolAction;
