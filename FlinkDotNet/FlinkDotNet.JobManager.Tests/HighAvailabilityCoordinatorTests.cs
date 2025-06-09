@@ -6,11 +6,11 @@ namespace FlinkDotNet.JobManager.Tests
     public class HighAvailabilityCoordinatorTests
     {
         [Fact]
-        public void AcquireAndResign()
+        public async Task AcquireAndResign()
         {
             var ha = new HighAvailabilityCoordinator();
             Assert.False(ha.IsLeader);
-            Assert.True(ha.TryAcquireLeadershipAsync().Result);
+            Assert.True(await ha.TryAcquireLeadershipAsync());
             Assert.True(ha.IsLeader);
             ha.ResignLeadership();
             Assert.False(ha.IsLeader);
