@@ -71,6 +71,11 @@ jobs:
           $env:SIMULATOR_NUM_MESSAGES = $env:SIMULATOR_NUM_MESSAGES_CI
           Write-Host "Environment SIMULATOR_NUM_MESSAGES set to $env:SIMULATOR_NUM_MESSAGES for Aspire AppHost process"
 
+          # Allow Aspire to serve HTTP endpoints and the dashboard over HTTP
+          $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
+          $env:ASPNETCORE_URLS = "http://localhost:5199"
+          $env:DOTNET_DASHBOARD_OTLP_ENDPOINT_URL = "http://localhost:4317"
+
           $aspireLog = "../../aspire-apphost.log"
           $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -RedirectStandardOutput $aspireLog -RedirectStandardError $aspireLog -PassThru
           $env:ASPIRE_APPHOST_PID = $process.Id
