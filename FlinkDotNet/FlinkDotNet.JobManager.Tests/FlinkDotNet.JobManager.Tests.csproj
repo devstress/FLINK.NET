@@ -6,6 +6,7 @@
     <!-- Enable nullable reference analysis for test sources -->
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <ProjectGuid>43f3a049-2e1b-4eed-9bd7-b07d5d7fd06b</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>

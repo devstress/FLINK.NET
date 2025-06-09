@@ -8,6 +8,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ProjectGuid>504804fd-8888-4e2b-ae92-5d96ef51df41</ProjectGuid>
   </PropertyGroup>
 
 </Project>
