@@ -38,7 +38,7 @@ Explore practical examples to understand Flink.NET's capabilities:
 *   **[Local High Throughput Test](./docs/wiki/Sample-Local-High-Throughput-Test.md)**: Demonstrates setting up a local environment and running a high-throughput test.
 
 ## AI-Assisted Development
-The development of Flink.NET has been significantly accelerated and enhanced with the assistance of Google's Jules AI, showcasing a modern approach to software engineering.
+The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
 
 ## Getting Involved & Contribution
 
