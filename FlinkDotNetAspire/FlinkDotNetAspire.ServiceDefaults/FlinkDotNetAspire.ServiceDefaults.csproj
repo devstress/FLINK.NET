@@ -3,7 +3,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsAspireSharedProject>true</IsAspireSharedProject>
-    <IsAspireProjectResource>false</IsAspireProjectResource>
     <ProjectGuid>eed3bc6f-bd98-47a5-b103-8a8a8a1aec37</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>
