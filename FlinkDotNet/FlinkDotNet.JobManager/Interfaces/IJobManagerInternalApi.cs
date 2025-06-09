@@ -52,8 +52,6 @@ namespace FlinkDotNet.JobManager.InternalApiModels
     public class HeartbeatReply
     {
         public bool Ack { get; set; } = true;
-        // Optionally, JobManager could send commands back in heartbeat reply, e.g., "SHUTDOWN_TASK"
-        // public string NextAction { get; set; }
     }
 }
 

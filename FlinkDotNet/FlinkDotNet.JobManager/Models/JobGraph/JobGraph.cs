@@ -151,13 +151,4 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
     }
 }
 
-// Removed embedded TaskMetrics placeholder as it should be referenced from its own project.
-// namespace FlinkDotNet.TaskManager.Models
-// {
-//     public class TaskMetrics
-//     {
-//         public long RecordsIn { get; set; }
-//         public long RecordsOut { get; set; }
-//     }
-// }
 #nullable disable

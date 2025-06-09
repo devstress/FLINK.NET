@@ -172,7 +172,7 @@ namespace FlinkDotNet.Core.Networking
         public void SetDataLength(int length)
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513
-            ArgumentOutOfRangeException.ThrowIfNegative(length, nameof(length)); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegative(length); // Caller info automatically provided
             if (DataOffset + length > Capacity) // Simplified check after validating length separately
             {
                 throw new ArgumentOutOfRangeException(nameof(length),
