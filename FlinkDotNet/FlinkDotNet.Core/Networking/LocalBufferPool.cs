@@ -67,7 +67,7 @@ namespace FlinkDotNet.Core.Networking
 
             lock (_lock)
             {
-                if (_isDestroyed || _disposed) // Check _disposed as well
+                if (_isDestroyed || _disposed)
                 {
                     _globalBufferPool.RecycleMemorySegment(buffer.UnderlyingBuffer);
                     return;
@@ -75,48 +75,47 @@ namespace FlinkDotNet.Core.Networking
 
                 if (_numLeasedSegmentsFromGlobal > _maxConfiguredSegments)
                 {
-                     _globalBufferPool.RecycleMemorySegment(buffer.UnderlyingBuffer);
-                     Interlocked.Decrement(ref _numLeasedSegmentsFromGlobal);
+                    _globalBufferPool.RecycleMemorySegment(buffer.UnderlyingBuffer);
+                    Interlocked.Decrement(ref _numLeasedSegmentsFromGlobal);
                 }
                 else
                 {
-                     buffer.Reset();
+                    buffer.Reset();
                     _availableLocalBuffers.Enqueue(buffer);
                 }
 
-                // Cast to INetworkBuffer for Contains check if _availableLocalBuffers is INetworkBuffer
-                // Or ensure _availableLocalBuffers stores NetworkBuffer if this path is taken.
-                // Given other changes, _availableLocalBuffers is ConcurrentQueue<INetworkBuffer>
-                // So, buffer (which is NetworkBuffer) is implicitly convertible.
-                if (_availableLocalBuffers.Contains(buffer))
+                if (_availableLocalBuffers.Contains(buffer) && TryFulfillPendingRequest())
                 {
-                    if (_pendingRequests.TryDequeue(out TaskCompletionSource<INetworkBuffer>? tcsToFulfill))
-                    {
-                        if (_availableLocalBuffers.TryDequeue(out INetworkBuffer? dequeuedBufferForTcs))
-                        {
-                            if (tcsToFulfill.TrySetResult(dequeuedBufferForTcs))
-                            {
-                                return;
-                            }
-                            else
-                            {
-                                ((NetworkBuffer)dequeuedBufferForTcs).Reset();
-                                _availableLocalBuffers.Enqueue(dequeuedBufferForTcs);
-                            }
-                        }
-                        else
-                        {
-                             _pendingRequests.Enqueue(tcsToFulfill); // Re-enqueue TCS if buffer couldn't be dequeued
-                        }
-                    }
+                    return;
                 }
 
-                // If no pending request took the buffer (or it was returned to global and a slot conceptually freed up)
-                // Invoke the general availability callback.
-                // The callback is invoked if a buffer became available *locally* or if a segment was returned to global *reducing pressure*.
-                // The '1' signifies one buffer processed/returned.
                 _onBufferReturnedToLocalPoolCallback?.Invoke(this, 1);
             }
+        }
+
+        private bool TryFulfillPendingRequest()
+        {
+            if (!_pendingRequests.TryDequeue(out var tcs))
+            {
+                return false;
+            }
+
+            if (_availableLocalBuffers.TryDequeue(out var dequeuedBuffer))
+            {
+                if (tcs.TrySetResult(dequeuedBuffer))
+                {
+                    return true;
+                }
+
+                ((NetworkBuffer)dequeuedBuffer).Reset();
+                _availableLocalBuffers.Enqueue(dequeuedBuffer);
+            }
+            else
+            {
+                _pendingRequests.Enqueue(tcs);
+            }
+
+            return false;
         }
 
         // INetworkBufferPool implementation
@@ -128,10 +127,11 @@ namespace FlinkDotNet.Core.Networking
 
         public INetworkBuffer? RequestBuffer(int minCapacity = 0)
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minCapacity, nameof(minCapacity)); // CA1512 (Corrected to ThrowIfNegativeOrZero)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minCapacity); // Caller info automatically provided
 
             if (minCapacity > BufferSegmentSize)
             {
+                throw new ArgumentOutOfRangeException(nameof(minCapacity), "Requested capacity exceeds buffer segment size.");
             }
 
             lock (_lock)
@@ -186,16 +186,7 @@ namespace FlinkDotNet.Core.Networking
 
             // Await outside the lock
             using var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
-            try
-            {
-                return await tcs.Task.ConfigureAwait(false);
-            }
-            catch (TaskCanceledException)
-            {
-                // If TCS was cancelled but still in queue, subsequent TryDequeue in ReturnSegmentToLocalPool might find it.
-                // Its TrySetResult would fail, and buffer re-enqueued. This is acceptable.
-                throw;
-            }
+            return await tcs.Task.ConfigureAwait(false);
         }
 
         public void ReturnBuffer(INetworkBuffer buffer)

@@ -12,8 +12,6 @@ namespace FlinkDotNet.JobManager.Models
         /// </summary>
         public List<OperatorDefinitionDto> Steps { get; set; } = new List<OperatorDefinitionDto>();
 
-        // Potential job-level configurations can be added here
-        // public JobExecutionConfigDto ExecutionConfig { get; set; }
     }
 }
 #nullable disable
