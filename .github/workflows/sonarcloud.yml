@@ -110,8 +110,7 @@ jobs:
             }
 
             if ($totalWarnings -gt 0) {
-              Write-Error "should be no warning, found $totalWarnings warning(s)"
-              exit 1
+              Write-Error "[ERROR] Should be no warning, found $totalWarnings warning(s)"
             } else {
               Write-Host "[OK] All builds passed with no warnings."
             }
