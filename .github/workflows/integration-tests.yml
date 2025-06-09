@@ -54,7 +54,8 @@ jobs:
           Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
 
           echo "Generating Aspire manifest..."
-          dotnet run --project FlinkDotNetAspire.AppHost.csproj --publisher manifest --output-path ../aspire-manifest.json --no-build
+          dotnet publish FlinkDotNetAspire.AppHost.csproj --configuration Release --output ../publish
+          Copy-Item ../publish/aspire-manifest.json ../aspire-manifest.json
           Write-Host "Aspire manifest generated at ../aspire-manifest.json"
 
           # Start Aspire in the background. Pass SIMULATOR_NUM_MESSAGES to the environment of the process
@@ -133,7 +134,7 @@ jobs:
         run: |
           $maxAttempts = 10
           $delaySeconds = 15
-          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net9.0/FlinkDotNet.IntegrationTestVerifier.exe"
+          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.exe"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             echo "Health check attempt $attempt/$maxAttempts..."
@@ -159,7 +160,7 @@ jobs:
           echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
           Write-Host "DOTNET_REDIS_URL from env: $env:DOTNET_REDIS_URL"
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS from env: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net9.0/FlinkDotNet.IntegrationTestVerifier.exe"
+          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.exe"
           & $verifierPath
           if ($LASTEXITCODE -ne 0) {
             echo "Verification tests FAILED."
