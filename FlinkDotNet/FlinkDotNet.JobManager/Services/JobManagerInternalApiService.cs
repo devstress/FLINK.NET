@@ -134,7 +134,7 @@ namespace FlinkDotNet.JobManager.Services
                     for (int i = 0; i < vertex.Parallelism; i++)
                     {
                         string currentTaskInstanceId = $"{vertex.Id}_{i}";
-                        var (targetTm, subtaskIdx) = taskAssignments[currentTaskInstanceId];
+                        var (targetTm, _) = taskAssignments[currentTaskInstanceId];
 
                         var tdd = new global::FlinkDotNet.Proto.Internal.TaskDeploymentDescriptor
                         {
@@ -156,7 +156,7 @@ namespace FlinkDotNet.JobManager.Services
 
                         try
                         {
-                            var channelAddress = $"http://{targetTm.Address}:{targetTm.Port}";
+                            var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
                             using var channel = GrpcChannel.ForAddress(channelAddress);
                             var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                             _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10)); // Fire and forget for now
@@ -194,7 +194,10 @@ namespace FlinkDotNet.JobManager.Services
 
         public override Task<global::FlinkDotNet.Proto.Internal.ReportStateCompletionReply> ReportStateCompletion(global::FlinkDotNet.Proto.Internal.ReportStateCompletionRequest request, ServerCallContext context)
         {
-            _logger.LogInformation($"gRPC: ReportStateCompletion called for CheckpointId: {request.CheckpointId}, Operator: {request.OperatorInstanceId}");
+            _logger.LogInformation(
+                "gRPC: ReportStateCompletion called for CheckpointId: {CheckpointId}, Operator: {Operator}",
+                request.CheckpointId,
+                request.OperatorInstanceId);
             // In a real implementation, process the state completion.
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportStateCompletionReply
             {
@@ -204,7 +207,9 @@ namespace FlinkDotNet.JobManager.Services
 
         public override Task<global::FlinkDotNet.Proto.Internal.RequestCheckpointReply> RequestCheckpoint(global::FlinkDotNet.Proto.Internal.RequestCheckpointRequest request, ServerCallContext context)
         {
-            _logger.LogInformation($"gRPC: RequestCheckpoint called for CheckpointId: {request.CheckpointId}");
+            _logger.LogInformation(
+                "gRPC: RequestCheckpoint called for CheckpointId: {CheckpointId}",
+                request.CheckpointId);
             // In a real implementation, this would trigger checkpointing logic on a TaskManager.
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.RequestCheckpointReply
             {
@@ -214,7 +219,10 @@ namespace FlinkDotNet.JobManager.Services
 
         public override Task<global::FlinkDotNet.Proto.Internal.RequestRecoveryReply> RequestRecovery(global::FlinkDotNet.Proto.Internal.RequestRecoveryRequest request, ServerCallContext context)
         {
-            _logger.LogInformation($"gRPC: RequestRecovery called for JobId: {request.JobId}, CheckpointId: {request.CheckpointId}");
+            _logger.LogInformation(
+                "gRPC: RequestRecovery called for JobId: {JobId}, CheckpointId: {CheckpointId}",
+                request.JobId,
+                request.CheckpointId);
             // In a real implementation, this would initiate recovery procedures.
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.RequestRecoveryReply
             {
@@ -224,7 +232,11 @@ namespace FlinkDotNet.JobManager.Services
 
         public override Task<global::FlinkDotNet.Proto.Internal.JobManagerHeartbeatReply> Heartbeat(global::FlinkDotNet.Proto.Internal.JobManagerHeartbeatRequest request, ServerCallContext context) // Types updated
         {
-            _logger.LogInformation($"gRPC: Heartbeat received from JobId: {request.JobId}, Operator: {request.OperatorInstanceId}, Status: {request.HealthStatus}");
+            _logger.LogInformation(
+                "gRPC: Heartbeat received from JobId: {JobId}, Operator: {OperatorInstanceId}, Status: {HealthStatus}",
+                request.JobId,
+                request.OperatorInstanceId,
+                request.HealthStatus);
             // In a real implementation, update heartbeat status, check for timeouts, etc.
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.JobManagerHeartbeatReply // Type updated
             {
@@ -234,7 +246,13 @@ namespace FlinkDotNet.JobManager.Services
 
         public override Task<global::FlinkDotNet.Proto.Internal.ReportFailedCheckpointResponse> ReportFailedCheckpoint(global::FlinkDotNet.Proto.Internal.ReportFailedCheckpointRequest request, ServerCallContext context)
         {
-            _logger.LogWarning($"gRPC: ReportFailedCheckpoint called for JobId: {request.JobId}, CheckpointId: {request.CheckpointId}, Task: {request.JobVertexId}_{request.SubtaskIndex}, TM: {request.TaskManagerId}, Reason: {request.FailureReason}");
+            _logger.LogWarning(
+                "gRPC: ReportFailedCheckpoint called for JobId: {JobId}, CheckpointId: {CheckpointId}, Task: {Task}, TM: {TaskManagerId}, Reason: {FailureReason}",
+                request.JobId,
+                request.CheckpointId,
+                $"{request.JobVertexId}_{request.SubtaskIndex}",
+                request.TaskManagerId,
+                request.FailureReason);
 
             // In a real implementation, this would trigger checkpoint cancellation or recovery logic.
             // For now, just acknowledge the report.
@@ -248,7 +266,12 @@ namespace FlinkDotNet.JobManager.Services
         public override Task<global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureResponse> ReportTaskStartupFailure(
             global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureRequest request, ServerCallContext context)
         {
-            _logger.LogWarning($"[JobManager] Received task startup failure report from TM {request.TaskManagerId} for Job {request.JobId}, Task {request.JobVertexId}_{request.SubtaskIndex}. Reason: {request.FailureReason}");
+            _logger.LogWarning(
+                "[JobManager] Received task startup failure report from TM {TaskManagerId} for Job {JobId}, Task {TaskId}. Reason: {Reason}",
+                request.TaskManagerId,
+                request.JobId,
+                $"{request.JobVertexId}_{request.SubtaskIndex}",
+                request.FailureReason);
             // For now, just log and acknowledge.
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureResponse { Acknowledged = true });
         }

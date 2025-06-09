@@ -113,13 +113,8 @@ namespace FlinkDotNet.JobManager.Services
         var jobVertexIdStr = taskId.Split('_').FirstOrDefault();
         if (Guid.TryParse(jobVertexIdStr, out var jobVertexGuid))
         {
-            foreach (var jobGraphPair in JobManagerController.JobGraphs)
-            {
-                if (jobGraphPair.Value.Vertices.Any(v => v.Id == jobVertexGuid))
-                {
-                    return jobGraphPair.Value;
-                }
-            }
+            return JobManagerController.JobGraphs.Values
+                .FirstOrDefault(jg => jg.Vertices.Any(v => v.Id == jobVertexGuid));
         }
 
         return null;
