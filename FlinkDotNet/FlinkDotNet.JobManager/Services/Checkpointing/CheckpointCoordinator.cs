@@ -85,7 +85,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             {
                 try
                 {
-                    var channelAddress = $"http://{tmInfo.Address}:{tmInfo.Port}";
+                    var channelAddress = $"https://{tmInfo.Address}:{tmInfo.Port}";
                     _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: Attempting to connect to TM {TaskManagerId} at {ChannelAddress} for TriggerTaskCheckpoint.", _jobId, checkpointId, tmInfo.TaskManagerId, channelAddress);
 
                     using var channel = GrpcChannel.ForAddress(channelAddress);
