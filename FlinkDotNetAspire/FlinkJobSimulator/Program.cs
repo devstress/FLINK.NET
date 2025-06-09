@@ -115,10 +115,41 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         }
     }
 
-public void Run(ISourceContext<string> ctx)
-{
-    RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
-}
+    public void Run(ISourceContext<string> ctx)
+    {
+        RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    private void InjectBarrierIfNeeded(ISourceContext<string> ctx)
+    {
+        if (_messagesSentSinceLastBarrier >= MessagesPerBarrier)
+        {
+            long checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            if (checkpointIdToInject == 0)
+            {
+                checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            }
+
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string barrierMessage = $"BARRIER_{checkpointIdToInject}_{timestamp}";
+            Console.WriteLine($"[{_taskName}] Injecting Barrier: {barrierMessage}");
+            ctx.Collect(barrierMessage);
+            _messagesSentSinceLastBarrier = 0;
+        }
+    }
+
+    private async Task EmitMessageAsync(ISourceContext<string> ctx, long currentSequenceId, long emittedCount)
+    {
+        string message = $"MessagePayload_Seq-{currentSequenceId}";
+        ctx.Collect(message);
+        _messagesSentSinceLastBarrier++;
+
+        if (emittedCount % 100000 == 0)
+        {
+            Console.WriteLine($"[{_taskName}] Emitted {emittedCount} messages. Last sequence ID: {currentSequenceId}");
+            await Task.Yield();
+        }
+    }
 
 public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancellationToken = default)
     {
@@ -138,33 +169,13 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
                 break;
             }
 
-            // --- Barrier Injection Logic ---
-            if (_messagesSentSinceLastBarrier >= MessagesPerBarrier)
-            {
-                long checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) -1; // Use current value then increment for next
-                if (checkpointIdToInject == 0) checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) -1; // ensure it starts from 1
-
-                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                string barrierMessage = $"BARRIER_{checkpointIdToInject}_{timestamp}";
-                Console.WriteLine($"[{_taskName}] Injecting Barrier: {barrierMessage}");
-                ctx.Collect(barrierMessage); // Collect the special barrier marker string
-                _messagesSentSinceLastBarrier = 0;
-            }
+            InjectBarrierIfNeeded(ctx);
 
             try
             {
                 long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
-                string message = $"MessagePayload_Seq-{currentSequenceId}";
-                ctx.Collect(message);
                 emittedCount++;
-                _messagesSentSinceLastBarrier++;
-
-
-                if (emittedCount % 100000 == 0 && emittedCount > 0)
-                {
-                    Console.WriteLine($"[{_taskName}] Emitted {emittedCount} messages. Last sequence ID: {currentSequenceId}");
-                    await Task.Yield();
-                }
+                await EmitMessageAsync(ctx, currentSequenceId, emittedCount);
             }
             catch (Exception ex)
             {
@@ -174,9 +185,14 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             }
         }
         // Send one final barrier after all data messages (optional, but good for some checkpointing models)
-        if (_isRunning && emittedCount > 0) {
-            long finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) -1;
-             if (finalCheckpointId == 0) finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) -1;
+        if (_isRunning && emittedCount > 0)
+        {
+            long finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            if (finalCheckpointId == 0)
+            {
+                finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
+            }
+
             long finalTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string finalBarrierMessage = $"BARRIER_{finalCheckpointId}_{finalTimestamp}_FINAL";
             Console.WriteLine($"[{_taskName}] Injecting Final Barrier: {finalBarrierMessage}");
@@ -249,7 +265,8 @@ public static class Program
         var jobManagerGrpcUrl = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
         if (string.IsNullOrEmpty(jobManagerGrpcUrl))
         {
-            jobManagerGrpcUrl = "http://localhost:50051";
+            var builder = new UriBuilder("http", "localhost", 50051);
+            jobManagerGrpcUrl = builder.Uri.ToString();
             Console.WriteLine($"JobManager gRPC URL not found in environment variables. Using default: {jobManagerGrpcUrl}");
         }
         else

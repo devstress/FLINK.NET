@@ -37,9 +37,8 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening RedisIncrementSinkFunction for key '{_redisKey}'.");
 
-            // Retrieve connection string (Aspire sets "ConnectionStrings__redis")
-            string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
-                                         // Or Environment.GetEnvironmentVariable("ConnectionStrings__redis");
+        // Retrieve connection string (Aspire sets "ConnectionStrings__redis")
+        string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
 
             if (string.IsNullOrEmpty(redisConnectionString))
             {
@@ -60,8 +59,6 @@ namespace FlinkJobSimulator
                 Console.WriteLine($"[{_taskName}] Successfully connected to Redis at {redisConnectionString.Split(',')[0]}.");
 
                 // Optionally, reset the key for a fresh run of the sample
-                // _redisDb.KeyDelete(_redisKey);
-                // Console.WriteLine($"[{_taskName}] Deleted key '{_redisKey}' for a fresh start.");
 
             }
             catch (RedisConnectionException ex)
