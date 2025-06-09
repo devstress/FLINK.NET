@@ -68,29 +68,21 @@ jobs:
               Write-Host "Building $project"
               $output = dotnet build $project 2>&1
 
-              if (-not $output) {
-                Write-Host "[DEBUG] Build output was empty"
-              } else {
-                Write-Host "[DEBUG] Captured $($output.Count) output line(s)"
-              }
-
               $output | ForEach-Object { Write-Host $_ }
-
-              $warnings = $output | Where-Object { $_ -match "(?i)warning" }
-              Write-Host "[DEBUG] Found $($warnings.Count) line(s) containing 'warning'"
-              if ($warnings.Count -gt 0) {
-                Write-Host "[DEBUG] First warning: $($warnings[0])"
-                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $project"
-                return 1
-              }
 
               if ($LASTEXITCODE -ne 0) {
                 Write-Host "[FAIL] Build failed for $project"
-                return $LASTEXITCODE
+                return -1
               }
 
-              Write-Host "[OK] $project built successfully with no warnings."
-              return 0
+              $warnings = $output | Where-Object { $_ -match "(?i)warning" }
+              if ($warnings.Count -gt 0) {
+                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $project"
+              } else {
+                Write-Host "[OK] $project built successfully with no warnings."
+              }
+
+              return $warnings.Count
             }
 
             .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false
@@ -99,11 +91,26 @@ jobs:
             $exit2 = RunBuildWithWarningCheck "FlinkDotNetAspire/FlinkDotNetAspire.sln"
             $exit3 = RunBuildWithWarningCheck "FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln"
 
+            $totalWarnings = 0
+            $buildFailed = $false
+            foreach ($exit in @($exit1, $exit2, $exit3)) {
+              if ($exit -lt 0) {
+                $buildFailed = $true
+              } elseif ($exit -gt 0) {
+                $totalWarnings += $exit
+              }
+            }
+
             .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
             $exitEnd = $LASTEXITCODE
 
-            if ($exit1 -ne 0 -or $exit2 -ne 0 -or $exit3 -ne 0 -or $exitEnd -ne 0) {
-              Write-Error "CI failed due to warnings or build errors."
+            if ($buildFailed -or $exitEnd -ne 0) {
+              Write-Error "CI failed due to build errors."
+              exit 1
+            }
+
+            if ($totalWarnings -gt 0) {
+              Write-Error "should be no warning, found $totalWarnings warning(s)"
               exit 1
             } else {
               Write-Host "[OK] All builds passed with no warnings."
