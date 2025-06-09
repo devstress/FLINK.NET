@@ -7,7 +7,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States // Adjusted name
     public class InMemoryValueStateTests
     {
         private readonly IntSerializer _intSerializer = new IntSerializer();
-        private readonly StringSerializer _stringSerializer = new StringSerializer();
+        private readonly JsonPocoSerializer<string?> _nullableStringSerializer = new JsonPocoSerializer<string?>();
         private readonly JsonPocoSerializer<object?> _objectSerializer = new JsonPocoSerializer<object?>();
         private readonly JsonPocoSerializer<MyStruct> _myStructSerializer = new JsonPocoSerializer<MyStruct>();
 
@@ -17,10 +17,10 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States // Adjusted name
             var state = new InMemoryValueState<int>(10, _intSerializer);
             Assert.Equal(10, state.Value());
 
-            var stateStr = new InMemoryValueState<string?>("default", _stringSerializer);
+            var stateStr = new InMemoryValueState<string?>("default", _nullableStringSerializer);
             Assert.Equal("default", stateStr.Value());
 
-            var stateNullableStr = new InMemoryValueState<string?>(null, _stringSerializer);
+            var stateNullableStr = new InMemoryValueState<string?>(null, _nullableStringSerializer);
             Assert.Null(stateNullableStr.Value());
         }
 
@@ -31,7 +31,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States // Adjusted name
             state.Update(42);
             Assert.Equal(42, state.Value());
 
-            var stateStr = new InMemoryValueState<string?>("initial", _stringSerializer);
+            var stateStr = new InMemoryValueState<string?>("initial", _nullableStringSerializer);
             stateStr.Update("updated");
             Assert.Equal("updated", stateStr.Value());
 

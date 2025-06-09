@@ -17,9 +17,9 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <Protobuf Include="..\FlinkDotNet.JobManager\Protos\jobmanager_internal.proto" GrpcServices="Both" Link="Protos\jobmanager_internal.proto" /> <!-- Changed Server to Both -->
-  </ItemGroup>
+  <!-- gRPC service and message types are provided by the JobManager project
+       via the FlinkDotNet.Core.Api reference. Avoid generating them again to
+       prevent duplicate type definitions. -->
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Connectors.Sources.File\FlinkDotNet.Connectors.Sources.File.csproj" />

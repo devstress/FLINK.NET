@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Globalization;
 using FlinkDotNet.JobManager.Interfaces; // Added for IJobRepository
 using FlinkDotNet.JobManager.Models; // For CheckpointMetadata, TaskManagerInfo (assuming TaskManagerInfo is also in Models or accessible)
 using FlinkDotNet.Proto.Internal;    // For gRPC client (TaskManagerCheckpointing.TaskManagerCheckpointingClient)
@@ -155,7 +156,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
 
                     var checkpointDto = new CheckpointInfoDto
                     {
-                        CheckpointId = checkpoint.CheckpointId.ToString(),
+                        CheckpointId = checkpoint.CheckpointId.ToString(CultureInfo.InvariantCulture),
                         Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(checkpoint.Timestamp).UtcDateTime,
                         Status = checkpoint.Status.ToString().ToUpperInvariant(), // COMPLETED, FAILED, IN_PROGRESS
                         DurationMs = checkpoint.TaskSnapshots.Values.Any() ? checkpoint.TaskSnapshots.Values.Max(s => (long)s.DurationMs) : 0,
@@ -186,7 +187,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
                 checkpoint.MarkFailed();
                 var checkpointDto = new CheckpointInfoDto
                 {
-                    CheckpointId = checkpoint.CheckpointId.ToString(),
+                    CheckpointId = checkpoint.CheckpointId.ToString(CultureInfo.InvariantCulture),
                     Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(checkpoint.Timestamp).UtcDateTime,
                     Status = checkpoint.Status.ToString().ToUpperInvariant(), // Should be FAILED
                     DurationMs = (long)(DateTime.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(checkpoint.Timestamp)).TotalMilliseconds, // Duration until failure

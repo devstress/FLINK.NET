@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Globalization;
 using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Functions;
 using FlinkDotNet.Core.Abstractions.Operators;
@@ -69,7 +70,8 @@ namespace FlinkDotNet.Core.Abstractions.Storage
         public Task WriteKeyedEntry(byte[] key, byte[] value) => Task.CompletedTask;
         public Task EndKeyedState(string stateName) => Task.CompletedTask;
         public Stream GetStateOutputStream(string stateName) => new MemoryStream();
-        public Task<string> CommitAndGetHandleAsync() => Task.FromResult("dummy_handle_" + Guid.NewGuid().ToString());
+        public Task<string> CommitAndGetHandleAsync() =>
+            Task.FromResult("dummy_handle_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
      public class DummyStateSnapshotReader : IStateSnapshotReader { /* ... */
