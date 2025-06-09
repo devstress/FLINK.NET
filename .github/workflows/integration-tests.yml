@@ -137,11 +137,11 @@ jobs:
         run: |
           $maxAttempts = 10
           $delaySeconds = 15
-          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.exe"
+          $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             echo "Health check attempt $attempt/$maxAttempts..."
-            & $verifierPath --health-check
+            & dotnet $verifierDll --health-check
             if ($LASTEXITCODE -eq 0) {
               echo "Health check PASSED."
               break
@@ -163,8 +163,8 @@ jobs:
           echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
           Write-Host "DOTNET_REDIS_URL from env: $env:DOTNET_REDIS_URL"
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS from env: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-          $verifierPath = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.exe"
-          & $verifierPath
+          $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
+          & dotnet $verifierDll
           if ($LASTEXITCODE -ne 0) {
             echo "Verification tests FAILED."
             exit 1
