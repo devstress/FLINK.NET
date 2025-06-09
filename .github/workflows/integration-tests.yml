@@ -54,8 +54,8 @@ jobs:
           Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
 
           echo "Generating Aspire manifest..."
-          dotnet publish FlinkDotNetAspire.AppHost.csproj --configuration Release --output ../publish
-          Copy-Item ../publish/aspire-manifest.json ../aspire-manifest.json
+          dotnet publish FlinkDotNetAspire.AppHost.csproj --configuration Release -p:IsPublishable=true -p:AspireManifestPublishOutputPath=../publish -t:GenerateAspireManifest
+          Copy-Item ../publish/manifest.json ../aspire-manifest.json
           Write-Host "Aspire manifest generated at ../aspire-manifest.json"
 
           # Start Aspire in the background. Pass SIMULATOR_NUM_MESSAGES to the environment of the process
