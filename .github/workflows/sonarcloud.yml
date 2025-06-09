@@ -64,38 +64,38 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
         shell: powershell # Using PowerShell
         run: |
-          function RunBuildWithWarningCheck($project) {
-            Write-Host "🔧 Building $project"
-            $output = dotnet build $project 2>&1
-            $output | ForEach-Object { Write-Host $_ }
+            function RunBuildWithWarningCheck($project) {
+              Write-Host "Building $project"
+              $output = dotnet build $project 2>&1
+              $output | ForEach-Object { Write-Host $_ }
 
-            $warnings = $output | Where-Object { $_ -match "^\s*warning\s" }
-            if ($warnings.Count -gt 0) {
-              Write-Host "⚠️ Found $($warnings.Count) warning(s) in $project"
-              return 1
+              $warnings = $output | Where-Object { $_ -match "^\s*warning\s" }
+              if ($warnings.Count -gt 0) {
+                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $project"
+                return 1
+              }
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "[FAIL] Build failed for $project"
+                return $LASTEXITCODE
+              }
+
+              Write-Host "[OK] $project built successfully with no warnings."
+              return 0
             }
 
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "❌ Build failed for $project"
-              return $LASTEXITCODE
+            .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false
+
+            $exit1 = RunBuildWithWarningCheck "FlinkDotNet/FlinkDotNet.sln"
+            $exit2 = RunBuildWithWarningCheck "FlinkDotNetAspire/FlinkDotNetAspire.sln"
+            $exit3 = RunBuildWithWarningCheck "FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln"
+
+            .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+            $exitEnd = $LASTEXITCODE
+
+            if ($exit1 -ne 0 -or $exit2 -ne 0 -or $exit3 -ne 0 -or $exitEnd -ne 0) {
+              Write-Error "CI failed due to warnings or build errors."
+              exit 1
+            } else {
+              Write-Host "[OK] All builds passed with no warnings."
             }
-
-            Write-Host "✅ $project built successfully with no warnings."
-            return 0
-          }
-
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false
-
-          $exit1 = RunBuildWithWarningCheck "FlinkDotNet/FlinkDotNet.sln"
-          $exit2 = RunBuildWithWarningCheck "FlinkDotNetAspire/FlinkDotNetAspire.sln"
-          $exit3 = RunBuildWithWarningCheck "FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln"
-
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-          $exitEnd = $LASTEXITCODE
-
-          if ($exit1 -ne 0 -or $exit2 -ne 0 -or $exit3 -ne 0 -or $exitEnd -ne 0) {
-            Write-Error "CI failed due to warnings or build errors."
-            exit 1
-          } else {
-            Write-Host "✅ All builds passed with no warnings."
-          }
