@@ -67,10 +67,19 @@ jobs:
             function RunBuildWithWarningCheck($project) {
               Write-Host "Building $project"
               $output = dotnet build $project 2>&1
+
+              if (-not $output) {
+                Write-Host "[DEBUG] Build output was empty"
+              } else {
+                Write-Host "[DEBUG] Captured $($output.Count) output line(s)"
+              }
+
               $output | ForEach-Object { Write-Host $_ }
 
-              $warnings = $output | Where-Object { $_ -match "(?i)^\s*warning" }
+              $warnings = $output | Where-Object { $_ -match "(?i)warning" }
+              Write-Host "[DEBUG] Found $($warnings.Count) line(s) containing 'warning'"
               if ($warnings.Count -gt 0) {
+                Write-Host "[DEBUG] First warning: $($warnings[0])"
                 Write-Host "[WARN] Found $($warnings.Count) warning(s) in $project"
                 return 1
               }
