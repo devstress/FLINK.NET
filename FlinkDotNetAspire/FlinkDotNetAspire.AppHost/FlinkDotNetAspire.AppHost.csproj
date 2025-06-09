@@ -7,6 +7,7 @@
     <IsAspireHost>true</IsAspireHost>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
@@ -14,6 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Reference Aspire hosting so DistributedApplication source generators compile -->
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.0" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.2" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="8.2.2" />
+    <PackageReference Include="Aspire.Hosting.Kafka" Version="8.2.2" />
   </ItemGroup>
 </Project>

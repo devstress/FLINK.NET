@@ -12,7 +12,7 @@ var jobManagerGrpcEndpoint = "http://localhost:50051";
 
 var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
     .WithHttpEndpoint(targetPort: 8080, name: "rest")
-    .WithEndpoint(targetPort:50051, name: "grpc", scheme: "http", protocol: Microsoft.AspNetCore.Hosting.Server.Protocols.HttpProtocols.Http2)
+    .WithEndpoint(targetPort:50051, name: "grpc", scheme: "http")
     .WithEnvironment("ASPNETCORE_URLS", $"{jobManagerHttpEndpoint};{jobManagerGrpcEndpoint}")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
