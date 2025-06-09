@@ -16,7 +16,7 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         /// </summary>
         public OperatorDefinition OperatorDefinition { get; }
 
-        public int Parallelism { get; set; } = 1;
+        public int Parallelism { get; set; }
 
         // --- Fields from 'feature/comprehensive-flink-core-design' --- (and prior)
         /// <summary>
