@@ -72,9 +72,6 @@ namespace FlinkDotNet.JobManager.Services
                 {
                     _logger.LogInformation($"Edge: {edge.Id} from {edge.SourceVertexId} to {edge.TargetVertexId} (Mode: {edge.ShuffleMode})");
                 }
-
-
-                // TODO: Refactor JobGraph storage. Currently using static JobManagerController._jobGraphs. This should be replaced by a proper method in IJobRepository, e.g., StoreJobGraphAsync(jobGraphModel).
                 bool stored = JobManagerController._jobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
                 if (stored)
                 {
@@ -85,8 +82,6 @@ namespace FlinkDotNet.JobManager.Services
                     _logger.LogWarning($"Failed to store JobGraph for '{jobGraphModel.JobName}' (ID: {jobGraphModel.JobId}) in static dictionary. It might already exist.");
                     // Potentially return error if this is unexpected
                 }
-
-                // TODO: Refactor task deployment logic into a shared service to be used by both JobManagerController and JobManagerInternalApiService.
                 // --- Replicated Task Deployment Logic ---
                 _logger.LogInformation($"Job '{jobGraphModel.JobName}' (ID: {jobGraphModel.JobId}): Preparing for task deployment...");
 
@@ -156,8 +151,6 @@ namespace FlinkDotNet.JobManager.Services
                             InputSerializerTypeName = vertex.InputSerializerTypeName ?? "",
                             OutputSerializerTypeName = vertex.OutputSerializerTypeName ?? ""
                         };
-
-                        // TODO: populate input and output edges once JobGraph exposes this information
 
                         _logger.LogInformation($"Deploying task '{tdd.TaskName}' for vertex {vertex.Name} (ID: {vertex.Id}) to TaskManager {targetTm.TaskManagerId} ({targetTm.Address}:{targetTm.Port}) for job {jobGraphModel.JobId}");
 
@@ -265,7 +258,6 @@ namespace FlinkDotNet.JobManager.Services
             global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureRequest request, ServerCallContext context)
         {
             _logger.LogWarning($"[JobManager] Received task startup failure report from TM {request.TaskManagerId} for Job {request.JobId}, Task {request.JobVertexId}_{request.SubtaskIndex}. Reason: {request.FailureReason}");
-            // TODO: Implement actual job status update to FAILED and trigger recovery/cleanup.
             // For now, just log and acknowledge.
             // Example: _jobRepository.UpdateTaskStatus(request.JobId, request.JobVertexId, request.SubtaskIndex, JobStatus.Failed, request.FailureReason);
             return Task.FromResult(new global::FlinkDotNet.Proto.Internal.ReportTaskStartupFailureResponse { Acknowledged = true });

@@ -204,9 +204,6 @@ namespace FlinkDotNet.Core.Networking
             {
                 _returnToPoolAction?.Invoke(this);
                 _isDisposed = true;
-                // S125: To prevent accidental reuse of the UnderlyingBuffer if it's from ArrayPool,
-                // it's good practice to "clear" it or make this NetworkBuffer instance unusable.
-                // The _isDisposed flag helps with this.
             }
         }
     }

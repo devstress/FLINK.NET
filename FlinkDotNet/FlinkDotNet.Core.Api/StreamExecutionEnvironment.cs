@@ -278,7 +278,6 @@ namespace FlinkDotNet.Core.Api
         public Task ExecuteAsync(string jobName = "MyFlinkJob")
         {
             var jobGraph = CreateJobGraph(jobName);
-            // TODO: Implement local/embedded execution or connect to an embedded JobManager.
             // For distributed execution, serialize JobGraph and submit via gRPC (see FlinkJobSimulator for an example).
             Console.WriteLine($"JobGraph '{jobGraph.JobName}' created. In a real scenario, this would be submitted.");
             return Task.CompletedTask;

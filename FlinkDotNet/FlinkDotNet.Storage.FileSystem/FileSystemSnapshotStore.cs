@@ -118,7 +118,7 @@ namespace FlinkDotNet.Storage.FileSystem
         }
 
         // --- Writer Session ---
-        private sealed class FileSystemSnapshotWriterSession : IStateSnapshotWriter // S3260/CA1852: Added sealed
+        private sealed class FileSystemSnapshotWriterSession : IStateSnapshotWriter
         {
             private readonly string _operatorSubtaskDirectory;
             private readonly Dictionary<string, (FileStream Stream, BinaryWriter Writer)> _activeKeyedStateWriters = new();
@@ -135,7 +135,7 @@ namespace FlinkDotNet.Storage.FileSystem
             {
                 string fileName = Path.GetInvalidFileNameChars().Aggregate(stateName, (current, c) => current.Replace(c.ToString(), "_")) + extension;
                 if (isTemporary)
-                { // S121
+                {
                     fileName += TempFileSuffix;
                 }
                 return Path.Combine(_operatorSubtaskDirectory, fileName);
@@ -151,11 +151,11 @@ namespace FlinkDotNet.Storage.FileSystem
             public Task BeginKeyedState(string stateName)
             {
                 if (_activeKeyedStateWriters.ContainsKey(stateName))
-                { // S121
+                {
                     throw new InvalidOperationException($"Keyed state '{stateName}' is already open for writing.");
                 }
                 if (_currentActiveKeyedStateName != null)
-                { // S121
+                {
                      throw new InvalidOperationException($"Another keyed state '{_currentActiveKeyedStateName}' is already active. End it before beginning a new one.");
                 }
 
@@ -200,7 +200,7 @@ namespace FlinkDotNet.Storage.FileSystem
                     }
                 }
                 else
-                { // S121
+                {
                     throw new InvalidOperationException($"Keyed state '{stateName}' was not active or already ended.");
                 }
                 return Task.CompletedTask;
@@ -212,17 +212,17 @@ namespace FlinkDotNet.Storage.FileSystem
                 {
                     Console.WriteLine($"[FileSystemSnapshotWriterSession] WARNING: Commit called but these keyed states were not ended: {string.Join(", ", _activeKeyedStateWriters.Keys)}. Disposing them now.");
                     foreach (var stateName in _activeKeyedStateWriters.Keys.ToList())
-                    { // S121
+                    {
                         EndKeyedState(stateName).GetAwaiter().GetResult();
                     }
                 }
 
-                foreach (string tempPath in _writtenTempFiles.Where(File.Exists)) // S3267: Use LINQ Where
-                { // S121
+                foreach (string tempPath in _writtenTempFiles.Where(File.Exists))
+                {
                     // Inner if (File.Exists(finalPath)) still needed
                     string finalPath = tempPath.Substring(0, tempPath.Length - TempFileSuffix.Length);
                     if (File.Exists(finalPath))
-                    { // S121
+                    {
                         File.Delete(finalPath);
                     }
                     File.Move(tempPath, finalPath);
@@ -238,7 +238,7 @@ namespace FlinkDotNet.Storage.FileSystem
                 {
                      Console.WriteLine($"[FileSystemSnapshotWriterSession] DisposeAsync: Ending active keyed states: {string.Join(", ", _activeKeyedStateWriters.Keys)}.");
                     foreach (var stateName in _activeKeyedStateWriters.Keys.ToList())
-                    { // S121
+                    {
                         await EndKeyedState(stateName);
                     }
                 }
@@ -252,7 +252,7 @@ namespace FlinkDotNet.Storage.FileSystem
         }
 
         // --- Reader Session ---
-        private sealed class FileSystemSnapshotReaderSession : IStateSnapshotReader // S3260/CA1852: Added sealed
+        private sealed class FileSystemSnapshotReaderSession : IStateSnapshotReader
         {
             private readonly string _operatorSubtaskDirectory;
             private readonly bool _isEmpty; // If the directory didn't exist / handle was invalid
@@ -302,7 +302,7 @@ namespace FlinkDotNet.Storage.FileSystem
 
                 using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 if (fileStream.Length == 0)
-                { // S121
+                {
                     yield break; // Empty file
                 }
 
@@ -310,12 +310,12 @@ namespace FlinkDotNet.Storage.FileSystem
 
                 byte[] magic = reader.ReadBytes(FileMagicNumber.Length);
                 if (!magic.SequenceEqual(FileMagicNumber))
-                { // S121
+                {
                     throw new IOException("Invalid magic number for keyed state file.");
                 }
                 ushort version = reader.ReadUInt16();
                 if (version != FileFormatVersion)
-                { // S121
+                {
                     throw new IOException($"Unsupported keyed state file version {version}. Expected {FileFormatVersion}.");
                 }
 
@@ -325,23 +325,23 @@ namespace FlinkDotNet.Storage.FileSystem
 
                     int keyLength = reader.ReadInt32();
                     if (keyLength < 0)
-                    { // S121
+                    {
                         throw new IOException("Invalid key length found in state file.");
                     }
                     byte[] keyBytes = reader.ReadBytes(keyLength);
                     if (keyBytes.Length != keyLength)
-                    { // S121
+                    {
                         throw new EndOfStreamException("Unexpected end of stream while reading key.");
                     }
 
                     int valueLength = reader.ReadInt32();
                     if (valueLength < 0)
-                    { // S121
+                    {
                         throw new IOException("Invalid value length found in state file.");
                     }
                     byte[] valueBytes = reader.ReadBytes(valueLength);
                     if (valueBytes.Length != valueLength)
-                    { // S121
+                    {
                         throw new EndOfStreamException("Unexpected end of stream while reading value.");
                     }
 

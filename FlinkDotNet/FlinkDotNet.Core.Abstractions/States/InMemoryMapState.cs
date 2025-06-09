@@ -14,8 +14,6 @@ namespace FlinkDotNet.Core.Abstractions.States
     public class InMemoryMapState<TK, TV> : IMapState<TK, TV> where TK : notnull
     {
         private readonly Dictionary<TK, TV> _dictionary;
-        // private readonly ITypeSerializer<TK> _keySerializer; // S4487: Unread private field
-        // private readonly ITypeSerializer<TV> _valueSerializer; // S4487: Unread private field
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InMemoryMapState{TK, TV}"/> class.
@@ -24,8 +22,6 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <param name="valueSerializer">The serializer for the values.</param>
         public InMemoryMapState(ITypeSerializer<TK> keySerializer, ITypeSerializer<TV> valueSerializer)
         {
-            // _keySerializer = keySerializer; // S4487: Unread private field
-            // _valueSerializer = valueSerializer; // S4487: Unread private field
             _dictionary = new Dictionary<TK, TV>();
         }
 
@@ -38,8 +34,6 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <param name="valueSerializer">The serializer for the values.</param>
         internal InMemoryMapState(IDictionary<TK, TV> initialEntries, ITypeSerializer<TK> keySerializer, ITypeSerializer<TV> valueSerializer)
         {
-            // _keySerializer = keySerializer; // S4487: Unread private field
-            // _valueSerializer = valueSerializer; // S4487: Unread private field
             _dictionary = new Dictionary<TK, TV>(initialEntries);
         }
 

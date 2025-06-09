@@ -55,7 +55,6 @@ namespace FlinkDotNet.JobManager.Models
         // Key: TaskManagerId (or a more granular subtask ID later)
         public ConcurrentDictionary<string, TaskCheckpointInfo> TaskSnapshots { get; }
 
-        // TODO: ExternalPath can be used to store the location of a master metadata file for the checkpoint if consolidation occurs. Individual task snapshot locations are in TaskSnapshots.
         public string? ExternalPath { get; private set; }
 
         public CheckpointMetadata(string jobId, long checkpointId, long timestamp, List<string> expectedTaskIds)

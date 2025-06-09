@@ -16,7 +16,7 @@ namespace FlinkDotNet.Connectors.Sources.File
         public FileSourceFunction(string filePath, ITypeSerializer<TOut> serializer)
         {
             if (string.IsNullOrEmpty(filePath))
-            { // S121: Added curly braces
+            {
                 throw new ArgumentNullException(nameof(filePath));
             }
             _filePath = filePath;
@@ -32,8 +32,6 @@ namespace FlinkDotNet.Connectors.Sources.File
                 string? line;
                 while (_isRunning && (line = reader.ReadLine()) != null)
                 {
-                    // S2589: Removed redundant check, as the while condition already checks _isRunning.
-                    // The volatile nature of _isRunning ensures visibility for the while loop check.
                     try
                     {
                         // For this basic version, we assume the serializer can handle raw UTF-8 bytes of a line.
@@ -42,7 +40,7 @@ namespace FlinkDotNet.Connectors.Sources.File
                         // If TOut is string and StringSerializer is used, this should be fine.
                         var recordBytes = Encoding.UTF8.GetBytes(line);
                         TOut? recordOrNull = _serializer.Deserialize(recordBytes); // Handle possible null from Deserialize
-                        if (recordOrNull is not null) // S2955: Changed from '!= null' to 'is not null'
+                        if (recordOrNull is not null)
                         {
                             ctx.Collect(recordOrNull);
                         }

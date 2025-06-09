@@ -1,5 +1,4 @@
 #pragma warning disable S3776 // Cognitive Complexity of methods is too high
-// S1118, CA1050, S3903, RCS1102: Added namespace and made class static
 namespace IntegrationTestVerifier
 {
     using System;
@@ -12,15 +11,13 @@ namespace IntegrationTestVerifier
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
 
-    public static class Program // Made static
+    public static class Program
     {
-        // S125: Commented out code removed.
 
         public static async Task<int> Main(string[] args)
         {
             Console.WriteLine("Integration Test Verifier Started.");
 
-            // S1450: _configuration is now local
             var configuration = new ConfigurationBuilder()
                 .AddEnvironmentVariables()
                 .Build();
@@ -135,9 +132,8 @@ namespace IntegrationTestVerifier
             try
             {
                 redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-                // S112: More specific exception
                 if (!redis.IsConnected)
-                { // S121: Added curly braces
+                {
                     throw new InvalidOperationException("Failed to connect to Redis.");
                 }
                 Console.WriteLine("Successfully connected to Redis.");
@@ -169,13 +165,13 @@ namespace IntegrationTestVerifier
             finally
             {
                 if (redis != null) {
-                    await redis.DisposeAsync(); // S6966: Use DisposeAsync
+                    await redis.DisposeAsync();
                 }
             }
             return redisVerified;
         }
 
-        private static bool VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages) // CS1998: Removed async. S1172: Removed attemptNumber
+        private static bool VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages)
         {
             Console.WriteLine("\nConnecting to Kafka...");
             bool kafkaVerified = true;
@@ -210,7 +206,7 @@ namespace IntegrationTestVerifier
                                 break;
                             }
                             if (messagesConsumed.Count >= expectedMessages)
-                            { // S121: Added curly braces
+                            {
                                 break;
                             }
                             continue;

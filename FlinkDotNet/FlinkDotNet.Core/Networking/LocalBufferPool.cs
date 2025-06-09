@@ -59,7 +59,6 @@ namespace FlinkDotNet.Core.Networking
                 }
                 else
                 {
-                    // S125: Removed Console.WriteLine
                     break;
                 }
             }
@@ -136,7 +135,6 @@ namespace FlinkDotNet.Core.Networking
 
             if (minCapacity > BufferSegmentSize)
             {
-                 // S125: Removed Console.WriteLine
             }
 
             lock (_lock)
@@ -174,11 +172,6 @@ namespace FlinkDotNet.Core.Networking
                     return buffer;
                 }
 
-                // This is the S1066 candidate. The logic is: if no local buffer, try to get from global if allowed.
-                // If global fails or not allowed, then queue request. This sequence seems logical.
-                // Merging `if (_numLeasedSegmentsFromGlobal < _maxConfiguredSegments)` with the outer lock doesn't simplify.
-                // The cognitive complexity S3776 warning might be due to multiple exit points and nested conditions.
-                // The current structure is relatively clear for a buffer pool: try local, try global, then wait.
                 if (_numLeasedSegmentsFromGlobal < _maxConfiguredSegments)
                 {
                     byte[]? segment = _globalBufferPool.RequestMemorySegment();
@@ -228,7 +221,6 @@ namespace FlinkDotNet.Core.Networking
                         if (_isDestroyed) return; // Already effectively disposed by a different path
                         _isDestroyed = true; // Mark as destroyed to stop normal operations
 
-                        // int recycledToGlobalCount = 0; // S125: Part of removed logs
                         while (_pendingRequests.TryDequeue(out var tcs))
                         {
                             tcs.TrySetCanceled(); // Cancel any pending requests
@@ -239,11 +231,8 @@ namespace FlinkDotNet.Core.Networking
                             // Assuming NetworkBuffer.UnderlyingBuffer gives access to the byte[]
                             _globalBufferPool.RecycleMemorySegment(((NetworkBuffer)bufferToRecycle).UnderlyingBuffer);
                             Interlocked.Decrement(ref _numLeasedSegmentsFromGlobal);
-                            // recycledToGlobalCount++; // S125: Part of removed logs
                         }
                     }
-                    // TODO: Consider if _globalBufferPool itself needs unsubscription or notification
-                    // Example: _globalBufferPool.DestroyBufferPool(this); // If such a mechanism exists
                 }
 
                 // Free unmanaged resources (unmanaged objects) and override a finalizer below.
@@ -258,10 +247,5 @@ namespace FlinkDotNet.Core.Networking
             GC.SuppressFinalize(this);
         }
 
-        // Optional: Finalizer if directly owning unmanaged resources not handled by NetworkBuffer/NetworkBufferPool
-        // ~LocalBufferPool()
-        // {
-        //     Dispose(false);
-        // }
     }
 }

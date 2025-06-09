@@ -23,8 +23,6 @@ namespace FlinkDotNet.JobManager.Checkpointing
         private readonly JobManagerConfig _config; // Placeholder for config like checkpoint timeout
         private readonly IJobRepository _jobRepository;
         private readonly ILogger<CheckpointCoordinator> _logger; // Added
-
-        // TODO: Refactor TaskManager communication. Currently uses static TaskManagerTracker. Consider injecting an ITaskManagerClientProvider or similar for better testability and management of TM connections.
         // For now, it might fetch from TaskManagerTracker, but this coupling isn't ideal long-term.
         // A better approach would be an ITaskManagerProxy or similar abstraction.
 
@@ -56,7 +54,6 @@ namespace FlinkDotNet.JobManager.Checkpointing
             _logger.LogInformation("CheckpointCoordinator for job {JobId} stopping.", _jobId);
             _checkpointTriggerTimer?.Dispose();
             _checkpointTriggerTimer = null;
-            // TODO: Abort any in-progress checkpoints?
         }
 
         private async Task TriggerCheckpoint()
@@ -128,8 +125,6 @@ namespace FlinkDotNet.JobManager.Checkpointing
 
             await Task.WhenAll(triggerTasks);
             _logger.LogInformation("Job {JobId}: All TriggerTaskCheckpoint messages sent for checkpoint {CheckpointId}.", _jobId, checkpointId);
-
-            // TODO: Implement checkpoint timeout logic.
             // Start a timer here for 'checkpointId'. If it fires before the checkpoint is fully acknowledged,
             // call 'RecordFailedCheckpointAsync(checkpointId, "Timeout")' and potentially cancel ongoing efforts for this CP.
             // Example: _checkpointTimeoutController.RegisterTimeout(checkpointId, _config.CheckpointTimeoutSecs, async () => await RecordFailedCheckpointAsync(checkpointId, "Timeout"));
@@ -163,8 +158,6 @@ namespace FlinkDotNet.JobManager.Checkpointing
                         SizeBytes = checkpoint.TaskSnapshots.Values.Sum(s => (long)s.SnapshotSize)
                     };
                     _jobRepository.AddCheckpointAsync(_jobId, checkpointDto).ConfigureAwait(false); // Fire and forget for now
-
-                    // TODO: Implement cleanup of old checkpoints from the _checkpoints dictionary
                     // and potentially from the _jobRepository / durable storage based on retention policy.
                     // Example: if (_checkpoints.Count > _config.MaxRetainedCheckpoints) { /* logic to find and remove oldest */ }
                     Console.WriteLine($"[CheckpointCoordinator] Placeholder for cleaning up old checkpoints after CP {checkpoint.CheckpointId} completed.");

@@ -52,7 +52,6 @@ namespace FlinkDotNet.Core.Networking
             {
                 return segment;
             }
-            // S125: Removed Console.WriteLine
             return null;
         }
 
@@ -70,12 +69,6 @@ namespace FlinkDotNet.Core.Networking
             // We are interested if it's smaller, which would be an error.
             if (segment.Length < _segmentSize)
             {
-                 // S125: This indicates a logic error or a segment not originating from this pool's Rent calls.
-                 // Console.WriteLine($"[NetworkBufferPool] Warning: Attempted to recycle segment of size {segment.Length}, which is smaller than pool's segment size {_segmentSize}. Segment will not be re-queued. This may lead to buffer leaks if it was from this pool, or is an error if from elsewhere.");
-                 // To be safe, if it's not from our pool (or seems corrupted), don't re-add.
-                 // If it was from ArrayPool.Shared, it should still be returned there if we don't re-enqueue.
-                 // However, if the pool is disposed, we MUST return it to ArrayPool.
-                 // No change to logic, only removing active Console.WriteLine. The existing if(_disposed) handles return.
                  if (_disposed) ArrayPool<byte>.Shared.Return(segment); // Ensure it's returned if pool is dead
                  return;
             }
@@ -105,11 +98,8 @@ namespace FlinkDotNet.Core.Networking
             // If minCapacity > _segmentSize, this simple request will fail to meet it unless segment is coincidentally large enough.
             if (minCapacity > _segmentSize)
             {
-                // S125: This pool provides fixed-size segments. Requesting larger than segment size
-                // is not directly supported by requesting a single segment.
-                // A LocalBufferPool might aggregate, or this indicates a wrong pool is being asked.
-                // Console.WriteLine($"[NetworkBufferPool] Warning: Requested buffer capacity {minCapacity} exceeds segment size {_segmentSize}. Attempting to serve with a single segment.");
-                // Fallthrough to attempt serving with one segment. NetworkBuffer will throw if capacity is insufficient.
+                // This pool provides fixed-size segments. Requesting larger than segment size is not
+                // directly supported by requesting a single segment. A LocalBufferPool might aggregate.
             }
 
             byte[]? segment = RequestMemorySegment();
@@ -145,7 +135,6 @@ namespace FlinkDotNet.Core.Networking
                         ArrayPool<byte>.Shared.Return(segment);
                         returnedCount++;
                     }
-                    // S125: Removed Console.WriteLine
                 }
                 // Free unmanaged resources (unmanaged objects) and override a finalizer below.
                 // Set large fields to null.

@@ -19,8 +19,6 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         /// </summary>
         public string KeyTypeAssemblyName { get; }
 
-        // TODO: Consider adding KeySerializerTypeName if specific key serializers are needed.
-
         public OutputKeyingConfig(string keySelectorTypeName, string keyTypeAssemblyName)
         {
             KeySelectorTypeName = keySelectorTypeName;
