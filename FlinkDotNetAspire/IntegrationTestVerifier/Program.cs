@@ -40,13 +40,15 @@ namespace IntegrationTestVerifier
             var redisConnectionString = config["DOTNET_REDIS_URL"];
             var kafkaBootstrapServers = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
 
-            if (string.IsNullOrEmpty(redisConnectionString)) {
-                Console.WriteLine("Error: DOTNET_REDIS_URL environment variable not found for health check.");
-                return 1;
+            if (string.IsNullOrEmpty(redisConnectionString))
+            {
+                redisConnectionString = "localhost:6379";
+                Console.WriteLine($"Redis connection string not found. Using default: {redisConnectionString}");
             }
-            if (string.IsNullOrEmpty(kafkaBootstrapServers)) {
-                Console.WriteLine("Error: DOTNET_KAFKA_BOOTSTRAP_SERVERS environment variable not found for health check.");
-                return 1;
+            if (string.IsNullOrEmpty(kafkaBootstrapServers))
+            {
+                kafkaBootstrapServers = "localhost:9092";
+                Console.WriteLine($"Kafka bootstrap servers not found. Using default: {kafkaBootstrapServers}");
             }
 
             // Redis Health Check
@@ -100,10 +102,16 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"Expected messages: {expectedMessages}");
             // ... (other Console.WriteLine for config values)
 
-            if (string.IsNullOrEmpty(redisConnectionStringFull) || string.IsNullOrEmpty(kafkaBootstrapServersFull))
+            if (string.IsNullOrEmpty(redisConnectionStringFull))
             {
-                Console.WriteLine("Error: DOTNET_REDIS_URL or DOTNET_KAFKA_BOOTSTRAP_SERVERS environment variable not found.");
-                return 1;
+                redisConnectionStringFull = "localhost:6379";
+                Console.WriteLine($"Redis connection string not found. Using default: {redisConnectionStringFull}");
+            }
+
+            if (string.IsNullOrEmpty(kafkaBootstrapServersFull))
+            {
+                kafkaBootstrapServersFull = "localhost:9092";
+                Console.WriteLine($"Kafka bootstrap servers not found. Using default: {kafkaBootstrapServersFull}");
             }
 
             var verificationStopwatch = Stopwatch.StartNew();
