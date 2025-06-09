@@ -18,6 +18,11 @@ namespace FlinkDotNet.Core.Abstractions.States
         TV GetValueForKey(TK key);
 
         /// <summary>
+        /// Compatibility alias matching older API that exposed <c>Get()</c>.
+        /// </summary>
+        TV Get(TK key);
+
+        /// <summary>
         /// Associates the given value with the given key.
         /// </summary>
         /// <param name="key">The key.</param>

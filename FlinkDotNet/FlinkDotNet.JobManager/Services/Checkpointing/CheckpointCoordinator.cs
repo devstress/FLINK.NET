@@ -146,7 +146,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             if (_checkpoints.TryGetValue(checkpointId, out var checkpoint))
             {
                 _logger.LogInformation("Job {JobId}, Checkpoint {CheckpointId}: Received ACK from TM {TaskManagerId}. Handle: {SnapshotHandle}", _jobId, checkpointId, taskManagerId, snapshotHandle);
-                checkpoint.MarkTaskAcknowledged(taskManagerId, snapshotHandle, size, duration);
+                checkpoint.MarkTaskAcknowledged(taskManagerId, snapshotHandle, unchecked((ulong)size), unchecked((ulong)duration));
 
                 if (checkpoint.IsFullyAcknowledged())
                 {
@@ -158,8 +158,8 @@ namespace FlinkDotNet.JobManager.Checkpointing
                         CheckpointId = checkpoint.CheckpointId.ToString(),
                         Timestamp = DateTimeOffset.FromUnixTimeMilliseconds(checkpoint.Timestamp).UtcDateTime,
                         Status = checkpoint.Status.ToString().ToUpperInvariant(), // COMPLETED, FAILED, IN_PROGRESS
-                        DurationMs = checkpoint.TaskSnapshots.Values.Any() ? checkpoint.TaskSnapshots.Values.Max(s => s.DurationMs) : 0, // Example: Max duration
-                        SizeBytes = checkpoint.TaskSnapshots.Values.Sum(s => s.Size) // Example: Sum of sizes
+                        DurationMs = checkpoint.TaskSnapshots.Values.Any() ? checkpoint.TaskSnapshots.Values.Max(s => (long)s.DurationMs) : 0,
+                        SizeBytes = checkpoint.TaskSnapshots.Values.Sum(s => (long)s.SnapshotSize)
                     };
                     _jobRepository.AddCheckpointAsync(_jobId, checkpointDto).ConfigureAwait(false); // Fire and forget for now
 
@@ -183,7 +183,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
         {
             if (_checkpoints.TryGetValue(checkpointId, out var checkpoint))
             {
-                checkpoint.MarkFailed(reason); // Ensure CheckpointMetadata has such a method
+                checkpoint.MarkFailed();
                 var checkpointDto = new CheckpointInfoDto
                 {
                     CheckpointId = checkpoint.CheckpointId.ToString(),

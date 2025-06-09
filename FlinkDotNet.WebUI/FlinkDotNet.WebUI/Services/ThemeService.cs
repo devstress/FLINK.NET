@@ -10,7 +10,7 @@ namespace FlinkDotNet.WebUI.Services
         private readonly IJSRuntime _jsRuntime;
         private const string ThemeStorageKey = "userPreferredTheme";
 
-        public StandardLuminance CurrentLuminance { get; private set; } = StandardLuminance.Light; // Default to LightMode
+        public StandardLuminance CurrentLuminance { get; private set; } = StandardLuminance.LightMode; // Default to LightMode
 
         public event Action? OnThemeChanged;
 
@@ -26,29 +26,29 @@ namespace FlinkDotNet.WebUI.Services
                 var storedTheme = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", ThemeStorageKey);
                 if (!string.IsNullOrEmpty(storedTheme))
                 {
-                    CurrentLuminance = storedTheme == "dark" ? StandardLuminance.Dark : StandardLuminance.Light;
+                    CurrentLuminance = storedTheme == "dark" ? StandardLuminance.DarkMode : StandardLuminance.LightMode;
                 }
                 else
                 {
                     // Optional: could check system preference here if FluentThemeProvider doesn't do it
-                    CurrentLuminance = StandardLuminance.Light; // Default if nothing stored
+                    CurrentLuminance = StandardLuminance.LightMode; // Default if nothing stored
                 }
             }
             catch (Exception ex)
             {
                 // LocalStorage might not be available (e.g., during prerendering or if disabled)
                 Console.WriteLine($"Error initializing theme from localStorage: {ex.Message}");
-                CurrentLuminance = StandardLuminance.Light; // Fallback to default
+                CurrentLuminance = StandardLuminance.LightMode; // Fallback to default
             }
             NotifyThemeChanged();
         }
 
         public async Task ToggleThemeAsync()
         {
-            CurrentLuminance = CurrentLuminance == StandardLuminance.Light ? StandardLuminance.Dark : StandardLuminance.Light;
+            CurrentLuminance = CurrentLuminance == StandardLuminance.LightMode ? StandardLuminance.DarkMode : StandardLuminance.LightMode;
             try
             {
-                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", ThemeStorageKey, CurrentLuminance == StandardLuminance.Dark ? "dark" : "light");
+                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", ThemeStorageKey, CurrentLuminance == StandardLuminance.DarkMode ? "dark" : "light");
             }
             catch (Exception ex)
             {
@@ -62,7 +62,7 @@ namespace FlinkDotNet.WebUI.Services
             CurrentLuminance = luminance;
             try
             {
-                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", ThemeStorageKey, CurrentLuminance == StandardLuminance.Dark ? "dark" : "light");
+                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", ThemeStorageKey, CurrentLuminance == StandardLuminance.DarkMode ? "dark" : "light");
             }
             catch (Exception ex)
             {

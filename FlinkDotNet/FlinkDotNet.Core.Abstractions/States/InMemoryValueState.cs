@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext
 using FlinkDotNet.Core.Abstractions.Models.State; // For ValueStateDescriptor
+using FlinkDotNet.Core.Abstractions.Runtime; // For BasicRuntimeContext
+using FlinkDotNet.Core.Abstractions.Serializers;
 
 namespace FlinkDotNet.Core.Abstractions.States
 {
@@ -22,6 +24,12 @@ namespace FlinkDotNet.Core.Abstractions.States
             // Note: The serializer from the descriptor is not explicitly used in this in-memory version
             // for Get/Update/Clear as it deals with live objects. It would be crucial for
             // actual snapshotting/restoration to bytes.
+        }
+
+        // Convenience constructor used in unit tests
+        public InMemoryValueState(T defaultValue, ITypeSerializer<T> serializer)
+            : this(new ValueStateDescriptor<T>("in_memory", serializer, defaultValue), new BasicRuntimeContext())
+        {
         }
 
         private object GetEffectiveKey()

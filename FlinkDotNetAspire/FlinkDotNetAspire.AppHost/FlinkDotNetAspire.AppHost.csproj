@@ -3,7 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <IsAspireHost>true</IsAspireHost>
+    <!-- Simplify project for build without requiring Aspire workload -->
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
@@ -11,7 +11,5 @@
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
     <ProjectReference Include="..\FlinkJobSimulator\FlinkJobSimulator.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.0" />
-  </ItemGroup>
+  <!-- Removed Aspire.Hosting.AppHost reference to avoid workload dependency -->
 </Project>

@@ -20,7 +20,7 @@ namespace FlinkDotNet.Core.Api
     {
         private static StreamExecutionEnvironment? _defaultInstance;
         public SerializerRegistry SerializerRegistry { get; }
-        public List<FlinkDotNet.Core.Api.Streaming.Transformation<object>> Transformations { get; } = new List<FlinkDotNet.Core.Api.Streaming.Transformation<object>>(); // Correctly typed list
+        public List<FlinkDotNet.Core.Api.Streaming.Transformation<object>> Transformations { get; } = new List<FlinkDotNet.Core.Api.Streaming.Transformation<object>>();
 
         private bool _isChainingEnabled = true;
         private ChainingStrategy _defaultChainingStrategy = ChainingStrategy.ALWAYS; // Align with Flink's common operator default
@@ -38,9 +38,14 @@ namespace FlinkDotNet.Core.Api
             return _defaultInstance;
         }
 
-        internal void AddTransformation(FlinkDotNet.Core.Api.Streaming.Transformation<object> transformation) // Corrected parameter type
+        internal void AddTransformation<T>(FlinkDotNet.Core.Api.Streaming.Transformation<T> transformation)
         {
-            Transformations.Add(transformation);
+            if (transformation is null)
+            {
+                throw new ArgumentNullException(nameof(transformation));
+            }
+
+            Transformations.Add((FlinkDotNet.Core.Api.Streaming.Transformation<object>)(object)transformation);
         }
 
         public FlinkDotNet.Core.Api.Streaming.DataStream<T> AddSource<T>(Abstractions.Sources.ISourceFunction<T> sourceFunction, string name) // Corrected return type

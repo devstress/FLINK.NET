@@ -241,9 +241,15 @@ namespace FlinkDotNet.Core.Api.Streaming
             Name = name;
             OutputType = outputType;
         }
-        public void AddDownstreamTransformation(Transformation<object> downstream, ShuffleMode mode)
+        public void AddDownstreamTransformation<TDownstream>(Transformation<TDownstream> downstream, ShuffleMode mode)
         {
-            DownstreamTransformations.Add((downstream, mode));
+            if (downstream is null)
+            {
+                throw new ArgumentNullException(nameof(downstream));
+            }
+
+            // Store generically typed transformation as object for now
+            DownstreamTransformations.Add(((Transformation<object>)(object)downstream, mode));
         }
     }
 

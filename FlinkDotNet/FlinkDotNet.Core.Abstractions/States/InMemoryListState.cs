@@ -51,6 +51,11 @@ namespace FlinkDotNet.Core.Abstractions.States
             return _list.ToList();
         }
 
+        /// <summary>
+        /// Compatibility alias matching older API that exposed <c>Get()</c>.
+        /// </summary>
+        public IEnumerable<T> Get() => GetValues();
+
         /// <inheritdoc/>
         public void Add(T value)
         {

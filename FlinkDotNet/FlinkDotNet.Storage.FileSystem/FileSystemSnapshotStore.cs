@@ -23,10 +23,8 @@ namespace FlinkDotNet.Storage.FileSystem
         public FileSystemSnapshotStore(string basePath)
         {
             _basePath = Path.GetFullPath(basePath);
-            if (!Directory.Exists(_basePath))
-            { // S121
-                Directory.CreateDirectory(_basePath);
-            }
+            // Directory.CreateDirectory is idempotent; no need to check existence
+            Directory.CreateDirectory(_basePath);
         }
 
         private string GetOperatorSubtaskDirectory(string jobId, long checkpointId, string operatorId, string subtaskId)

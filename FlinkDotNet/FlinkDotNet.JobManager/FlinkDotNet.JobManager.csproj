@@ -18,12 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protos\jobmanager_internal.proto" GrpcServices="Both" /> <!-- Changed Server to Both -->
+    <!-- Use forward slashes for cross-platform compatibility -->
+    <Protobuf Include="Protos/jobmanager_internal.proto" GrpcServices="Both" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
-    <ProjectReference Include="..\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" /> <!-- Added for CS0234 -->
     <ProjectReference Include="..\..\FlinkDotNetAspire\FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj" />
   </ItemGroup>
 

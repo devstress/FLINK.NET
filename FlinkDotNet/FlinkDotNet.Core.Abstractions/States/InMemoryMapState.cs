@@ -59,6 +59,11 @@ namespace FlinkDotNet.Core.Abstractions.States
                            // However, to just silence the warning and return default(TV) (null for ref types):
         }
 
+        /// <summary>
+        /// Compatibility alias matching older API that exposed <c>Get()</c>.
+        /// </summary>
+        public TV Get(TK key) => GetValueForKey(key);
+
         /// <inheritdoc/>
         public void Put(TK key, TV value)
         {
