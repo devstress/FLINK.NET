@@ -13,10 +13,8 @@ namespace FlinkDotNet.Core.Networking
     {
         private readonly object _lock = new object();
         private readonly NetworkBufferPool _globalBufferPool;
-        private readonly int _minRequiredSegments;
         private readonly int _maxConfiguredSegments;
         private readonly Action<LocalBufferPool, int>? _onBufferReturnedToLocalPoolCallback; // Made readonly
-        private readonly string _poolIdentifier; // Made readonly
         private readonly ConcurrentQueue<INetworkBuffer> _availableLocalBuffers = new ConcurrentQueue<INetworkBuffer>();
         private int _numLeasedSegmentsFromGlobal; // Removed explicit default
         private bool _isDestroyed; // Removed explicit default
@@ -38,17 +36,16 @@ namespace FlinkDotNet.Core.Networking
             ArgumentNullException.ThrowIfNull(poolIdentifier); // Assuming this was added from previous CA1510 task
             _globalBufferPool = globalBufferPool;
 
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minRequiredSegments, nameof(minRequiredSegments)); // CA1512
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConfiguredSegments, nameof(maxConfiguredSegments)); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minRequiredSegments); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConfiguredSegments); // CA1512
             if (maxConfiguredSegments < minRequiredSegments) throw new ArgumentOutOfRangeException(nameof(maxConfiguredSegments), "Must be greater than or equal to minRequiredSegments.");
 
-            _minRequiredSegments = minRequiredSegments;
             _maxConfiguredSegments = maxConfiguredSegments;
             _onBufferReturnedToLocalPoolCallback = onBufferReturnedCallback;
-            _poolIdentifier = poolIdentifier;
+            // poolIdentifier parameter retained for potential future diagnostics
 
             // Initially, attempt to request and populate minRequiredSegments
-            for (int i = 0; i < _minRequiredSegments; i++)
+            for (int i = 0; i < minRequiredSegments; i++)
             {
                 byte[]? segment = _globalBufferPool.RequestMemorySegment();
                 if (segment != null)

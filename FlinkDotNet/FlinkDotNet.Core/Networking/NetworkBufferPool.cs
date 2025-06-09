@@ -61,25 +61,19 @@ namespace FlinkDotNet.Core.Networking
         /// <param name="segment">The segment to recycle.</param>
         public void RecycleMemorySegment(byte[] segment)
         {
-            ObjectDisposedException.ThrowIf(_disposed, this); // CA1513
-            ArgumentNullException.ThrowIfNull(segment); // CA1510
+            ArgumentNullException.ThrowIfNull(segment);
+
+            if (_disposed)
+            {
+                ArrayPool<byte>.Shared.Return(segment);
+                return;
+            }
 
             // Basic check: ensure segment is of the correct size for this pool,
             // though ArrayPool might return slightly larger buffers than requested.
             // We are interested if it's smaller, which would be an error.
             if (segment.Length < _segmentSize)
             {
-                 if (_disposed) ArrayPool<byte>.Shared.Return(segment); // Ensure it's returned if pool is dead
-                 return;
-            }
-
-            // Note: The check `if (_disposed)` below is somewhat redundant if ObjectDisposedException.ThrowIf is at the top.
-            // However, RecycleMemorySegment can be called internally by NetworkBuffer.Dispose even if pool is marked disposed by another thread.
-            // So, keeping the specific logic for returning to ArrayPool if _disposed is important.
-            // The ThrowIf at the top handles external calls primarily.
-            if (_disposed)
-            {
-                // If the pool is disposed, any segment being recycled should go directly back to ArrayPool.Shared
                 ArrayPool<byte>.Shared.Return(segment);
                 return;
             }
@@ -91,7 +85,7 @@ namespace FlinkDotNet.Core.Networking
         public INetworkBuffer? RequestBuffer(int minCapacity = 0)
         {
             ObjectDisposedException.ThrowIf(_disposed, this); // CA1513
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minCapacity, nameof(minCapacity)); // CA1512
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minCapacity); // CA1512
 
             // minCapacity can be used to decide if multiple segments are needed,
             // but for now, NetworkBuffer wraps a single segment from this pool.
@@ -149,9 +143,5 @@ namespace FlinkDotNet.Core.Networking
         }
 
         // Optional: Finalizer if this class directly owns unmanaged resources.
-        // ~NetworkBufferPool()
-        // {
-        //     Dispose(false);
-        // }
     }
 }
