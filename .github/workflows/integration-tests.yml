@@ -11,6 +11,8 @@ on:
 
 env:
   SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests
+  DOTNET_REDIS_URL: "localhost:6379"
+  DOTNET_KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
 
 jobs:
   run-integration-tests:
@@ -75,14 +77,8 @@ jobs:
           sleep 30
 
 
-      # The AppHost binds Redis and Kafka to their default ports so the verifier
-      # can use localhost addresses directly. Expose these connection strings to
-      # later steps via environment variables.
-      - name: Set Service URLs
-        run: |
-          Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_REDIS_URL=localhost:6379"
-          Add-Content -Path $env:GITHUB_ENV -Value "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:9092"
-
+      # The AppHost binds Redis and Kafka to default ports. The environment
+      # variables above provide the localhost connection strings for the tests.
       - name: Health Check Loop
         env:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
