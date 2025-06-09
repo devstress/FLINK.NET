@@ -4,11 +4,14 @@ using Xunit;
 using FlinkDotNet.Core.Abstractions.States;
 using FlinkDotNet.Core.Abstractions.Serializers; // Added for serializers
 
+#nullable enable
+
 namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
 {
     public class InMemoryMapStateTests
     {
         private readonly StringSerializer _stringSerializer = new StringSerializer();
+        private readonly JsonPocoSerializer<string?> _nullableStringSerializer = new JsonPocoSerializer<string?>();
         private readonly IntSerializer _intSerializer = new IntSerializer();
 
         [Fact]
@@ -38,7 +41,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
             var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer); // int default is 0
             Assert.Equal(0, state.Get("nonexistent"));
 
-            var stateStr = new InMemoryMapState<int, string?>(_intSerializer, _stringSerializer); // string? default is null
+            var stateStr = new InMemoryMapState<int, string?>(_intSerializer, _nullableStringSerializer); // string? default is null
             Assert.Null(stateStr.Get(123));
         }
 
@@ -68,7 +71,8 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
             Assert.Equal(100, state.Get("key1"));
             Assert.Equal(2, state.Get("key2"));
             Assert.Equal(300, state.Get("key3"));
-            Assert.Equal(3, state.Entries().Count());
+            var entriesAfterPutAll = state.Entries().ToList();
+            Assert.Equal(3, entriesAfterPutAll.Count);
         }
 
         [Fact]
@@ -107,7 +111,8 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
             var state = new InMemoryMapState<string, int>(_stringSerializer, _intSerializer);
             state.Put("key1", 10);
             state.Remove("key2"); // Non-existent
-            Assert.Equal(1, state.Entries().Count());
+            var remainingEntries = state.Entries().ToList();
+            Assert.Single(remainingEntries);
             Assert.True(state.Contains("key1"));
         }
 

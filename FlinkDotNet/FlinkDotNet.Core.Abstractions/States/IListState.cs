@@ -18,6 +18,7 @@ namespace FlinkDotNet.Core.Abstractions.States
         /// <summary>
         /// Compatibility alias matching older API that exposed <c>Get()</c>.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716:Identifiers should not match keywords", Justification = "Maintains backward compatibility with existing APIs")]
         IEnumerable<T> Get();
 
         /// <summary>

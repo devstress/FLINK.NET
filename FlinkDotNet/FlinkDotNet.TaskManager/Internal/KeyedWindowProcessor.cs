@@ -35,8 +35,8 @@ namespace FlinkDotNet.TaskManager.Internal
         private long _currentWatermarkForKey = long.MinValue;
 
         // State storage per window for this key:
-        private readonly Dictionary<TWindow, List<TElement>> _windowPanes; // For ProcessWindowFunction or if buffering for evictor
-        private readonly Dictionary<TWindow, TAccumulator> _windowAccumulators; // For Reduce/Aggregate
+        private readonly Dictionary<TWindow, List<TElement>> _windowPanes = new(); // For ProcessWindowFunction or if buffering for evictor
+        private readonly Dictionary<TWindow, TAccumulator> _windowAccumulators;
 
         public KeyedWindowProcessor(
             TKey key,

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace FlinkDotNet.Core.Abstractions.Models
 {
@@ -21,7 +22,8 @@ namespace FlinkDotNet.Core.Abstractions.Models
         public string? GetString(string key, string? defaultValue = null)
             => _settings.TryGetValue(key, out var v) ? v : defaultValue;
 
-        public void SetInt(string key, int value) => _settings[key] = value.ToString();
+        public void SetInt(string key, int value) =>
+            _settings[key] = value.ToString(CultureInfo.InvariantCulture);
 
         public int GetInt(string key, int defaultValue = 0)
             => _settings.TryGetValue(key, out var v) && int.TryParse(v, out var i) ? i : defaultValue;

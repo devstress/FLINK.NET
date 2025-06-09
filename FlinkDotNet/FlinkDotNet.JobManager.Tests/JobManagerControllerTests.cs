@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
+
+#nullable enable
 using Moq;
 using Microsoft.AspNetCore.Mvc;
 using FlinkDotNet.JobManager.Controllers;
@@ -60,7 +62,7 @@ namespace FlinkDotNet.JobManager.Tests
         public async Task SubmitJob_InvalidJobName_ReturnsBadRequest(string? jobName)
         {
             // Arrange
-            var jobDefinition = new JobDefinitionDto { JobName = jobName };
+            var jobDefinition = new JobDefinitionDto { JobName = jobName! };
 
             // Act
             var result = await _controller.SubmitJob(jobDefinition);

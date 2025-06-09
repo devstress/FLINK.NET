@@ -19,7 +19,7 @@ namespace FlinkDotNet.TaskManager.Services
             _taskExecutor = taskExecutor;
         }
 
-        public override async Task<DeployTaskResponse> DeployTask(
+        public override Task<DeployTaskResponse> DeployTask(
             TaskDeploymentDescriptor request, ServerCallContext context)
         {
             Console.WriteLine($"TaskManager [{_taskManagerId}]: Received DeployTask request for Task '{request.TaskName}', Operator '{request.FullyQualifiedOperatorName}'.");
@@ -46,16 +46,17 @@ namespace FlinkDotNet.TaskManager.Services
                 // Proper error handling for asynchronous task startup failures would involve more complex mechanisms (e.g., callback to JM).
                 _ = _taskExecutor.ExecuteFromDescriptor(request, operatorProperties, taskCts.Token);
 
-                return new DeployTaskResponse
+                var response = new DeployTaskResponse
                 {
                     Success = true,
                     Message = $"Task '{request.TaskName}' deployment initiated on TM {_taskManagerId}."
                 };
+                return Task.FromResult(response);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"TaskManager [{_taskManagerId}]: Error processing DeployTask for '{request.TaskName}': {ex.Message}");
-                return new DeployTaskResponse { Success = false, Message = ex.Message };
+                return Task.FromResult(new DeployTaskResponse { Success = false, Message = ex.Message });
             }
         }
     }

@@ -24,7 +24,7 @@ namespace FlinkDotNet.TaskManager.Services
             _activeTaskRegistry = activeTaskRegistry ?? throw new ArgumentNullException(nameof(activeTaskRegistry)); // Added
         }
 
-        public override async Task<TriggerCheckpointResponse> TriggerTaskCheckpoint(
+        public override Task<TriggerCheckpointResponse> TriggerTaskCheckpoint(
             TriggerCheckpointRequest request, ServerCallContext context)
         {
             Console.WriteLine($"TaskManager [{_taskManagerId}]: Received TriggerCheckpoint request for JobID '{request.JobId}', CheckpointID {request.CheckpointId}, Timestamp {request.CheckpointTimestamp} from JM '{request.JobManagerId}'.");
@@ -36,7 +36,7 @@ namespace FlinkDotNet.TaskManager.Services
             if (!sourcesForJob.Any())
             {
                 Console.WriteLine($"TaskManager [{_taskManagerId}]: No active sources found for JobID '{request.JobId}' to inject barrier for CheckpointID {request.CheckpointId}.");
-                return new TriggerCheckpointResponse { Acknowledged = true };
+                return Task.FromResult(new TriggerCheckpointResponse { Acknowledged = true });
             }
 
             var barrierRequest = new BarrierInjectionRequest(request.CheckpointId, request.CheckpointTimestamp);
@@ -64,7 +64,7 @@ namespace FlinkDotNet.TaskManager.Services
 
             Console.WriteLine($"TaskManager [{_taskManagerId}]: Enqueued barrier injection requests for {injectionCount}/{sourcesForJob.Count} sources for JobID '{request.JobId}', CP {request.CheckpointId}.");
 
-            return new TriggerCheckpointResponse { Acknowledged = true };
+            return Task.FromResult(new TriggerCheckpointResponse { Acknowledged = true });
         }
 
     }

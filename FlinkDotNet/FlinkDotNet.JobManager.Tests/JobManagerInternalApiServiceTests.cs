@@ -3,6 +3,8 @@ using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
 using Grpc.Core; // Required for ServerCallContext
+
+#nullable enable
 using FlinkDotNet.JobManager.Services; // The gRPC service implementation
 using FlinkDotNet.Proto.Internal; // The generated gRPC C# classes
 
