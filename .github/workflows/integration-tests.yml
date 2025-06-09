@@ -52,38 +52,27 @@ jobs:
           Pop-Location
 
       - name: Start .NET Aspire Application
+        shell: bash
         run: |
-          echo "Starting Aspire AppHost with SIMULATOR_NUM_MESSAGES_CI=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
-          Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
+          echo "Starting Aspire AppHost with SIMULATOR_NUM_MESSAGES_CI=${SIMULATOR_NUM_MESSAGES_CI}..."
+          pushd FlinkDotNetAspire/FlinkDotNetAspire.AppHost
 
           echo "Generating Aspire manifest..."
           dotnet publish FlinkDotNetAspire.AppHost.csproj --configuration Release -p:IsPublishable=true -p:AspireManifestPublishOutputPath=../publish -t:GenerateAspireManifest
-          Copy-Item ../publish/manifest.json ../aspire-manifest.json
-          Write-Host "Aspire manifest generated at ../aspire-manifest.json"
+          cp ../publish/manifest.json ../aspire-manifest.json
+          echo "Aspire manifest generated at ../aspire-manifest.json"
 
-          # Start Aspire in the background. Pass SIMULATOR_NUM_MESSAGES to the environment of the process
-          # Aspire AppHost will propagate this to the flinkjobsimulator if it's configured to read it.
-          # Note: For Start-Process, environment variables are typically inherited or need specific setup.
-          # A robust way is to ensure FlinkJobSimulator/Program.cs reads this variable.
-          # For now, relying on inheritance or existing AppHost logic to pick up SIMULATOR_NUM_MESSAGES.
-          # If FlinkJobSimulator's Program.cs is not reading it, it will use its internal default.
-          # This might require a change in FlinkJobSimulator's Program.cs to respect SIMULATOR_NUM_MESSAGES.
-          $env:SIMULATOR_NUM_MESSAGES = $env:SIMULATOR_NUM_MESSAGES_CI
-          Write-Host "Environment SIMULATOR_NUM_MESSAGES set to $env:SIMULATOR_NUM_MESSAGES for Aspire AppHost process"
+          export SIMULATOR_NUM_MESSAGES="$SIMULATOR_NUM_MESSAGES_CI"
+          export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
+          export ASPNETCORE_URLS=http://localhost:5199
+          export DOTNET_DASHBOARD_OTLP_ENDPOINT_URL=http://localhost:4317
 
-          # Allow Aspire to serve HTTP endpoints and the dashboard over HTTP
-          $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
-          $env:ASPNETCORE_URLS = "http://localhost:5199"
-          $env:DOTNET_DASHBOARD_OTLP_ENDPOINT_URL = "http://localhost:4317"
-
-          $aspireLog = "../../aspire-apphost.log"
-          $aspireErr = "../../aspire-apphost.err.log"
-          $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -RedirectStandardOutput $aspireLog -RedirectStandardError $aspireErr -PassThru
-          $env:ASPIRE_APPHOST_PID = $process.Id
-          Write-Host "Aspire AppHost started with PID $env:ASPIRE_APPHOST_PID"
-          Write-Host "Waiting for Aspire AppHost to initialize..."
-          Start-Sleep -Seconds 30
-          Pop-Location
+          nohup dotnet run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release > ../../aspire-apphost.log 2> ../../aspire-apphost.err.log &
+          echo $! > ../../aspire-apphost.pid
+          echo "Aspire AppHost started with PID $(cat ../../aspire-apphost.pid)"
+          popd
+          echo "Waiting for Aspire AppHost to initialize..."
+          sleep 30
 
 
       # The AppHost binds Redis and Kafka to their default ports so the verifier
@@ -136,15 +125,11 @@ jobs:
 
       - name: Stop .NET Aspire Application (Best Effort)
         if: always()
+        shell: bash
         run: |
           echo "Attempting to stop .NET Aspire AppHost..."
-          if ($env:ASPIRE_APPHOST_PID) {
-            try {
-              Stop-Process -Id $env:ASPIRE_APPHOST_PID -Force -ErrorAction Stop
-            } catch {
-              Write-Host "Failed to stop process $env:ASPIRE_APPHOST_PID : $_"
-            }
-          }
-          # Fallback: stop any remaining dotnet processes running the AppHost.
-          Get-Process dotnet | Where-Object { $_.CommandLine -like "*FlinkDotNetAspire.AppHost.csproj*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+          if [ -f aspire-apphost.pid ]; then
+            kill $(cat aspire-apphost.pid) || true
+          fi
+          pkill -f "FlinkDotNetAspire.AppHost.csproj" || true
           echo "Cleanup complete."
