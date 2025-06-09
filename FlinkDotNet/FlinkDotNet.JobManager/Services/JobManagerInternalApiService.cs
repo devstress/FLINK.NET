@@ -40,6 +40,112 @@ namespace FlinkDotNet.JobManager.Services
         {
         }
 
+        private void LogGraphDetails(JobGraph jobGraph)
+        {
+            foreach (var vertex in jobGraph.Vertices)
+            {
+                _logger.LogDebug(
+                    "Vertex: {Name} (ID: {Id}, Type: {Type}, Op: {Operator}, Parallelism: {Parallelism})",
+                    vertex.Name,
+                    vertex.Id,
+                    vertex.Type,
+                    vertex.OperatorDefinition.FullyQualifiedName,
+                    vertex.Parallelism);
+            }
+
+            foreach (var edge in jobGraph.Edges)
+            {
+                _logger.LogDebug(
+                    "Edge: {EdgeId} from {Source} to {Target} (Mode: {Mode})",
+                    edge.Id,
+                    edge.SourceVertexId,
+                    edge.TargetVertexId,
+                    edge.ShuffleMode);
+            }
+        }
+
+        private Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)> AssignTasks(JobGraph jobGraph, List<TaskManagerInfo> availableTaskManagers)
+        {
+            var taskAssignments = new Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)>();
+            var tmAssignmentIndex = 0;
+
+            foreach (var jobVertex in jobGraph.Vertices)
+            {
+                for (int i = 0; i < jobVertex.Parallelism; i++)
+                {
+                    var assignedTm = availableTaskManagers[tmAssignmentIndex % availableTaskManagers.Count];
+                    string taskInstanceId = $"{jobVertex.Id}_{i}";
+                    taskAssignments[taskInstanceId] = (assignedTm, i);
+                    tmAssignmentIndex++;
+                }
+            }
+
+            return taskAssignments;
+        }
+
+        private void DeployTasks(JobGraph jobGraph, Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)> taskAssignments)
+        {
+            foreach (var vertex in jobGraph.Vertices)
+            {
+                for (int i = 0; i < vertex.Parallelism; i++)
+                {
+                    string currentTaskInstanceId = $"{vertex.Id}_{i}";
+                    var (targetTm, _) = taskAssignments[currentTaskInstanceId];
+
+                    var tdd = new global::FlinkDotNet.Proto.Internal.TaskDeploymentDescriptor
+                    {
+                        JobGraphJobId = jobGraph.JobId.ToString(),
+                        JobVertexId = vertex.Id.ToString(),
+                        SubtaskIndex = i,
+                        TaskName = $"{vertex.Name} ({i + 1}/{vertex.Parallelism})",
+                        FullyQualifiedOperatorName = vertex.OperatorDefinition.FullyQualifiedName,
+                        OperatorConfiguration = Google.Protobuf.ByteString.CopyFromUtf8(
+                            JsonSerializer.Serialize(vertex.OperatorDefinition.ConfigurationJson)),
+                        InputTypeName = vertex.InputTypeName ?? string.Empty,
+                        OutputTypeName = vertex.OutputTypeName ?? string.Empty,
+                        InputSerializerTypeName = vertex.InputSerializerTypeName ?? string.Empty,
+                        OutputSerializerTypeName = vertex.OutputSerializerTypeName ?? string.Empty
+                    };
+
+                    _logger.LogDebug(
+                        "Deploying task '{TaskName}' for vertex {VertexName} (ID: {VertexId}) to TaskManager {TaskManagerId} ({Address}:{Port}) for job {JobId}",
+                        tdd.TaskName,
+                        vertex.Name,
+                        vertex.Id,
+                        targetTm.TaskManagerId,
+                        targetTm.Address,
+                        targetTm.Port,
+                        jobGraph.JobId);
+
+                    try
+                    {
+                        var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
+                        using var channel = GrpcChannel.ForAddress(channelAddress);
+                        var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
+                        _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10));
+                        _logger.LogDebug(
+                            "DeployTask call initiated for '{TaskName}' to TM {TaskManagerId}.",
+                            tdd.TaskName,
+                            targetTm.TaskManagerId);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Failed to send DeployTask for '{TaskName}' to TM {TaskManagerId}: {ErrorMessage}",
+                            tdd.TaskName,
+                            targetTm.TaskManagerId,
+                            ex.Message);
+                    }
+                }
+            }
+
+            _logger.LogInformation(
+                "All tasks for job {JobName} (ID: {JobId}) have been (attempted) deployed.",
+                jobGraph.JobName,
+                jobGraph.JobId);
+        }
+
         public override Task<global::FlinkDotNet.Proto.Internal.SubmitJobReply> SubmitJob(global::FlinkDotNet.Proto.Internal.SubmitJobRequest request, ServerCallContext context)
         {
             _logger.LogInformation("gRPC: SubmitJob called.");
@@ -61,21 +167,20 @@ namespace FlinkDotNet.JobManager.Services
                 // This exercises the FromProto methods.
                 var jobGraphModel = Models.JobGraph.JobGraph.FromProto(request.JobGraph);
 
-                _logger.LogInformation("Successfully converted submitted JobGraph. JobName: '{JobName}', JobId (model): {JobId}", jobGraphModel.JobName, jobGraphModel.JobId);
-                _logger.LogInformation("Number of vertices: {VertexCount}", jobGraphModel.Vertices.Count);
-                _logger.LogInformation("Number of edges: {EdgeCount}", jobGraphModel.Edges.Count);
-                foreach(var vertex in jobGraphModel.Vertices)
-                {
-                    _logger.LogInformation("Vertex: {Name} (ID: {Id}, Type: {Type}, Op: {Operator}, Parallelism: {Parallelism})", vertex.Name, vertex.Id, vertex.Type, vertex.OperatorDefinition.FullyQualifiedName, vertex.Parallelism);
-                }
-                 foreach(var edge in jobGraphModel.Edges)
-                {
-                    _logger.LogInformation("Edge: {EdgeId} from {Source} to {Target} (Mode: {Mode})", edge.Id, edge.SourceVertexId, edge.TargetVertexId, edge.ShuffleMode);
-                }
+                _logger.LogInformation(
+                    "Converted JobGraph '{JobName}' (ID: {JobId}) with {VertexCount} vertices and {EdgeCount} edges.",
+                    jobGraphModel.JobName,
+                    jobGraphModel.JobId,
+                    jobGraphModel.Vertices.Count,
+                    jobGraphModel.Edges.Count);
+                LogGraphDetails(jobGraphModel);
                 bool stored = JobManagerController.JobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
                 if (stored)
                 {
-                    _logger.LogInformation("JobGraph for '{JobName}' (ID: {JobId}) stored in static dictionary.", jobGraphModel.JobName, jobGraphModel.JobId);
+                    _logger.LogInformation(
+                        "JobGraph for '{JobName}' (ID: {JobId}) stored in static dictionary.",
+                        jobGraphModel.JobName,
+                        jobGraphModel.JobId);
                 }
                 else
                 {
@@ -83,7 +188,10 @@ namespace FlinkDotNet.JobManager.Services
                     // Potentially return error if this is unexpected
                 }
                 // --- Replicated Task Deployment Logic ---
-                _logger.LogInformation("Job '{JobName}' (ID: {JobId}): Preparing for task deployment...", jobGraphModel.JobName, jobGraphModel.JobId);
+                _logger.LogDebug(
+                    "Job '{JobName}' (ID: {JobId}): Preparing for task deployment...",
+                    jobGraphModel.JobName,
+                    jobGraphModel.JobId);
 
                 var coordinatorConfig = new JobManagerConfig { /* Populate as needed, e.g., from request or global config */ };
                 var coordinatorLogger = _loggerFactory.CreateLogger<CheckpointCoordinator>();
@@ -100,8 +208,6 @@ namespace FlinkDotNet.JobManager.Services
                     _logger.LogWarning("Could not add/start CheckpointCoordinator for job {JobId}. It might already exist.", jobGraphModel.JobId);
                 }
 
-                var taskAssignments = new Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)>();
-                var tmAssignmentIndex = 0;
                 var availableTaskManagers = TaskManagerTracker.RegisteredTaskManagers.Values.ToList();
 
                 if (!availableTaskManagers.Any())
@@ -117,60 +223,11 @@ namespace FlinkDotNet.JobManager.Services
                     });
                 }
 
-                foreach (var jobVertex in jobGraphModel.Vertices)
-                {
-                    for (int i = 0; i < jobVertex.Parallelism; i++)
-                    {
-                        var assignedTm = availableTaskManagers[tmAssignmentIndex % availableTaskManagers.Count];
-                        string taskInstanceId = $"{jobVertex.Id}_{i}";
-                        taskAssignments[taskInstanceId] = (assignedTm, i);
-                        tmAssignmentIndex++;
-                    }
-                }
-                _logger.LogInformation("Pre-assigned all task instances to TaskManagers for job {JobId}.", jobGraphModel.JobId);
-
-                foreach (var vertex in jobGraphModel.Vertices)
-                {
-                    for (int i = 0; i < vertex.Parallelism; i++)
-                    {
-                        string currentTaskInstanceId = $"{vertex.Id}_{i}";
-                        var (targetTm, _) = taskAssignments[currentTaskInstanceId];
-
-                        var tdd = new global::FlinkDotNet.Proto.Internal.TaskDeploymentDescriptor
-                        {
-                            JobGraphJobId = jobGraphModel.JobId.ToString(),
-                            JobVertexId = vertex.Id.ToString(),
-                            SubtaskIndex = i,
-                            TaskName = $"{vertex.Name} ({i + 1}/{vertex.Parallelism})",
-                            FullyQualifiedOperatorName = vertex.OperatorDefinition.FullyQualifiedName,
-                            OperatorConfiguration = Google.Protobuf.ByteString.CopyFromUtf8(
-                                JsonSerializer.Serialize(vertex.OperatorDefinition.ConfigurationJson) // Assuming ConfigurationJson is the string property
-                            ),
-                            InputTypeName = vertex.InputTypeName ?? "",
-                            OutputTypeName = vertex.OutputTypeName ?? "",
-                            InputSerializerTypeName = vertex.InputSerializerTypeName ?? "",
-                            OutputSerializerTypeName = vertex.OutputSerializerTypeName ?? ""
-                        };
-
-                        _logger.LogInformation("Deploying task '{TaskName}' for vertex {VertexName} (ID: {VertexId}) to TaskManager {TaskManagerId} ({Address}:{Port}) for job {JobId}",
-                            tdd.TaskName, vertex.Name, vertex.Id, targetTm.TaskManagerId, targetTm.Address, targetTm.Port, jobGraphModel.JobId);
-
-                        try
-                        {
-                            var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
-                            using var channel = GrpcChannel.ForAddress(channelAddress);
-                            var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
-                            _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10)); // Fire and forget for now
-                            _logger.LogDebug("DeployTask call initiated for '{TaskName}' to TM {TaskManagerId}.", tdd.TaskName, targetTm.TaskManagerId);
-                        }
-                        catch (System.Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to send DeployTask for '{TaskName}' to TM {TaskManagerId}: {ErrorMessage}", tdd.TaskName, targetTm.TaskManagerId, ex.Message);
-                            // Potentially collect failures and report them
-                        }
-                    }
-                }
-                _logger.LogInformation("All tasks for job {JobName} (ID: {JobId}) have been (attempted) deployed.", jobGraphModel.JobName, jobGraphModel.JobId);
+                var taskAssignments = AssignTasks(jobGraphModel, availableTaskManagers);
+                _logger.LogInformation(
+                    "Pre-assigned all task instances to TaskManagers for job {JobId}.",
+                    jobGraphModel.JobId);
+                DeployTasks(jobGraphModel, taskAssignments);
                 // --- End of Replicated Task Deployment Logic ---
 
                 return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
