@@ -81,12 +81,7 @@ namespace FlinkDotNet.JobManager.Services
                 return Task.CompletedTask;
             }
 
-            // Ensure the job exists before adding a checkpoint for it (optional, but good practice)
-            // if (!_jobStatuses.ContainsKey(jobId))
-            // {
-            //     // Or throw new InvalidOperationException($"Job with ID {jobId} not found. Cannot add checkpoint.");
-            //     return Task.CompletedTask;
-            // }
+
 
             var checkpoints = _jobCheckpoints.GetOrAdd(jobId, _ => new List<CheckpointInfoDto>());
             lock (checkpoints) // ConcurrentDictionary GetOrAdd is atomic for list creation, but adding to list needs sync

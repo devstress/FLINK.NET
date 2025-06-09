@@ -127,7 +127,6 @@ namespace FlinkDotNet.JobManager.Checkpointing
             _logger.LogInformation("Job {JobId}: All TriggerTaskCheckpoint messages sent for checkpoint {CheckpointId}.", _jobId, checkpointId);
             // Start a timer here for 'checkpointId'. If it fires before the checkpoint is fully acknowledged,
             // call 'RecordFailedCheckpointAsync(checkpointId, "Timeout")' and potentially cancel ongoing efforts for this CP.
-            // Example: _checkpointTimeoutController.RegisterTimeout(checkpointId, _config.CheckpointTimeoutSecs, async () => await RecordFailedCheckpointAsync(checkpointId, "Timeout"));
             Console.WriteLine($"[CheckpointCoordinator] Placeholder for starting timeout timer for checkpoint {checkpointId}.");
         }
 
@@ -159,7 +158,6 @@ namespace FlinkDotNet.JobManager.Checkpointing
                     };
                     _jobRepository.AddCheckpointAsync(_jobId, checkpointDto).ConfigureAwait(false); // Fire and forget for now
                     // and potentially from the _jobRepository / durable storage based on retention policy.
-                    // Example: if (_checkpoints.Count > _config.MaxRetainedCheckpoints) { /* logic to find and remove oldest */ }
                     Console.WriteLine($"[CheckpointCoordinator] Placeholder for cleaning up old checkpoints after CP {checkpoint.CheckpointId} completed.");
                 }
                 // Optional: Check if checkpoint has failed due to some tasks failing

@@ -2,6 +2,7 @@ using FlinkDotNet.JobManager.Interfaces;
 using FlinkDotNet.JobManager.Services;
 using FlinkDotNet.JobManager.Checkpointing; // Added for CheckpointCoordinator
 using FlinkDotNet.JobManager.Models; // Added for JobManagerConfig
+using FlinkDotNet.JobManager;
 using System;
 using System.Linq; // Required for Enumerable
 using Microsoft.Extensions.Hosting; // Added for AddServiceDefaults
@@ -16,7 +17,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSingleton<IJobRepository, InMemoryJobRepository>();
 // If InMemoryJobRepository itself needs to be resolved directly (it doesn't seem to be),
 // it would also be covered by AddSingleton<IJobRepository, InMemoryJobRepository>() if it's the implementation.
-// For clarity, if it were ever resolved directly: builder.Services.AddSingleton<InMemoryJobRepository>();
 builder.Services.AddSwaggerGen();
 builder.Services.AddGrpc(); // Added for gRPC
 
@@ -70,18 +70,14 @@ app.MapGet("/weatherforecast", () =>
 // If API controllers are not found, explicit registration might be needed.
 // For now, assuming JobManagerController (REST API) is correctly mapped by existing setup.
 
-// Test CheckpointCoordinator setup - This is now outdated due to constructor changes
-// var testJobId = "test-job-001";
-// var coordinatorConfig = new JobManagerConfig { CheckpointIntervalSecs = 15 };
-// ILogger<CheckpointCoordinator> dummyCoordinatorLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger<CheckpointCoordinator>();
-// IJobRepository dummyRepo = app.Services.GetRequiredService<IJobRepository>();
-// var checkpointCoordinator = new CheckpointCoordinator(testJobId, dummyRepo, dummyCoordinatorLogger, coordinatorConfig);
-// TaskManagerRegistrationServiceImpl.JobCoordinators.TryAdd(testJobId, checkpointCoordinator);
-// checkpointCoordinator.Start();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+namespace FlinkDotNet.JobManager
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    public record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+    {
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
 }
+

@@ -18,10 +18,7 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
         /// </summary>
         public string KeyTypeAssemblyName { get; }
 
-        // In the previous version, it had:
-        // public string? SerializedKeySelector { get; set; }
-        // public string? KeyTypeName { get; set; }
-        // The current version aligns better with OutputKeyingConfig structure.
+
 
         public KeyingInfo(string keySelectorTypeName, string keyTypeAssemblyName)
         {
