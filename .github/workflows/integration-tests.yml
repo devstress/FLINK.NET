@@ -15,7 +15,7 @@ env:
 jobs:
   run-integration-tests:
     name: Run Flink.NET Integration Tests
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     defaults:
       run:
@@ -26,6 +26,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify Docker is available
+        run: docker version
 
       - name: Set up .NET 8.0
         uses: actions/setup-dotnet@v4
@@ -68,7 +71,7 @@ jobs:
           $env:SIMULATOR_NUM_MESSAGES = $env:SIMULATOR_NUM_MESSAGES_CI
           Write-Host "Environment SIMULATOR_NUM_MESSAGES set to $env:SIMULATOR_NUM_MESSAGES for Aspire AppHost process"
 
-          Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build" -NoNewWindow -PassThru
+          Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build" -PassThru
           Write-Host "Waiting for Aspire AppHost to initialize..."
           Start-Sleep -Seconds 20
           Pop-Location
