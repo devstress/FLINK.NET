@@ -8,7 +8,7 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
     public class OutputKeyingConfig
     {
         /// <summary>
-        /// Assembly-qualified type name of the IKeySelector<TIn, TKey> implementation.
+        /// Assembly-qualified type name of the IKeySelector implementation.
         /// This selector is used to extract a key from an output record.
         /// </summary>
         public string KeySelectorTypeName { get; }

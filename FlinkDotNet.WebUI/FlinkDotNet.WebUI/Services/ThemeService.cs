@@ -1,5 +1,3 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.FluentUI.AspNetCore.Components; // For StandardLuminance
 using Microsoft.JSInterop; // Required for IJSRuntime
 

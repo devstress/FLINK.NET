@@ -1,5 +1,4 @@
 using FlinkDotNet.JobManager.Services.HighAvailability;
-using Xunit;
 
 namespace FlinkDotNet.JobManager.Tests
 {

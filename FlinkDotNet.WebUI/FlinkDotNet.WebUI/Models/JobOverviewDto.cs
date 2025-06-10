@@ -1,5 +1,3 @@
-using System;
-
 namespace FlinkDotNet.WebUI.Models
 {
     public class JobOverviewDto

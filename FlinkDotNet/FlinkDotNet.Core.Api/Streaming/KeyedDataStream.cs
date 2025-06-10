@@ -1,11 +1,6 @@
-using System;
 using FlinkDotNet.Core.Abstractions.Operators; // For IMapOperator, etc.
 using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode
-
-// Assuming StreamExecutionEnvironment is in FlinkDotNet.Core.Api
-using FlinkDotNet.Core.Api;
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window, TimeWindow
-using FlinkDotNet.Core.Abstractions.Common;   // For Time (if used by windowing)
 using FlinkDotNet.Core.Api.Windowing; // For API-specific windowing classes
 
 namespace FlinkDotNet.Core.Api.Streaming

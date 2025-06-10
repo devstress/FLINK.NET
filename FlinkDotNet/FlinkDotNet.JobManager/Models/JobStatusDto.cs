@@ -1,5 +1,3 @@
-using System;
-
 namespace FlinkDotNet.JobManager.Models
 {
     public class JobStatusDto

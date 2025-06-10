@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using FlinkDotNet.Core.Api.Windowing;
 using FlinkDotNet.Core.Abstractions.Common;
 using FlinkDotNet.Core.Abstractions.Windowing;
-using Xunit;
 
 namespace FlinkDotNet.JobManager.Tests
 {

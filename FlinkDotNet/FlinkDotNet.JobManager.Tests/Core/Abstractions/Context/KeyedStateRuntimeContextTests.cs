@@ -1,11 +1,7 @@
-using System;
-using Xunit;
-using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Models; // For JobConfiguration
 using FlinkDotNet.Core.Abstractions.Models.State;
 using FlinkDotNet.Core.Abstractions.Runtime;
 using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer and basic serializers
-using FlinkDotNet.Core.Abstractions.States;
 
 namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.Context
 {

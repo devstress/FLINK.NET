@@ -1,7 +1,4 @@
-using System;
-using System.IO;
 using System.Text; // For a simple string deserialization if no serializer is provided for string
-using System.Threading;
 using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer
 

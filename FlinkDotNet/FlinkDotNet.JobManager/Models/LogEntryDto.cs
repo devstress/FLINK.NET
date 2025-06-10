@@ -1,5 +1,3 @@
-using System;
-
 namespace FlinkDotNet.JobManager.Models
 {
     public class LogEntryDto
@@ -9,4 +7,3 @@ namespace FlinkDotNet.JobManager.Models
         public string Message { get; set; } = string.Empty;
     }
 }
-#nullable disable

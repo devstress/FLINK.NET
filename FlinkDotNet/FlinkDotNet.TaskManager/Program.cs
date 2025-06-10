@@ -1,7 +1,3 @@
-using System;
-using System.IO; // For Path
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +11,7 @@ namespace FlinkDotNet.TaskManager
         public static string TaskManagerId { get; private set; } = $"TM-{Guid.NewGuid()}";
         // Default gRPC port for TaskManager services (JobManager will call this)
         public static int GrpcPort { get; private set; } = 50071;
-        public static string JobManagerAddress { get; private set; } = "http://localhost:50070";
+        public static string JobManagerAddress { get; private set; } = "http://localhost:50051";
         public static TaskManagerCoreService? CoreServiceInstance { get; private set; }
 
 
@@ -26,6 +22,25 @@ namespace FlinkDotNet.TaskManager
             if (args.Length > 0) TaskManagerId = args[0];
             if (args.Length > 1 && int.TryParse(args[1], out int port)) GrpcPort = port;
             if (args.Length > 2) JobManagerAddress = args[2];
+
+            // Override settings from environment variables if provided (Aspire service discovery)
+            var envTaskManagerId = Environment.GetEnvironmentVariable("TaskManagerId");
+            if (!string.IsNullOrEmpty(envTaskManagerId))
+            {
+                TaskManagerId = envTaskManagerId;
+            }
+
+            var envJobManagerAddress = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
+            if (!string.IsNullOrEmpty(envJobManagerAddress))
+            {
+                JobManagerAddress = envJobManagerAddress;
+            }
+
+            var envGrpcPort = Environment.GetEnvironmentVariable("TASKMANAGER_GRPC_PORT");
+            if (!string.IsNullOrEmpty(envGrpcPort) && int.TryParse(envGrpcPort, out int envPort))
+            {
+                GrpcPort = envPort;
+            }
 
 
             Console.WriteLine($"Starting TaskManager: {TaskManagerId}");

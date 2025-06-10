@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic; // Required for ICollection, List
 using FlinkDotNet.Core.Abstractions.Common; // For Time
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window, TimeWindow, Evictor, Trigger
 using FlinkDotNet.Core.Api.Windowing; // Retain for other API-specific windowing types if any
@@ -29,12 +27,15 @@ namespace FlinkDotNet.Core.Abstractions.Collectors
 // Assuming Transformation classes are in this namespace (e.g., from DataStream.cs or a new Transformations.cs)
 namespace FlinkDotNet.Core.Api.Streaming
 {
-    // --- Transformation Stubs for Windowed Operations ---
-    // These (WindowedTransformation, WindowReduceTransformation, WindowAggregateTransformation, WindowProcessTransformation)
-    // have been removed as they are expected to be defined elsewhere, likely in a Transformations.cs file or similar.
-
-
     // --- WindowedStream Class ---
+    /// <summary>
+    /// --- Transformation Stubs for Windowed Operations ---
+    /// These (WindowedTransformation, WindowReduceTransformation, WindowAggregateTransformation, WindowProcessTransformation)
+    /// have been removed as they are expected to be defined elsewhere, likely in a Transformations.cs file or similar.
+    /// </summary>
+    /// <typeparam name="TElement"></typeparam>
+    /// <typeparam name="TKey"></typeparam>
+    /// <typeparam name="TWindow"></typeparam>
     public class WindowedStream<TElement, TKey, TWindow>
         where TWindow : Window
     {

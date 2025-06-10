@@ -1,13 +1,7 @@
-using System;
-using System.Collections.Generic; // For List in Transformation base
 using FlinkDotNet.Core.Api.Windowing;
 using FlinkDotNet.Core.Abstractions.Operators;
-using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode in Transformation base
 using FlinkDotNet.Core.Abstractions.Common; // For Time
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window
-
-// This file contains Transformation types related to Windowing operations.
-// Base Transformation types (Transformation, KeyedTransformation, etc.) are assumed to be in DataStream.cs.
 
 namespace FlinkDotNet.Core.Api.Windowing // Place Evictor stub here for organization
 {

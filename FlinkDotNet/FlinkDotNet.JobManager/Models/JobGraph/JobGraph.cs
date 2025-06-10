@@ -1,15 +1,4 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-// Metrics definitions
-using FlinkDotNet.JobManager.Models;
-// Assuming FlinkDotNet.Proto.Internal for Proto definitions
-using FlinkDotNet.Proto.Internal;
-
-
-// JobVertex, JobEdge, VertexType, ShuffleMode, KeyingInfo etc. are expected to be in their own files
-// within the FlinkDotNet.JobManager.Models.JobGraph namespace.
 
 namespace FlinkDotNet.JobManager.Models.JobGraph
 {

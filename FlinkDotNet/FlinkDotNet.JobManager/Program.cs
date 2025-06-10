@@ -1,14 +1,29 @@
+using FlinkDotNet.JobManager;
 using FlinkDotNet.JobManager.Interfaces;
 using FlinkDotNet.JobManager.Services;
-using FlinkDotNet.JobManager.Checkpointing; // Added for CheckpointCoordinator
-using FlinkDotNet.JobManager.Models; // Added for JobManagerConfig
-using FlinkDotNet.JobManager;
-using System;
-using System.Linq; // Required for Enumerable
-using Microsoft.Extensions.Hosting; // Added for AddServiceDefaults
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults(); // Added ServiceDefaults
+
+// Determine ports from environment variables with Apache Flink style defaults
+int httpPort = 8088;
+int grpcPort = 50051;
+
+if (int.TryParse(Environment.GetEnvironmentVariable("JOBMANAGER_HTTP_PORT"), out var envHttp))
+{
+    httpPort = envHttp;
+}
+
+if (int.TryParse(Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_PORT"), out var envGrpc))
+{
+    grpcPort = envGrpc;
+}
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Listen(System.Net.IPAddress.Any, httpPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1);
+    options.Listen(System.Net.IPAddress.Any, grpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+});
+builder.Services.AddControllers(); // Added ServiceDefaults
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

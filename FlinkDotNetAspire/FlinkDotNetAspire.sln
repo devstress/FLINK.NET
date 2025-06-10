@@ -2,11 +2,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.ServiceDefaults", "FlinkDotNetAspire.ServiceDefaults\FlinkDotNetAspire.ServiceDefaults.csproj", "{631310A9-6D96-4D17-B7D5-156EDF1AB9E4}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkJobSimulator", "FlinkJobSimulator\FlinkJobSimulator.csproj", "{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IntegrationTestVerifier", "IntegrationTestVerifier\IntegrationTestVerifier.csproj", "{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.AppHost", "FlinkDotNetAspire.AppHost.AppHost\FlinkDotNetAspire.AppHost.AppHost.csproj", "{567DC345-A60F-1013-7090-2F5EA6385FA8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.ServiceDefaults", "FlinkDotNetAspire.AppHost.ServiceDefaults\FlinkDotNetAspire.AppHost.ServiceDefaults.csproj", "{B8A0CC66-6F75-5A12-2B67-9D42401593D2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,14 +16,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{2393C4D1-8855-4DD0-BDE9-8B5183BCDCC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2393C4D1-8855-4DD0-BDE9-8B5183BCDCC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2393C4D1-8855-4DD0-BDE9-8B5183BCDCC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2393C4D1-8855-4DD0-BDE9-8B5183BCDCC8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{631310A9-6D96-4D17-B7D5-156EDF1AB9E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{631310A9-6D96-4D17-B7D5-156EDF1AB9E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{631310A9-6D96-4D17-B7D5-156EDF1AB9E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{631310A9-6D96-4D17-B7D5-156EDF1AB9E4}.Release|Any CPU.Build.0 = Release|Any CPU
 		{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{72A5A8E5-FCD9-45FB-8070-D3DC03F9F65B}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -30,6 +24,14 @@ Global
 		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{567DC345-A60F-1013-7090-2F5EA6385FA8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{567DC345-A60F-1013-7090-2F5EA6385FA8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{567DC345-A60F-1013-7090-2F5EA6385FA8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{567DC345-A60F-1013-7090-2F5EA6385FA8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

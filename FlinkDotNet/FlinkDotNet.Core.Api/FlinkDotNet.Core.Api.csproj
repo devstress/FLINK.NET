@@ -1,10 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <RootNamespace>FlinkDotNet.Core.Api</RootNamespace>
     <AssemblyName>FlinkDotNet.Core.Api</AssemblyName>
     <ProjectGuid>cc858103-4346-4c8d-b286-b0f5cacab275</ProjectGuid>

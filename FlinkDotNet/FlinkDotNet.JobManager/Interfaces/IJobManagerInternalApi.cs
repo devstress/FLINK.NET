@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
 // Define placeholder request/reply types typically generated from .proto files for gRPC.
 // For now, these are just C# classes to define the interface contract.
 namespace FlinkDotNet.JobManager.InternalApiModels

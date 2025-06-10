@@ -1,5 +1,3 @@
-using System;
-
 namespace FlinkDotNet.JobManager.Models
 {
     public class VertexMetricsDto
@@ -10,4 +8,3 @@ namespace FlinkDotNet.JobManager.Models
         public long RecordsOut { get; set; }
     }
 }
-#nullable disable

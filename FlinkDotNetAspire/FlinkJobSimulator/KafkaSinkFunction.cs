@@ -1,11 +1,7 @@
 using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators; // For IOperatorLifecycle
-using FlinkDotNet.Core.Abstractions.Runtime; // For IRuntimeContext
 using Confluent.Kafka;
-using System;
-using System.Threading; // For Interlocked
-using System.Threading.Tasks; // For Task from ProduceAsync
 using Microsoft.Extensions.Configuration; // Required for reading connection string & topic
 
 namespace FlinkJobSimulator

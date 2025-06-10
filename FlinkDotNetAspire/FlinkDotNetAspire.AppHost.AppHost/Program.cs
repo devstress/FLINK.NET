@@ -8,18 +8,23 @@ var builder = DistributedApplication.CreateBuilder(args);
 var redis = builder.AddRedis("redis", port: 6379);
 var kafka = builder.AddKafka("kafka", port: 9092); // Add Kafka resource
 
-var jobManagerHttpEndpoint = "http://localhost:8088";
-var jobManagerGrpcEndpoint = "http://localhost:50051";
+var jobManagerHttpPort = 8088;
+var jobManagerGrpcPort = 50051;
+
+var aspNetCoreUrls = $"http://0.0.0.0:{jobManagerHttpPort};http://0.0.0.0:{jobManagerGrpcPort}";
 
 var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
-    .WithHttpEndpoint(targetPort: 8080, name: "rest")
-    .WithEndpoint(targetPort:50051, name: "grpc", scheme: "http")
-    .WithEnvironment("ASPNETCORE_URLS", $"{jobManagerHttpEndpoint};{jobManagerGrpcEndpoint}")
+    .WithHttpEndpoint(targetPort: jobManagerHttpPort, name: "rest")
+    .WithEndpoint(targetPort: jobManagerGrpcPort, name: "grpc", scheme: "http")
+    .WithEnvironment("JOBMANAGER_HTTP_PORT", jobManagerHttpPort.ToString())
+    .WithEnvironment("JOBMANAGER_GRPC_PORT", jobManagerGrpcPort.ToString())
+    .WithEnvironment("ASPNETCORE_URLS", aspNetCoreUrls)
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
 builder.AddProject<Projects.FlinkDotNet_TaskManager>("taskmanager1")
     .WithReference(jobManager.GetEndpoint("grpc"))
     .WithEnvironment("TaskManagerId", "tm-1")
+    .WithEnvironment("TASKMANAGER_GRPC_PORT", "50071")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
 // Provide Redis and Kafka connection information to the FlinkJobSimulator

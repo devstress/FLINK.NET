@@ -3,7 +3,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <RootNamespace>FlinkDotNet.Core</RootNamespace>
     <AssemblyName>FlinkDotNet.Core</AssemblyName>
     <ProjectGuid>7b080bb5-b8a3-4fce-a59e-5ab979078f13</ProjectGuid>

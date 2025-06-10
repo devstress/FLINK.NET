@@ -1,17 +1,19 @@
 <Project>
 
   <PropertyGroup>
-    <!-- Disable code style enforcement and analyzers to simplify compilation -->
-    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <!-- Enable code style enforcement and built in analyzers -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
 
-    <!-- Disable built in analyzers -->
-    <AnalysisLevel>none</AnalysisLevel>
+    <!-- Enable compiler analysis warnings like IDE0005 -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1711,CS1574,CS1570</NoWarn>
 
     <!-- Do not elevate warnings to errors -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
 
-    <!-- Optional: Enable all .NET SDK analyzers explicitly, though AnalysisLevel often handles this. -->
-    <!-- <EnableNETAnalyzers>true</EnableNETAnalyzers> -->
+    <!-- Enable all .NET SDK analyzers explicitly -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
 
     <!-- Optional: Set a specific .NET version if needed, though usually inherited. -->
     <!-- <TargetFrameworkVersion>net9.0</TargetFrameworkVersion> -->

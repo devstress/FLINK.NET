@@ -1,13 +1,9 @@
-using System.Threading.Tasks;
 using Grpc.Core;
-using Microsoft.Extensions.Logging; // For optional logging
 using FlinkDotNet.JobManager.Interfaces; // For IJobRepository
 using FlinkDotNet.JobManager.Controllers; // For JobManagerController.JobGraphs
 using FlinkDotNet.JobManager.Models.JobGraph; // For JobGraph
 using FlinkDotNet.JobManager.Checkpointing; // For CheckpointCoordinator
 using FlinkDotNet.JobManager.Models; // For TaskManagerInfo, JobManagerConfig
-using System.Linq; // For Linq operations
-using System.Collections.Generic; // For Dictionary
 using Grpc.Net.Client; // For GrpcChannel
 using System.Text.Json; // For JsonSerializer
 
