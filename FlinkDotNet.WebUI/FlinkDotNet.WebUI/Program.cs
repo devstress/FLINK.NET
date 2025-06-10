@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-// using Microsoft.Fast.Components.FluentUI; // Old Fluent UI
 using Microsoft.FluentUI.AspNetCore.Components; // Required for AddFluentUIComponents
 using FlinkDotNet.WebUI.Services; // Add this for ThemeService
 
