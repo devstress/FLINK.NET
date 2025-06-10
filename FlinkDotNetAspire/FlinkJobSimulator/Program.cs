@@ -7,15 +7,12 @@ using FlinkDotNet.Core.Abstractions.Context; // For IRuntimeContext
 using FlinkDotNet.Core.Abstractions.Serializers;
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
-// using FlinkDotNet.Connectors.Sources.File; // Not used in this version
-// using FlinkDotNet.Connectors.Sinks.Console; // Not used in this version
 using FlinkDotNet.JobManager.Models.JobGraph;
 using System.Text.Json;
 using System; // For Environment, ArgumentOutOfRangeException etc.
 using System.Collections.Generic; // For IEnumerable in source
 using System.Threading; // For CancellationToken, Interlocked, Timer
 using System.Threading.Tasks; // For Task
-// using FlinkJobSimulator; // Not strictly needed if all classes are in the same file or top-level in the same project namespace
 
 namespace FlinkJobSimulator
 {

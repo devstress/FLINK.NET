@@ -1,5 +1,4 @@
 // Existing using statements (implicit for DistributedApplication, Projects)
-// using FlinkDotNet.JobManager; // Keep this if Projects.FlinkDotNet_JobManager is used, seems to be for Projects.*
 
 var builder = DistributedApplication.CreateBuilder(args);
 

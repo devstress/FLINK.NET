@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-// using FlinkDotNet.Core.Abstractions.Serializers; // Not directly needed here for DTO
 using FlinkDotNet.Proto.Internal; // Required for ToProto method
 
 namespace FlinkDotNet.JobManager.Models.JobGraph

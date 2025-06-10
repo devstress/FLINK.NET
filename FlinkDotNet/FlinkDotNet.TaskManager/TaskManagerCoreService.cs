@@ -57,29 +57,6 @@ public class TaskManagerCoreService : IHostedService // new
                 _jobManagerId = response.JobManagerId; // Store JobManagerId
                 Console.WriteLine($"TaskManager {_config.TaskManagerId} registered successfully with JobManager {response.JobManagerId}.");
                 StartHeartbeat(linkedToken);
-
-                // Test execution logic (from previous step) - This is now removed/commented out
-                // if (_registered) {
-                //     _ = Task.Run(async () => {
-                //         await Task.Delay(2000, linkedToken); // Give it a moment
-                //         if (linkedToken.IsCancellationRequested) return;
-                //         var executor = new TaskExecutor();
-                //         var sourceProps = new Dictionary<string, string> { { "filePath", "testfile.txt" } };
-                //         File.WriteAllLines("testfile.txt", new[] { "hello world", "flink dot net", "test data" });
-
-                //         // await executor.ExecuteTask( // This old method signature is gone or deprecated
-                //         //     taskName: "MyTestTask-1",
-                //         //     sourceTypeName: "FlinkDotNet.Connectors.Sources.File.FileSourceFunction`1, FlinkDotNet.Connectors.Sources.File",
-                //         //     sourceProperties: sourceProps,
-                //         //     sourceOutputTypeName: "System.String, System.Private.CoreLib",
-                //         //     sourceSerializerTypeName: "FlinkDotNet.Core.Abstractions.Serializers.StringSerializer, FlinkDotNet.Core.Abstractions",
-                //         //     operatorTypeName: "FlinkDotNet.TaskManager.SimpleStringToUpperMapOperator, FlinkDotNet.TaskManager",
-                //         //     operatorProperties: new Dictionary<string, string>(),
-                //         //     sinkTypeName: "FlinkDotNet.Connectors.Sinks.Console.ConsoleSinkFunction`1, FlinkDotNet.Connectors.Sinks.Console",
-                //         //     sinkProperties: new Dictionary<string, string>(),
-                //         //     linkedToken);
-                //     }, linkedToken);
-                // }
             }
             else
             {
