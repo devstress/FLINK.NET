@@ -42,6 +42,16 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 *   **[Local High Throughput Test](./docs/wiki/Sample-Local-High-Throughput-Test.md)**: Demonstrates setting up a local environment and running a high-throughput test.
 
+## Running Integration Tests on Windows
+
+A PowerShell script is provided for executing the integration tests locally. It automatically installs the .NET 8 SDK and Docker Desktop using `winget` if they are missing. Run the script from an elevated PowerShell prompt:
+
+```powershell
+./scripts/run-integration-tests.ps1
+```
+
+The script builds the solutions, launches the Aspire AppHost (which starts Redis and Kafka containers), performs health checks, and then executes the verification tests.
+
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
 
