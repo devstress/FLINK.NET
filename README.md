@@ -64,6 +64,10 @@ bash scripts/run-integration-tests-in-linux.sh
 
 Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, pulls the prebuilt image and runs the verification tests after a quick health check.
 
+### Configuring JobManager Ports
+
+The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `8088` and `50051` by default. To override these values set the environment variables `JOBMANAGER_HTTP_PORT` and `JOBMANAGER_GRPC_PORT`. The TaskManager gRPC port can be configured with `TASKMANAGER_GRPC_PORT`.
+
 ### Integration Test Image on GHCR
 
 The Linux Docker image used for integration tests is published publicly to GitHub Container Registry (GHCR) at `ghcr.io/devstress/flink-dotnet-linux:latest`. Instructions on publishing or updating the image via GitHub Actions are available in [GHCR Public Image and GitHub Actions](./docs/wiki/GHCR-Tokens.md).
