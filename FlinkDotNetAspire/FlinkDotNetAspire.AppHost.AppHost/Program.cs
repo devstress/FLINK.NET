@@ -11,12 +11,14 @@ var kafka = builder.AddKafka("kafka", port: 9092); // Add Kafka resource
 var jobManagerHttpPort = 8088;
 var jobManagerGrpcPort = 50051;
 
+var aspNetCoreUrls = $"http://0.0.0.0:{jobManagerHttpPort};http://0.0.0.0:{jobManagerGrpcPort}";
+
 var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
     .WithHttpEndpoint(targetPort: jobManagerHttpPort, name: "rest")
     .WithEndpoint(targetPort: jobManagerGrpcPort, name: "grpc", scheme: "http")
     .WithEnvironment("JOBMANAGER_HTTP_PORT", jobManagerHttpPort.ToString())
     .WithEnvironment("JOBMANAGER_GRPC_PORT", jobManagerGrpcPort.ToString())
-    .WithEnvironment("ASPNETCORE_URLS", $"http://0.0.0.0:{jobManagerHttpPort};http://0.0.0.0:{jobManagerGrpcPort}")
+    .WithEnvironment("ASPNETCORE_URLS", aspNetCoreUrls)
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
 builder.AddProject<Projects.FlinkDotNet_TaskManager>("taskmanager1")
