@@ -44,13 +44,27 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 ## Running Integration Tests on Windows
 
-A PowerShell script is provided for executing the integration tests locally. It automatically installs the .NET 8 SDK and Docker Desktop using `winget` if they are missing. Run the script from an elevated PowerShell prompt:
+A PowerShell script is provided for executing the integration tests locally. It automatically installs the .NET 8 SDK and Docker Desktop using `winget` if they are missing. The tests now run inside a prebuilt Docker image (`flink-dotnet-windows`) that can also be used by the CI workflow. Run the script from an elevated PowerShell prompt:
 
 ```powershell
 ./scripts/run-integration-tests.ps1
 ```
 
-The script builds the solutions, launches the Aspire AppHost (which starts Redis and Kafka containers), performs health checks, and then executes the verification tests.
+The script builds the Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
+
+Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry (for example, `ghcr.io/<owner>`) to pull a prebuilt image instead of building it locally.
+
+### Publishing and Retrieving the Integration Test Image
+
+1. **Store credentials as secrets**
+   - In your repository, open **Settings → Secrets and variables → Actions**.
+   - Add secrets named `GHCR_USERNAME` (your GitHub username) and `GHCR_TOKEN` (a personal access token with `write:packages` and `read:packages` scopes).
+2. **Publish the image**
+   - Trigger the **Publish Integration Test Image** workflow from the *Actions* tab.
+   - The workflow will build the container and push `ghcr.io/<owner>/flink-dotnet-windows:latest` using the secrets above.
+3. **Use the image locally**
+   - Authenticate locally with `docker login ghcr.io -u <GHCR_USERNAME> -p <GHCR_TOKEN>`.
+   - Set `FLINK_IMAGE_REPOSITORY=ghcr.io/<owner>` and run the PowerShell script. It will pull the prebuilt image instead of building it.
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
