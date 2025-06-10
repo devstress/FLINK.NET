@@ -1,6 +1,10 @@
 name: Integration Tests
 
 on:
+  workflow_run:
+    workflows: ["Publish Integration Test Image"]
+    types:
+      - completed
   push:
     branches:
       - main # Or your primary branch name
@@ -18,6 +22,7 @@ jobs:
   run-integration-tests:
     name: Run Flink.NET Integration Tests
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
 
     defaults:
       run:
