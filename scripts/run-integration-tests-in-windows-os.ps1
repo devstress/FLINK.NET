@@ -9,22 +9,39 @@ param(
     [string]$SimMessages = "1000000"
 )
 
+# Ensure script executes from its own directory so relative paths resolve.
+Set-Location -Path $PSScriptRoot
+
 function Install-DotNet {
-    if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    if (-not $dotnet) {
         Write-Host ".NET SDK not found. Installing via winget..."
         winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements
+        return
+    }
+
+    try {
+        $version = [version](dotnet --version)
+        if ($version.Major -ge 8) {
+            Write-Host ".NET SDK version $version detected. Installation skipped."
+        } else {
+            Write-Host ".NET SDK version $version detected. Installing via winget..."
+            winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements
+        }
+    } catch {
+        Write-Warning "Unable to determine .NET version. Proceeding without installation."
     }
 }
 
-function Install-Docker {
+function Check-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        Write-Host "Docker CLI not found. Installing Docker Desktop via winget..."
-        winget install --id Docker.DockerDesktop -e --accept-package-agreements --accept-source-agreements
+        Write-Error "Docker CLI not found. Please install Docker Desktop and ensure it is running."
+        exit 1
     }
 }
 
 Install-DotNet
-Install-Docker
+Check-Docker
 
 if (Get-Service -Name com.docker.service -ErrorAction SilentlyContinue) {
     Start-Service com.docker.service
