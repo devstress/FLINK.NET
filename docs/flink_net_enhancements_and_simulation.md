@@ -95,8 +95,10 @@ A .NET Aspire project (`FlinkDotNetAspire`) has been created to facilitate simul
 1.  Ensure you have .NET 8 and Aspire workload installed.
 2.  Navigate to the `FlinkDotNetAspire/FlinkDotNetAspire.AppHost` directory.
 3.  Run the AppHost: `dotnet run`
-4.  This will launch the JobManager, TaskManager, and the FlinkJobSimulator.
-5.  The Aspire Dashboard should also launch (typically `http://localhost:18888`), allowing observation of services.
+4.  Leave this process running to keep the simulated cluster alive.
+5.  This will launch the JobManager, TaskManager, and the FlinkJobSimulator.
+6.  The Aspire Dashboard should also launch (typically `http://localhost:18888`), allowing observation of services.
+7.  The Flink.NET Web UI is also launched automatically at `http://localhost:5020`.
 
 ### 3.3. Interpreting Observability Data (Step 5 Setup)
 *   **Metrics Added:**

@@ -32,4 +32,9 @@ builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
     .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic") // Default Kafka topic
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
+// Launch the Web UI so observability is available by default
+builder.AddProject<Projects.FlinkDotNet_WebUI>("webui")
+    .WithHttpEndpoint(targetPort: 5020)
+    .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+
 builder.Build().Run();
