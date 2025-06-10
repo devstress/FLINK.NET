@@ -6,7 +6,7 @@ COPY . .
 # Install Aspire workload so publishing succeeds
 RUN dotnet workload install aspire
 
-RUN dotnet publish IntegrationTestImage/IntegrationTestImage.csproj -c Release -o /app/publish
+RUN dotnet build IntegrationTestImage/IntegrationTestImage.csproj -c Release
 
 # Final stage with Docker-in-Docker
 FROM docker:26-dind
@@ -33,7 +33,7 @@ RUN dockerd-entrypoint.sh & \
     docker save confluentinc/cp-kafka:latest -o /kafka.tar && \
     pkill dockerd
 
-COPY --from=build /app/publish .
+COPY --from=build /src/IntegrationTestImage/bin/Release/net8.0/ .
 COPY IntegrationTestImage/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

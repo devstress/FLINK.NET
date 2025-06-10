@@ -9,6 +9,6 @@
     <ContainerImageTags>latest</ContainerImageTags>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\FlinkDotNetAspire\FlinkDotNetAspire.AppHost\FlinkDotNetAspire.AppHost.csproj" />
+    <ProjectReference Include="../FlinkDotNetAspire/FlinkDotNetAspire.AppHost/FlinkDotNetAspire.AppHost.csproj" />
   </ItemGroup>
 </Project>
