@@ -56,7 +56,7 @@ Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry
 
 ### Integration Test Image on GHCR
 
-The Windows Docker image used for integration tests is published to GitHub Container Registry (GHCR). Set `FLINK_IMAGE_REPOSITORY=ghcr.io/<owner>` if you prefer pulling this image instead of building it locally. Detailed instructions on publishing or retrieving the image, including token setup, are available in [GHCR Tokens and GitHub Actions Deployment](./docs/wiki/GHCR-Tokens.md).
+The Windows Docker image used for integration tests is published to GitHub Container Registry (GHCR). Set `FLINK_IMAGE_REPOSITORY=ghcr.io/devstress` if you prefer pulling this image instead of building it locally. Detailed instructions on publishing or retrieving the image, including token setup, are available in [GHCR Tokens and GitHub Actions Deployment](./docs/wiki/GHCR-Tokens.md).
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
