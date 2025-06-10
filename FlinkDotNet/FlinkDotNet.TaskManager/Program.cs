@@ -1,8 +1,12 @@
+using FlinkDotNet.Core.Abstractions.Execution;
+using FlinkDotNet.Core.Abstractions.Storage;
+using FlinkDotNet.TaskManager.Services; // For TaskManagerCheckpointingServiceImpl
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting; // Ensured for AddServiceDefaults
-using FlinkDotNet.TaskManager.Services; // For TaskManagerCheckpointingServiceImpl
+using System.Net;
+using System.Net.Sockets;
 
 namespace FlinkDotNet.TaskManager
 {
@@ -23,12 +27,14 @@ namespace FlinkDotNet.TaskManager
             if (args.Length > 1 && int.TryParse(args[1], out int port)) GrpcPort = port;
             if (args.Length > 2) JobManagerAddress = args[2];
 
+            // Find an available port if the default or provided port is in use
+            GrpcPort = FindAvailablePort(GrpcPort);
 
             Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
             Console.WriteLine($"JobManager Address: {JobManagerAddress}");
             Console.WriteLine($"TaskManager gRPC services listening on: http://localhost:{GrpcPort}");
 
-            var host = CreateHostBuilder(args).Build();
+            var host = CreateHostBuilder(args).Build(); 
 
             // Start the main TaskManagerCoreService (registration, heartbeats, task execution trigger)
             // This needs to be run as a background service or integrated differently if TM also hosts gRPC services.
@@ -61,6 +67,25 @@ namespace FlinkDotNet.TaskManager
             }
         }
 
+        private static int FindAvailablePort(int startingPort)
+        {
+            for (int port = startingPort; port < 65535; port++)
+            {
+                try
+                {
+                    TcpListener listener = new TcpListener(IPAddress.Loopback, port);
+                    listener.Start();
+                    listener.Stop();
+                    return port;
+                }
+                catch (SocketException)
+                {
+                    // Port is in use, try next
+                }
+            }
+            throw new InvalidOperationException("No available ports found.");
+        }
+
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureServices((hostContext, services) =>
@@ -68,10 +93,17 @@ namespace FlinkDotNet.TaskManager
                     // Register TaskManagerCoreService (previously TaskManagerService)
                     // It needs to be an IHostedService to integrate with Generic Host lifecycle
                     services.AddSingleton(new TaskManagerCoreService.Config(TaskManagerId, JobManagerAddress));
+                    services.AddSingleton<TaskManagerCoreService>();
                     services.AddHostedService<TaskManagerCoreService>();
 
                     // Register TaskExecutor
-                    services.AddSingleton<TaskExecutor>();
+                    services.AddSingleton(sp => new TaskExecutor(
+                        sp.GetRequiredService<ActiveTaskRegistry>(),
+                        sp.GetRequiredService<TaskManagerCheckpointingServiceImpl>(),
+                        sp.GetRequiredService<SerializerRegistry>(),
+                        TaskManagerId, // Pass the TaskManagerId here
+                        sp.GetRequiredService<IStateSnapshotStore>()
+                    ));
 
                     // Register gRPC services
                     services.AddGrpc();
@@ -79,6 +111,8 @@ namespace FlinkDotNet.TaskManager
                     services.AddSingleton(sp => new TaskManagerCheckpointingServiceImpl(TaskManagerId, sp.GetRequiredService<TaskExecutor>().Registry));
                     services.AddSingleton(sp => new TaskExecutionServiceImpl(TaskManagerId, sp.GetRequiredService<TaskExecutor>()));
                     services.AddSingleton(sp => new DataExchangeServiceImpl(TaskManagerId)); // Register DataExchangeService
+                    services.AddSingleton<ActiveTaskRegistry>();
+                    services.AddSingleton<SerializerRegistry>();
                 })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
@@ -100,4 +134,3 @@ namespace FlinkDotNet.TaskManager
                 });
     }
 }
-#nullable disable
