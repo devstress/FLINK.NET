@@ -12,7 +12,7 @@ Once the package is public, anyone can pull the image without authentication.
 
 ## 2. Publishing with GitHub Actions
 
-The workflow `.github/workflows/publish-integration-test-image.yml` uses GitHub's built-in `${{ secrets.GITHUB_TOKEN }}` to authenticate and automatically runs whenever changes are pushed to the `IntegrationTestImage` directory:
+The workflow `.github/workflows/publish-integration-test-image.yml` uses GitHub's built-in `${{ secrets.GITHUB_TOKEN }}` to authenticate and automatically runs whenever changes are pushed to the `IntegrationTestImage` directory. Updates to the workflow file itself also cause the action to run, allowing changes to the publishing steps to be tested immediately:
 
 ```yaml
 - name: Log in to GitHub Container Registry
