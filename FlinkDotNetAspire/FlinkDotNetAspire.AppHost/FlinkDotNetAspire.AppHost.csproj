@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
     <ProjectReference Include="..\FlinkJobSimulator\FlinkJobSimulator.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet.WebUI\FlinkDotNet.WebUI\FlinkDotNet.WebUI.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Reference Aspire hosting so DistributedApplication source generators compile -->

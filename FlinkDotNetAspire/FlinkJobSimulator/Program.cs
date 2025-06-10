@@ -13,6 +13,7 @@ using System; // For Environment, ArgumentOutOfRangeException etc.
 using System.Collections.Generic; // For IEnumerable in source
 using System.Threading; // For CancellationToken, Interlocked, Timer
 using System.Threading.Tasks; // For Task
+using System.Diagnostics; // For launching Aspire Dashboard
 
 namespace FlinkJobSimulator
 {
@@ -303,8 +304,32 @@ public static class Program
             Console.WriteLine(ex.StackTrace);
         }
 
-        Console.WriteLine("Flink Job Simulator finished. Note: Job execution is asynchronous on the cluster.");
+        Console.WriteLine("Flink Job Simulator finished building the job. Execution is asynchronous on the cluster.");
         Console.WriteLine($"Observe JobManager & TaskManager logs, Aspire dashboard, Redis key '{redisSinkCounterKey}', and Kafka topic '{kafkaTopic}'.");
+
+        // When running locally (not inside a container), try to launch the Aspire Dashboard
+        // so developers immediately see service status and logs.
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
+        {
+            try
+            {
+                var dashboardUrl = "http://localhost:18888";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = dashboardUrl,
+                    UseShellExecute = true
+                });
+                Console.WriteLine($"Opened Aspire Dashboard at {dashboardUrl}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to launch Aspire Dashboard automatically: {ex.Message}");
+            }
+        }
+
+        Console.WriteLine("Press Ctrl+C to exit when you are done observing the simulator.");
+        // Keep the process alive so users can inspect the Aspire dashboard and Web UI
+        Thread.Sleep(Timeout.Infinite);
     }
 }
 }

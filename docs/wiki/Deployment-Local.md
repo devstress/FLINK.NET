@@ -39,14 +39,19 @@ The `FlinkDotNetAspire` solution includes:
     ```bash
     dotnet run
     ```
+    Leave this terminal running so the local cluster and supporting services stay online.
 
 4.  **Aspire Dashboard**:
-    *   This command will typically launch the Aspire Dashboard in your web browser (e.g., `http://localhost:18888`).
+    *   `dotnet run` typically launches the Aspire Dashboard in your web browser (e.g., `http://localhost:18888`).
     *   The dashboard allows you to view:
         *   The status of all orchestrated services (JobManager, TaskManager, Redis, Kafka, Simulator).
         *   Console logs for each service.
         *   Service endpoints and environment variables.
         *   Metrics and traces (if configured).
+
+5.  **Flink.NET Web UI**:
+    *   The AppHost also launches the Web UI automatically.
+    *   Browse to `http://localhost:5020` to explore metrics and job details.
 
 ### Example Usage
 

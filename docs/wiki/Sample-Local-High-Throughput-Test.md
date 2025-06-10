@@ -44,11 +44,13 @@ The `FlinkDotNetAspire` project orchestrates a local Flink.NET "cluster" (JobMan
     ```bash
     dotnet run
     ```
+    Keep this command running so the cluster and services stay active.
     This will:
     *   Start Redis and Kafka containers.
     *   Start Flink.NET JobManager and TaskManager.
     *   Start the `FlinkJobSimulator`.
     *   Launch the .NET Aspire Dashboard (e.g., `http://localhost:18888`).
+    *   The Flink.NET Web UI is also started automatically at `http://localhost:5020`.
 
 ## Observing Behavior and Throughput
 
