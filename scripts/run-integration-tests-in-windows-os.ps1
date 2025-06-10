@@ -44,19 +44,23 @@ Install-DotNet
 Check-Docker
 
 if (Get-Service -Name com.docker.service -ErrorAction SilentlyContinue) {
-    Start-Service com.docker.service
+    try {
+        Start-Service com.docker.service -ErrorAction Stop
+    } catch {
+        Write-Warning "Failed to start Docker service. Try running PowerShell as Administrator or start Docker Desktop manually. $_"
+    }
     Write-Host "Waiting for Docker to start..."
     Start-Sleep -Seconds 15
     docker info
 } else {
-    Write-Warning "Docker service not found. Ensure Docker Desktop is running."
+    Write-Warning "Docker service not found. Ensure Docker Desktop is installed and running."
 }
 
 # Restore workloads
 Write-Host "Restoring workloads..."
-dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+dotnet workload restore ../FlinkDotNet/FlinkDotNet.sln
+dotnet workload restore ../FlinkDotNetAspire/FlinkDotNetAspire.sln
+dotnet workload restore ../FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
 # Acquire Integration Test Docker image
 if ($env:FLINK_IMAGE_REPOSITORY) {
@@ -74,7 +78,7 @@ docker run -d --name $containerName -e SIMULATOR_NUM_MESSAGES=$SimMessages -e AS
 Write-Host "Waiting for container to initialize..."
 Start-Sleep -Seconds 30
 
-$verifier = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
+$verifier = "../FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 $maxAttempts = 10
 $delaySeconds = 15
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
