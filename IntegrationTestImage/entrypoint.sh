@@ -1,13 +1,16 @@
 #!/bin/sh
 set -e
 
-# Start Docker daemon
-/dockerd-entrypoint.sh &
-
-# Wait for Docker to be ready
-until docker info >/dev/null 2>&1; do
-  sleep 1
-done
+# If a host Docker socket is mounted, reuse it; otherwise start our own daemon
+if [ -S /var/run/docker.sock ]; then
+  echo "Using host Docker daemon"
+else
+  echo "Starting nested Docker daemon"
+  /dockerd-entrypoint.sh &
+  until docker info >/dev/null 2>&1; do
+    sleep 1
+  done
+fi
 
 # Load cached images or pull if missing
 if [ -f /redis.tar ]; then
