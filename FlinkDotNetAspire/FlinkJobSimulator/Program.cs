@@ -8,12 +8,6 @@ using FlinkDotNet.Core.Abstractions.Serializers;
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 using FlinkDotNet.JobManager.Models.JobGraph;
-using System.Text.Json;
-using System; // For Environment, ArgumentOutOfRangeException etc.
-using System.Collections.Generic; // For IEnumerable in source
-using System.Threading; // For CancellationToken, Interlocked, Timer
-using System.Threading.Tasks; // For Task
-using System.Diagnostics; // For launching Aspire Dashboard
 
 namespace FlinkJobSimulator
 {

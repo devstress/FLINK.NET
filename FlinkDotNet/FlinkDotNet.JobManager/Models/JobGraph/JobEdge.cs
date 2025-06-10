@@ -1,6 +1,3 @@
-using System;
-using FlinkDotNet.Proto.Internal; // Required for ToProto method
-
 namespace FlinkDotNet.JobManager.Models.JobGraph
 {
     // ShuffleMode enum is now in its own file: ShuffleMode.cs

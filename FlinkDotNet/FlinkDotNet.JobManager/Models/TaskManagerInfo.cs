@@ -1,5 +1,3 @@
-using System;
-
 namespace FlinkDotNet.JobManager.Models
 {
     public class TaskManagerInfo
@@ -11,4 +9,3 @@ namespace FlinkDotNet.JobManager.Models
         // Add more info like status, available slots etc.
     }
 }
-#nullable disable

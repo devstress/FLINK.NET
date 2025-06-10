@@ -1,18 +1,9 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using FlinkDotNet.JobManager.Interfaces;
 using FlinkDotNet.JobManager.Models;
-using System.Linq;
-using System.Collections.Generic;
-using Microsoft.AspNetCore.Http;
 using System.Collections.Concurrent; // Added
 using FlinkDotNet.JobManager.Models.JobGraph; // Added
 using FlinkDotNet.JobManager.Services; // For TaskManagerRegistrationServiceImpl
-using FlinkDotNet.JobManager.Checkpointing; // Corrected namespace For CheckpointCoordinator
-using Grpc.Net.Client; // Added for GrpcChannel
-using System.Text.Json; // Added for JsonSerializer
-using Proto = FlinkDotNet.Proto.Internal; // Alias for generated gRPC types
 
 
 namespace FlinkDotNet.JobManager.Controllers

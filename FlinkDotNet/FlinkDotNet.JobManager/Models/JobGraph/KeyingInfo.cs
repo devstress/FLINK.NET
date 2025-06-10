@@ -9,7 +9,7 @@ namespace FlinkDotNet.JobManager.Models.JobGraph
     public class KeyingInfo
     {
         /// <summary>
-        /// Assembly-qualified type name of the IKeySelector<TIn, TKey> implementation.
+        /// Assembly-qualified type name of the IKeySelector implementation.
         /// </summary>
         public string KeySelectorTypeName { get; }
 

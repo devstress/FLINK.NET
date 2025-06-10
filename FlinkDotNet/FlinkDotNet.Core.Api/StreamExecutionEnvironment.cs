@@ -1,18 +1,6 @@
 using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
-using FlinkDotNet.Core.Abstractions.Sources; // For ISourceFunction
-using FlinkDotNet.Core.Abstractions.Common; // For Time, if needed by API
-// Potentially other using statements like FlinkDotNet.JobManager.Models.JobGraph
-using System.Linq; // Added for ToDictionary
-using System.Threading.Tasks; // Added for Task
-
-// Assuming JobGraph might be in a different namespace, added a placeholder using.
-// This might need adjustment based on actual project structure.
 using FlinkDotNet.JobManager.Models.JobGraph; // For JobGraph, JobVertex, JobEdge, etc.
-using FlinkDotNet.Core.Api.Streaming; // For Transformation, DataStream, etc. (assuming these exist)
-using System.Collections.Generic; // For List, Dictionary
 using FlinkDotNet.Core.Abstractions.Operators; // For ChainingStrategy
-
-// Removed embedded placeholder for JobGraph
 
 namespace FlinkDotNet.Core.Api
 {

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -19,12 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Use forward slashes for cross-platform compatibility -->
-    <Protobuf Include="Protos/jobmanager_internal.proto" GrpcServices="Both" />
+    <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+    <!-- Use forward slashes for cross-platform compatibility -->
+    <Protobuf Include="Protos/jobmanager_internal.proto" GrpcServices="Both" />
   </ItemGroup>
 
 </Project>

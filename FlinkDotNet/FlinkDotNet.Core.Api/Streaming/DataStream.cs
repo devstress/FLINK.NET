@@ -1,19 +1,9 @@
-using System;
-using System.Collections.Generic; // Required for List
 using FlinkDotNet.Core.Abstractions.Operators; // For IMapOperator as an example
 using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode (might need to be more abstract later)
 using System.Linq.Expressions; // For KeyBy expression overload
 using System.Reflection; // For KeyBy expression overload
 using FlinkDotNet.Core.Abstractions.Functions; // For IKeySelector
 using FlinkDotNet.Core.Abstractions.Sinks; // For ISinkFunction
-using FlinkDotNet.Core.Abstractions.Windowing; // Proactively added
-using FlinkDotNet.Core.Abstractions.Common; // Proactively added
-
-// Assuming StreamExecutionEnvironment is in FlinkDotNet.Core.Api
-// If it's in FlinkDotNet.Core.Api.Streaming, this using might not be strictly necessary
-// but doesn't hurt. If it's in a parent namespace, it's good.
-using FlinkDotNet.Core.Api;
-
 
 namespace FlinkDotNet.Core.Api.Streaming
 {

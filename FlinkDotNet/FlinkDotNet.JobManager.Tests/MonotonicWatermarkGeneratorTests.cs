@@ -1,5 +1,4 @@
 using FlinkDotNet.Core.Abstractions.Windowing;
-using Xunit;
 
 namespace FlinkDotNet.JobManager.Tests
 {

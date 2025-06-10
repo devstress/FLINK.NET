@@ -18,10 +18,19 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Storage.FileSystem", "FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj", "{E5057337-0F48-4655-9792-00640B249324}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Core.Api", "FlinkDotNet.Core.Api\FlinkDotNet.Core.Api.csproj", "{E572F0ED-A7C4-4EC4-BFF5-1852626215F4}"
+	ProjectSection(ProjectDependencies) = postProject
+		{835AE1D1-E185-4802-A95B-0BEDCBAC20F7} = {835AE1D1-E185-4802-A95B-0BEDCBAC20F7}
+		{AA098A28-50CE-4AF9-929C-65B00BE8ADB8} = {AA098A28-50CE-4AF9-929C-65B00BE8ADB8}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Core", "FlinkDotNet.Core\FlinkDotNet.Core.csproj", "{BAD12BCE-7767-4982-991C-7591CF4AB01B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.Architecture.Tests", "FlinkDotNet.Architecture.Tests\FlinkDotNet.Architecture.Tests.csproj", "{1A2B3C4D-5E6F-7788-99A0-B1C2D3E4F5A6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		..\Directory.Build.props = ..\Directory.Build.props
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

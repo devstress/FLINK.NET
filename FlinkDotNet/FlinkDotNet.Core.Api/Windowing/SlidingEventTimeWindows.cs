@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Common;
 using FlinkDotNet.Core.Abstractions.Serializers;
 using FlinkDotNet.Core.Abstractions.Windowing;
-using FlinkDotNet.Core.Api.Streaming;
 
 namespace FlinkDotNet.Core.Api.Windowing
 {

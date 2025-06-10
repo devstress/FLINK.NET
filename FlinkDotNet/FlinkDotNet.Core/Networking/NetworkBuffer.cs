@@ -1,5 +1,3 @@
-using System;
-using System.IO; // For Stream, MemoryStream
 using FlinkDotNet.Core.Abstractions.Networking;
 
 namespace FlinkDotNet.Core.Networking
@@ -116,6 +114,7 @@ namespace FlinkDotNet.Core.Networking
         /// <summary>
         /// Gets a Memory<byte> slice representing the valid data portion of the buffer.
         /// </summary>
+        /// <returns></returns>
         public Memory<byte> GetMemory()
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this); // CA1513

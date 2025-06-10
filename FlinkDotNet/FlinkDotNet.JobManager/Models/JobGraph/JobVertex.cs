@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using FlinkDotNet.Proto.Internal; // Required for ToProto method
-
 namespace FlinkDotNet.JobManager.Models.JobGraph
 {
     public class JobVertex

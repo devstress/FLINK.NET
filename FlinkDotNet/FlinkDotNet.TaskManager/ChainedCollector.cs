@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Collectors;
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.Core.Abstractions.Sinks;

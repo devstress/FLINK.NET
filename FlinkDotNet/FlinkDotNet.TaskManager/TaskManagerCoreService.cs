@@ -1,10 +1,5 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Grpc.Net.Client;
 using FlinkDotNet.Proto.Internal; // Namespace from your .proto file
-using System.IO; // For File.WriteAllLines in test code
-using System.Collections.Generic; // For Dictionary in test code
 using FlinkDotNet.TaskManager; // For TaskExecutor
 using Microsoft.Extensions.Hosting; // For IHostedService
 

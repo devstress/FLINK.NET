@@ -1,5 +1,3 @@
-using System; // For DateTimeOffset, ArgumentNullException
-using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer
 using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment (if needed by GetDefaultTrigger)
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window, Trigger
@@ -47,7 +45,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         public abstract ICollection<TWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context);
 
         /// <summary>
-        /// Returns the default <see cref="Trigger{TElement, TWindow}"/> for this <see cref="WindowAssigner"/>.
+        /// Returns the default <see cref="Trigger{TElement, TWindow}"/> for this.
         /// This trigger is used if no custom trigger is specified on the <see cref="WindowedStream{TElement, TKey, TWindow}"/>.
         /// </summary>
         /// <param name="environment">The stream execution environment.</param>

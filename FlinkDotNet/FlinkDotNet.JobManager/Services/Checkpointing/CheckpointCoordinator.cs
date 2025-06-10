@@ -1,15 +1,10 @@
-using System;
 using System.Collections.Concurrent;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Globalization;
 using FlinkDotNet.JobManager.Interfaces; // Added for IJobRepository
 using FlinkDotNet.JobManager.Models; // For CheckpointMetadata, TaskManagerInfo (assuming TaskManagerInfo is also in Models or accessible)
 using FlinkDotNet.Proto.Internal;    // For gRPC client (TaskManagerCheckpointing.TaskManagerCheckpointingClient)
 using Grpc.Net.Client;               // For GrpcChannel
 using FlinkDotNet.JobManager.Services; // Assuming TaskManagerTracker is in FlinkDotNet.JobManager.Services
-using Microsoft.Extensions.Logging; // Added for ILogger
 
 namespace FlinkDotNet.JobManager.Checkpointing
 {

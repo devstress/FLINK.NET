@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using FlinkDotNet.Core.Abstractions.Collectors; // For ICollector
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window
 

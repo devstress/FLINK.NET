@@ -1,4 +1,3 @@
-using System;
 using FlinkDotNet.Core.Abstractions.Sinks;
 
 namespace FlinkDotNet.TaskManager

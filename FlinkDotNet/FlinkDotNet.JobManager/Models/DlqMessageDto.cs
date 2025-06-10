@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace FlinkDotNet.JobManager.Models
 {
     public class DlqMessageDto

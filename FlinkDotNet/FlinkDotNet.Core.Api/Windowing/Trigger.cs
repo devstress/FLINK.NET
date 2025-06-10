@@ -1,4 +1,3 @@
-using System.Collections.Generic; // For ICollection
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window
 
 namespace FlinkDotNet.Core.Api.Windowing
@@ -65,7 +64,7 @@ namespace FlinkDotNet.Core.Api.Windowing
 
         /// <summary>
         /// Performs any cleanup related to the given window, for example deleting per-window state
-        /// that was created by the trigger via <see cref="ITriggerContext.GetTriggerState{S}"/>.
+        /// that was created by the trigger.
         /// This is called when a window is purged.
         /// </summary>
         /// <param name="window">The window.</param>
