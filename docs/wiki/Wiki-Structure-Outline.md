@@ -100,7 +100,7 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 ## 6. Deployment
 *   [Kubernetes Deployment](Deployment-Kubernetes.md)
 *   [Local Development and Testing](Deployment-Local.md) (potentially with Aspire)
-*   [GHCR Tokens and Workflow Dispatch](GHCR-Tokens.md)
+*   [GHCR Public Image and GitHub Actions](GHCR-Tokens.md)
 *   *Apache Flink Ref:* [Deployment](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/overview/).
 
 ## 7. Advanced Topics

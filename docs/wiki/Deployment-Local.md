@@ -76,7 +76,7 @@ A true in-process local runner would be beneficial for very quick unit tests of 
 
 Using the `FlinkDotNetAspire` setup provides a robust and feature-rich environment for developing, testing, and debugging your Flink.NET applications locally.
 
-For publishing the integration test image, follow the instructions in [GHCR Tokens and Workflow Dispatch](GHCR-Tokens.md).
+For publishing the integration test image, follow the instructions in [GHCR Public Image and GitHub Actions](GHCR-Tokens.md).
 
 ---
 [Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)
