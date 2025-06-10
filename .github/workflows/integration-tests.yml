@@ -17,7 +17,7 @@ env:
 jobs:
   run-integration-tests:
     name: Run Flink.NET Integration Tests
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     defaults:
       run:
@@ -30,12 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Ensure Docker is running
-        run: |
-          if (-not (Get-Service -Name com.docker.service -ErrorAction SilentlyContinue)) {
-            choco install docker-desktop --pre -y
-          }
-          Start-Service com.docker.service
-          docker info
+        run: docker info
 
       - name: Set up .NET 8.0
         uses: actions/setup-dotnet@v4
@@ -60,11 +55,11 @@ jobs:
 
       - name: Pull Integration Test Docker Image
         run: |
-          docker pull ghcr.io/devstress/flink-dotnet-windows:latest
+          docker pull ghcr.io/devstress/flink-dotnet-linux:latest
 
       - name: Start Integration Test Container
         run: |
-          docker run -d --name integration-test -e SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }} -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 ghcr.io/devstress/flink-dotnet-windows:latest
+          docker run --privileged -d --name integration-test -e SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }} -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 ghcr.io/devstress/flink-dotnet-linux:latest
           Write-Host "Waiting for container to initialize..."
           Start-Sleep -Seconds 30
 

@@ -3,9 +3,10 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <PublishProfile>DefaultContainer</PublishProfile>
-    <ContainerImageName>flink-dotnet-windows</ContainerImageName>
-    <ContainerBaseImage>mcr.microsoft.com/dotnet/runtime:8.0-nanoserver-ltsc2022</ContainerBaseImage>
-    <ContainerRuntimeIdentifier>win-x64</ContainerRuntimeIdentifier>
+    <Dockerfile>Dockerfile</Dockerfile>
+    <DockerfileContextDirectory>..</DockerfileContextDirectory>
+    <ContainerImageName>flink-dotnet-linux</ContainerImageName>
+    <ContainerImageTags>latest</ContainerImageTags>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNetAspire\FlinkDotNetAspire.AppHost\FlinkDotNetAspire.AppHost.csproj" />

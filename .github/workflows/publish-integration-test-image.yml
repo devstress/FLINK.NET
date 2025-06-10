@@ -8,7 +8,7 @@ on:
 
 jobs:
   publish-image:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: pwsh
@@ -33,5 +33,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push Image
         run: |
-          docker tag flink-dotnet-windows:latest ghcr.io/${{ github.repository_owner }}/flink-dotnet-windows:latest
-          docker push ghcr.io/${{ github.repository_owner }}/flink-dotnet-windows:latest
+          docker tag flink-dotnet-linux:latest ghcr.io/${{ github.repository_owner }}/flink-dotnet-linux:latest
+          docker push ghcr.io/${{ github.repository_owner }}/flink-dotnet-linux:latest
