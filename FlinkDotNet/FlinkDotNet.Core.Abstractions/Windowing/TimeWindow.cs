@@ -5,7 +5,7 @@ namespace FlinkDotNet.Core.Abstractions.Windowing
 {
     /// <summary>
     /// Represents a window defined by a start and end timestamp.
-    /// The window typically includes elements with timestamps `T` where `Start <= T < End`.
+    /// The window typically includes elements with timestamps <c>T</c> where <c>Start &lt;= T &lt; End</c>.
     /// </summary>
     public sealed class TimeWindow : Window
     {
