@@ -54,9 +54,17 @@ The script builds the Docker image, starts a container running the Aspire AppHos
 
 Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry (for example, `ghcr.io/<owner>`) to pull a prebuilt image instead of building it locally.
 
-### Publishing the Integration Test Image
+### Publishing and Retrieving the Integration Test Image
 
-A workflow named **Publish Integration Test Image** can be triggered manually from GitHub's *Actions* tab. It builds the same Docker image and pushes it to the GitHub Container Registry under your account. After running this workflow, the image can be pulled as `ghcr.io/&lt;owner&gt;/flink-dotnet-windows:latest` for local or CI use without rebuilding.
+1. **Store credentials as secrets**
+   - In your repository, open **Settings → Secrets and variables → Actions**.
+   - Add secrets named `GHCR_USERNAME` (your GitHub username) and `GHCR_TOKEN` (a personal access token with `write:packages` and `read:packages` scopes).
+2. **Publish the image**
+   - Trigger the **Publish Integration Test Image** workflow from the *Actions* tab.
+   - The workflow will build the container and push `ghcr.io/<owner>/flink-dotnet-windows:latest` using the secrets above.
+3. **Use the image locally**
+   - Authenticate locally with `docker login ghcr.io -u <GHCR_USERNAME> -p <GHCR_TOKEN>`.
+   - Set `FLINK_IMAGE_REPOSITORY=ghcr.io/<owner>` and run the PowerShell script. It will pull the prebuilt image instead of building it.
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
