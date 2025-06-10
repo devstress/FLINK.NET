@@ -25,6 +25,7 @@ jobs:
       - name: Install .NET Aspire Workload
         run: dotnet workload install aspire
       - name: Build Docker Image
+        shell: bash
         run: |
           sudo docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
