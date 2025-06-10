@@ -7,9 +7,9 @@ This guide explains how to create two GitHub Container Registry (GHCR) tokens:
 
 ## 1. Creating a Deployment Token
 
-1. Log into GitHub and go to **Settings → Developer settings → Personal access tokens → Tokens (classic)**.
-2. Click **Generate new token (classic)**.
-3. Give the token a name (for example `ghcr-deploy`) and select scopes `write:packages` and `read:packages`.
+1. Log into GitHub and go to **Settings → Developer settings → Personal access tokens → Fine-grained tokens**.
+2. Click **Generate new token**.
+3. Give the token a name (for example `ghcr-deploy`), select your repository, and grant the `packages:read` and `packages:write` permissions.
 4. Generate the token and copy it somewhere safe.
 
 Store this token in your repository under **Settings → Secrets and variables → Actions** with the name `GHCR_TOKEN`. Store your GitHub username in a secret named `GHCR_USERNAME`.
@@ -30,7 +30,7 @@ With `workflow_dispatch:` at the top of the file, you can trigger the workflow f
 ## 2. Creating a Read‑Only Token
 
 1. Follow the same steps as above to generate a token, but select only the `read:packages` scope.
-2. Save this token in a text file within the repository, for example `docs/ghcr-read-token.txt`, so that collaborators can pull the image.
+2. Save this token in a text file within the repository, for example `resources/ghcr-read-token.txt`, so that collaborators can pull the image.
 
 To use the read‑only token locally:
 
