@@ -44,7 +44,7 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 ## Running Integration Tests on Windows
 
-A PowerShell script is provided for executing the integration tests locally. It automatically installs the .NET 8 SDK and Docker Desktop using `winget` if they are missing. The tests now run inside a prebuilt Linux Docker image (`flink-dotnet-linux`) that can also be used by the CI workflow. Run the script from an elevated PowerShell prompt:
+A PowerShell script is provided for executing the integration tests locally. It ensures the .NET 8 SDK version 8 or later is installed and verifies that Docker Desktop is available (it no longer attempts to install Docker itself). The tests run inside a prebuilt Linux Docker image (`flink-dotnet-linux`) that can also be used by the CI workflow. Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
 
 ```powershell
 pwsh scripts/run-integration-tests-in-windows-os.ps1
