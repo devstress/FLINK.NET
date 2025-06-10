@@ -52,34 +52,14 @@ namespace IntegrationTestVerifier
             }
 
             // Redis Health Check
-            try
-            {
-                Console.WriteLine($"Attempting Redis connection to: {redisConnectionString}");
-                using var redis = await ConnectionMultiplexer.ConnectAsync(redisConnectionString);
-                redisOk = redis.IsConnected;
-                Console.WriteLine(redisOk ? "Redis connection successful." : "Redis connection failed.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Redis health check failed: {ex.Message}");
-                // redisOk is already false
-            }
+            Console.WriteLine($"Attempting Redis connection to: {redisConnectionString}");
+            redisOk = await WaitForRedisAsync(redisConnectionString);
+            Console.WriteLine(redisOk ? "Redis connection successful." : "Redis connection failed.");
 
             // Kafka Health Check
-            try
-            {
-                Console.WriteLine($"Attempting Kafka connection to: {kafkaBootstrapServers}");
-                var adminClientConfig = new AdminClientConfig { BootstrapServers = kafkaBootstrapServers };
-                using var adminClient = new AdminClientBuilder(adminClientConfig).Build();
-                var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(10));
-                kafkaOk = metadata.Topics != null;
-                Console.WriteLine(kafkaOk ? "Kafka connection successful (metadata retrieved)." : "Kafka connection failed.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Kafka health check failed: {ex.Message}");
-                kafkaOk = false;
-            }
+            Console.WriteLine($"Attempting Kafka connection to: {kafkaBootstrapServers}");
+            kafkaOk = WaitForKafka(kafkaBootstrapServers);
+            Console.WriteLine(kafkaOk ? "Kafka connection successful (metadata retrieved)." : "Kafka connection failed.");
 
             return (redisOk && kafkaOk) ? 0 : 1;
         }
@@ -250,6 +230,50 @@ namespace IntegrationTestVerifier
                 }
             }
             return kafkaVerified;
+        }
+
+        private static async Task<bool> WaitForRedisAsync(string connectionString, int retries = 5, int delaySeconds = 2)
+        {
+            for (int i = 0; i < retries; i++)
+            {
+                try
+                {
+                    using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
+                    if (redis.IsConnected)
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+            }
+            return false;
+        }
+
+        private static bool WaitForKafka(string bootstrapServers, int retries = 5, int delaySeconds = 2)
+        {
+            var adminConfig = new AdminClientConfig { BootstrapServers = bootstrapServers };
+            for (int i = 0; i < retries; i++)
+            {
+                try
+                {
+                    using var admin = new AdminClientBuilder(adminConfig).Build();
+                    var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                    if (metadata.Topics != null)
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
+                Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+            }
+            return false;
         }
     }
 }
