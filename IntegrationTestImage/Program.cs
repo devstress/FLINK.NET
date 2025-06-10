@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+
 namespace IntegrationTestImage;
 
 public class Program

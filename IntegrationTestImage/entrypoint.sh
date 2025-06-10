@@ -1,20 +1,28 @@
 #!/bin/sh
 set -e
 
-# Start Docker daemon
-/dockerd-entrypoint.sh &
+# If a host Docker socket is mounted, reuse it; otherwise start our own daemon
+if [ -S /var/run/docker.sock ]; then
+  echo "Using host Docker daemon"
+else
+  echo "Starting nested Docker daemon"
+  /dockerd-entrypoint.sh &
+  until docker info >/dev/null 2>&1; do
+    sleep 1
+  done
+fi
 
-# Wait for Docker to be ready
-until docker info >/dev/null 2>&1; do
-  sleep 1
-done
-
-# Load cached images
+# Load cached images or pull if missing
 if [ -f /redis.tar ]; then
   docker load -i /redis.tar || true
-fi
-if [ -f /kafka.tar ]; then
-  docker load -i /kafka.tar || true
+else
+  docker pull redis:latest
 fi
 
-exec dotnet IntegrationTestImage.dll "$@"
+if [ -f /kafka.tar ]; then
+  docker load -i /kafka.tar || true
+else
+  docker pull confluentinc/cp-kafka:latest
+fi
+
+exec ./IntegrationTestImage "$@"
