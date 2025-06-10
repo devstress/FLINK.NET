@@ -50,13 +50,13 @@ A PowerShell script is provided for executing the integration tests locally. It 
 ./scripts/run-integration-tests.ps1
 ```
 
-The script builds the Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
+The script pulls the prebuilt Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
 
-Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry (for example, `ghcr.io/<owner>`) to pull a prebuilt image instead of building it locally.
+By default, the image is retrieved from `ghcr.io/devstress/flink-dotnet-windows:latest`. Set the environment variable `FLINK_IMAGE_REPOSITORY` to override the repository if needed.
 
 ### Integration Test Image on GHCR
 
-The Windows Docker image used for integration tests is published publicly to GitHub Container Registry (GHCR). Set `FLINK_IMAGE_REPOSITORY=ghcr.io/<owner>` if you prefer pulling this image instead of building it locally. Instructions on publishing the image via GitHub Actions and making it publicly accessible are available in [GHCR Public Image and GitHub Actions](./docs/wiki/GHCR-Tokens.md).
+The Windows Docker image used for integration tests is published publicly to GitHub Container Registry (GHCR) at `ghcr.io/devstress/flink-dotnet-windows:latest`. Instructions on publishing or updating the image via GitHub Actions are available in [GHCR Public Image and GitHub Actions](./docs/wiki/GHCR-Tokens.md).
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
