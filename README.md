@@ -50,7 +50,7 @@ A PowerShell script is provided for executing the integration tests locally. It 
 ./scripts/run-integration-tests.ps1
 ```
 
-The script pulls the prebuilt Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
+The script pulls the prebuilt Docker image, which now contains the .NET Aspire workload, an embedded Docker daemon, and cached Redis and Kafka images. The daemon starts automatically inside the container so the AppHost can launch its dependencies instantly. After a brief health check the verification tests run.
 
 By default, the image is retrieved from `ghcr.io/devstress/flink-dotnet-windows:latest`. Set the environment variable `FLINK_IMAGE_REPOSITORY` to override the repository if needed.
 
