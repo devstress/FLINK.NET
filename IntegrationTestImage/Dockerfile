@@ -4,9 +4,11 @@ WORKDIR /src
 COPY . .
 
 # Install Aspire workload so publishing succeeds
-RUN dotnet workload install aspire
+RUN dotnet workload install aspire \
+    && dotnet workload restore IntegrationTestImage/IntegrationTestImage.csproj
 
 # Publish a self-contained binary for Alpine
+RUN mkdir -p /app/publish
 RUN dotnet publish IntegrationTestImage/IntegrationTestImage.csproj \
     -c Release -r linux-musl-x64 \
     --self-contained true \
