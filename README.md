@@ -54,6 +54,16 @@ The script pulls the prebuilt Docker image, which now contains the .NET Aspire w
 
 By default, the image is retrieved from `ghcr.io/devstress/flink-dotnet-linux:latest`. Set the environment variable `FLINK_IMAGE_REPOSITORY` to override the repository if needed.
 
+## Running Integration Tests on Linux
+
+Linux users can run the integration tests using the accompanying shell script:
+
+```bash
+bash scripts/run-integration-tests-in-linux.sh
+```
+
+Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, pulls the prebuilt image and runs the verification tests after a quick health check.
+
 ### Integration Test Image on GHCR
 
 The Linux Docker image used for integration tests is published publicly to GitHub Container Registry (GHCR) at `ghcr.io/devstress/flink-dotnet-linux:latest`. Instructions on publishing or updating the image via GitHub Actions are available in [GHCR Public Image and GitHub Actions](./docs/wiki/GHCR-Tokens.md).

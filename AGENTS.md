@@ -7,4 +7,4 @@ Typical commands:
 - `dotnet test FlinkDotNet/FlinkDotNet.sln -v minimal` for unit tests.
 - Integration tests mimic `.github/workflows/integration-tests.yml` and require Docker. They run inside a Linux container.
   They pull `ghcr.io/devstress/flink-dotnet-linux:latest` by default.
-  You can also run `scripts/run-integration-tests-in-windows-os.ps1` on Windows to reproduce the workflow.
+  Use `scripts/run-integration-tests-in-linux.sh` on Linux or `scripts/run-integration-tests-in-windows-os.ps1` on Windows to reproduce the workflow locally.
