@@ -5,12 +5,27 @@
         pwsh scripts/run-integration-tests-in-windows-os.ps1
 #>
 
+<#
+    Note: This script must be executed from an elevated PowerShell session.
+    The commands it runs require administrative privileges to start Docker
+    services and pull container images.
+#>
+
 param(
     [string]$SimMessages = "1000000"
 )
 
 # Ensure script executes from its own directory so relative paths resolve.
 Set-Location -Path $PSScriptRoot
+
+function Ensure-Admin {
+    $current = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($current)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Error "Administrator privileges are required. Please re-run this script in an elevated PowerShell session."
+        exit 1
+    }
+}
 
 function Install-DotNet {
     $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
@@ -40,6 +55,7 @@ function Check-Docker {
     }
 }
 
+Ensure-Admin
 Install-DotNet
 Check-Docker
 
