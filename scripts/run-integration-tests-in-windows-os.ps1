@@ -84,20 +84,13 @@ dotnet workload restore ../FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
 Build-Verifier
 
-# Acquire Integration Test Docker image
-if ($env:FLINK_IMAGE_REPOSITORY) {
-    $imageName = "$($env:FLINK_IMAGE_REPOSITORY)/flink-dotnet-linux:latest"
-} else {
-    $imageName = "ghcr.io/devstress/flink-dotnet-linux:latest"
-}
-Write-Host "Pulling docker image $imageName..."
-docker pull $imageName
 
-# Start container
-$containerName = "flink-dotnet-integration"
+# Start the Aspire AppHost locally
 $env:SIMULATOR_NUM_MESSAGES = $SimMessages
-docker run -d --name $containerName -e SIMULATOR_NUM_MESSAGES=$SimMessages -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 $imageName
-Write-Host "Waiting for container to initialize..."
+$env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
+$appHostPath = "../FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost"
+$appHost = Start-Process "dotnet" "run --no-build --project $appHostPath" -RedirectStandardOutput apphost.log -RedirectStandardError apphost.log -PassThru
+Write-Host "Waiting for AppHost to initialize..."
 Start-Sleep -Seconds 30
 
 $verifier = "../FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
@@ -109,14 +102,13 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     if ($LASTEXITCODE -eq 0) { Write-Host "Health check PASSED."; break }
     Write-Host "Health check FAILED. Waiting $delaySeconds seconds before retry..."
     Start-Sleep -Seconds $delaySeconds
-    if ($attempt -eq $maxAttempts) { Write-Host "Max attempts reached."; docker stop $containerName | Out-Null; docker rm $containerName | Out-Null; exit 1 }
+    if ($attempt -eq $maxAttempts) { Write-Host "Max attempts reached."; $appHost.Kill(); exit 1 }
 }
 
 Write-Host "Running verification tests..."
 dotnet $verifier
 $exitCode = $LASTEXITCODE
 
-docker stop $containerName | Out-Null
-docker rm $containerName | Out-Null
+$appHost.Kill()
 exit $exitCode
 
