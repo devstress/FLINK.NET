@@ -18,7 +18,10 @@ env:
 jobs:
   run-integration-tests:
     name: Run Flink.NET Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ghcr.io/devstress/flink-dotnet-linux:latest
+    container:
+      image: ghcr.io/devstress/flink-dotnet-linux:latest
+      options: --privileged
 
     defaults:
       run:
@@ -33,19 +36,6 @@ jobs:
       - name: Ensure Docker is running
         run: docker info
 
-      - name: Set up .NET 8.0
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Install .NET Aspire Workload
-        run: dotnet workload install aspire
-
-      - name: Restore .NET Workloads for Solutions
-        run: |
-          dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
       - name: Build Solutions (including Verifier)
         run: |
@@ -54,15 +44,17 @@ jobs:
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Pull Integration Test Docker Image
+      - name: Start Aspire AppHost
+        env:
+          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES_CI }}
+          ASPIRE_ALLOW_UNSECURED_TRANSPORT: "true"
+          ASPNETCORE_URLS: "http://0.0.0.0:5199"
+          DOTNET_DASHBOARD_OTLP_ENDPOINT_URL: "http://localhost:4317"
         run: |
-          docker pull ghcr.io/devstress/flink-dotnet-linux:latest
-
-      - name: Start Integration Test Container
-        run: |
-          docker run --privileged -d --name integration-test -e SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }} -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 ghcr.io/devstress/flink-dotnet-linux:latest
-          Write-Host "Waiting for container to initialize..."
+          /entrypoint.sh &
+          Write-Host "Waiting for AppHost to initialize..."
           Start-Sleep -Seconds 30
+
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
@@ -111,9 +103,3 @@ jobs:
           }
           echo "Verification tests PASSED."
 
-      - name: Stop Integration Test Container
-        if: always()
-        run: |
-          docker stop integration-test
-          docker rm integration-test
-          Write-Host "Container cleanup complete."
