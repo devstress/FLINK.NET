@@ -2,6 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY . .
+
+# Install Aspire workload so publishing succeeds
+RUN dotnet workload install aspire
+
 RUN dotnet publish IntegrationTestImage/IntegrationTestImage.csproj -c Release -o /app/publish
 
 # Final stage with Docker-in-Docker
