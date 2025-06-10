@@ -12,17 +12,16 @@ RUN dotnet build IntegrationTestImage/IntegrationTestImage.csproj -c Release
 FROM docker:26-dind
 WORKDIR /app
 
-# Install bash required by dotnet-install script
-RUN apk add --no-cache bash
-
-# Install .NET 8 runtime and Aspire workload
-ENV DOTNET_ROOT=/usr/share/dotnet
-ENV PATH="$PATH:/usr/share/dotnet"
-RUN wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
+# Install bash required by dotnet-install script and then install .NET
+RUN apk add --no-cache bash \
+    && wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh \
     && chmod +x dotnet-install.sh \
-    && ./dotnet-install.sh --version 8.0.116 --install-dir $DOTNET_ROOT \
-    && ln -s $DOTNET_ROOT/dotnet /usr/bin/dotnet \
+    && bash ./dotnet-install.sh --version 8.0.116 --install-dir /usr/share/dotnet \
+    && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet \
     && dotnet workload install aspire
+
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$DOTNET_ROOT
 
 # Pre-fetch Redis and Kafka images and store as archives
 RUN dockerd-entrypoint.sh & \
