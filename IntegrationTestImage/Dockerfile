@@ -16,7 +16,8 @@ RUN dotnet publish IntegrationTestImage/IntegrationTestImage.csproj \
     -o /app/publish
 
 # Final stage with Docker-in-Docker
-FROM docker:26-dind
+# Use the rootless variant so the container can run without --privileged
+FROM docker:26-dind-rootless
 WORKDIR /app
 
 # No runtime installation is required because the app is self-contained
