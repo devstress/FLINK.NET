@@ -19,6 +19,12 @@ RUN dotnet publish IntegrationTestImage/IntegrationTestImage.csproj \
 FROM docker:26-dind
 WORKDIR /app
 
+# Preload Redis and Kafka images so the AppHost can start them without pulling
+# This avoids lengthy network operations during health checks
+RUN apk add --no-cache skopeo \
+    && skopeo copy docker://redis:latest docker-archive:/redis.tar \
+    && skopeo copy docker://confluentinc/cp-kafka:latest docker-archive:/kafka.tar
+
 # No runtime installation is required because the app is self-contained
 COPY --from=build /app/publish/ .
 COPY IntegrationTestImage/entrypoint.sh /entrypoint.sh
