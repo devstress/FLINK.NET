@@ -50,21 +50,13 @@ A PowerShell script is provided for executing the integration tests locally. It 
 ./scripts/run-integration-tests.ps1
 ```
 
-The script builds the Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
+The script pulls the prebuilt Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
 
-Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry (for example, `ghcr.io/<owner>`) to pull a prebuilt image instead of building it locally.
+By default, the image is retrieved from `ghcr.io/devstress/flink-dotnet-windows:latest`. Set the environment variable `FLINK_IMAGE_REPOSITORY` to override the repository if needed.
 
-### Publishing and Retrieving the Integration Test Image
+### Integration Test Image on GHCR
 
-1. **Store credentials as secrets**
-   - In your repository, open **Settings → Secrets and variables → Actions**.
-   - Add secrets named `GHCR_USERNAME` (your GitHub username) and `GHCR_TOKEN` (a personal access token with `write:packages` and `read:packages` scopes).
-2. **Publish the image**
-   - Trigger the **Publish Integration Test Image** workflow from the *Actions* tab.
-   - The workflow will build the container and push `ghcr.io/<owner>/flink-dotnet-windows:latest` using the secrets above.
-3. **Use the image locally**
-   - Authenticate locally with `docker login ghcr.io -u <GHCR_USERNAME> -p <GHCR_TOKEN>`.
-   - Set `FLINK_IMAGE_REPOSITORY=ghcr.io/<owner>` and run the PowerShell script. It will pull the prebuilt image instead of building it.
+The Windows Docker image used for integration tests is published publicly to GitHub Container Registry (GHCR) at `ghcr.io/devstress/flink-dotnet-windows:latest`. Instructions on publishing or updating the image via GitHub Actions are available in [GHCR Public Image and GitHub Actions](./docs/wiki/GHCR-Tokens.md).
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.

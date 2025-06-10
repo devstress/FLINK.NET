@@ -36,15 +36,12 @@ dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
 # Acquire Integration Test Docker image
 if ($env:FLINK_IMAGE_REPOSITORY) {
-    $remoteImage = "$($env:FLINK_IMAGE_REPOSITORY)/flink-dotnet-windows:latest"
-    Write-Host "Pulling docker image $remoteImage..."
-    docker pull $remoteImage
-    $imageName = $remoteImage
+    $imageName = "$($env:FLINK_IMAGE_REPOSITORY)/flink-dotnet-windows:latest"
 } else {
-    Write-Host "Building docker image flink-dotnet-windows..."
-    dotnet publish IntegrationTestImage/IntegrationTestImage.csproj -p:PublishProfile=DockerDeploy
-    $imageName = "flink-dotnet-windows:latest"
+    $imageName = "ghcr.io/devstress/flink-dotnet-windows:latest"
 }
+Write-Host "Pulling docker image $imageName..."
+docker pull $imageName
 
 # Start container
 $containerName = "flink-dotnet-integration"
