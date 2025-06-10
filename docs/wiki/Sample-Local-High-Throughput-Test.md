@@ -4,7 +4,7 @@ This guide explains how to set up a local Flink.NET environment using the .NET A
 
 ## Prerequisites
 
-1.  **.NET 9.0 SDK:** Ensure you have the .NET 9.0 SDK installed.
+1.  **.NET 8.0 SDK:** Ensure you have the .NET 8.0 SDK installed.
 2.  **.NET Aspire Workload:** Install the Aspire workload:
     ```bash
     dotnet workload install aspire
