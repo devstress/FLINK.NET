@@ -1,6 +1,9 @@
 name: Publish Integration Test Image
 
 on:
+  push:
+    paths:
+      - 'IntegrationTestImage/**'
   workflow_dispatch:
 
 jobs:
