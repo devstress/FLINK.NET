@@ -34,27 +34,23 @@ dotnet workload restore FlinkDotNet/FlinkDotNet.sln
 dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
 dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-# Build
-Write-Host "Building solutions..."
-Push-Location FlinkDotNetAspire
- dotnet build FlinkDotNetAspire.sln --configuration Release
-Pop-Location
+# Acquire Integration Test Docker image
+if ($env:FLINK_IMAGE_REPOSITORY) {
+    $remoteImage = "$($env:FLINK_IMAGE_REPOSITORY)/flink-dotnet-windows:latest"
+    Write-Host "Pulling docker image $remoteImage..."
+    docker pull $remoteImage
+    $imageName = $remoteImage
+} else {
+    Write-Host "Building docker image flink-dotnet-windows..."
+    dotnet publish IntegrationTestImage/IntegrationTestImage.csproj -p:PublishProfile=DockerDeploy
+    $imageName = "flink-dotnet-windows:latest"
+}
 
-# Start Aspire AppHost
+# Start container
+$containerName = "flink-dotnet-integration"
 $env:SIMULATOR_NUM_MESSAGES = $SimMessages
-$env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
-$env:ASPNETCORE_URLS = "http://localhost:5199"
-$env:DOTNET_DASHBOARD_OTLP_ENDPOINT_URL = "http://localhost:4317"
-
-Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
- dotnet publish FlinkDotNetAspire.AppHost.csproj --configuration Release -p:IsPublishable=true -p:AspireManifestPublishOutputPath=../publish -t:GenerateAspireManifest
- Copy-Item ../publish/manifest.json ../aspire-manifest.json -Force
- $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -PassThru -RedirectStandardOutput ../../aspire-apphost.log -RedirectStandardError ../../aspire-apphost.err.log
- $aspirePid = $process.Id
-Pop-Location
-
-Write-Host "Aspire AppHost started with PID $aspirePid"
-Write-Host "Waiting for Aspire AppHost to initialize..."
+docker run -d --name $containerName -e SIMULATOR_NUM_MESSAGES=$SimMessages -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 $imageName
+Write-Host "Waiting for container to initialize..."
 Start-Sleep -Seconds 30
 
 $verifier = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
@@ -66,13 +62,14 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     if ($LASTEXITCODE -eq 0) { Write-Host "Health check PASSED."; break }
     Write-Host "Health check FAILED. Waiting $delaySeconds seconds before retry..."
     Start-Sleep -Seconds $delaySeconds
-    if ($attempt -eq $maxAttempts) { Write-Host "Max attempts reached."; Stop-Process -Id $aspirePid -Force; exit 1 }
+    if ($attempt -eq $maxAttempts) { Write-Host "Max attempts reached."; docker stop $containerName | Out-Null; docker rm $containerName | Out-Null; exit 1 }
 }
 
 Write-Host "Running verification tests..."
 dotnet $verifier
 $exitCode = $LASTEXITCODE
 
-Stop-Process -Id $aspirePid -Force
+docker stop $containerName | Out-Null
+docker rm $containerName | Out-Null
 exit $exitCode
 

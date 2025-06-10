@@ -44,13 +44,19 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 ## Running Integration Tests on Windows
 
-A PowerShell script is provided for executing the integration tests locally. It automatically installs the .NET 8 SDK and Docker Desktop using `winget` if they are missing. Run the script from an elevated PowerShell prompt:
+A PowerShell script is provided for executing the integration tests locally. It automatically installs the .NET 8 SDK and Docker Desktop using `winget` if they are missing. The tests now run inside a prebuilt Docker image (`flink-dotnet-windows`) that can also be used by the CI workflow. Run the script from an elevated PowerShell prompt:
 
 ```powershell
 ./scripts/run-integration-tests.ps1
 ```
 
-The script builds the solutions, launches the Aspire AppHost (which starts Redis and Kafka containers), performs health checks, and then executes the verification tests.
+The script builds the Docker image, starts a container running the Aspire AppHost (including Redis and Kafka), performs health checks, and then executes the verification tests.
+
+Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry (for example, `ghcr.io/<owner>`) to pull a prebuilt image instead of building it locally.
+
+### Publishing the Integration Test Image
+
+A workflow named **Publish Integration Test Image** can be triggered manually from GitHub's *Actions* tab. It builds the same Docker image and pushes it to the GitHub Container Registry under your account. After running this workflow, the image can be pulled as `ghcr.io/&lt;owner&gt;/flink-dotnet-windows:latest` for local or CI use without rebuilding.
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.

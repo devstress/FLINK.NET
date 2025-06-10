@@ -51,33 +51,21 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      - name: Build Solution (including Verifier)
+      - name: Build Solutions (including Verifier)
         run: |
           echo "Building FlinkDotNetAspire solution..."
           Push-Location FlinkDotNetAspire
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Start .NET Aspire Application
+      - name: Pull Integration Test Docker Image
         run: |
-          Write-Host "Starting Aspire AppHost with SIMULATOR_NUM_MESSAGES_CI=${env:SIMULATOR_NUM_MESSAGES_CI}..."
-          Push-Location FlinkDotNetAspire/FlinkDotNetAspire.AppHost
+          docker pull ghcr.io/${{ github.repository_owner }}/flink-dotnet-windows:latest
 
-          Write-Host "Generating Aspire manifest..."
-          dotnet publish FlinkDotNetAspire.AppHost.csproj --configuration Release -p:IsPublishable=true -p:AspireManifestPublishOutputPath=../publish -t:GenerateAspireManifest
-          Copy-Item ../publish/manifest.json ../aspire-manifest.json -Force
-          Write-Host "Aspire manifest generated at ../aspire-manifest.json"
-
-          $env:SIMULATOR_NUM_MESSAGES = "${{ env.SIMULATOR_NUM_MESSAGES_CI }}"
-          $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
-          $env:ASPNETCORE_URLS = "http://localhost:5199"
-          $env:DOTNET_DASHBOARD_OTLP_ENDPOINT_URL = "http://localhost:4317"
-
-          $process = Start-Process -FilePath dotnet -ArgumentList "run --project FlinkDotNetAspire.AppHost.csproj --no-launch-profile --no-build -c Release" -RedirectStandardOutput ../../aspire-apphost.log -RedirectStandardError ../../aspire-apphost.err.log -PassThru
-          $process.Id | Out-File ../../aspire-apphost.pid -Encoding ASCII
-          Pop-Location
-          Write-Host "Aspire AppHost started with PID $($process.Id)"
-          Write-Host "Waiting for Aspire AppHost to initialize..."
+      - name: Start Integration Test Container
+        run: |
+          docker run -d --name integration-test -e SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }} -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 ghcr.io/${{ github.repository_owner }}/flink-dotnet-windows:latest
+          Write-Host "Waiting for container to initialize..."
           Start-Sleep -Seconds 30
 
 
@@ -127,13 +115,9 @@ jobs:
           }
           echo "Verification tests PASSED."
 
-      - name: Stop .NET Aspire Application (Best Effort)
+      - name: Stop Integration Test Container
         if: always()
         run: |
-          Write-Host "Attempting to stop .NET Aspire AppHost..."
-          if (Test-Path "aspire-apphost.pid") {
-            $pid = Get-Content "aspire-apphost.pid"
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-          }
-          Get-Process | Where-Object { $_.Path -like '*FlinkDotNetAspire.AppHost*' } | Stop-Process -Force -ErrorAction SilentlyContinue
-          Write-Host "Cleanup complete."
+          docker stop integration-test
+          docker rm integration-test
+          Write-Host "Container cleanup complete."
