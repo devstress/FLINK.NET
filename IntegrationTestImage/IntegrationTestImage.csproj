@@ -5,7 +5,7 @@
     <PublishProfile>DefaultContainer</PublishProfile>
     <Dockerfile>Dockerfile</Dockerfile>
     <DockerfileContextDirectory>..</DockerfileContextDirectory>
-    <ContainerImageName>flink-dotnet-windows</ContainerImageName>
+    <ContainerImageName>flink-dotnet-linux</ContainerImageName>
     <ContainerImageTags>latest</ContainerImageTags>
   </PropertyGroup>
   <ItemGroup>
