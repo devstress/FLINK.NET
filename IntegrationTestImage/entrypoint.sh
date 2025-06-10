@@ -17,4 +17,4 @@ if [ -f /kafka.tar ]; then
   docker load -i /kafka.tar || true
 fi
 
-exec dotnet IntegrationTestImage.dll "$@"
+exec ./IntegrationTestImage "$@"
