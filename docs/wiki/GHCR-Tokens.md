@@ -1,6 +1,7 @@
 # GHCR Public Image and GitHub Actions
 
 This guide explains how to publish the integration test Docker image to GitHub Container Registry (GHCR) and make it publicly accessible.
+The image is available at `ghcr.io/devstress/flink-dotnet-linux:latest` for anyone to pull and run the integration tests locally.
 
 ## 1. Make the GHCR Package Public
 
