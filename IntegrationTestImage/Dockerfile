@@ -8,6 +8,9 @@ RUN dotnet publish IntegrationTestImage/IntegrationTestImage.csproj -c Release -
 FROM docker:26-dind
 WORKDIR /app
 
+# Install bash required by dotnet-install script
+RUN apk add --no-cache bash
+
 # Install .NET 8 runtime and Aspire workload
 ENV DOTNET_ROOT=/usr/share/dotnet
 ENV PATH="$PATH:/usr/share/dotnet"
