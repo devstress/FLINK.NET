@@ -5,7 +5,7 @@ This guide explains how to publish the integration test Docker image to GitHub C
 ## 1. Make the GHCR Package Public
 
 1. After the image is pushed the first time, open the **Packages** section of your repository on GitHub.
-2. Select the `flink-dotnet-windows` package.
+2. Select the `flink-dotnet-linux` package.
 3. Under **Package settings**, change the visibility to **Public**.
 
 Once the package is public, anyone can pull the image without authentication.

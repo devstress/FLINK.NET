@@ -1,3 +1,10 @@
+<#
+    This script reproduces the GitHub integration test workflow on a Windows
+    machine. Invoke it with PowerShell using the following command:
+
+        pwsh scripts/run-integration-tests-in-windows-os.ps1
+#>
+
 param(
     [string]$SimMessages = "1000000"
 )
@@ -36,9 +43,9 @@ dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
 # Acquire Integration Test Docker image
 if ($env:FLINK_IMAGE_REPOSITORY) {
-    $imageName = "$($env:FLINK_IMAGE_REPOSITORY)/flink-dotnet-windows:latest"
+    $imageName = "$($env:FLINK_IMAGE_REPOSITORY)/flink-dotnet-linux:latest"
 } else {
-    $imageName = "ghcr.io/devstress/flink-dotnet-windows:latest"
+    $imageName = "ghcr.io/devstress/flink-dotnet-linux:latest"
 }
 Write-Host "Pulling docker image $imageName..."
 docker pull $imageName
