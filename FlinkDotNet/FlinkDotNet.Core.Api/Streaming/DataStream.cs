@@ -228,28 +228,41 @@ namespace FlinkDotNet.Core.Api.Streaming
 
     // Simplified Transformation classes for illustration of the logical plan.
     // A more complete implementation would be needed for a full JobGraph builder.
-    public abstract class Transformation<TElement>
+
+    /// <summary>
+    /// Non-generic base type for all transformations so that they can be stored
+    /// in collections without invalid casts.
+    /// </summary>
+    public abstract class TransformationBase
     {
         public string Name { get; }
         public Type OutputType { get; }
         public int Parallelism { get; set; } = 1; // Default parallelism
-        public List<(Transformation<object> Output, ShuffleMode Mode)> DownstreamTransformations { get; } = new();
+        public List<(TransformationBase Output, ShuffleMode Mode)> DownstreamTransformations { get; } = new();
         public ChainingStrategy ChainingStrategy { get; set; } = ChainingStrategy.ALWAYS;
 
-        protected Transformation(string name, Type outputType)
+        protected TransformationBase(string name, Type outputType)
         {
             Name = name;
             OutputType = outputType;
         }
-        public void AddDownstreamTransformation<TDownstream>(Transformation<TDownstream> downstream, ShuffleMode mode)
+
+        public void AddDownstreamTransformation(TransformationBase downstream, ShuffleMode mode)
         {
             if (downstream is null)
             {
                 throw new ArgumentNullException(nameof(downstream));
             }
 
-            // Store generically typed transformation as object for now
-            DownstreamTransformations.Add(((Transformation<object>)(object)downstream, mode));
+            DownstreamTransformations.Add((downstream, mode));
+        }
+    }
+
+    public abstract class Transformation<TElement> : TransformationBase
+    {
+        protected Transformation(string name, Type outputType)
+            : base(name, outputType)
+        {
         }
     }
 
