@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'IntegrationTestImage/**'
+      - 'workflows/publish-integration-test-image.yml'
   workflow_dispatch:
 
 jobs:
