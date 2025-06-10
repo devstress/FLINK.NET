@@ -55,6 +55,10 @@ function Check-Docker {
     }
 }
 
+function Build-Verifier {
+    dotnet build ../FlinkDotNetAspire/IntegrationTestVerifier/IntegrationTestVerifier.csproj -c Release
+}
+
 Ensure-Admin
 Install-DotNet
 Check-Docker
@@ -77,6 +81,8 @@ Write-Host "Restoring workloads..."
 dotnet workload restore ../FlinkDotNet/FlinkDotNet.sln
 dotnet workload restore ../FlinkDotNetAspire/FlinkDotNetAspire.sln
 dotnet workload restore ../FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+
+Build-Verifier
 
 # Acquire Integration Test Docker image
 if ($env:FLINK_IMAGE_REPOSITORY) {

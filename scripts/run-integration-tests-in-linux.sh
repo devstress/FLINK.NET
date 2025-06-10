@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
 SIM_MESSAGES="${1:-1000000}"
 IMAGE_REPO="${FLINK_IMAGE_REPOSITORY:-ghcr.io/devstress}"
 IMAGE_NAME="${IMAGE_REPO}/flink-dotnet-linux:latest"
