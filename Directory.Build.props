@@ -5,6 +5,10 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest</AnalysisLevel>
 
+    <!-- Enable compiler analysis warnings like IDE0005 -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1711</NoWarn>
+
     <!-- Do not elevate warnings to errors -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
 
