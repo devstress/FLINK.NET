@@ -65,6 +65,9 @@ Set the environment variable `FLINK_IMAGE_REPOSITORY` to your container registry
 3. **Use the image locally**
    - Authenticate locally with `docker login ghcr.io -u <GHCR_USERNAME> -p <GHCR_TOKEN>`.
    - Set `FLINK_IMAGE_REPOSITORY=ghcr.io/<owner>` and run the PowerShell script. It will pull the prebuilt image instead of building it.
+4. **Token reference**
+   - See [GHCR Tokens and GitHub Actions Deployment](./docs/wiki/GHCR-Tokens.md) for details on creating deployment and read-only tokens.
+   - A placeholder read-only token is provided in `docs/ghcr-read-token.txt`.
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
