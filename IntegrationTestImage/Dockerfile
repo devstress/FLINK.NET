@@ -27,6 +27,6 @@ RUN dockerd-entrypoint.sh & \
     pkill dockerd
 
 COPY --from=build /app/publish .
-COPY entrypoint.sh /entrypoint.sh
+COPY IntegrationTestImage/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
