@@ -222,6 +222,8 @@ csharp_style_var_elsewhere = true:suggestion
 # Using directive preferences
 csharp_using_directive_placement = outside_namespace:suggestion
 dotnet_sort_system_directives_first = true
+dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.CS8019.severity = warning
 
 # Code block preferences
 csharp_prefer_braces = true:suggestion
