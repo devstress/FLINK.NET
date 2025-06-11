@@ -26,9 +26,19 @@ jobs:
           java-version: '17' # SonarScanner needs Java
           distribution: 'zulu'
 
+      - name: Debug workflow run context
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Workflow run conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow run status: ${{ github.event.workflow_run.status }}"
+          echo "Workflow run ID: ${{ github.event.workflow_run.id }}"
+          echo "Workflow run head branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Workflow run head SHA: ${{ github.event.workflow_run.head_sha }}"
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0  # Required for SonarCloud analysis to correctly track changes
 
       - name: Set up .NET 8.0
