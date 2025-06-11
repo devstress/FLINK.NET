@@ -1,21 +1,22 @@
 using FlinkDotNet.JobManager;
 using FlinkDotNet.JobManager.Interfaces;
 using FlinkDotNet.JobManager.Services;
+using FlinkDotNet.Common.Constants;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Determine ports from environment variables with Apache Flink style defaults
-int httpPort = 8088;
-int grpcPort = 50051;
+int httpPort = ServicePorts.JobManagerHttp;
+int grpcPort = ServicePorts.JobManagerGrpc;
+
+if (int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.JobManagerGrpcPort), out var envGrpc))
+{
+    grpcPort = envGrpc;
+}
 
 if (int.TryParse(Environment.GetEnvironmentVariable("JOBMANAGER_HTTP_PORT"), out var envHttp))
 {
     httpPort = envHttp;
-}
-
-if (int.TryParse(Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_PORT"), out var envGrpc))
-{
-    grpcPort = envGrpc;
 }
 
 builder.WebHost.ConfigureKestrel(options =>

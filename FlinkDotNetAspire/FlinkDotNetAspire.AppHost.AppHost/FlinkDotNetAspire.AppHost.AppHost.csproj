@@ -19,6 +19,7 @@
     <ProjectReference Include="..\FlinkJobSimulator\FlinkJobSimulator.csproj" />
 		<ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
 		<ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
+		<ProjectReference Include="..\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 
   <ItemGroup>

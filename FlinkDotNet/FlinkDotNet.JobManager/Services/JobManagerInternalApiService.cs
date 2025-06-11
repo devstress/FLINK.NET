@@ -6,6 +6,7 @@ using FlinkDotNet.JobManager.Checkpointing; // For CheckpointCoordinator
 using FlinkDotNet.JobManager.Models; // For TaskManagerInfo, JobManagerConfig
 using Grpc.Net.Client; // For GrpcChannel
 using System.Text.Json; // For JsonSerializer
+using FlinkDotNet.Common.Constants;
 
 // Assuming the generated base class is global::FlinkDotNet.Proto.Internal.JobManagerInternalService.JobManagerInternalServiceBase
 // The actual name depends on the .proto service definition and Grpc.Tools generation.
@@ -115,7 +116,7 @@ namespace FlinkDotNet.JobManager.Services
 
                     try
                     {
-                        var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
+                        var channelAddress = $"http://{targetTm.Address}:{targetTm.Port}";
                         using var channel = GrpcChannel.ForAddress(channelAddress);
                         var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                         _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10));

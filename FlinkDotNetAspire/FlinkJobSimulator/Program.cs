@@ -13,6 +13,7 @@ using FlinkDotNet.Core.Abstractions.Windowing; // For Watermark
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 using FlinkDotNet.JobManager.Models.JobGraph;
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkJobSimulator
 {
@@ -88,7 +89,7 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         if (string.IsNullOrEmpty(redisConnectionString))
         {
             Console.WriteLine($"[{_taskName}] ERROR: Redis connection string 'ConnectionStrings__redis' not found in environment variables for source.");
-            redisConnectionString = "localhost:6379";
+            redisConnectionString = ServiceUris.RedisConnectionString;
             Console.WriteLine($"[{_taskName}] Using default Redis connection string for source: {redisConnectionString}");
         }
         else
@@ -381,7 +382,7 @@ public static class Program
         {
             // Check JobManager HTTP endpoint for task managers
             using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync($"{jobManagerGrpcUrl.Replace("50051", "8088").Replace("grpc", "http")}/api/jobmanager/taskmanagers");
+            var response = await httpClient.GetAsync($"{jobManagerGrpcUrl.Replace(ServicePorts.JobManagerGrpc.ToString(), ServicePorts.JobManagerHttp.ToString()).Replace("grpc", "http")}/api/jobmanager/taskmanagers");
             
             if (response.IsSuccessStatusCode)
             {
@@ -442,7 +443,7 @@ public static class Program
         var jobManagerGrpcUrl = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
         if (string.IsNullOrEmpty(jobManagerGrpcUrl))
         {
-            var builder = new UriBuilder("http", "localhost", 50051);
+            var builder = new UriBuilder("http", ServiceHosts.Localhost, ServicePorts.JobManagerGrpc);
             jobManagerGrpcUrl = builder.Uri.ToString();
             Console.WriteLine($"JobManager gRPC URL not found in environment variables. Using default: {jobManagerGrpcUrl}");
         }

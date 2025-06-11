@@ -1,4 +1,6 @@
 #pragma warning disable S3776 // Cognitive Complexity of methods is too high
+using FlinkDotNet.Common.Constants;
+
 namespace IntegrationTestVerifier
 {
     using System;
@@ -43,12 +45,12 @@ namespace IntegrationTestVerifier
 
             if (string.IsNullOrEmpty(redisConnectionString))
             {
-                redisConnectionString = "localhost:6379";
+                redisConnectionString = ServiceUris.RedisConnectionString;
                 Console.WriteLine($"Redis connection string not found. Using default: {redisConnectionString}");
             }
             if (string.IsNullOrEmpty(kafkaBootstrapServers))
             {
-                kafkaBootstrapServers = "localhost:9092";
+                kafkaBootstrapServers = ServiceUris.KafkaBootstrapServers;
                 Console.WriteLine($"Kafka bootstrap servers not found. Using default: {kafkaBootstrapServers}");
             }
 
@@ -85,13 +87,13 @@ namespace IntegrationTestVerifier
 
             if (string.IsNullOrEmpty(redisConnectionStringFull))
             {
-                redisConnectionStringFull = "localhost:6379";
+                redisConnectionStringFull = ServiceUris.RedisConnectionString;
                 Console.WriteLine($"Redis connection string not found. Using default: {redisConnectionStringFull}");
             }
 
             if (string.IsNullOrEmpty(kafkaBootstrapServersFull))
             {
-                kafkaBootstrapServersFull = "localhost:9092";
+                kafkaBootstrapServersFull = ServiceUris.KafkaBootstrapServers;
                 Console.WriteLine($"Kafka bootstrap servers not found. Using default: {kafkaBootstrapServersFull}");
             }
 

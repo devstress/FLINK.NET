@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNetAspire.IntegrationTests;
 
@@ -136,7 +137,7 @@ public class AspireIntegrationTests
                 {
                     // Reproduce the exact DI configuration from TaskManager Program.cs
                     string taskManagerId = "TM-Test";
-                    string jobManagerAddress = "http://localhost:50051";
+                    string jobManagerAddress = ServiceUris.JobManagerGrpc;
                     
                     services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
                     services.AddHostedService<global::TaskManagerCoreService>();
@@ -172,7 +173,7 @@ public class AspireIntegrationTests
             .ConfigureServices((hostContext, services) =>
             {
                 string taskManagerId = "TM-Integration-Test";
-                string jobManagerAddress = "http://localhost:50051";
+                string jobManagerAddress = ServiceUris.JobManagerGrpc;
                 
                 // Register all required dependencies for TaskExecutor
                 services.AddSingleton<FlinkDotNet.TaskManager.ActiveTaskRegistry>();
@@ -222,7 +223,7 @@ public class AspireIntegrationTests
             // Create an AdminClient configuration that tries to connect to a non-existent broker
             var adminConfig = new Confluent.Kafka.AdminClientConfig
             {
-                BootstrapServers = "localhost:9092", // Assume Kafka is not running
+                BootstrapServers = ServiceUris.KafkaBootstrapServers, // Assume Kafka is not running
                 SecurityProtocol = Confluent.Kafka.SecurityProtocol.Plaintext
             };
             
@@ -255,7 +256,7 @@ public class AspireIntegrationTests
                 .ConfigureServices((hostContext, services) =>
                 {
                     string taskManagerId = "TM-Integration-Test";
-                    string jobManagerAddress = "http://localhost:50051";
+                    string jobManagerAddress = ServiceUris.JobManagerGrpc;
                     
                     // Reproduce the FIXED DI configuration from TaskManager Program.cs
                     services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));

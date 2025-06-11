@@ -5,6 +5,7 @@ using FlinkDotNet.JobManager.Models; // For CheckpointMetadata, TaskManagerInfo 
 using FlinkDotNet.Proto.Internal;    // For gRPC client (TaskManagerCheckpointing.TaskManagerCheckpointingClient)
 using Grpc.Net.Client;               // For GrpcChannel
 using FlinkDotNet.JobManager.Services; // Assuming TaskManagerTracker is in FlinkDotNet.JobManager.Services
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNet.JobManager.Checkpointing
 {
@@ -80,7 +81,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             {
                 try
                 {
-                    var channelAddress = $"https://{tmInfo.Address}:{tmInfo.Port}";
+                    var channelAddress = $"http://{tmInfo.Address}:{tmInfo.Port}";
                     _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: Attempting to connect to TM {TaskManagerId} at {ChannelAddress} for TriggerTaskCheckpoint.", _jobId, checkpointId, tmInfo.TaskManagerId, channelAddress);
 
                     using var channel = GrpcChannel.ForAddress(channelAddress);

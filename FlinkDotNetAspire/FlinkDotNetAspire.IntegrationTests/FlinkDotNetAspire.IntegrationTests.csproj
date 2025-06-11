@@ -31,6 +31,7 @@
     <ProjectReference Include="..\FlinkDotNetAspire.AppHost.AppHost\FlinkDotNetAspire.AppHost.AppHost.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
   </ItemGroup>
 
 </Project>

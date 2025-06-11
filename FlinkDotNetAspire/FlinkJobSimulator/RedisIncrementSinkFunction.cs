@@ -3,6 +3,7 @@ using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators; // For IOperatorLifecycle
 using StackExchange.Redis;
 using Microsoft.Extensions.Configuration; // Required for reading connection string
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkJobSimulator
 {
@@ -41,7 +42,7 @@ namespace FlinkJobSimulator
             {
                 Console.WriteLine($"[{_taskName}] ERROR: Redis connection string 'ConnectionStrings__redis' not found in environment variables.");
                 // Attempt a local default if not found (useful for non-Aspire testing, though Aspire should provide it)
-                redisConnectionString = "localhost:6379";
+                redisConnectionString = ServiceUris.RedisConnectionString;
                 Console.WriteLine($"[{_taskName}] Using default Redis connection string: {redisConnectionString}");
             }
             else

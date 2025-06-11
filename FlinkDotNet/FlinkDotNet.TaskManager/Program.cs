@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting; // Ensured for AddServiceDefaults
 using FlinkDotNet.TaskManager.Services;
 using FlinkDotNet.Core.Abstractions.Execution;
 using FlinkDotNet.Core.Abstractions.Storage; // For TaskManagerCheckpointingServiceImpl
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNet.TaskManager
 {
@@ -12,8 +13,8 @@ namespace FlinkDotNet.TaskManager
     {
         public static string TaskManagerId { get; private set; } = $"TM-{Guid.NewGuid()}";
         // Default gRPC port for TaskManager services (JobManager will call this)
-        public static int GrpcPort { get; private set; } = 50071;
-        public static string JobManagerAddress { get; private set; } = "http://localhost:50051";
+        public static int GrpcPort { get; private set; } = ServicePorts.TaskManagerGrpc;
+        public static string JobManagerAddress { get; private set; } = ServiceUris.JobManagerGrpc;
         public static TaskManagerCoreService? CoreServiceInstance { get; private set; }
 
 
@@ -47,7 +48,7 @@ namespace FlinkDotNet.TaskManager
 
             Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
             Console.WriteLine($"JobManager Address: {JobManagerAddress}");
-            Console.WriteLine($"TaskManager gRPC services listening on: http://localhost:{GrpcPort}");
+            Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
 
             var host = CreateHostBuilder(args).Build();
 

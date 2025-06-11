@@ -3,6 +3,7 @@ using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators; // For IOperatorLifecycle
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration; // Required for reading connection string & topic
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkJobSimulator
 {
@@ -34,7 +35,7 @@ namespace FlinkJobSimulator
             {
                 Console.WriteLine($"[{_taskName}] ERROR: Kafka bootstrap servers 'ConnectionStrings__kafka' not found in environment variables.");
                 // Attempt a local default if not found (useful for non-Aspire testing)
-                bootstrapServers = "localhost:9092";
+                bootstrapServers = ServiceUris.KafkaBootstrapServers;
                 Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
             }
             else

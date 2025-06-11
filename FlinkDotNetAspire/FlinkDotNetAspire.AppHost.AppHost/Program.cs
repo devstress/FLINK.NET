@@ -1,4 +1,5 @@
 // Existing using statements (implicit for DistributedApplication, Projects)
+using FlinkDotNet.Common.Constants;
 
 public class Program
 {
@@ -9,16 +10,16 @@ public class Program
         // Add resources
         // Bind Redis and Kafka containers to their default ports so tests can reliably
         // connect using localhost addresses without parsing the Aspire manifest.
-        var redis = builder.AddRedis("redis", port: 6379);
-        var kafka = builder.AddKafka("kafka", port: 9092); // Add Kafka resource
+        var redis = builder.AddRedis("redis", port: ServicePorts.Redis);
+        var kafka = builder.AddKafka("kafka", port: ServicePorts.Kafka); // Add Kafka resource
 
         // Set up for 1 million message high throughput test
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
 
         // Add JobManager (1 instance)
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
-            .WithEnvironment("JOBMANAGER_HTTP_PORT", "8088")
-            .WithEnvironment("JOBMANAGER_GRPC_PORT", "50051")
+            .WithEnvironment("JOBMANAGER_HTTP_PORT", ServicePorts.JobManagerHttp.ToString())
+            .WithEnvironment(EnvironmentVariables.JobManagerGrpcPort, ServicePorts.JobManagerGrpc.ToString())
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
         // Add TaskManagers (10 instances as per requirements)
@@ -27,7 +28,7 @@ public class Program
             builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("TASKMANAGER_GRPC_PORT", (51070 + i).ToString())
-                .WithEnvironment("services__jobmanager__grpc__0", "http://localhost:50051")
+                .WithEnvironment("services__jobmanager__grpc__0", ServiceUris.JobManagerGrpc)
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
         }
 
