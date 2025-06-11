@@ -80,7 +80,7 @@ jobs:
         shell: pwsh # Using PowerShell
         run: |
             function StripAnsiEscapeSequences($text) {
-              return $text -replace "[`u001B`\u009B][[()#;?]*[0-9;]*[0-9A-ORZcf-nqry=><]", ''
+                return $text -replace "`e\[[\d;]*[a-zA-Z]", ''
             }
             function RunCommandWithWarningCheck($command, $description) {
               Write-Host "Running $description"
