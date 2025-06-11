@@ -88,9 +88,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
         shell: pwsh # Using PowerShell
         run: |
-            function StripAnsiEscapeSequences($text) {
-              return $text -replace "[`u001B`\u009B][[()#;?]*[0-9;]*[0-9A-ORZcf-nqry=><]", ''
-            }
             function RunCommandWithWarningCheck($command, $description) {
               Write-Host "Running $description"
               $output = & $command 2>&1
@@ -101,10 +98,9 @@ jobs:
                 Write-Host "[FAIL] $description failed with exit code $LASTEXITCODE"
                 return -1
               }
-              $outputClean = $output | ForEach-Object { StripAnsiEscapeSequences $_ }
-              $warnings = $outputClean | Where-Object { $_ -match "(?i)Warning:" }
+              $warnings = $output | Where-Object { $_ -match "(?i)warning " }
               if ($warnings.Count -gt 0) {
-                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description:"
+                Write-Host "[WARN] Found warning(s) in $description:"
                 $warnings | ForEach-Object { Write-Host "  $_" }
               } else {
                 Write-Host "[OK] $description completed successfully with no warnings."
@@ -191,7 +187,7 @@ jobs:
             }
 
             if ($totalWarnings -gt 0) {
-              Write-Error "[ERROR] Should be no warning, found $totalWarnings warning(s)"
+              Write-Error "[ERROR] Should be no warning, found warning(s)"
             } else {
               Write-Host "[OK] All builds passed with no warnings."
             }
