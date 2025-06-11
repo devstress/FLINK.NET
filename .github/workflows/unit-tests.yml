@@ -10,7 +10,11 @@ on:
       - main # Or your primary branch name
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: |
+    ${{ github.workflow }}-${{
+      github.event_name == 'pull_request' 
+      && github.event.pull_request.number 
+      || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
