@@ -7,33 +7,21 @@ This directory contains custom instructions, configurations, and tools to enhanc
 ### Core Configuration
 - **`instructions.md`**: Custom instructions for GitHub Copilot with project-specific guidance
 - **`ai-context.md`**: Comprehensive project context documentation for AI agents
-- **`mcp-config.json`**: Model Context Protocol server configuration
-
-### MCP Servers
-- **`mcp-servers/docs-server.py`**: Documentation and wiki content server
-- **`mcp-servers/codebase-server.py`**: Project structure and pattern analysis server  
-- **`mcp-servers/testing-server.py`**: Testing guidance and pattern server
-
-### Scripts
-- **`start-mcp-servers.sh`**: Linux/macOS script to start MCP servers
-- **`Start-MCP-Servers.ps1`**: Windows PowerShell script to start MCP servers
+- **`mcp-config.json`**: Model Context Protocol configuration for GitHub Copilot
 
 ## Quick Start
 
 ### For GitHub Copilot Users
 GitHub Copilot will automatically use the instructions in `instructions.md` when working in this repository.
 
-### For AI Agents with MCP Support
-1. Start the MCP servers:
-   ```bash
-   # Linux/macOS
-   ./.copilot/start-mcp-servers.sh
-   
-   # Windows  
-   .\.copilot\Start-MCP-Servers.ps1
-   ```
+### For GitHub MCP Configuration
+Add the MCP configuration from `mcp-config.json` to your GitHub repository or organization settings:
 
-2. Configure your AI tool to use the MCP configuration in `mcp-config.json`
+1. Go to your GitHub repository settings
+2. Navigate to "Copilot" → "Model Context Protocol"
+3. Add the configuration from `mcp-config.json`
+
+This will enable GitHub Copilot to access project documentation and context directly through GitHub's native MCP support.
 
 ### For Manual Reference
 - Review `ai-context.md` for comprehensive project understanding
@@ -55,7 +43,7 @@ GitHub Copilot will automatically use the instructions in `instructions.md` when
 - Troubleshooting common issues
 
 ### Documentation Access
-- Searchable wiki content
+- Direct access to wiki content through GitHub Copilot
 - API documentation
 - Getting started guides
 - Advanced topics and tutorials
@@ -63,14 +51,14 @@ GitHub Copilot will automatically use the instructions in `instructions.md` when
 ## Usage Examples
 
 ### Getting Project Context
-Ask AI agents questions like:
+Ask GitHub Copilot questions like:
 - "What's the current architecture of Flink.NET?"
 - "How do I implement a new operator?"
 - "What are the testing patterns used in this project?"
 - "How does checkpoint coordination work?"
 
 ### Code Generation
-AI agents can help with:
+GitHub Copilot can help with:
 - Implementing new gRPC services following project patterns
 - Creating operators with proper state management
 - Writing unit and integration tests
@@ -89,7 +77,7 @@ To improve AI assistance for the project:
 
 1. **Update Instructions**: Modify `instructions.md` with new patterns or guidelines
 2. **Enhance Context**: Add information to `ai-context.md` for better project understanding
-3. **Extend MCP Servers**: Add new functionality to the Python MCP servers
+3. **Update MCP Config**: Modify `mcp-config.json` to add new resources or capabilities
 4. **Document Patterns**: Update documentation when new development patterns emerge
 
-The goal is to make AI agents as effective as possible at understanding and contributing to Flink.NET development.
+The goal is to make GitHub Copilot as effective as possible at understanding and contributing to Flink.NET development.

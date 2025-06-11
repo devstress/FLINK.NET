@@ -147,11 +147,15 @@ dotnet run --project FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 ### Custom Instructions
 See `.copilot/instructions.md` for detailed Copilot instructions specific to this project.
 
-### MCP Servers
-Model Context Protocol servers are configured in `.copilot/mcp-config.json` to provide:
-- Documentation and wiki content access
-- Codebase pattern analysis  
-- Testing guidance and patterns
+### GitHub MCP Configuration
+Model Context Protocol configuration in `.copilot/mcp-config.json` can be added to GitHub repository settings to provide GitHub Copilot with:
+- Direct access to documentation and wiki content
+- Enhanced project context and patterns
+- Better understanding of Flink.NET architecture
+
+To use this configuration:
+1. Go to repository Settings → Copilot → Model Context Protocol
+2. Add the configuration from `.copilot/mcp-config.json`
 
 ### Best Practices for AI Agents
 - Reference existing patterns in the codebase

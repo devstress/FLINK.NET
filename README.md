@@ -78,21 +78,17 @@ Flink.NET includes comprehensive AI assistance infrastructure to help developers
 - **Project Context**: AI agents have access to comprehensive project knowledge
 - **Development Patterns**: Built-in understanding of Flink.NET coding conventions
 
-#### Model Context Protocol (MCP) Servers
-Start MCP servers to provide rich context to AI agents:
+#### Model Context Protocol (MCP) Configuration
+Configure GitHub Copilot with enhanced project context:
 
-```bash
-# Linux/macOS
-./.copilot/start-mcp-servers.sh
+1. Add the MCP configuration from `.copilot/mcp-config.json` to your GitHub repository settings
+2. Navigate to repository Settings → Copilot → Model Context Protocol
+3. This enables GitHub Copilot to access project documentation and context directly
 
-# Windows
-.\.copilot\Start-MCP-Servers.ps1
-```
-
-The MCP servers provide:
-- **Documentation Server**: Access to all wiki content and project documentation
-- **Codebase Analysis**: Understanding of project structure and implementation patterns  
-- **Testing Guidance**: Recommendations for test patterns and execution
+The MCP configuration provides:
+- **Documentation Access**: Direct access to wiki content and project documentation
+- **Project Understanding**: Enhanced context about Flink.NET architecture and patterns
+- **Development Guidance**: Better assistance with implementation patterns and testing
 
 #### Using GitHub Copilot Agent
 
