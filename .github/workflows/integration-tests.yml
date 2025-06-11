@@ -113,8 +113,8 @@ jobs:
         if: always()
         run: |
           if (Test-Path apphost.pid) {
-            $pid = Get-Content apphost.pid
-            Write-Host "Stopping AppHost with PID $pid"
-            Stop-Process -Id $pid -Force
+            $apphostPid = Get-Content apphost.pid
+            Write-Host "Stopping AppHost with PID $apphostPid"
+            Stop-Process -Id $apphostPid -Force
           }
           Write-Host "AppHost cleanup complete."
