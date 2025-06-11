@@ -6,7 +6,7 @@ using FlinkDotNet.TaskManager.Services; // For TaskManagerCheckpointingServiceIm
 
 namespace FlinkDotNet.TaskManager
 {
-    public class Program
+    public static class Program
     {
         public static string TaskManagerId { get; private set; } = $"TM-{Guid.NewGuid()}";
         // Default gRPC port for TaskManager services (JobManager will call this)
@@ -75,7 +75,6 @@ namespace FlinkDotNet.TaskManager
                 // Calling it manually here might be redundant or even problematic if the host is also trying to stop it.
                 // However, if taskManagerCoreService needs to be stopped before the host fully stops, this could be a place.
                 // For typical IHostedService, manual StopAsync call here is not standard.
-                // await taskManagerCoreService.StopAsync(CancellationToken.None);
                 Console.WriteLine("TaskManager has shut down.");
             }
         }

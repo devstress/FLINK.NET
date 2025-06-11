@@ -103,7 +103,7 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
@@ -111,7 +111,28 @@ jobs:
             $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
 
             # Run tests with coverage collection using OpenCover format
-            $exitTest = RunCommandWithWarningCheck { dotnet test FlinkDotNet/FlinkDotNet.sln --no-build --collect:"XPlat Code Coverage;Format=opencover" --results-directory "./TestResults" --logger trx } "Test FlinkDotNet with coverage"
+            Write-Host "Running tests with coverage collection..."
+            $exitTest = RunCommandWithWarningCheck { dotnet test FlinkDotNet/FlinkDotNet.sln --no-build --collect:"XPlat Code Coverage" --results-directory "./TestResults" --logger trx --configuration Release } "Test FlinkDotNet with coverage"
+            
+            # Convert coverage files to OpenCover format for SonarCloud
+            Write-Host "Converting coverage to OpenCover format..."
+            Get-ChildItem -Path "./TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
+              $coberturaFile = $_.FullName
+              $openCoverFile = $_.DirectoryName + "/coverage.opencover.xml"
+              Write-Host "Converting $coberturaFile to $openCoverFile"
+              
+              # Install ReportGenerator if not already installed
+              dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
+              
+              # Convert Cobertura to OpenCover format
+              reportgenerator -reports:"$coberturaFile" -targetdir:"$($_.DirectoryName)" -reporttypes:"OpenCover" -verbosity:Info
+            }
+            
+            # List all coverage files for debugging
+            Write-Host "Coverage files found:"
+            Get-ChildItem -Path "./TestResults" -Recurse -Filter "*.xml" | ForEach-Object {
+              Write-Host "  $($_.FullName)"
+            }
 
             $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
             $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end"
