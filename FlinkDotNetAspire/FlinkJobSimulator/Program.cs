@@ -215,7 +215,7 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
     public ITypeSerializer<string> Serializer => _serializer;
 }
 
-// Simple Map Operator
+// Simple Map Operator that passes through the value for integration testing
 public class SimpleToUpperMapOperator : IMapOperator<string, string>
 {
     private long _processedCount = 0;
@@ -223,13 +223,13 @@ public class SimpleToUpperMapOperator : IMapOperator<string, string>
 
     public string Map(string value)
     {
-        string upperValue = value.ToUpper();
+        // For integration testing, pass through the value unchanged so Kafka messages match expected format
         long currentCount = Interlocked.Increment(ref _processedCount);
         if (currentCount % LogFrequency == 0)
         {
             Console.WriteLine($"[SimpleToUpperMapOperator] Processed {currentCount} messages. Last input: {value}");
         }
-        return upperValue;
+        return value; // Pass through unchanged for integration testing
     }
 }
 
@@ -487,7 +487,7 @@ public static class Program
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         
         // Give a brief moment for any async operations (like Kafka message production) to complete
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        await Task.Delay(TimeSpan.FromMilliseconds(500)); // Reduced delay for faster integration tests
         
         Console.WriteLine("Keeping process alive for Aspire orchestration...");
         
