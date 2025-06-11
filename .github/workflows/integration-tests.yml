@@ -92,14 +92,54 @@ jobs:
           $proc = [System.Diagnostics.Process]::Start($startInfo)
           $proc.Id | Out-File apphost.pid
           
-          # Start background jobs to continuously write output to log files
+          # Create a continuous monitoring script that displays output while saving it
+          $monitoringJob = Start-Job -ScriptBlock {
+            param($processId)
+            $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+            if (-not $process) { return }
+            
+            # Continuously check for new log content and display it
+            $lastOutSize = 0
+            $lastErrSize = 0
+            
+            while (-not $process.HasExited) {
+              try {
+                # Check stdout log
+                if (Test-Path "apphost.out.log") {
+                  $content = Get-Content "apphost.out.log" -Raw -ErrorAction SilentlyContinue
+                  if ($content -and $content.Length -gt $lastOutSize) {
+                    $newContent = $content.Substring($lastOutSize)
+                    Write-Host $newContent -NoNewline
+                    $lastOutSize = $content.Length
+                  }
+                }
+                
+                # Check stderr log
+                if (Test-Path "apphost.err.log") {
+                  $content = Get-Content "apphost.err.log" -Raw -ErrorAction SilentlyContinue
+                  if ($content -and $content.Length -gt $lastErrSize) {
+                    $newContent = $content.Substring($lastErrSize)
+                    Write-Host $newContent -NoNewline
+                    $lastErrSize = $content.Length
+                  }
+                }
+                
+                Start-Sleep -Milliseconds 100
+                $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+              } catch {
+                break
+              }
+            }
+          } -ArgumentList $proc.Id
+          
+          # Start background jobs to continuously write output to log files only
           $outputJob = Start-Job -ScriptBlock {
             param($process)
             try {
               while (!$process.StandardOutput.EndOfStream -and !$process.HasExited) {
                 $line = $process.StandardOutput.ReadLine()
                 if ($line) {
-                  Add-Content -Path "apphost.out.log" -Value $line
+                  Add-Content -Path "apphost.out.log" -Value $line -Force
                 }
               }
             } catch {}
@@ -111,7 +151,7 @@ jobs:
               while (!$process.StandardError.EndOfStream -and !$process.HasExited) {
                 $line = $process.StandardError.ReadLine()
                 if ($line) {
-                  Add-Content -Path "apphost.err.log" -Value $line
+                  Add-Content -Path "apphost.err.log" -Value $line -Force
                 }
               }
             } catch {}
@@ -119,6 +159,7 @@ jobs:
           
           $outputJob.Id | Out-File apphost.output.job
           $errorJob.Id | Out-File apphost.error.job
+          $monitoringJob.Id | Out-File apphost.monitoring.job
           Start-Sleep -Seconds 30
 
 
@@ -187,6 +228,11 @@ jobs:
         if: always()
         run: |
           # Stop background logging jobs first
+          if (Test-Path apphost.monitoring.job) {
+            $monitoringJobId = Get-Content apphost.monitoring.job
+            Stop-Job -Id $monitoringJobId -ErrorAction SilentlyContinue
+            Remove-Job -Id $monitoringJobId -ErrorAction SilentlyContinue
+          }
           if (Test-Path apphost.output.job) {
             $outputJobId = Get-Content apphost.output.job
             Stop-Job -Id $outputJobId -ErrorAction SilentlyContinue
@@ -215,11 +261,18 @@ jobs:
             Write-Host "apphost.pid file not found after stopping."
           }
           
-          # Display logs
+          # Display final logs
+          Write-Host "=================== APPHOST OUTPUT LOG ==================="
           if (Test-Path apphost.out.log) {
-            Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
+            Get-Content apphost.out.log
+          } else {
+            Write-Host "No apphost.out.log found"
           }
+          
+          Write-Host "=================== APPHOST ERROR LOG ==================="
           if (Test-Path apphost.err.log) {
-            Write-Host "apphost.err.log contents:"; Get-Content apphost.err.log -Raw
+            Get-Content apphost.err.log
+          } else {
+            Write-Host "No apphost.err.log found"
           }
           Write-Host "AppHost cleanup complete."

@@ -8,13 +8,11 @@ namespace FlinkDotNet.TaskManager.Services
     public class TaskManagerCheckpointingServiceImpl : TaskManagerCheckpointing.TaskManagerCheckpointingBase
     {
         private readonly string _taskManagerId;
-        private readonly ActiveTaskRegistry _activeTaskRegistry; // Added
 
         // Inject TaskManagerId or get it from a shared service/config
-        public TaskManagerCheckpointingServiceImpl(string taskManagerId, ActiveTaskRegistry activeTaskRegistry) // Modified
+        public TaskManagerCheckpointingServiceImpl(string taskManagerId)
         {
             _taskManagerId = taskManagerId;
-            _activeTaskRegistry = activeTaskRegistry ?? throw new ArgumentNullException(nameof(activeTaskRegistry)); // Added
         }
 
         public override Task<TriggerCheckpointResponse> TriggerTaskCheckpoint(

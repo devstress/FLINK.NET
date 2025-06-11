@@ -103,19 +103,22 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
             $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
             $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
 
+            # Run tests with coverage collection using OpenCover format
+            $exitTest = RunCommandWithWarningCheck { dotnet test FlinkDotNet/FlinkDotNet.sln --no-build --collect:"XPlat Code Coverage;Format=opencover" --results-directory "./TestResults" --logger trx } "Test FlinkDotNet with coverage"
+
             $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
             $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end"
 
             $totalWarnings = 0
             $buildFailed = $false
-            foreach ($exit in @($exitBegin, $exit1, $exit2, $exit3, $exitEnd)) {
+            foreach ($exit in @($exitBegin, $exit1, $exit2, $exit3, $exitTest, $exitEnd)) {
               if ($exit -lt 0) {
                 $buildFailed = $true
               } elseif ($exit -gt 0) {
