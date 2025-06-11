@@ -146,7 +146,6 @@ namespace FlinkDotNet.Core.Windowing
     {
         private readonly Func<T, long> _timestampExtractor;
         private readonly long _outOfOrderness;
-        private readonly TimeSpan _interval;
         private readonly Timer _timer;
         private long _currentWatermark = long.MinValue;
         private long _maxTimestamp = long.MinValue;
@@ -161,9 +160,9 @@ namespace FlinkDotNet.Core.Windowing
         {
             _timestampExtractor = timestampExtractor ?? throw new ArgumentNullException(nameof(timestampExtractor));
             _outOfOrderness = outOfOrderness;
-            _interval = interval ?? TimeSpan.FromSeconds(1);
+            var timerInterval = interval ?? TimeSpan.FromSeconds(1);
             
-            _timer = new Timer(EmitWatermark, null, _interval, _interval);
+            _timer = new Timer(EmitWatermark, null, timerInterval, timerInterval);
         }
 
         public long CurrentWatermark => _currentWatermark;
@@ -195,6 +194,7 @@ namespace FlinkDotNet.Core.Windowing
             {
                 _timer?.Dispose();
                 _disposed = true;
+                GC.SuppressFinalize(this);
             }
         }
     }

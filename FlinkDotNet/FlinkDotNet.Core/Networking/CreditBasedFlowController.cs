@@ -79,6 +79,16 @@ namespace FlinkDotNet.Core.Networking
                 ? channelCredits.AvailableCredits 
                 : 0;
         }
+
+        public bool IsLowWaterMark(string channelId)
+        {
+            return GetAvailableCredits(channelId) <= _lowWaterMark;
+        }
+
+        public bool IsHighWaterMark(string channelId)
+        {
+            return GetAvailableCredits(channelId) >= _highWaterMark;
+        }
     }
 
     /// <summary>
@@ -87,7 +97,6 @@ namespace FlinkDotNet.Core.Networking
     internal class ChannelCredits
     {
         private readonly object _lock = new object();
-        private readonly SemaphoreSlim _creditSemaphore;
         private readonly int _maxCredits;
         private int _availableCredits;
         private readonly Queue<TaskCompletionSource<bool>> _pendingRequests = new();
@@ -96,7 +105,6 @@ namespace FlinkDotNet.Core.Networking
         {
             _maxCredits = maxCredits;
             _availableCredits = maxCredits;
-            _creditSemaphore = new SemaphoreSlim(maxCredits, maxCredits);
         }
 
         public int AvailableCredits
@@ -179,20 +187,20 @@ namespace FlinkDotNet.Core.Networking
     /// <summary>
     /// Backpressure monitor that tracks system pressure and adjusts flow control
     /// </summary>
-    public class BackpressureMonitor
+    public class BackpressureMonitor : IDisposable
     {
         private readonly ICreditBasedFlowController _flowController;
         private readonly ConcurrentDictionary<string, ChannelMetrics> _channelMetrics;
         private readonly Timer _monitoringTimer;
-        private readonly TimeSpan _monitoringInterval;
+        private bool _disposed;
 
         public BackpressureMonitor(ICreditBasedFlowController flowController, TimeSpan? monitoringInterval = null)
         {
             _flowController = flowController ?? throw new ArgumentNullException(nameof(flowController));
             _channelMetrics = new ConcurrentDictionary<string, ChannelMetrics>();
-            _monitoringInterval = monitoringInterval ?? TimeSpan.FromSeconds(1);
+            var interval = monitoringInterval ?? TimeSpan.FromSeconds(1);
             
-            _monitoringTimer = new Timer(MonitorBackpressure, null, _monitoringInterval, _monitoringInterval);
+            _monitoringTimer = new Timer(MonitorBackpressure, null, interval, interval);
         }
 
         public void RecordDataSent(string channelId, int bytes)
@@ -211,7 +219,7 @@ namespace FlinkDotNet.Core.Networking
 
         public double GetBackpressureRatio(string channelId)
         {
-            if (!_channelMetrics.TryGetValue(channelId, out var metrics))
+            if (!_channelMetrics.TryGetValue(channelId, out _))
                 return 0.0;
 
             var totalCapacity = _flowController.GetAvailableCredits(channelId);
@@ -224,11 +232,8 @@ namespace FlinkDotNet.Core.Networking
 
         private void MonitorBackpressure(object? state)
         {
-            foreach (var kvp in _channelMetrics)
+            foreach (var channelId in _channelMetrics.Keys)
             {
-                var channelId = kvp.Key;
-                var metrics = kvp.Value;
-                
                 var backpressureRatio = GetBackpressureRatio(channelId);
                 
                 // Adjust credits based on backpressure
@@ -252,7 +257,12 @@ namespace FlinkDotNet.Core.Networking
 
         public void Dispose()
         {
-            _monitoringTimer?.Dispose();
+            if (!_disposed)
+            {
+                _monitoringTimer?.Dispose();
+                _disposed = true;
+                GC.SuppressFinalize(this);
+            }
         }
     }
 
