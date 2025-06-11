@@ -90,7 +90,7 @@ jobs:
                 return -1
               }
 
-              # Filter out harmless warnings from SonarScanner and package operations
+              # Filter out harmless warnings from SonarScanner, package operations, and test output
               $warnings = $output | Where-Object { 
                 $_ -match "(?i)Warning:" -and
                 $_ -notmatch "(?i)Skipping NuGet package signature verification" -and
@@ -98,7 +98,10 @@ jobs:
                 $_ -notmatch "(?i)sonar.scanner" -and
                 $_ -notmatch "(?i)Using the .NET Core version of the Scanner for .NET" -and
                 $_ -notmatch "(?i)Pre-processing started" -and
-                $_ -notmatch "(?i)Post-processing started"
+                $_ -notmatch "(?i)Post-processing started" -and
+                $_ -notmatch "(?i)\[FileSystemSnapshot.*\] WARNING:" -and
+                $_ -notmatch "(?i)Snapshot directory not found" -and
+                $_ -notmatch "(?i)Commit called but these keyed states were not ended"
               }
               if ($warnings.Count -gt 0) {
                 Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description"
