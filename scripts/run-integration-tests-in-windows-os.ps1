@@ -89,7 +89,13 @@ Build-Verifier
 $env:SIMULATOR_NUM_MESSAGES = $SimMessages
 $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
 $appHostProject = "../FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj"
-$appHost = Start-Process "dotnet" "run --no-build --project $appHostProject" -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -PassThru
+$arguments = @(
+    'run',
+    '--no-build',
+    '--configuration', 'Release',
+    '--project', $appHostProject
+)
+$appHost = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
 Write-Host "Waiting for AppHost to initialize..."
 Start-Sleep -Seconds 30
 
@@ -109,7 +115,14 @@ Write-Host "Running verification tests..."
 dotnet $verifier
 $exitCode = $LASTEXITCODE
 
-$null = Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue
-Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log
+$null = $null
+if ($appHost -ne $null -and -not $appHost.HasExited) {
+    $null = Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue
+} else {
+    Write-Host "AppHost was not running."
+}
+if (Test-Path apphost.out.log) {
+    Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log
+}
 exit $exitCode
 

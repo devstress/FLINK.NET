@@ -58,7 +58,13 @@ jobs:
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
-          $proc = Start-Process "dotnet" "run --no-build --project FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj" -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -PassThru
+          $arguments = @(
+            'run',
+            '--no-build',
+            '--configuration', 'Release',
+            '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
+          )
+          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
           $proc.Id | Out-File apphost.pid
           Start-Sleep -Seconds 30
 
@@ -116,6 +122,13 @@ jobs:
             $apphostPid = Get-Content apphost.pid
             Write-Host "Stopping AppHost with PID $apphostPid"
             Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "No AppHost PID file found."
+          }
+          if (Test-Path apphost.out.log) {
             Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
+          }
+          if (Test-Path apphost.err.log) {
+            Write-Host "apphost.err.log contents:"; Get-Content apphost.err.log -Raw
           }
           Write-Host "AppHost cleanup complete."

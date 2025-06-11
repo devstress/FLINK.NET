@@ -36,7 +36,7 @@ build_verifier() {
 start_apphost() {
     ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
     SIMULATOR_NUM_MESSAGES="$SIM_MESSAGES" \
-    dotnet run --no-build --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
+    dotnet run --no-build --configuration Release --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
     APPHOST_PID=$!
 }
 
@@ -44,6 +44,10 @@ stop_apphost() {
     if [[ -n "$APPHOST_PID" ]]; then
         kill "$APPHOST_PID" 2>/dev/null || true
         wait "$APPHOST_PID" 2>/dev/null || true
+    else
+        echo "No AppHost PID found."
+    fi
+    if [[ -f apphost.log ]]; then
         echo "apphost.log contents:" && cat apphost.log
     fi
 }
