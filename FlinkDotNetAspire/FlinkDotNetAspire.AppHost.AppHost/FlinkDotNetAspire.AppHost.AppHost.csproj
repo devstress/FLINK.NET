@@ -21,6 +21,8 @@
     <PackageReference Include="Aspire.Hosting.AppHost" Version="9.3.1" />
     <PackageReference Include="Aspire.Hosting.Redis" Version="9.3.1" />
 		<PackageReference Include="Aspire.Hosting.Kafka" Version="9.3.1" />
+		<PackageReference Include="Google.Protobuf" Version="3.31.1" />
+		<PackageReference Include="StackExchange.Redis" Version="2.8.41" />
   </ItemGroup>
 
 </Project>
