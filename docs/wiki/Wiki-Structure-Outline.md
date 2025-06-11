@@ -29,7 +29,7 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 ## 2. Core Concepts (Flink.NET Implementation)
 *   **Architecture Overview** (See main [Readme.md](../Readme.md#system-design-overview))
   *   [JobManager](Core-Concepts-JobManager.md)
-    *   *Flink.NET Content:* Role in Flink.NET, HA setup (planned).
+    *   *Flink.NET Content:* Role in Flink.NET, HA setup with leader election and cross-region failover.
     *   *Apache Flink Ref:* [JobManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#jobmanager), [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/)
   *   [TaskManager](Core-Concepts-TaskManager.md)
     *   *Flink.NET Content:* Role in Flink.NET, execution of tasks, pod structure.
@@ -105,4 +105,7 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 ## 7. Advanced Topics
 *   [Metrics and Monitoring](Advanced-Metrics-Monitoring.md)
 *   [Security](Advanced-Security.md)
+*   [Enterprise High Availability](Enterprise-High-Availability.md)
+  *   *Flink.NET Content:* Leader election, automatic failover, cross-region disaster recovery, production deployment configurations
+  *   *Apache Flink Ref:* [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/), [Production Setup](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/production_setup/)
 *   **Performance Tuning** (Note: a dedicated [Memory Tuning](Core-Concepts-Memory-Tuning.md) page now exists under Core Concepts. This could be expanded or link to it.)
