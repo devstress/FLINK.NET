@@ -7,7 +7,6 @@ This directory contains FlinkDotNetAspire projects which are simulation, tooling
 All projects in this directory are excluded from SonarCloud coverage and reliability requirements through:
 
 1. **Directory.Build.props**: Contains project-wide SonarCloud exclusion properties
-2. **Individual project files**: Each project has additional SonarCloud exclusion properties
 
 ### Properties Used
 
