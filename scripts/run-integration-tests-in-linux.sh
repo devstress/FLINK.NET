@@ -44,6 +44,7 @@ stop_apphost() {
     if [[ -n "$APPHOST_PID" ]]; then
         kill "$APPHOST_PID" 2>/dev/null || true
         wait "$APPHOST_PID" 2>/dev/null || true
+        echo "apphost.log contents:" && cat apphost.log
     fi
 }
 

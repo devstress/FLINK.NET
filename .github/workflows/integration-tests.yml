@@ -116,5 +116,6 @@ jobs:
             $apphostPid = Get-Content apphost.pid
             Write-Host "Stopping AppHost with PID $apphostPid"
             Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+            Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
           }
           Write-Host "AppHost cleanup complete."

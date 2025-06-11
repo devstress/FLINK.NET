@@ -1,3 +1,4 @@
+using System;
 using FlinkDotNet.JobManager;
 using FlinkDotNet.JobManager.Interfaces;
 using FlinkDotNet.JobManager.Services;
@@ -49,7 +50,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
+if (!string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase))
+{
+    app.UseHttpsRedirection();
+}
 
 // Map REST API controllers (ASP.NET Core default if using [ApiController] attribute with routing)
 // If not using default conventional routing for controllers, ensure app.MapControllers(); is present.

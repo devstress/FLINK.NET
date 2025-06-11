@@ -110,5 +110,6 @@ dotnet $verifier
 $exitCode = $LASTEXITCODE
 
 $null = Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue
+Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log
 exit $exitCode
 
