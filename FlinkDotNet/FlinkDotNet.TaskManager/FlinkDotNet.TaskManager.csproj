@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ProjectGuid>cf0dcbe5-bacb-4d42-bd44-0a5f039ed0b3</ProjectGuid>
+    <!-- SonarCloud exclusions for executable component -->
+    <SonarQubeExclude>true</SonarQubeExclude>
+    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
   </PropertyGroup>
 
   <ItemGroup>

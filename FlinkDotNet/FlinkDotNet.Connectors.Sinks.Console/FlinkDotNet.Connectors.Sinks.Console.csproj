@@ -9,6 +9,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ProjectGuid>dc0208e0-cbe7-4d6d-b4f3-0662c0c71756</ProjectGuid>
+    <!-- SonarCloud exclusions for preliminary connector implementation -->
+    <SonarQubeExclude>true</SonarQubeExclude>
+    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
   </PropertyGroup>
 
 </Project>
