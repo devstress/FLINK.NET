@@ -91,7 +91,7 @@ jobs:
               }
               $warnings = $output | Where-Object { $_ -match "(?i)warning " }
               if ($warnings.Count -gt 0) {
-                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description"
+                Write-Host "[WARN] Found warning(s) in $description"
               } else {
                 Write-Host "[OK] $description completed successfully with no warnings."
               }
@@ -124,7 +124,7 @@ jobs:
             }
 
             if ($totalWarnings -gt 0) {
-              Write-Error "[ERROR] Should be no warning, found $totalWarnings warning(s)"
+              Write-Error "[ERROR] Should be no warning, found warning(s)"
             } else {
               Write-Host "[OK] All builds passed with no warnings."
             }
