@@ -311,7 +311,9 @@ namespace FlinkDotNet.Core.Memory
         /// 6. The unsafe context is limited to only the specific operations that require it
         /// 7. No unsafe pointer arithmetic is performed beyond creating the Span
         /// </remarks>
+#pragma warning disable S6640 // Using "unsafe" should be reviewed - this is safe and necessary for direct memory allocation
         public unsafe OffHeapMemorySegment(int size)
+#pragma warning restore S6640
         {
             _size = size;
             _pointer = Marshal.AllocHGlobal(size);
@@ -332,7 +334,9 @@ namespace FlinkDotNet.Core.Memory
         /// 3. Disposal state is checked before accessing the memory
         /// 4. The Span provides bounds checking for all subsequent access
         /// </remarks>
-        public unsafe Span<byte> Span => _disposed 
+#pragma warning disable S6640 // Using "unsafe" should be reviewed - this is safe and necessary for direct memory access
+        public unsafe Span<byte> Span => _disposed
+#pragma warning restore S6640 
             ? throw new ObjectDisposedException(nameof(OffHeapMemorySegment))
             : new Span<byte>((void*)_pointer, _size);
 
