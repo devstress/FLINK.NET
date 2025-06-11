@@ -15,7 +15,29 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
         {
             if (Directory.Exists(_testDirectory))
             {
-                Directory.Delete(_testDirectory, recursive: true);
+                try
+                {
+                    // Force garbage collection to close any lingering file handles
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    
+                    Directory.Delete(_testDirectory, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // On Windows, sometimes files are still locked. 
+                    // Try a second time after a brief delay
+                    try
+                    {
+                        Thread.Sleep(100);
+                        Directory.Delete(_testDirectory, recursive: true);
+                    }
+                    catch (IOException)
+                    {
+                        // If it still fails, ignore the cleanup error
+                        // The temp directory will be cleaned up by the OS eventually
+                    }
+                }
             }
         }
 

@@ -282,6 +282,20 @@ namespace FlinkDotNet.Core.Memory
         private readonly int _size;
         private bool _disposed;
 
+        /// <summary>
+        /// Initializes a new instance of the OffHeapMemorySegment class.
+        /// </summary>
+        /// <param name="size">The size of the memory segment to allocate.</param>
+        /// <remarks>
+        /// This constructor uses unsafe code to allocate unmanaged memory via Marshal.AllocHGlobal.
+        /// The unsafe keyword is required here to create a Span&lt;byte&gt; from the raw pointer.
+        /// This is safe because:
+        /// 1. The memory is properly allocated using Marshal.AllocHGlobal
+        /// 2. The size parameter is validated and stored for bounds checking
+        /// 3. The memory is zeroed immediately after allocation
+        /// 4. The memory is properly freed in the Dispose method using Marshal.FreeHGlobal
+        /// 5. Access to the memory is controlled through the Span property which checks disposal state
+        /// </remarks>
         public unsafe OffHeapMemorySegment(int size)
         {
             _size = size;

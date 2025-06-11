@@ -373,7 +373,7 @@ namespace FlinkDotNet.Core.Tests.Networking
             // Act - Read data
             using var readStream = networkBuffer.GetReadStream();
             var readData = new byte[testData.Length];
-            readStream.Read(readData, 0, testData.Length);
+            readStream.ReadExactly(readData, 0, testData.Length);
 
             // Assert
             Assert.Equal(testData, readData);

@@ -24,8 +24,8 @@ namespace FlinkDotNet.TaskManager
         public int SubtaskIndex { get; set; }
         public System.Threading.Channels.ChannelWriter<BarrierInjectionRequest> BarrierChannelWriter { get; set; } = System.Threading.Channels.Channel.CreateUnbounded<BarrierInjectionRequest>().Writer;
     }
-}
 
     public interface IOperatorBarrierHandler
     {
     }
+}
