@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.ServiceDefaults", "FlinkDotNetAspire.AppHost.ServiceDefaults\FlinkDotNetAspire.AppHost.ServiceDefaults.csproj", "{B8A0CC66-6F75-5A12-2B67-9D42401593D2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.IntegrationTests", "FlinkDotNetAspire.IntegrationTests\FlinkDotNetAspire.IntegrationTests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,6 +34,10 @@ Global
 		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

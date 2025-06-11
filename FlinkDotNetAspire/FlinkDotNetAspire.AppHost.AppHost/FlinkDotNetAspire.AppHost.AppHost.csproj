@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FlinkDotNetAspire.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\FlinkJobSimulator\FlinkJobSimulator.csproj" />
 		<ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
 		<ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
