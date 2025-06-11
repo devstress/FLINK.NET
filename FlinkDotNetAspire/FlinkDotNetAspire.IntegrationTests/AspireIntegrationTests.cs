@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNetAspire.IntegrationTests;
