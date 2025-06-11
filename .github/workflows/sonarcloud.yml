@@ -1,19 +1,10 @@
 name: SonarCloud Analysis
 
 on:
-  push:
-    branches:
-      - main # Or your primary branch name
-  pull_request:
-    types: [synchronize]
-    branches:
-      - main # Or your primary branch name
   workflow_run:
     workflows: ["Unit Tests"]
     types:
       - completed
-    branches:
-      - main
 
 concurrency:
   group: |
@@ -27,6 +18,7 @@ jobs:
   build:
     name: Build and Analyze
     runs-on: windows-latest # Using windows-latest as per user's provided workflow
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Set up JDK 17
         uses: actions/setup-java@v4
