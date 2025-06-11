@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting; // Ensured for AddServiceDefaults
 using FlinkDotNet.TaskManager.Services; // For TaskManagerCheckpointingServiceImpl
+using FlinkDotNet.Core.Abstractions.Execution; // For SerializerRegistry
+using FlinkDotNet.Core.Abstractions.Storage; // For IStateSnapshotStore
 
 namespace FlinkDotNet.TaskManager
 {
@@ -88,8 +90,26 @@ namespace FlinkDotNet.TaskManager
                     services.AddSingleton(new TaskManagerCoreService.Config(TaskManagerId, JobManagerAddress));
                     services.AddHostedService<TaskManagerCoreService>();
 
-                    // Register TaskExecutor
-                    services.AddSingleton<TaskExecutor>();
+                    // Register dependencies required by TaskExecutor
+                    services.AddSingleton<ActiveTaskRegistry>();
+                    services.AddSingleton<SerializerRegistry>();
+                    services.AddSingleton<IStateSnapshotStore, InMemoryStateSnapshotStore>();
+
+                    // Register TaskExecutor with its dependencies
+                    services.AddSingleton<TaskExecutor>(sp =>
+                    {
+                        var activeTaskRegistry = sp.GetRequiredService<ActiveTaskRegistry>();
+                        var checkpointingService = sp.GetRequiredService<TaskManagerCheckpointingServiceImpl>();
+                        var serializerRegistry = sp.GetRequiredService<SerializerRegistry>();
+                        var stateStore = sp.GetRequiredService<IStateSnapshotStore>();
+                        
+                        return new TaskExecutor(
+                            activeTaskRegistry,
+                            checkpointingService,
+                            serializerRegistry,
+                            TaskManagerId,
+                            stateStore);
+                    });
 
                     // Register gRPC services
                     services.AddGrpc();
