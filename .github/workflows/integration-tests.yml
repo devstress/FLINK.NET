@@ -74,7 +74,7 @@ jobs:
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
           $maxAttempts = 10
-          $delaySeconds = 15
+          $delaySeconds = 2
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
