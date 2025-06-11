@@ -67,7 +67,67 @@ Pass an optional argument to control the number of simulated messages. The scrip
 The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `8088` and `50051` by default. To override these values set the environment variables `JOBMANAGER_HTTP_PORT` and `JOBMANAGER_GRPC_PORT`. The TaskManager gRPC port can be configured with `TASKMANAGER_GRPC_PORT`.
 
 ## AI-Assisted Development
-The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
+
+Flink.NET leverages modern AI-powered development tools to accelerate and enhance the development process. The following AI agents are supported:
+
+### Supported AI Agents
+
+- **GitHub Copilot Agent** ⭐ (Recommended)
+- **ChatGPT's Codex AI**
+- **Google's Jules AI**
+
+### Using AI Agents
+
+#### GitHub Copilot Agent (Recommended)
+
+**Why Copilot Agent?**
+GitHub Copilot Agent is the recommended AI assistant for Flink.NET development due to its deep integration with GitHub workflows, excellent .NET/C# support, and ability to understand the project context directly within your IDE.
+
+**Assignment Process:**
+1. **Repository Setup**: Ensure you have GitHub Copilot enabled in your GitHub account
+2. **IDE Integration**: Install the GitHub Copilot extension in your preferred IDE (Visual Studio, VS Code, etc.)
+3. **Project Context**: Open the Flink.NET repository in your IDE - Copilot will automatically understand the project structure and context
+4. **Enable Copilot Chat**: Use `Ctrl+Shift+I` (or `Cmd+Shift+I` on Mac) to open Copilot Chat for contextual assistance
+
+**Automation Process:**
+- **Code Completion**: Copilot provides real-time code suggestions as you type
+- **Documentation Generation**: Ask Copilot to generate XML documentation for your methods and classes
+- **Test Generation**: Request unit tests for specific methods or classes
+- **Code Review**: Use Copilot to review code changes and suggest improvements
+- **Refactoring**: Get suggestions for code optimization and refactoring
+
+**Example Usage:**
+```csharp
+// Type a comment describing what you want to implement
+// Copilot will suggest the implementation
+// Example: "Create a method to validate job graph vertices"
+```
+
+#### ChatGPT's Codex AI
+
+ChatGPT can be used for:
+- High-level architectural discussions
+- Complex algorithm explanations
+- Code review and optimization suggestions
+- Documentation writing
+
+**Usage**: Copy code snippets or describe your problem in ChatGPT for detailed explanations and solutions.
+
+#### Google's Jules AI
+
+Jules AI excels at:
+- Code analysis and debugging
+- Performance optimization suggestions
+- Best practices recommendations
+
+**Usage**: Integrate Jules AI through supported IDEs or use it for code analysis workflows.
+
+### Best Practices for AI-Assisted Development
+
+1. **Always Review AI Suggestions**: While AI tools are powerful, always review and test generated code
+2. **Provide Context**: Give clear, specific prompts to get better results
+3. **Iterate**: Use AI suggestions as starting points and refine based on project requirements
+4. **Test Thoroughly**: Run tests after implementing AI-generated code to ensure correctness
 
 ## Getting Involved & Contribution
 
