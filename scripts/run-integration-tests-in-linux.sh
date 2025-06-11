@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
 SIM_MESSAGES="${1:-1000000}"
-APPHOST_DIR="FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost"
+APPHOST_PROJECT="FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj"
 APPHOST_PID=""
 
 check_dotnet() {
@@ -36,7 +36,7 @@ build_verifier() {
 start_apphost() {
     ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
     SIMULATOR_NUM_MESSAGES="$SIM_MESSAGES" \
-    dotnet run --no-build --project "$APPHOST_DIR" > apphost.log 2>&1 &
+    dotnet run --no-build --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
     APPHOST_PID=$!
 }
 
