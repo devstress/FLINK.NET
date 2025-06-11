@@ -5,7 +5,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [review_requested]
 
 jobs:
   build:
