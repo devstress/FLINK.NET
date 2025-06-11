@@ -6,9 +6,6 @@
     <Nullable>enable</Nullable>
     <NoWarn>IDE0005;CS8019;CS1591;CS1711</NoWarn>
     <ProjectGuid>00b3c21d-105a-4064-b743-4bdb49e457a0</ProjectGuid>
-    <!-- SonarCloud exclusions for abstractions library -->
-    <SonarQubeExclude>true</SonarQubeExclude>
-    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
   </PropertyGroup>
 
   <ItemGroup>

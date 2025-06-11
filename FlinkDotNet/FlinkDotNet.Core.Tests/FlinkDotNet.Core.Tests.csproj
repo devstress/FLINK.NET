@@ -3,10 +3,9 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Enable nullable reference analysis for test sources -->
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <ProjectGuid>43f3a049-2e1b-4eed-9bd7-b07d5d7fd06b</ProjectGuid>
+    <ProjectGuid>af7e8b2e-5c1a-4d2b-8f3e-9d0c1e2f3a4b</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,10 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Core\FlinkDotNet.Core.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
-    <ProjectReference Include="..\FlinkDotNet.Core.Api\FlinkDotNet.Core.Api.csproj" />
-    <ProjectReference Include="..\FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj" />
   </ItemGroup>
 
 </Project>

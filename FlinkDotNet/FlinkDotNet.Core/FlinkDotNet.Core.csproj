@@ -6,9 +6,6 @@
     <RootNamespace>FlinkDotNet.Core</RootNamespace>
     <AssemblyName>FlinkDotNet.Core</AssemblyName>
     <ProjectGuid>7b080bb5-b8a3-4fce-a59e-5ab979078f13</ProjectGuid>
-    <!-- SonarCloud exclusions for preliminary core implementation -->
-    <SonarQubeExclude>true</SonarQubeExclude>
-    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
