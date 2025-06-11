@@ -55,7 +55,9 @@ namespace FlinkJobSimulator
                 _redisDb = _redisConnection.GetDatabase();
                 Console.WriteLine($"[{_taskName}] Successfully connected to Redis at {redisConnectionString.Split(',')[0]}.");
 
-                // Optionally, reset the key for a fresh run of the sample
+                // Reset the counter key for a fresh run 
+                _redisDb.StringSet(_redisKey, "0");
+                Console.WriteLine($"[{_taskName}] Redis sink counter key '{_redisKey}' initialized to 0.");
 
             }
             catch (RedisConnectionException ex)
@@ -73,7 +75,7 @@ namespace FlinkJobSimulator
                 return;
             }
 
-            if (record is string recordString && recordString.StartsWith("PROTO_BARRIER_"))
+            if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Redis Sink: {recordString}");
                 // In a real scenario, sink would perform checkpointing actions here.

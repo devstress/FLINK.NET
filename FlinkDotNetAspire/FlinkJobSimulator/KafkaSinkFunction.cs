@@ -24,7 +24,7 @@ namespace FlinkJobSimulator
             Console.WriteLine($"KafkaSinkFunction will use Kafka topic: '{_topic}'");
         }
 
-        public async void Open(IRuntimeContext context)
+        public void Open(IRuntimeContext context)
         {
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
@@ -57,8 +57,8 @@ namespace FlinkJobSimulator
                 _producer = new ProducerBuilder<Null, T>(config).Build();
                 Console.WriteLine($"[{_taskName}] Kafka producer created for bootstrap servers: {bootstrapServers}. Topic: {_topic}");
                 
-                // Try to create the topic if it doesn't exist
-                await EnsureTopicExistsAsync(bootstrapServers);
+                // Try to create the topic if it doesn't exist (synchronously for Open method)
+                EnsureTopicExistsAsync(bootstrapServers).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -67,14 +67,14 @@ namespace FlinkJobSimulator
             }
         }
 
-        public async void Invoke(T record, ISinkContext context) // Stays async void
+        public void Invoke(T record, ISinkContext context)
         {
             if (_producer == null)
             {
                 return;
             }
 
-            if (record is string recordString && recordString.StartsWith("PROTO_BARRIER_"))
+            if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Kafka Sink: {recordString}");
                 // In a real scenario, sink would perform checkpointing actions here (e.g., flush, commit transaction).
@@ -86,7 +86,14 @@ namespace FlinkJobSimulator
             try
             {
                 var message = new Message<Null, T> { Value = record };
-                await _producer.ProduceAsync(_topic, message);
+                // Use synchronous produce to ensure message is sent before continuing
+                _producer.Produce(_topic, message, (deliveryReport) =>
+                {
+                    if (deliveryReport.Error.Code != ErrorCode.NoError)
+                    {
+                        Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
+                    }
+                });
 
                 long currentCount = Interlocked.Increment(ref _processedCount);
                 if (currentCount % LogFrequency == 0)
