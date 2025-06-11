@@ -60,6 +60,7 @@ namespace FlinkDotNet.Storage.RocksDB
         public double AverageReadLatencyMs { get; set; }
         public long WritesPerSecond { get; set; }
         public long ReadsPerSecond { get; set; }
+        public double CpuUsagePercent { get; set; }
     }
 
     /// <summary>
@@ -213,7 +214,8 @@ namespace FlinkDotNet.Storage.RocksDB
                     AverageWriteLatencyMs = GetWriteLatency(),
                     AverageReadLatencyMs = GetReadLatency(),
                     WritesPerSecond = GetWritesPerSecond(),
-                    ReadsPerSecond = GetReadsPerSecond()
+                    ReadsPerSecond = GetReadsPerSecond(),
+                    CpuUsagePercent = GetCpuUsage()
                 };
             }
             catch (Exception ex)
@@ -285,6 +287,12 @@ namespace FlinkDotNet.Storage.RocksDB
         {
             // Simplified - in production would calculate from RocksDB counters
             return 2000;
+        }
+
+        private double GetCpuUsage()
+        {
+            // Simplified - in production would use system metrics
+            return 25.0; // 25% CPU usage
         }
 
         protected virtual void Dispose(bool disposing)

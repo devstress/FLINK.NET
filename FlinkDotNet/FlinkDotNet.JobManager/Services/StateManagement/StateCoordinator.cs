@@ -242,6 +242,7 @@ public class StateMetrics
             DiskUsageBytes = stats.DiskUsage;
             WriteLatencyMs = stats.AverageWriteLatencyMs;
             ReadLatencyMs = stats.AverageReadLatencyMs;
+            CpuUsagePercent = stats.CpuUsagePercent; // Add CPU usage tracking
             LastUpdated = DateTime.UtcNow;
             
             // Calculate records per second from previous measurement

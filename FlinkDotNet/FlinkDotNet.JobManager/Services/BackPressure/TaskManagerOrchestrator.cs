@@ -346,7 +346,7 @@ spec:
         }
     }
 
-    private async Task ShutdownProcessTaskManagerAsync(TaskManagerInstance instance)
+    private static async Task ShutdownProcessTaskManagerAsync(TaskManagerInstance instance)
     {
         if (instance.ProcessId.HasValue)
         {
@@ -433,7 +433,7 @@ spec:
             }
         }
 
-        return bestCandidate ?? candidates.First(); // Fallback to first candidate
+        return bestCandidate ?? candidates[0]; // Fallback to first candidate
     }
 
     private void CollectMetrics(object? state)
