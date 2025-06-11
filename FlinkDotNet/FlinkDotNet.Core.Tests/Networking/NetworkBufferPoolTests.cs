@@ -276,8 +276,8 @@ namespace FlinkDotNet.Core.Tests.Networking
         {
             // Arrange
             var pool = new NetworkBufferPool(5, 1024);
-            var segment1 = pool.RequestMemorySegment();
-            var segment2 = pool.RequestMemorySegment();
+            pool.RequestMemorySegment();
+            pool.RequestMemorySegment();
             Assert.Equal(3, pool.AvailablePoolBuffers);
 
             // Act

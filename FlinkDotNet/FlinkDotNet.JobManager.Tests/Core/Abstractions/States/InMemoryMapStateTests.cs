@@ -154,7 +154,7 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.States
 
             var entries = state.Entries();
             // Attempt to modify a materialized copy of the enumerable
-            var entriesList = entries.ToList();
+            entries.ToList();
             // entriesList.Add(new KeyValuePair<string, string>("key2", "value2")); // This would modify only the copy if allowed
 
             Assert.Single(state.Entries()); // Original state should be unchanged

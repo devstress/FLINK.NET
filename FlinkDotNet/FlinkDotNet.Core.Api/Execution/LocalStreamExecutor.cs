@@ -14,16 +14,13 @@ namespace FlinkDotNet.Core.Api.Execution
     /// </summary>
     public class LocalStreamExecutor
     {
-        private readonly StreamExecutionEnvironment _environment;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly List<Task> _executionTasks;
         private readonly ConcurrentDictionary<Guid, ConcurrentQueue<object>> _dataChannels;
 
         public LocalStreamExecutor(StreamExecutionEnvironment environment)
         {
-            _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+            if (environment == null) throw new ArgumentNullException(nameof(environment));
             _cancellationTokenSource = new CancellationTokenSource();
-            _executionTasks = new List<Task>();
             _dataChannels = new ConcurrentDictionary<Guid, ConcurrentQueue<object>>();
         }
 
@@ -472,12 +469,10 @@ namespace FlinkDotNet.Core.Api.Execution
     internal class LocalSourceContext : ISourceContext<string>
     {
         private readonly List<ConcurrentQueue<object>> _outputChannels;
-        private readonly CancellationToken _cancellationToken;
 
         public LocalSourceContext(List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
             _outputChannels = outputChannels;
-            _cancellationToken = cancellationToken;
         }
 
         public void Collect(string record)
@@ -516,12 +511,10 @@ namespace FlinkDotNet.Core.Api.Execution
     internal class LocalSourceContext<T> : ISourceContext<T>
     {
         private readonly List<ConcurrentQueue<object>> _outputChannels;
-        private readonly CancellationToken _cancellationToken;
 
         public LocalSourceContext(List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
             _outputChannels = outputChannels;
-            _cancellationToken = cancellationToken;
         }
 
         public void Collect(T record)

@@ -103,7 +103,6 @@ namespace FlinkDotNet.Table.Api
     internal class ProjectedTable<T> : ITable
     {
         private readonly ITable _sourceTable;
-        private readonly string[] _projectedFields;
 
         public TableSchema Schema { get; }
 
@@ -111,7 +110,6 @@ namespace FlinkDotNet.Table.Api
         {
             _sourceTable = sourceTable;
             Schema = schema;
-            _projectedFields = projectedFields;
         }
 
         public ITable Select(params string[] fieldNames) => _sourceTable.Select(fieldNames);
@@ -183,8 +181,6 @@ namespace FlinkDotNet.Table.Api
     internal class AggregatedTable : ITable
     {
         private readonly ITable _sourceTable;
-        private readonly string[] _groupByFields;
-        private readonly IAggregateFunction[] _aggregates;
 
         public TableSchema Schema { get; }
 
@@ -192,8 +188,6 @@ namespace FlinkDotNet.Table.Api
         {
             _sourceTable = sourceTable;
             Schema = schema;
-            _groupByFields = groupByFields;
-            _aggregates = aggregates;
         }
 
         public ITable Select(params string[] fieldNames) => new ProjectedTable<object>(this, Schema, fieldNames);
@@ -211,7 +205,6 @@ namespace FlinkDotNet.Table.Api
     {
         private readonly ITable _leftTable;
         private readonly ITable _rightTable;
-        private readonly string _condition;
 
         public TableSchema Schema { get; }
 
@@ -219,7 +212,6 @@ namespace FlinkDotNet.Table.Api
         {
             _leftTable = leftTable;
             _rightTable = rightTable;
-            _condition = condition;
 
             // Combine schemas (simplified - would need to handle name conflicts)
             var combinedFields = _leftTable.Schema.Fields.Concat(_rightTable.Schema.Fields);

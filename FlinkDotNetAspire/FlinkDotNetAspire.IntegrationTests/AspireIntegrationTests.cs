@@ -153,7 +153,7 @@ public class AspireIntegrationTests
             
             // Try to get the TaskExecutor - this should trigger the DI error
             using var scope = host.Services.CreateScope();
-            var taskExecutor = scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.TaskExecutor>();
+            scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.TaskExecutor>();
         });
         
         // We expect an InvalidOperationException about missing services
@@ -229,7 +229,7 @@ public class AspireIntegrationTests
             using var admin = new Confluent.Kafka.AdminClientBuilder(adminConfig).Build();
             
             // Try to get metadata - this should fail if Kafka is not available
-            var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5));
+            admin.GetMetadata(TimeSpan.FromSeconds(5));
         });
         
         // We expect a Kafka exception when the broker is unavailable
