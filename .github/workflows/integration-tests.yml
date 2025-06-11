@@ -171,8 +171,8 @@ jobs:
           $errorJob.Id | Out-File apphost.error.job -Encoding utf8
           
           Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
-          Write-Host "AppHost started, waiting 30 seconds for initialization..."
-          Start-Sleep -Seconds 30
+          Write-Host "AppHost started, waiting 45 seconds for initialization..."
+          Start-Sleep -Seconds 45
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
@@ -183,8 +183,8 @@ jobs:
           DOTNET_REDIS_URL: localhost:6379
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
-          $maxAttempts = 2
-          $delaySeconds = 5
+          $maxAttempts = 3
+          $delaySeconds = 10
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {

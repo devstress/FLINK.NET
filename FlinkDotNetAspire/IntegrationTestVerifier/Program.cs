@@ -350,30 +350,44 @@ namespace IntegrationTestVerifier
             return false;
         }
 
-        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 2, int delaySeconds = 5)
+        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 6, int delaySeconds = 10)
         {
+            Console.WriteLine($"Waiting for Kafka at {bootstrapServers}, up to {maxAttempts} attempts with {delaySeconds}s delay");
             var adminConfig = new AdminClientConfig 
             { 
                 BootstrapServers = bootstrapServers,
-                SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
+                SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
+                SocketTimeoutMs = 30000, // Increase socket timeout
+                ApiVersionRequestTimeoutMs = 30000 // Increase API version request timeout
             };
             for (int i = 0; i < maxAttempts; i++)
             {
                 try
                 {
+                    Console.WriteLine($"Kafka connection attempt {i + 1}/{maxAttempts}...");
                     using var admin = new AdminClientBuilder(adminConfig).Build();
-                    var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                    var metadata = admin.GetMetadata(TimeSpan.FromSeconds(30));
                     if (metadata.Topics != null)
                     {
+                        Console.WriteLine($"Kafka connection successful on attempt {i + 1}, found {metadata.Topics.Count} topics");
                         return true;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // ignored
+                    Console.WriteLine($"Kafka connection attempt {i + 1} failed: {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                    }
                 }
-                Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+                if (i < maxAttempts - 1) // Don't sleep on the last attempt
+                {
+                    Console.WriteLine($"Waiting {delaySeconds} seconds before next attempt...");
+                    Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+                }
             }
+            Console.WriteLine("All Kafka connection attempts failed");
             return false;
         }
     }
