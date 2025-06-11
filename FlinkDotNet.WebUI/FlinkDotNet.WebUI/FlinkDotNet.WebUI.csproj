@@ -7,10 +7,10 @@
     <ProjectGuid>060a3906-30ec-44c6-821c-a267678dd9fa</ProjectGuid>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.7.0" />
-    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.7.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.17" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.6" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.12.0" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.12.0" />
   </ItemGroup>
 
 </Project>
