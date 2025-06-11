@@ -79,6 +79,9 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
         shell: pwsh # Using PowerShell
         run: |
+            function StripAnsiEscapeSequences($text) {
+              return $text -replace "[`u001B`\u009B][[()#;?]*[0-9;]*[0-9A-ORZcf-nqry=><]", ''
+            }
             function RunCommandWithWarningCheck($command, $description) {
               Write-Host "Running $description"
               $output = & $command 2>&1
@@ -89,20 +92,8 @@ jobs:
                 Write-Host "[FAIL] $description failed"
                 return -1
               }
-
-              # Filter out harmless warnings from SonarScanner, package operations, and test output
-              $warnings = $output | Where-Object { 
-                $_ -match "(?i)Warning:" -and
-                $_ -notmatch "(?i)Skipping NuGet package signature verification" -and
-                $_ -notmatch "(?i)SonarScanner for .NET" -and
-                $_ -notmatch "(?i)sonar.scanner" -and
-                $_ -notmatch "(?i)Using the .NET Core version of the Scanner for .NET" -and
-                $_ -notmatch "(?i)Pre-processing started" -and
-                $_ -notmatch "(?i)Post-processing started" -and
-                $_ -notmatch "(?i)\[FileSystemSnapshot.*\] WARNING:" -and
-                $_ -notmatch "(?i)Snapshot directory not found" -and
-                $_ -notmatch "(?i)Commit called but these keyed states were not ended"
-              }
+              $outputClean = $output | ForEach-Object { StripAnsiEscapeSequences $_ }
+              $warnings = $outputClean | Where-Object { $_ -match "(?i)Warning:" }
               if ($warnings.Count -gt 0) {
                 Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description"
               } else {
