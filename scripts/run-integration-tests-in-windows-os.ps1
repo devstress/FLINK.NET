@@ -89,7 +89,7 @@ Build-Verifier
 $env:SIMULATOR_NUM_MESSAGES = $SimMessages
 $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
 $appHostPath = "../FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost"
-$appHost = Start-Process "dotnet" "run --no-build --project $appHostPath" -RedirectStandardOutput apphost.log -RedirectStandardError apphost.log -PassThru
+$appHost = Start-Process "dotnet" "run --no-build --project $appHostPath" -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -PassThru
 Write-Host "Waiting for AppHost to initialize..."
 Start-Sleep -Seconds 30
 
