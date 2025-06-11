@@ -185,7 +185,7 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"Subscribed to Kafka topic: {topic}");
 
                 var messagesConsumed = new List<string>();
-                var consumeTimeout = TimeSpan.FromSeconds(60);
+                var consumeTimeout = TimeSpan.FromSeconds(10);
                 var stopwatch = Stopwatch.StartNew();
 
                 try
@@ -252,6 +252,8 @@ namespace IntegrationTestVerifier
             Console.WriteLine("Verifying FIFO ordering...");
             
             long previousRedisOrderedId = 0;
+            bool hasValidPreviousMessage = false;
+            
             for (int i = 0; i < messages.Count; i++)
             {
                 try
@@ -280,13 +282,14 @@ namespace IntegrationTestVerifier
                     
                     long currentRedisOrderedId = long.Parse(redisOrderedIdMatch.Groups[1].Value);
                     
-                    if (i > 0 && currentRedisOrderedId <= previousRedisOrderedId)
+                    if (hasValidPreviousMessage && currentRedisOrderedId <= previousRedisOrderedId)
                     {
                         Console.WriteLine($"Error: FIFO ordering violated at index {i}. Current redis_ordered_id: {currentRedisOrderedId}, Previous: {previousRedisOrderedId}");
                         return false;
                     }
                     
                     previousRedisOrderedId = currentRedisOrderedId;
+                    hasValidPreviousMessage = true;
                 }
                 catch (Exception ex)
                 {
@@ -301,27 +304,22 @@ namespace IntegrationTestVerifier
 
         private static void PrintTopAndBottomMessages(List<string> messages, int count)
         {
+            // Get non-barrier messages
+            var nonBarrierMessages = messages.Where(m => !m.StartsWith("BARRIER_", StringComparison.Ordinal)).ToList();
+            
             Console.WriteLine($"\nTop {count} messages:");
-            for (int i = 0; i < Math.Min(count, messages.Count); i++)
+            for (int i = 0; i < Math.Min(count, nonBarrierMessages.Count); i++)
             {
-                // Skip barrier messages when printing
-                if (!messages[i].StartsWith("BARRIER_", StringComparison.Ordinal))
-                {
-                    Console.WriteLine($"  [{i+1}]: {messages[i]}");
-                }
+                Console.WriteLine($"  [{i+1}]: {nonBarrierMessages[i]}");
             }
             
-            if (messages.Count > count)
+            if (nonBarrierMessages.Count > count)
             {
                 Console.WriteLine($"\nBottom {count} messages:");
-                int startIndex = Math.Max(0, messages.Count - count);
-                for (int i = startIndex; i < messages.Count; i++)
+                int startIndex = Math.Max(0, nonBarrierMessages.Count - count);
+                for (int i = startIndex; i < nonBarrierMessages.Count; i++)
                 {
-                    // Skip barrier messages when printing
-                    if (!messages[i].StartsWith("BARRIER_", StringComparison.Ordinal))
-                    {
-                        Console.WriteLine($"  [{i+1}]: {messages[i]}");
-                    }
+                    Console.WriteLine($"  [{i+1}]: {nonBarrierMessages[i]}");
                 }
             }
         }
