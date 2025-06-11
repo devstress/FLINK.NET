@@ -8,10 +8,7 @@ updates:
   - package-ecosystem: "nuget"
     directory: "/FlinkDotNet"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "UTC"
+      interval: "monthly"
     labels:
       - "dependencies"
       - "nuget"
@@ -36,10 +33,7 @@ updates:
   - package-ecosystem: "nuget"
     directory: "/FlinkDotNetAspire"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "UTC"
+      interval: "monthly"
     labels:
       - "dependencies"
       - "nuget"
@@ -64,10 +58,7 @@ updates:
   - package-ecosystem: "nuget"
     directory: "/FlinkDotNet.WebUI"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "UTC"
+      interval: "monthly"
     labels:
       - "dependencies"
       - "nuget"
@@ -92,10 +83,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "06:00"
-      timezone: "UTC"
+      interval: "monthly"
     labels:
       - "dependencies"
       - "github-actions"
