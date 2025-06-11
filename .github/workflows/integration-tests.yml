@@ -54,14 +54,12 @@ jobs:
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Pull Integration Test Docker Image
+      - name: Start Aspire AppHost
         run: |
-          docker pull ghcr.io/devstress/flink-dotnet-linux:latest
-
-      - name: Start Integration Test Container
-        run: |
-          docker run --privileged -d --name integration-test -e SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }} -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" -e ASPNETCORE_URLS="http://0.0.0.0:5199" -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" -p 5199:5199 -p 6379:6379 -p 9092:9092 -p 8088:8088 -p 50051:50051 -p 4317:4317 ghcr.io/devstress/flink-dotnet-linux:latest
-          Write-Host "Waiting for container to initialize..."
+          $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
+          $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
+          $proc = Start-Process "dotnet" "run --no-build --project FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj" -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -PassThru
+          $proc.Id | Out-File apphost.pid
           Start-Sleep -Seconds 30
 
 
@@ -111,9 +109,13 @@ jobs:
           }
           echo "Verification tests PASSED."
 
-      - name: Stop Integration Test Container
+      - name: Stop Aspire AppHost
         if: always()
         run: |
-          docker stop integration-test
-          docker rm integration-test
-          Write-Host "Container cleanup complete."
+          if (Test-Path apphost.pid) {
+            $apphostPid = Get-Content apphost.pid
+            Write-Host "Stopping AppHost with PID $apphostPid"
+            Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+            Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
+          }
+          Write-Host "AppHost cleanup complete."

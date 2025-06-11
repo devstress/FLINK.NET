@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # This script mirrors the GitHub integration test workflow on a Linux machine.
 # Usage: ./scripts/run-integration-tests-in-linux.sh [SimMessages]
-# Requires Docker and the .NET 8 SDK.
+# Requires Docker and the .NET 8 SDK. Aspire uses Docker to start Redis and
+# Kafka containers automatically.
 
 set -euo pipefail
 
@@ -9,9 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
 SIM_MESSAGES="${1:-1000000}"
-IMAGE_REPO="${FLINK_IMAGE_REPOSITORY:-ghcr.io/devstress}"
-IMAGE_NAME="${IMAGE_REPO}/flink-dotnet-linux:latest"
-CONTAINER_NAME="flink-dotnet-integration"
+APPHOST_PROJECT="FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj"
+APPHOST_PID=""
 
 check_dotnet() {
     if ! command -v dotnet >/dev/null 2>&1; then
@@ -33,25 +33,19 @@ build_verifier() {
     dotnet build FlinkDotNetAspire/IntegrationTestVerifier/IntegrationTestVerifier.csproj -c Release
 }
 
-pull_image() {
-    echo "Pulling Docker image $IMAGE_NAME..."
-    docker pull "$IMAGE_NAME"
+start_apphost() {
+    ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
+    SIMULATOR_NUM_MESSAGES="$SIM_MESSAGES" \
+    dotnet run --no-build --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
+    APPHOST_PID=$!
 }
 
-start_container() {
-    docker run -d --name "$CONTAINER_NAME" \
-        -e SIMULATOR_NUM_MESSAGES="$SIM_MESSAGES" \
-        -e ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
-        -e ASPNETCORE_URLS="http://0.0.0.0:5199" \
-        -e DOTNET_DASHBOARD_OTLP_ENDPOINT_URL="http://localhost:4317" \
-        -p 5199:5199 -p 6379:6379 -p 9092:9092 \
-        -p 8088:8088 -p 50051:50051 -p 4317:4317 \
-        "$IMAGE_NAME"
-}
-
-stop_container() {
-    docker stop "$CONTAINER_NAME" >/dev/null || true
-    docker rm "$CONTAINER_NAME" >/dev/null || true
+stop_apphost() {
+    if [[ -n "$APPHOST_PID" ]]; then
+        kill "$APPHOST_PID" 2>/dev/null || true
+        wait "$APPHOST_PID" 2>/dev/null || true
+        echo "apphost.log contents:" && cat apphost.log
+    fi
 }
 
 health_check() {
@@ -73,15 +67,14 @@ run_tests() {
     dotnet "$verifier"
 }
 
-trap stop_container EXIT
+trap stop_apphost EXIT
 
 check_dotnet
 check_docker
 build_verifier
-pull_image
-start_container
+start_apphost
 
-echo "Waiting for container to initialize..."
+echo "Waiting for AppHost to initialize..."
 sleep 30
 
 if ! health_check; then

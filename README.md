@@ -44,15 +44,13 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 ## Running Integration Tests on Windows
 
-A PowerShell script is provided for executing the integration tests locally. It ensures the .NET 8 SDK version 8 or later is installed and verifies that Docker Desktop is available (it no longer attempts to install Docker itself). The tests run inside a prebuilt Linux Docker image (`flink-dotnet-linux`) that can also be used by the CI workflow. Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
+A PowerShell script is provided for executing the integration tests locally. It ensures the .NET 8 SDK version 8 or later is installed and verifies that Docker Desktop is available (Aspire uses Docker for Redis and Kafka). The script starts the Aspire AppHost and then runs the verification tests. Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
 
 ```powershell
 pwsh scripts/run-integration-tests-in-windows-os.ps1
 ```
 
-The script pulls the prebuilt Docker image, which now contains the .NET Aspire workload, an embedded Docker daemon, and cached Redis and Kafka images. The daemon starts automatically inside the container so the AppHost can launch its dependencies instantly. After a brief health check the verification tests run.
 
-By default, the image is retrieved from `ghcr.io/devstress/flink-dotnet-linux:latest`. Set the environment variable `FLINK_IMAGE_REPOSITORY` to override the repository if needed.
 
 ## Running Integration Tests on Linux
 
@@ -62,15 +60,11 @@ Linux users can run the integration tests using the accompanying shell script:
 bash scripts/run-integration-tests-in-linux.sh
 ```
 
-Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, pulls the prebuilt image and runs the verification tests after a quick health check.
+Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, launches the Aspire AppHost, waits for a quick health check, and then runs the verification tests.
 
 ### Configuring JobManager Ports
 
 The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `8088` and `50051` by default. To override these values set the environment variables `JOBMANAGER_HTTP_PORT` and `JOBMANAGER_GRPC_PORT`. The TaskManager gRPC port can be configured with `TASKMANAGER_GRPC_PORT`.
-
-### Integration Test Image on GHCR
-
-The Linux Docker image used for integration tests is published publicly to GitHub Container Registry (GHCR) at `ghcr.io/devstress/flink-dotnet-linux:latest`. Instructions on publishing or updating the image via GitHub Actions are available in [GHCR Public Image and GitHub Actions](./docs/wiki/GHCR-Tokens.md).
 
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of ChatGPT's Codex AI and Google's Jules AI, showcasing a modern approach to software engineering.
