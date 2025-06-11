@@ -565,25 +565,7 @@ public static class Program
         Console.WriteLine("Flink Job Simulator finished executing the job.");
         Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
 
-        // When running locally (not inside a container), try to launch the Aspire Dashboard
-        // so developers immediately see service status and logs.
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
-        {
-            try
-            {
-                var dashboardUrl = Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_URL") ?? "http://localhost:18888";
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = dashboardUrl,
-                    UseShellExecute = true
-                });
-                Console.WriteLine($"Opened Aspire Dashboard at {dashboardUrl}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to launch Aspire Dashboard automatically: {ex.Message}");
-            }
-        }
+        // Dashboard auto-launch removed - Aspire project should handle dashboard launch automatically
 
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         
