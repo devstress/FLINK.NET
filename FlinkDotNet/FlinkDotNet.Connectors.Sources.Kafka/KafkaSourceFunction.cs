@@ -22,7 +22,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         private readonly TimeSpan? _readTimeout;
         private readonly ILogger? _logger;
         private IConsumer<Ignore, T>? _consumer;
-        private bool _isRunning;
+        private CancellationTokenSource? _cancellationTokenSource;
 
         public KafkaSourceFunction(
             ConsumerConfig consumerConfig,
@@ -49,7 +49,8 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         public async Task RunAsync(ISourceContext<T> context, CancellationToken cancellationToken)
         {
-            _isRunning = true;
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var combinedToken = _cancellationTokenSource.Token;
             
             var consumerBuilder = new ConsumerBuilder<Ignore, T>(_consumerConfig)
                 .SetValueDeserializer(_valueDeserializer)
@@ -62,7 +63,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 _consumer.Subscribe(_topics);
                 _logger?.LogInformation("Kafka consumer subscribed to topics: {Topics}", string.Join(", ", _topics));
 
-                while (_isRunning && !cancellationToken.IsCancellationRequested)
+                while (!combinedToken.IsCancellationRequested)
                 {
                     try
                     {
@@ -112,7 +113,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         public void Cancel()
         {
-            _isRunning = false;
+            _cancellationTokenSource?.Cancel();
             _logger?.LogInformation("Kafka source cancellation requested");
         }
     }
@@ -123,7 +124,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
     public class KafkaSourceBuilder<T>
     {
         private ConsumerConfig? _consumerConfig;
-        private List<string> _topics = new();
+        private readonly List<string> _topics = new();
         private IDeserializer<T>? _valueDeserializer;
         private bool _isBounded = false;
         private TimeSpan? _readTimeout;

@@ -10,14 +10,14 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
     /// Kafka sink function that supports exactly-once semantics via transactions
     /// </summary>
     /// <typeparam name="T">The type of records to write</typeparam>
-    public class KafkaSinkFunction<T> : ISinkFunction<T>, ITransactionalSinkFunction<T>
+    public class KafkaSinkFunction<T> : ITransactionalSinkFunction<T>, IDisposable
     {
         private readonly ProducerConfig _producerConfig;
         private readonly string _topic;
         private readonly ISerializer<T> _valueSerializer;
         private readonly ILogger? _logger;
         private IProducer<Null, T>? _producer;
-        private bool _transactional;
+        private readonly bool _transactional;
 
         public KafkaSinkFunction(
             ProducerConfig producerConfig,
