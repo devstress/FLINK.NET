@@ -115,6 +115,6 @@ jobs:
           if (Test-Path apphost.pid) {
             $apphostPid = Get-Content apphost.pid
             Write-Host "Stopping AppHost with PID $apphostPid"
-            Stop-Process -Id $apphostPid -Force
+            Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
           }
           Write-Host "AppHost cleanup complete."

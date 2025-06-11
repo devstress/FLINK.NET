@@ -102,13 +102,13 @@ for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     if ($LASTEXITCODE -eq 0) { Write-Host "Health check PASSED."; break }
     Write-Host "Health check FAILED. Waiting $delaySeconds seconds before retry..."
     Start-Sleep -Seconds $delaySeconds
-    if ($attempt -eq $maxAttempts) { Write-Host "Max attempts reached."; $appHost.Kill(); exit 1 }
+    if ($attempt -eq $maxAttempts) { Write-Host "Max attempts reached."; if (-not $appHost.HasExited) { Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue }; exit 1 }
 }
 
 Write-Host "Running verification tests..."
 dotnet $verifier
 $exitCode = $LASTEXITCODE
 
-$appHost.Kill()
+$null = Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue
 exit $exitCode
 
