@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "docs/wiki", "README.md", "AGENTS.md", ".copilot"],
+      "env": {
+        "ALLOWED_DIRECTORIES": "docs/wiki,.copilot"
+      }
+    }
+  }
+}
