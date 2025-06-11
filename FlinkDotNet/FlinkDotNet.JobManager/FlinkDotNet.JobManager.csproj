@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Storage.RocksDB\FlinkDotNet.Storage.RocksDB.csproj" />
   </ItemGroup>
 
   <ItemGroup>
