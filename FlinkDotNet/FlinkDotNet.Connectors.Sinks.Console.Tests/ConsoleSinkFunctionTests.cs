@@ -1,8 +1,6 @@
-using FlinkDotNet.Connectors.Sinks.Console;
 using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using Moq;
-using System.Text;
 
 namespace FlinkDotNet.Connectors.Sinks.Console.Tests
 {

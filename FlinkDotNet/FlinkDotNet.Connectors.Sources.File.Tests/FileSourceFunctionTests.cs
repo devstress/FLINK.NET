@@ -1,4 +1,3 @@
-using FlinkDotNet.Connectors.Sources.File;
 using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Serializers;
 using Moq;

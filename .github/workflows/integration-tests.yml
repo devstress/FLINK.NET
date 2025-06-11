@@ -6,7 +6,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [ready_for_review]
+    types: [ready_for_review, copilot_completion]
     branches:
       - main # Or your primary branch name
   workflow_dispatch: # Retain manual triggering
@@ -55,6 +55,11 @@ jobs:
 
       - name: Build Solutions (including Verifier)
         run: |
+          echo "Building FlinkDotNet solution (dependency)..."
+          Push-Location FlinkDotNet
+          dotnet build FlinkDotNet.sln --configuration Release
+          Pop-Location
+          
           echo "Building FlinkDotNetAspire solution..."
           Push-Location FlinkDotNetAspire
           dotnet build FlinkDotNetAspire.sln --configuration Release
@@ -124,7 +129,7 @@ jobs:
             Write-Host "ERROR: AppHost PID file not found!"
             exit 1
           }
-          
+
           echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
           Write-Host "DOTNET_REDIS_URL from env: $env:DOTNET_REDIS_URL"
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS from env: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"

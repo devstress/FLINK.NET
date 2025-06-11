@@ -5,7 +5,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [ready_for_review]
+    types: [ready_for_review, copilot_completion]
     branches:
       - main # Or your primary branch name
 
@@ -53,19 +53,18 @@ jobs:
           dotnet test FlinkDotNet.sln --configuration Release --logger "trx;LogFileName=flinkdotnet_tests.trx" --results-directory "TestResults"
           Pop-Location
 
-      - name: Run tests for FlinkDotNetAspire solution
+      - name: Build FlinkDotNetAspire solution (no tests)
         run: |
-          echo "Running tests for FlinkDotNetAspire/FlinkDotNetAspire.sln..."
+          echo "Building FlinkDotNetAspire/FlinkDotNetAspire.sln (contains no test projects)..."
           Push-Location FlinkDotNetAspire
-          dotnet test FlinkDotNetAspire.sln --configuration Release --logger "trx;LogFileName=flinkdotnetaspire_tests.trx" --results-directory "TestResults"
+          dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Run tests for FlinkDotNet.WebUI solution
+      - name: Build FlinkDotNet.WebUI solution (no tests)
         run: |
-          echo "Running tests for FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln..."
+          echo "Building FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln (contains no test projects)..."
           Push-Location FlinkDotNet.WebUI
-          # Assuming FlinkDotNet.WebUI.sln is directly in FlinkDotNet.WebUI, adjust if it's nested further
-          dotnet test FlinkDotNet.WebUI.sln --configuration Release --logger "trx;LogFileName=flinkdotnetwebui_tests.trx" --results-directory "TestResults"
+          dotnet build FlinkDotNet.WebUI.sln --configuration Release
           Pop-Location
 
       - name: Upload Test Results
@@ -75,6 +74,4 @@ jobs:
           name: dotnet-test-results
           path: |
             FlinkDotNet/TestResults/*.trx
-            FlinkDotNetAspire/TestResults/*.trx
-            FlinkDotNet.WebUI/TestResults/*.trx
           retention-days: 7
