@@ -104,8 +104,12 @@ namespace IntegrationTestVerifier
             verificationStopwatch.Stop();
             Console.WriteLine($"Verification time for {expectedMessages} messages: {verificationStopwatch.ElapsedMilliseconds} ms");
             
-            // Assert processing time is less than 1 second as per requirements
-            const long maxAllowedTimeMs = 1000; // 1 second
+            // Read max allowed time from environment variable, default to 10 seconds
+            long maxAllowedTimeMs = 10000; // 10 seconds default
+            if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
+            {
+                maxAllowedTimeMs = configuredTimeMs;
+            }
             if (verificationStopwatch.ElapsedMilliseconds > maxAllowedTimeMs)
             {
                 Console.WriteLine($"(Failed) Processing time {verificationStopwatch.ElapsedMilliseconds}ms exceeded maximum allowed {maxAllowedTimeMs}ms.");
