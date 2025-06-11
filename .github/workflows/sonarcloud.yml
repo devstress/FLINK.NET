@@ -100,7 +100,7 @@ jobs:
               }
               $warnings = $output | Where-Object { $_ -match "(?i)warning " }
               if ($warnings.Count -gt 0) {
-                Write-Host "[WARN] Found warning(s) in $description:"
+                Write-Host "[WARN] Found warning(s) in ${description}:"
                 $warnings | ForEach-Object { Write-Host "  $_" }
               } else {
                 Write-Host "[OK] $description completed successfully with no warnings."
@@ -109,7 +109,7 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml,./CoverageData/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="./CoverageData/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
@@ -126,29 +126,8 @@ jobs:
               Write-Host "  No coverage data from unit tests workflow found"
             }
             
-            # Run tests with coverage collection using OpenCover format
-            Write-Host "Running tests with coverage collection..."
-            $exitTest = RunCommandWithWarningCheck { dotnet test FlinkDotNet/FlinkDotNet.sln --no-build --collect:"XPlat Code Coverage" --results-directory "./TestResults" --logger trx --configuration Release } "Test FlinkDotNet with coverage"
-            
-            # Convert coverage files to OpenCover format for SonarCloud
-            Write-Host "Converting coverage to OpenCover format..."
-            Get-ChildItem -Path "./TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
-              $coberturaFile = $_.FullName
-              $openCoverFile = $_.DirectoryName + "/coverage.opencover.xml"
-              Write-Host "Converting $coberturaFile to $openCoverFile"
-              
-              # Install ReportGenerator if not already installed
-              dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
-              
-              # Convert Cobertura to OpenCover format
-              reportgenerator -reports:"$coberturaFile" -targetdir:"$($_.DirectoryName)" -reporttypes:"OpenCover" -verbosity:Info
-            }
-            
             # List all coverage files for debugging
-            Write-Host "All coverage files found:"
-            Get-ChildItem -Path "./TestResults" -Recurse -Filter "*.xml" -ErrorAction SilentlyContinue | ForEach-Object {
-              Write-Host "  [SONAR BUILD] $($_.FullName)"
-            }
+            Write-Host "All coverage files found for SonarCloud:"
             Get-ChildItem -Path "./CoverageData" -Recurse -Filter "*.xml" -ErrorAction SilentlyContinue | ForEach-Object {
               Write-Host "  [UNIT TESTS] $($_.FullName)"
             }
@@ -165,7 +144,6 @@ jobs:
               @{Name="Build FlinkDotNet"; Exit=$exit1},
               @{Name="Build FlinkDotNetAspire"; Exit=$exit2},
               @{Name="Build FlinkDotNet.WebUI"; Exit=$exit3},
-              @{Name="Test FlinkDotNet with coverage"; Exit=$exitTest},
               @{Name="Sonar end"; Exit=$exitEnd}
             )
             
