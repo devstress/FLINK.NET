@@ -15,12 +15,6 @@ namespace FlinkDotNet.Core.Abstractions.Collectors
 {
     // Re-affirming ICollector for IProcessWindowFunction if not already visible/defined elsewhere.
     // This was also defined in TaskExecutor.cs previously.
-    // public interface ICollector<in T>
-    // {
-    //    Task Collect(T record, CancellationToken cancellationToken);
-    //    Task CollectBarrier(CheckpointBarrier barrier, CancellationToken cancellationToken);
-    //    Task CloseAsync();
-    // }
 }
 
 

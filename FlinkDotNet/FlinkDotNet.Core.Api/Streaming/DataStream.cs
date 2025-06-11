@@ -185,10 +185,6 @@ namespace FlinkDotNet.Core.Api.Streaming
             // but full validation (including generic type arguments) is complex and might be
             // better deferred to the TaskExecutor's KeySelectorActivator, which will try to instantiate it.
             // Example check (might not work for all generic scenarios without more complex reflection):
-            // if (!typeof(IKeySelector<TElement, TKey>).IsAssignableFrom(keySelectorType))
-            // {
-            //    throw new ArgumentException($"Provided type {keySelectorType.FullName} does not implement IKeySelector<{typeof(TElement).Name}, {typeof(TKey).Name}>.", nameof(keySelectorType));
-            // }
 
             string serializedSelectorRepresentation = $"type:{keySelectorType.AssemblyQualifiedName}";
             // string keyTypeName = typeof(TKey).AssemblyQualifiedName!; // KeyType in KeyedTransformation is Type object

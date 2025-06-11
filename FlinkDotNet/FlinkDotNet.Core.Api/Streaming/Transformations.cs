@@ -12,8 +12,6 @@ namespace FlinkDotNet.Core.Api.Windowing // Place Evictor stub here for organiza
     public abstract class Evictor<TElement, TWindow> where TWindow : Window
     {
         // Example methods an evictor might have:
-        // public abstract void EvictBefore(IEnumerable<TimestampedValue<TElement>> elements, int size, TWindow window, IEvictorContext evictorContext);
-        // public abstract void EvictAfter(IEnumerable<TimestampedValue<TElement>> elements, int size, TWindow window, IEvictorContext evictorContext);
     }
 }
 

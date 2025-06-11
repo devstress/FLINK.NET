@@ -60,10 +60,6 @@ namespace FlinkDotNet.Core.Api.Windowing
 
         // Timer services (for advanced triggers and ProcessWindowFunction)
         // These interact with the event/processing time services of the operator.
-        // public abstract void RegisterProcessingTimeTimer(long timestamp);
-        // public abstract void DeleteProcessingTimeTimer(long timestamp);
-        // public abstract void RegisterEventTimeTimer(long timestamp);
-        // public abstract void DeleteEventTimeTimer(long timestamp);
 
         // Side output capability (advanced, for future)
         // public abstract void Output<X>(OutputTag<X> outputTag, X value);

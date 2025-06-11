@@ -30,7 +30,7 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             try
             {
                 // Act
-                var store = new FileSystemSnapshotStore(tempPath);
+                new FileSystemSnapshotStore(tempPath);
 
                 // Assert
                 Assert.True(Directory.Exists(tempPath));
@@ -54,7 +54,7 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             try
             {
                 // Act
-                var store = new FileSystemSnapshotStore(relativePath);
+                new FileSystemSnapshotStore(relativePath);
 
                 // Assert
                 Assert.True(Directory.Exists(expectedPath));

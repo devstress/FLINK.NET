@@ -8,7 +8,6 @@ using FlinkDotNet.Common.Constants;
 public class TaskManagerCoreService : IHostedService // new
 {
     // LOGGING_PLACEHOLDER:
-    // private readonly Microsoft.Extensions.Logging.ILogger<TaskManagerCoreService> _logger; // Inject via constructor, ensure using Microsoft.Extensions.Logging;
 
     public record Config(string TaskManagerId, string JobManagerGrpcAddress);
 
@@ -88,15 +87,6 @@ public class TaskManagerCoreService : IHostedService // new
                 var heartbeatRequest = new HeartbeatRequest { TaskManagerId = _config.TaskManagerId }; // Use _config
 
                 // METRICS_PLACEHOLDER:
-                // foreach (var tm in TaskMetricsRegistry.AllTaskMetrics.Values) // Assuming TaskMetricsRegistry from TaskExecutor
-                // {
-                //    heartbeatRequest.TaskMetrics.Add(new TaskMetricData
-                //    {
-                //        TaskId = tm.TaskId,
-                //        RecordsIn = tm.RecordsIn,
-                //        RecordsOut = tm.RecordsOut
-                //    });
-                // }
 
                 // Console.WriteLine($"TaskManager {_config.TaskManagerId}: Sending heartbeat...");
                 var response = await _client.SendHeartbeatAsync(heartbeatRequest, cancellationToken: cancellationToken); // Use passed token

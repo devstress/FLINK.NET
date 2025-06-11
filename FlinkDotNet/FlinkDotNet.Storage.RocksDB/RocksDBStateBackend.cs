@@ -111,11 +111,9 @@ namespace FlinkDotNet.Storage.RocksDB
             // Configure RocksDB options for optimal performance
             _dbOptions = new DbOptions()
                 .SetCreateIfMissing(true);
-                //.SetMaxBackgroundJobs(_options?.MaxBackgroundJobs ?? _configuration?.MaxBackgroundJobs ?? 4);
 
             _columnFamilyOptions = new ColumnFamilyOptions()
                 .SetWriteBufferSize(_options?.WriteBufferSize ?? _configuration?.WriteBufferSize ?? 64 * 1024 * 1024);
-                //.SetMaxWriteBufferNumber(_options?.MaxWriteBufferNumber ?? 3);
 
             try
             {

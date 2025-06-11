@@ -105,16 +105,7 @@ namespace FlinkDotNet.TaskManager.Internal
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: SnapshotState for {stateNamePrefix} at CP {checkpointId} - NOT YET FULLY IMPLEMENTED.");
 
             // Example of how one might start writing keyed state for accumulators:
-            // if (_windowAccumulators.Any()) {
-            //     await writer.BeginKeyedState($"{stateNamePrefix}_accumulators");
-            //     foreach (var entry in _windowAccumulators)
-            //     {
-            //         byte[] windowBytes = _windowSerializer.Serialize(entry.Key);
-            //         // byte[] accBytes = _accumulatorSerializer.Serialize(entry.Value); // Need accumulator serializer
-            //         // await writer.WriteKeyedEntry(windowBytes, accBytes);
-            //     }
-            //     await writer.EndKeyedState($"{stateNamePrefix}_accumulators");
-            // }
+
             await Task.CompletedTask; // Placeholder
         }
 
@@ -128,18 +119,7 @@ namespace FlinkDotNet.TaskManager.Internal
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: RestoreState for {stateNamePrefix} - NOT YET FULLY IMPLEMENTED.");
 
             // Example of how one might start reading keyed state for accumulators:
-            // string accumulatorsStateName = $"{stateNamePrefix}_accumulators";
-            // if (await reader.HasKeyedState(accumulatorsStateName))
-            // {
-            //     _windowAccumulators.Clear();
-            //     await foreach (var entry in reader.ReadKeyedStateEntries(accumulatorsStateName))
-            //     {
-            //         TWindow window = _windowSerializer.Deserialize(entry.Key);
-            //         // TAccumulator acc = _accumulatorSerializer.Deserialize(entry.Value); // Need accumulator serializer
-            //         // _windowAccumulators[window] = acc;
-            //         // Also, re-register any necessary timers for this restored window and accumulator.
-            //     }
-            // }
+
             await Task.CompletedTask; // Placeholder
         }
     }
