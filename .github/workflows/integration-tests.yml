@@ -11,7 +11,7 @@ on:
   workflow_dispatch: # Retain manual triggering
 
 env:
-  SIMULATOR_NUM_MESSAGES_CI: "10000" # Number of messages for CI tests - reduced for faster execution
+  SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests - reduced for faster execution
   DOTNET_REDIS_URL: "localhost:6379"
   DOTNET_KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
 
