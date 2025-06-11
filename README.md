@@ -67,6 +67,7 @@ Pass an optional argument to control the number of simulated messages. The scrip
 The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `8088` and `50051` by default. To override these values set the environment variables `JOBMANAGER_HTTP_PORT` and `JOBMANAGER_GRPC_PORT`. The TaskManager gRPC port can be configured with `TASKMANAGER_GRPC_PORT`.
 
 ## AI-Assisted Development
+The development of Flink.NET has been significantly accelerated and enhanced with the assistance of GitHub Copilot Agent, ChatGPT's Codex Agent and Google's Jules Agent, showcasing a modern approach to software engineering.
 
 ### Using GitHub Copilot Agent
 
