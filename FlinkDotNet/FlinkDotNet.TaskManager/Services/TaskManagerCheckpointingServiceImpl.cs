@@ -22,7 +22,7 @@ namespace FlinkDotNet.TaskManager.Services
         {
             Console.WriteLine($"TaskManager [{_taskManagerId}]: Received TriggerCheckpoint request for JobID '{request.JobId}', CheckpointID {request.CheckpointId}, Timestamp {request.CheckpointTimestamp} from JM '{request.JobManagerId}'.");
 
-            var sourcesForJob = _activeTaskRegistry.GetAllSources()
+            var sourcesForJob = ActiveTaskRegistry.GetAllSources()
                                 .Where(s => s.JobId == request.JobId)
                                 .ToList();
 

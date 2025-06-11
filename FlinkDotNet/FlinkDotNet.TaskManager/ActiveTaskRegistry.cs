@@ -14,7 +14,7 @@ namespace FlinkDotNet.TaskManager
         {
             _tasks.TryRemove($"{vertexId}_{subtaskIndex}", out _);
         }
-        public IEnumerable<SourceTaskWrapper> GetAllSources() => new List<SourceTaskWrapper>();
+        public static IEnumerable<SourceTaskWrapper> GetAllSources() => new List<SourceTaskWrapper>();
     }
 
     public class SourceTaskWrapper
