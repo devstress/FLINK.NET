@@ -6,10 +6,9 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [review_requested]
+    types: [ready_for_review]
     branches:
       - main # Or your primary branch name
-    types: [opened, synchronize, reopened]
   workflow_dispatch: # Retain manual triggering
 
 concurrency:
