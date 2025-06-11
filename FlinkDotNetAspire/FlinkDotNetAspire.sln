@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -9,6 +9,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.AppHost", "FlinkDotNetAspire.AppHost.AppHost\FlinkDotNetAspire.AppHost.AppHost.csproj", "{567DC345-A60F-1013-7090-2F5EA6385FA8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.ServiceDefaults", "FlinkDotNetAspire.AppHost.ServiceDefaults\FlinkDotNetAspire.AppHost.ServiceDefaults.csproj", "{B8A0CC66-6F75-5A12-2B67-9D42401593D2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.JobManager", "..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj", "{0468A62C-F444-4B57-AEE6-28A796D15F1B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.TaskManager", "..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj", "{CF0DCBE5-BACB-4D42-BD44-0A5F039ED0B3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -32,6 +36,14 @@ Global
 		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B8A0CC66-6F75-5A12-2B67-9D42401593D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0468A62C-F444-4B57-AEE6-28A796D15F1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0468A62C-F444-4B57-AEE6-28A796D15F1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0468A62C-F444-4B57-AEE6-28A796D15F1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0468A62C-F444-4B57-AEE6-28A796D15F1B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF0DCBE5-BACB-4D42-BD44-0A5F039ED0B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF0DCBE5-BACB-4D42-BD44-0A5F039ED0B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF0DCBE5-BACB-4D42-BD44-0A5F039ED0B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF0DCBE5-BACB-4D42-BD44-0A5F039ED0B3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
