@@ -97,11 +97,11 @@ $arguments = @(
 )
 $appHost = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
 Write-Host "Waiting for AppHost to initialize..."
-Start-Sleep -Seconds 30
+Start-Sleep -Seconds 5
 
 $verifier = "../FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
-$maxAttempts = 10
-$delaySeconds = 15
+$maxAttempts = 2
+$delaySeconds = 5
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
     Write-Host "Health check attempt $attempt/$maxAttempts..."
     dotnet $verifier --health-check

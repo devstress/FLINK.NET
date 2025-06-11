@@ -54,14 +54,14 @@ stop_apphost() {
 
 health_check() {
     local verifier="./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
-    for attempt in {1..10}; do
-        echo "Health check attempt $attempt/10..."
+    for attempt in {1..2}; do
+        echo "Health check attempt $attempt/2..."
         if dotnet "$verifier" --health-check; then
             echo "Health check PASSED."
             return 0
         fi
-        echo "Health check FAILED. Retrying in 15s..."
-        sleep 15
+        echo "Health check FAILED. Retrying in 5s..."
+        sleep 5
     done
     return 1
 }
@@ -79,7 +79,7 @@ build_verifier
 start_apphost
 
 echo "Waiting for AppHost to initialize..."
-sleep 30
+sleep 5
 
 if ! health_check; then
     echo "Health check failed." >&2
