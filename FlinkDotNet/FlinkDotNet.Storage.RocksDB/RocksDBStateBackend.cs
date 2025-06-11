@@ -19,7 +19,6 @@ namespace FlinkDotNet.Storage.RocksDB
         public int MaxBackgroundJobs { get; set; } = 4;
         public ulong WriteBufferSize { get; set; } = 64 * 1024 * 1024; // 64MB
         public int MaxWriteBufferNumber { get; set; } = 3;
-        public CompressionType CompressionType { get; set; } = CompressionType.Lz4;
         public bool EnableStatistics { get; set; } = true;
         public long BlockCacheSize { get; set; } = 256 * 1024 * 1024; // 256MB
     }
@@ -56,8 +55,7 @@ namespace FlinkDotNet.Storage.RocksDB
 
             _columnFamilyOptions = new ColumnFamilyOptions()
                 .SetWriteBufferSize(_options.WriteBufferSize)
-                .SetMaxWriteBufferNumber(_options.MaxWriteBufferNumber)
-                .SetCompression(_options.CompressionType);
+                .SetMaxWriteBufferNumber(_options.MaxWriteBufferNumber);
 
             try
             {

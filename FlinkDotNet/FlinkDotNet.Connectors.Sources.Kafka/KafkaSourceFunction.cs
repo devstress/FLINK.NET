@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using FlinkDotNet.Core.Abstractions.Sources;
-using FlinkDotNet.Core.Abstractions.Context;
 using Microsoft.Extensions.Logging;
 
 namespace FlinkDotNet.Connectors.Sources.Kafka

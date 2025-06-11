@@ -1,7 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using FlinkDotNet.Core.Api;
+using FlinkDotNet.Core.Api.Streaming;
 
 namespace FlinkDotNet.Table.Api
 {
