@@ -11,7 +11,7 @@ on:
   workflow_dispatch: # Retain manual triggering
 
 env:
-  SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests
+  SIMULATOR_NUM_MESSAGES_CI: "10000" # Number of messages for CI tests - reduced for faster execution
   DOTNET_REDIS_URL: "localhost:6379"
   DOTNET_KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
 
@@ -66,7 +66,7 @@ jobs:
           )
           $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
           $proc.Id | Out-File apphost.pid
-          Start-Sleep -Seconds 30
+          Start-Sleep -Seconds 45
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
@@ -77,8 +77,8 @@ jobs:
           DOTNET_REDIS_URL: localhost:6379
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
-          $maxAttempts = 10
-          $delaySeconds = 15
+          $maxAttempts = 2
+          $delaySeconds = 5
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {

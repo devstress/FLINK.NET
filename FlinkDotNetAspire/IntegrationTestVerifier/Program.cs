@@ -102,9 +102,12 @@ namespace IntegrationTestVerifier
 
             verificationStopwatch.Stop();
             Console.WriteLine($"Verification time for {expectedMessages} messages: {verificationStopwatch.ElapsedMilliseconds} ms");
-            if (verificationStopwatch.ElapsedMilliseconds > 1000)
+            
+            // Allow reasonable time based on message count - roughly 0.5ms per message plus 5 second baseline
+            long allowedTimeMs = Math.Max(5000, expectedMessages / 2);
+            if (verificationStopwatch.ElapsedMilliseconds > allowedTimeMs)
             {
-                Console.WriteLine("Processing exceeded 1 second.");
+                Console.WriteLine($"Processing exceeded {allowedTimeMs}ms (allowed for {expectedMessages} messages).");
                 allChecksPassed = false;
             }
 

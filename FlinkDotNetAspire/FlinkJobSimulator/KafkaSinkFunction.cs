@@ -56,6 +56,9 @@ namespace FlinkJobSimulator
             {
                 _producer = new ProducerBuilder<Null, T>(config).Build();
                 Console.WriteLine($"[{_taskName}] Kafka producer created for bootstrap servers: {bootstrapServers}. Topic: {_topic}");
+                
+                // Try to create the topic if it doesn't exist (synchronously for Open method)
+                EnsureTopicExistsAsync(bootstrapServers).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -64,14 +67,14 @@ namespace FlinkJobSimulator
             }
         }
 
-        public async void Invoke(T record, ISinkContext context) // Stays async void
+        public void Invoke(T record, ISinkContext context)
         {
             if (_producer == null)
             {
                 return;
             }
 
-            if (record is string recordString && recordString.StartsWith("PROTO_BARRIER_"))
+            if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Kafka Sink: {recordString}");
                 // In a real scenario, sink would perform checkpointing actions here (e.g., flush, commit transaction).
@@ -83,7 +86,14 @@ namespace FlinkJobSimulator
             try
             {
                 var message = new Message<Null, T> { Value = record };
-                await _producer.ProduceAsync(_topic, message);
+                // Use synchronous produce to ensure message is sent before continuing
+                _producer.Produce(_topic, message, (deliveryReport) =>
+                {
+                    if (deliveryReport.Error.Code != ErrorCode.NoError)
+                    {
+                        Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
+                    }
+                });
 
                 long currentCount = Interlocked.Increment(ref _processedCount);
                 if (currentCount % LogFrequency == 0)
@@ -98,6 +108,43 @@ namespace FlinkJobSimulator
             catch (Exception ex)
             {
                  Console.WriteLine($"[{_taskName}] ERROR: Unexpected error producing to Kafka topic '{_topic}': {ex.Message}");
+            }
+        }
+
+        private async Task EnsureTopicExistsAsync(string bootstrapServers)
+        {
+            try
+            {
+                var adminConfig = new AdminClientConfig { BootstrapServers = bootstrapServers };
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                
+                // Check if topic exists
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                var topicExists = metadata.Topics.Any(t => t.Topic == _topic);
+                
+                if (!topicExists)
+                {
+                    Console.WriteLine($"[{_taskName}] Topic '{_topic}' does not exist. Creating it...");
+                    
+                    var topicSpec = new Confluent.Kafka.Admin.TopicSpecification
+                    {
+                        Name = _topic,
+                        NumPartitions = 1,
+                        ReplicationFactor = 1
+                    };
+
+                    await admin.CreateTopicsAsync(new[] { topicSpec });
+                    Console.WriteLine($"[{_taskName}] Topic '{_topic}' created successfully.");
+                }
+                else
+                {
+                    Console.WriteLine($"[{_taskName}] Topic '{_topic}' already exists.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] WARNING: Could not create/verify topic '{_topic}': {ex.Message}");
+                Console.WriteLine($"[{_taskName}] Continuing anyway - topic may be auto-created on first message.");
             }
         }
 
