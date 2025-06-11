@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using FlinkDotNet.Core.Abstractions.Sinks;
+using FlinkDotNet.Core.Abstractions.Context;
 using Microsoft.Extensions.Logging;
 
 namespace FlinkDotNet.Connectors.Sources.Kafka
@@ -10,7 +11,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
     /// Kafka sink function that supports exactly-once semantics via transactions
     /// </summary>
     /// <typeparam name="T">The type of records to write</typeparam>
-    public class KafkaSinkFunction<T> : ISinkFunction<T>, ITwoPhaseCommitSink<T>
+    public class KafkaSinkFunction<T> : ISinkFunction<T>, ITransactionalSinkFunction<T>
     {
         private readonly ProducerConfig _producerConfig;
         private readonly string _topic;
@@ -32,7 +33,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             _transactional = !string.IsNullOrEmpty(_producerConfig.TransactionalId);
         }
 
-        public async Task Open(ISinkContext context)
+        public void Open(IRuntimeContext context)
         {
             var producerBuilder = new ProducerBuilder<Null, T>(_producerConfig)
                 .SetValueSerializer(_valueSerializer)
@@ -49,7 +50,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             _logger?.LogInformation("Kafka sink opened for topic: {Topic}", _topic);
         }
 
-        public async Task Invoke(T value, ISinkContext context)
+        public void Invoke(T value, ISinkContext context)
         {
             if (_producer == null)
                 throw new InvalidOperationException("Sink not opened");
@@ -62,7 +63,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                     Timestamp = new Timestamp(context.CurrentEventTime ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                 };
 
-                var deliveryResult = await _producer.ProduceAsync(_topic, message);
+                var deliveryResult = _producer.Produce(_topic, message);
                 _logger?.LogDebug("Message delivered to {TopicPartition} at offset {Offset}", 
                     deliveryResult.TopicPartition, deliveryResult.Offset);
             }
@@ -73,7 +74,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             }
         }
 
-        public async Task Close()
+        public void Close()
         {
             if (_producer != null)
             {
@@ -84,8 +85,8 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             }
         }
 
-        // ITwoPhaseCommitSink implementation for exactly-once semantics
-        public async Task<string> BeginTransaction(long checkpointId)
+        // ITransactionalSinkFunction implementation for exactly-once semantics
+        public string BeginTransaction()
         {
             if (!_transactional || _producer == null)
                 return string.Empty;
@@ -93,24 +94,25 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             try
             {
                 _producer.BeginTransaction();
-                _logger?.LogDebug("Kafka transaction begun for checkpoint {CheckpointId}", checkpointId);
-                return $"kafka-txn-{checkpointId}";
+                var transactionId = Guid.NewGuid().ToString();
+                _logger?.LogDebug("Kafka transaction begun: {TransactionId}", transactionId);
+                return transactionId;
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to begin Kafka transaction for checkpoint {CheckpointId}", checkpointId);
+                _logger?.LogError(ex, "Failed to begin Kafka transaction");
                 throw;
             }
         }
 
-        public async Task PreCommit(string transactionHandle)
+        public void PreCommit(string transactionId)
         {
             // For Kafka, pre-commit doesn't require specific action
             // The transaction is prepared when we call CommitTransaction
-            _logger?.LogDebug("Kafka pre-commit for transaction {TransactionHandle}", transactionHandle);
+            _logger?.LogDebug("Kafka pre-commit for transaction {TransactionId}", transactionId);
         }
 
-        public async Task Commit(string transactionHandle)
+        public void Commit(string transactionId)
         {
             if (!_transactional || _producer == null)
                 return;
@@ -118,16 +120,16 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             try
             {
                 _producer.CommitTransaction();
-                _logger?.LogDebug("Kafka transaction committed: {TransactionHandle}", transactionHandle);
+                _logger?.LogDebug("Kafka transaction committed: {TransactionId}", transactionId);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to commit Kafka transaction {TransactionHandle}", transactionHandle);
+                _logger?.LogError(ex, "Failed to commit Kafka transaction {TransactionId}", transactionId);
                 throw;
             }
         }
 
-        public async Task Abort(string transactionHandle)
+        public void Abort(string transactionId)
         {
             if (!_transactional || _producer == null)
                 return;
@@ -135,18 +137,18 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             try
             {
                 _producer.AbortTransaction();
-                _logger?.LogDebug("Kafka transaction aborted: {TransactionHandle}", transactionHandle);
+                _logger?.LogDebug("Kafka transaction aborted: {TransactionId}", transactionId);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to abort Kafka transaction {TransactionHandle}", transactionHandle);
+                _logger?.LogError(ex, "Failed to abort Kafka transaction {TransactionId}", transactionId);
                 throw;
             }
         }
 
         public void Dispose()
         {
-            Close().GetAwaiter().GetResult();
+            Close();
         }
     }
 

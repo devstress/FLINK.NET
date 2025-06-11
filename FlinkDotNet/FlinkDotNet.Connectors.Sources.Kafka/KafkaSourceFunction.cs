@@ -43,6 +43,11 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         public bool IsBounded => _isBounded;
 
+        public void Run(ISourceContext<T> context)
+        {
+            RunAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+        }
+
         public async Task RunAsync(ISourceContext<T> context, CancellationToken cancellationToken)
         {
             _isRunning = true;
