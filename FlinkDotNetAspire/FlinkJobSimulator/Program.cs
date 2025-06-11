@@ -470,7 +470,7 @@ public static class Program
         {
             try
             {
-                var dashboardUrl = "http://localhost:18888";
+                var dashboardUrl = Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_URL") ?? "http://localhost:18888";
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = dashboardUrl,
