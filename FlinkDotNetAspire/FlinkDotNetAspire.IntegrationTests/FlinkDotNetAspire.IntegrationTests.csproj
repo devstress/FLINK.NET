@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" Version="9.3.1" />
+    <PackageReference Include="Confluent.Kafka" Version="2.10.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" />
@@ -28,6 +29,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNetAspire.AppHost.AppHost\FlinkDotNetAspire.AppHost.AppHost.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>
