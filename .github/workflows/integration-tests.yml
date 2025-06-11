@@ -58,7 +58,13 @@ jobs:
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
-          $proc = Start-Process -FilePath "dotnet" -ArgumentList "run --no-build --configuration Release --project FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj" -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory "$PWD" -NoNewWindow -PassThru
+          $arguments = @(
+            'run',
+            '--no-build',
+            '--configuration', 'Release',
+            '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
+          )
+          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
           $proc.Id | Out-File apphost.pid
           Start-Sleep -Seconds 30
 
