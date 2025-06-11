@@ -5,9 +5,13 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [review_requested]
+    types: [ready_for_review]
     branches:
       - main # Or your primary branch name
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   run-unit-tests:

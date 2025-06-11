@@ -45,6 +45,7 @@ namespace FlinkJobSimulator
             var config = new ProducerConfig
             {
                 BootstrapServers = bootstrapServers,
+                SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
                 // Add other producer configurations if needed, e.g., Acks, Retries, etc.
                 // For high throughput, consider:
                 // LingerMs = 5, // Time to wait for more messages before sending a batch
@@ -115,7 +116,11 @@ namespace FlinkJobSimulator
         {
             try
             {
-                var adminConfig = new AdminClientConfig { BootstrapServers = bootstrapServers };
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
+                };
                 using var admin = new AdminClientBuilder(adminConfig).Build();
                 
                 // Check if topic exists
@@ -153,7 +158,12 @@ namespace FlinkJobSimulator
             Console.WriteLine($"[{_taskName}] Closing KafkaSinkFunction. Total records attempted for Kafka topic '{_topic}': {_processedCount}.");
             try
             {
-                _producer?.Flush(TimeSpan.FromSeconds(10)); // Recommended to flush before closing
+                if (_producer != null)
+                {
+                    Console.WriteLine($"[{_taskName}] Flushing Kafka producer before closing...");
+                    _producer.Flush(TimeSpan.FromSeconds(30)); // Increased flush timeout for large message volumes
+                    Console.WriteLine($"[{_taskName}] Kafka producer flush completed.");
+                }
             }
             catch (Exception ex)
             {

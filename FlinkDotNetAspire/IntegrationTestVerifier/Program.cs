@@ -7,6 +7,7 @@ namespace IntegrationTestVerifier
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Text.RegularExpressions;
     using Confluent.Kafka;
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
@@ -103,12 +104,20 @@ namespace IntegrationTestVerifier
             verificationStopwatch.Stop();
             Console.WriteLine($"Verification time for {expectedMessages} messages: {verificationStopwatch.ElapsedMilliseconds} ms");
             
-            // Allow reasonable time based on message count - roughly 0.5ms per message plus 5 second baseline
-            long allowedTimeMs = Math.Max(5000, expectedMessages / 2);
-            if (verificationStopwatch.ElapsedMilliseconds > allowedTimeMs)
+            // Read max allowed time from environment variable, default to 10 seconds
+            long maxAllowedTimeMs = 10000; // 10 seconds default
+            if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
             {
-                Console.WriteLine($"Processing exceeded {allowedTimeMs}ms (allowed for {expectedMessages} messages).");
+                maxAllowedTimeMs = configuredTimeMs;
+            }
+            if (verificationStopwatch.ElapsedMilliseconds > maxAllowedTimeMs)
+            {
+                Console.WriteLine($"(Failed) Processing time {verificationStopwatch.ElapsedMilliseconds}ms exceeded maximum allowed {maxAllowedTimeMs}ms.");
                 allChecksPassed = false;
+            }
+            else
+            {
+                Console.WriteLine($"(Passed) Processing time {verificationStopwatch.ElapsedMilliseconds}ms is less than {maxAllowedTimeMs}ms.");
             }
 
             Console.WriteLine(allChecksPassed ? "\nIntegration tests PASSED." : "\nIntegration tests FAILED.");
@@ -171,7 +180,8 @@ namespace IntegrationTestVerifier
                 BootstrapServers = bootstrapServers,
                 GroupId = $"flinkdotnet-integration-verifier-{Guid.NewGuid()}",
                 AutoOffsetReset = AutoOffsetReset.Earliest,
-                EnableAutoCommit = false
+                EnableAutoCommit = false,
+                SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
             };
 
             using (var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build())
@@ -180,7 +190,7 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"Subscribed to Kafka topic: {topic}");
 
                 var messagesConsumed = new List<string>();
-                var consumeTimeout = TimeSpan.FromSeconds(60);
+                var consumeTimeout = TimeSpan.FromSeconds(10);
                 var stopwatch = Stopwatch.StartNew();
 
                 try
@@ -224,15 +234,99 @@ namespace IntegrationTestVerifier
                 else
                 {
                     Console.WriteLine($"Success: Received {messagesConsumed.Count} messages from Kafka topic '{topic}'.");
-                    for(int i = 0; i < Math.Min(messagesConsumed.Count, 5); i++) {
-                        // CA1310: Use StringComparison
-                        if (!messagesConsumed[i].StartsWith("MessagePayload_Seq-", StringComparison.Ordinal)) {
-                           Console.WriteLine($"Error: Kafka message '{messagesConsumed[i]}' (sample {i}) does not match expected format 'MessagePayload_Seq-'.");
-                        }
+                    
+                    // Check FIFO ordering and print top 10 and bottom 10 messages
+                    bool fifoOrderingPassed = VerifyFIFOOrdering(messagesConsumed);
+                    if (fifoOrderingPassed)
+                    {
+                        Console.WriteLine("(Passed) FIFO ordered. Please print top 10 and top last 10.");
+                        PrintTopAndBottomMessages(messagesConsumed, 10);
+                    }
+                    else
+                    {
+                        Console.WriteLine("(Failed) FIFO ordering check failed.");  
+                        kafkaVerified = false;
                     }
                 }
             }
             return kafkaVerified;
+        }
+
+        private static bool VerifyFIFOOrdering(List<string> messages)
+        {
+            Console.WriteLine("Verifying FIFO ordering...");
+            
+            long previousRedisOrderedId = 0;
+            bool hasValidPreviousMessage = false;
+            
+            for (int i = 0; i < messages.Count; i++)
+            {
+                try
+                {
+                    // Skip barrier messages 
+                    if (messages[i].StartsWith("BARRIER_", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+                    
+                    // Parse JSON message to extract redis_ordered_id
+                    var message = messages[i];
+                    if (!message.StartsWith("{", StringComparison.Ordinal))
+                    {
+                        Console.WriteLine($"Error: Message at index {i} is not JSON format: {message}");
+                        return false;
+                    }
+                    
+                    // Simple JSON parsing to extract redis_ordered_id
+                    var redisOrderedIdMatch = Regex.Match(message, @"""redis_ordered_id"":(\d+)");
+                    if (!redisOrderedIdMatch.Success)
+                    {
+                        Console.WriteLine($"Error: Could not extract redis_ordered_id from message at index {i}: {message}");
+                        return false;
+                    }
+                    
+                    long currentRedisOrderedId = long.Parse(redisOrderedIdMatch.Groups[1].Value);
+                    
+                    if (hasValidPreviousMessage && currentRedisOrderedId <= previousRedisOrderedId)
+                    {
+                        Console.WriteLine($"Error: FIFO ordering violated at index {i}. Current redis_ordered_id: {currentRedisOrderedId}, Previous: {previousRedisOrderedId}");
+                        return false;
+                    }
+                    
+                    previousRedisOrderedId = currentRedisOrderedId;
+                    hasValidPreviousMessage = true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error parsing message at index {i}: {ex.Message}");
+                    return false;
+                }
+            }
+            
+            Console.WriteLine("FIFO ordering verification passed!");
+            return true;
+        }
+
+        private static void PrintTopAndBottomMessages(List<string> messages, int count)
+        {
+            // Get non-barrier messages
+            var nonBarrierMessages = messages.Where(m => !m.StartsWith("BARRIER_", StringComparison.Ordinal)).ToList();
+            
+            Console.WriteLine($"\nTop {count} messages:");
+            for (int i = 0; i < Math.Min(count, nonBarrierMessages.Count); i++)
+            {
+                Console.WriteLine($"  [{i+1}]: {nonBarrierMessages[i]}");
+            }
+            
+            if (nonBarrierMessages.Count > count)
+            {
+                Console.WriteLine($"\nBottom {count} messages:");
+                int startIndex = Math.Max(0, nonBarrierMessages.Count - count);
+                for (int i = startIndex; i < nonBarrierMessages.Count; i++)
+                {
+                    Console.WriteLine($"  [{i+1}]: {nonBarrierMessages[i]}");
+                }
+            }
         }
 
         private static async Task<bool> WaitForRedisAsync(string connectionString, int retries = 5, int delaySeconds = 2)
@@ -258,7 +352,11 @@ namespace IntegrationTestVerifier
 
         private static bool WaitForKafka(string bootstrapServers, int retries = 5, int delaySeconds = 2)
         {
-            var adminConfig = new AdminClientConfig { BootstrapServers = bootstrapServers };
+            var adminConfig = new AdminClientConfig 
+            { 
+                BootstrapServers = bootstrapServers,
+                SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
+            };
             for (int i = 0; i < retries; i++)
             {
                 try
