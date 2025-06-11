@@ -348,6 +348,52 @@ public class SimpleSinkContext : ISinkContext
 
 public static class Program
 {
+    private static async Task VerifyInfrastructure(string jobManagerGrpcUrl)
+    {
+        Console.WriteLine("Verifying JobManager and TaskManager infrastructure...");
+        
+        try
+        {
+            // Check JobManager HTTP endpoint for task managers
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync($"{jobManagerGrpcUrl.Replace("50051", "8088").Replace("grpc", "http")}/api/jobmanager/taskmanagers");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"JobManager TaskManager API response: {content}");
+                
+                // Parse to count task managers (simple check)
+                if (content.Contains("TM-"))
+                {
+                    var tmCount = content.Split("TM-").Length - 1;
+                    Console.WriteLine($"Found {tmCount} registered TaskManagers.");
+                    
+                    if (tmCount >= 10)
+                    {
+                        Console.WriteLine("✓ Infrastructure verification PASSED: JobManager and 10+ TaskManagers are running.");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"⚠ Infrastructure verification WARNING: Expected 10 TaskManagers, found {tmCount}.");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("⚠ Infrastructure verification WARNING: No TaskManagers found in response.");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"⚠ Infrastructure verification WARNING: JobManager HTTP API not accessible. Status: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠ Infrastructure verification WARNING: {ex.Message}");
+        }
+    }
+
     public static async Task Main(string[] args)
     {
         Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
@@ -403,7 +449,19 @@ public static class Program
             Console.WriteLine($"JobGraph created with name: {jobGraph.JobName}");
             Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
 
-            // --- 4. Execute the job directly for integration testing ---
+            // --- 4. Verify JobManager and TaskManager infrastructure is running ---
+            Console.WriteLine("Verifying JobManager and TaskManager infrastructure...");
+            try 
+            {
+                await VerifyInfrastructure(jobManagerGrpcUrl);
+            }
+            catch (Exception infraEx)
+            {
+                Console.WriteLine($"Infrastructure verification failed: {infraEx.Message}");
+                Console.WriteLine("Proceeding with direct execution for integration testing...");
+            }
+
+            // --- 5. Execute the job directly for integration testing ---
             Console.WriteLine("Executing job logic directly for integration testing...");
             try 
             {
