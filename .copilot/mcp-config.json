@@ -1,0 +1,76 @@
+{
+  "name": "Flink.NET MCP Configuration",
+  "version": "1.0.0",
+  "description": "Model Context Protocol configuration for Flink.NET development assistance",
+  "servers": [
+    {
+      "name": "flink-dotnet-docs",
+      "description": "Documentation server for Flink.NET project knowledge",
+      "command": "python",
+      "args": ["/home/runner/work/FLINK.NET/FLINK.NET/.copilot/mcp-servers/docs-server.py"],
+      "env": {
+        "PROJECT_ROOT": "/home/runner/work/FLINK.NET/FLINK.NET",
+        "DOCS_PATH": "/home/runner/work/FLINK.NET/FLINK.NET/docs/wiki"
+      }
+    },
+    {
+      "name": "flink-dotnet-codebase",
+      "description": "Codebase analysis server for understanding project structure and patterns",
+      "command": "python", 
+      "args": ["/home/runner/work/FLINK.NET/FLINK.NET/.copilot/mcp-servers/codebase-server.py"],
+      "env": {
+        "PROJECT_ROOT": "/home/runner/work/FLINK.NET/FLINK.NET",
+        "SOLUTION_PATHS": "FlinkDotNet/FlinkDotNet.sln;FlinkDotNetAspire/FlinkDotNetAspire.sln;FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln"
+      }
+    },
+    {
+      "name": "flink-dotnet-testing",
+      "description": "Testing guidance and test pattern analysis server",
+      "command": "python",
+      "args": ["/home/runner/work/FLINK.NET/FLINK.NET/.copilot/mcp-servers/testing-server.py"],
+      "env": {
+        "PROJECT_ROOT": "/home/runner/work/FLINK.NET/FLINK.NET",
+        "TEST_COMMANDS": "dotnet test FlinkDotNet/FlinkDotNet.sln -v minimal"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "get_project_context",
+      "description": "Get comprehensive context about the Flink.NET project structure and current status"
+    },
+    {
+      "name": "get_development_patterns", 
+      "description": "Get common development patterns and coding conventions used in the project"
+    },
+    {
+      "name": "get_testing_guidance",
+      "description": "Get guidance on testing approaches and existing test patterns"
+    },
+    {
+      "name": "get_api_documentation",
+      "description": "Get documentation for gRPC APIs and internal service communication"
+    },
+    {
+      "name": "analyze_similar_code",
+      "description": "Analyze existing code patterns to understand how to implement similar functionality"
+    }
+  ],
+  "resources": [
+    {
+      "uri": "file:///home/runner/work/FLINK.NET/FLINK.NET/docs/wiki/",
+      "name": "Project Documentation",
+      "description": "Complete project documentation including architecture, APIs, and guides"
+    },
+    {
+      "uri": "file:///home/runner/work/FLINK.NET/FLINK.NET/README.md",
+      "name": "Project Overview",
+      "description": "Main project README with overview and getting started information"
+    },
+    {
+      "uri": "file:///home/runner/work/FLINK.NET/FLINK.NET/AGENTS.md", 
+      "name": "Agent Setup Guide",
+      "description": "Development environment setup instructions for AI agents"
+    }
+  ]
+}

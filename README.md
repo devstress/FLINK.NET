@@ -69,7 +69,32 @@ The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `808
 ## AI-Assisted Development
 The development of Flink.NET has been significantly accelerated and enhanced with the assistance of GitHub Copilot Agent, ChatGPT's Codex Agent and Google's Jules Agent, showcasing a modern approach to software engineering.
 
-### Using GitHub Copilot Agent
+### Enhanced AI Development Environment
+
+Flink.NET includes comprehensive AI assistance infrastructure to help developers work more efficiently:
+
+#### GitHub Copilot Integration
+- **Custom Instructions**: See `.copilot/instructions.md` for Copilot-specific guidance
+- **Project Context**: AI agents have access to comprehensive project knowledge
+- **Development Patterns**: Built-in understanding of Flink.NET coding conventions
+
+#### Model Context Protocol (MCP) Servers
+Start MCP servers to provide rich context to AI agents:
+
+```bash
+# Linux/macOS
+./.copilot/start-mcp-servers.sh
+
+# Windows
+.\.copilot\Start-MCP-Servers.ps1
+```
+
+The MCP servers provide:
+- **Documentation Server**: Access to all wiki content and project documentation
+- **Codebase Analysis**: Understanding of project structure and implementation patterns  
+- **Testing Guidance**: Recommendations for test patterns and execution
+
+#### Using GitHub Copilot Agent
 
 Contributors can leverage GitHub Copilot Agent for development assistance:
 
@@ -77,6 +102,11 @@ Contributors can leverage GitHub Copilot Agent for development assistance:
 2. **Assign to Copilot**: Wait for a contributor to assign the issue to `Copilot`
 3. **Check Progress**: You will see 👀 reaction from Copilot and progress reports from the Issue & linked Pull Request
 4. **Review Results**: The Copilot Agent will create pull requests that contributors can review and merge
+
+#### AI Development Resources
+- **AGENTS.md**: Comprehensive development guide for AI agents
+- **.copilot/ai-context.md**: Complete project context and implementation details
+- **.copilot/mcp-config.json**: MCP server configuration for enhanced AI assistance
 
 ## Getting Involved & Contribution
 
