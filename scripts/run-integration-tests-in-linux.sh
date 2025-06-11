@@ -36,7 +36,7 @@ build_verifier() {
 start_apphost() {
     ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
     SIMULATOR_NUM_MESSAGES="$SIM_MESSAGES" \
-    dotnet run --no-build --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
+    dotnet run --no-build --configuration Release --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
     APPHOST_PID=$!
 }
 
