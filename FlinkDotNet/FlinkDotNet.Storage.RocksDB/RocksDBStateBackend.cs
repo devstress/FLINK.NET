@@ -248,7 +248,7 @@ namespace FlinkDotNet.Storage.RocksDB
             }
         }
 
-        private long GetDirectorySize(string directory)
+        private static long GetDirectorySize(string directory)
         {
             try
             {
@@ -263,31 +263,31 @@ namespace FlinkDotNet.Storage.RocksDB
             }
         }
 
-        private double GetWriteLatency()
+        private static double GetWriteLatency()
         {
             // Simplified - in production would use RocksDB statistics
             return 1.0; // ms
         }
 
-        private double GetReadLatency()
+        private static double GetReadLatency()
         {
             // Simplified - in production would use RocksDB statistics  
             return 0.5; // ms
         }
 
-        private long GetWritesPerSecond()
+        private static long GetWritesPerSecond()
         {
             // Simplified - in production would calculate from RocksDB counters
             return 1000;
         }
 
-        private long GetReadsPerSecond()
+        private static long GetReadsPerSecond()
         {
             // Simplified - in production would calculate from RocksDB counters
             return 2000;
         }
 
-        private double GetCpuUsage()
+        private static double GetCpuUsage()
         {
             // Simplified - in production would use system metrics
             return 25.0; // 25% CPU usage

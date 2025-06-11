@@ -107,7 +107,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return instances;
         }
 
-        private object CreateOperatorFromDefinition(OperatorDefinition operatorDef)
+        private static object CreateOperatorFromDefinition(OperatorDefinition operatorDef)
         {
             var operatorType = Type.GetType(operatorDef.FullyQualifiedName);
             if (operatorType == null)
@@ -324,7 +324,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return channels;
         }
 
-        private async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext, CancellationToken cancellationToken)
+        private static async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext, CancellationToken cancellationToken)
         {
             // Find and invoke Run method using reflection
             var runMethod = sourceInstance.GetType().GetMethod("Run");
@@ -340,7 +340,7 @@ namespace FlinkDotNet.Core.Api.Execution
             await Task.CompletedTask;
         }
 
-        private async Task ProcessSinkData(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, CancellationToken cancellationToken)
+        private static async Task ProcessSinkData(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, CancellationToken cancellationToken)
         {
             var invokeMethod = sinkInstance.GetType().GetMethod("Invoke");
             if (invokeMethod == null) return;
@@ -370,7 +370,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
+        private static async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
             // Find the appropriate method to invoke (Map, Filter, etc.)
             var mapMethod = operatorInstance.GetType().GetMethod("Map");

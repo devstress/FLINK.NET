@@ -60,7 +60,7 @@ namespace FlinkDotNet.JobManager.Services
             }
         }
 
-        private Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)> AssignTasks(JobGraph jobGraph, List<TaskManagerInfo> availableTaskManagers)
+        private static Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)> AssignTasks(JobGraph jobGraph, List<TaskManagerInfo> availableTaskManagers)
         {
             var taskAssignments = new Dictionary<string, (TaskManagerInfo tm, int subtaskIndex)>();
             var tmAssignmentIndex = 0;
