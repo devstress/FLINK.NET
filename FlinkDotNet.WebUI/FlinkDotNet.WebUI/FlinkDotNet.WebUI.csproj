@@ -5,10 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ProjectGuid>060a3906-30ec-44c6-821c-a267678dd9fa</ProjectGuid>
-    <!-- SonarCloud exclusions: Blazor WebAssembly UI project without unit tests -->
-    <SonarQubeExclude>true</SonarQubeExclude>
-    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
-    <SonarQubeTestProject>true</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.0" />
