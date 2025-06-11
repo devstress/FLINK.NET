@@ -36,7 +36,7 @@ build_verifier() {
 start_apphost() {
     ASPIRE_ALLOW_UNSECURED_TRANSPORT="true" \
     SIMULATOR_NUM_MESSAGES="$SIM_MESSAGES" \
-    dotnet run --no-build --configuration Release --project "$APPHOST_PROJECT" > apphost.log 2>&1 &
+    dotnet run --no-build --configuration Release --project "$APPHOST_PROJECT" > apphost.log 2> apphost.err.log &
     APPHOST_PID=$!
 }
 
@@ -49,6 +49,11 @@ stop_apphost() {
     fi
     if [[ -f apphost.log ]]; then
         echo "apphost.log contents:" && cat apphost.log
+    fi
+    if [[ -f apphost.err.log ]]; then
+        echo "Reading apphost.err.log content:"
+        cat apphost.err.log
+        echo "Total lines read: $(wc -l < apphost.err.log)"
     fi
 }
 
@@ -79,7 +84,7 @@ build_verifier
 start_apphost
 
 echo "Waiting for AppHost to initialize..."
-sleep 30
+sleep 45
 
 if ! health_check; then
     echo "Health check failed." >&2
