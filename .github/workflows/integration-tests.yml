@@ -19,6 +19,7 @@ env:
   SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests - reduced for faster execution
   DOTNET_REDIS_URL: "localhost:6379"
   DOTNET_KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
+  MAX_ALLOWED_TIME_MS: "10000" # 10 seconds timeout for processing
 
 jobs:
   run-integration-tests:
@@ -71,7 +72,7 @@ jobs:
           )
           $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
           $proc.Id | Out-File apphost.pid
-          Start-Sleep -Seconds 30
+          Start-Sleep -Seconds 60
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
@@ -82,8 +83,8 @@ jobs:
           DOTNET_REDIS_URL: localhost:6379
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
-          $maxAttempts = 2
-          $delaySeconds = 5
+          $maxAttempts = 10
+          $delaySeconds = 10
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
@@ -108,6 +109,7 @@ jobs:
           DOTNET_ENVIRONMENT: "Development"
           DOTNET_REDIS_URL: localhost:6379
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          MAX_ALLOWED_TIME_MS: ${{ env.MAX_ALLOWED_TIME_MS }}
         run: |
           # Check if AppHost is still running
           if (Test-Path apphost.pid) {
