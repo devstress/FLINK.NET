@@ -271,6 +271,19 @@ namespace FlinkDotNet.Core.Api
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Executes the job locally in the current process using the LocalStreamExecutor.
+        /// This provides Apache Flink 2.0 compatible execution for development and testing.
+        /// </summary>
+        public async Task ExecuteLocallyAsync(string jobName = "MyFlinkJob", CancellationToken cancellationToken = default)
+        {
+            var jobGraph = CreateJobGraph(jobName);
+            Console.WriteLine($"Executing JobGraph '{jobGraph.JobName}' locally...");
+            
+            var localExecutor = new FlinkDotNet.Core.Api.Execution.LocalStreamExecutor(this);
+            await localExecutor.ExecuteJobAsync(jobGraph, cancellationToken);
+        }
+
         public void DisableOperatorChaining()
         {
             this._isChainingEnabled = false;

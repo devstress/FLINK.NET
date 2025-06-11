@@ -484,66 +484,16 @@ public static class Program
             catch (Exception infraEx)
             {
                 Console.WriteLine($"Infrastructure verification failed: {infraEx.Message}");
-                Console.WriteLine("Proceeding with direct execution for integration testing...");
+                Console.WriteLine("Proceeding with local execution for integration testing...");
             }
 
-            // --- 5. Execute the job directly for integration testing ---
-            Console.WriteLine("Executing job logic directly for integration testing...");
+            // --- 5. Execute the job using the new LocalStreamExecutor ---
+            Console.WriteLine("Executing job using LocalStreamExecutor for Apache Flink 2.0 compatibility...");
             try 
             {
-                // Create instances of our operators
-                var sourceInstance = new HighVolumeSourceFunction(numMessages, new StringSerializer());
-                var mapper = new SimpleToUpperMapOperator();
-                var redisSink = new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisSinkCounterKey);
-                var kafkaSink = new FlinkJobSimulator.KafkaSinkFunction<string>(kafkaTopic);
-
-                // Create a simple runtime context for the operators
-                var runtimeContext = new SimpleRuntimeContext("IntegrationTestJob");
-
-                // Open the operators
-                Console.WriteLine("Opening operators...");
-                sourceInstance.Open(runtimeContext);
-                redisSink.Open(runtimeContext);
-                kafkaSink.Open(runtimeContext);
-
-                Console.WriteLine("Starting data processing...");
-
-                // Execute the source and process through the pipeline
-                var sourceContext = new SimpleSourceContext<string>();
-                var sinkContext = new SimpleSinkContext();
-
-                // Run the source
-                Console.WriteLine("Running source to generate messages...");
-                await sourceInstance.RunAsync(sourceContext, CancellationToken.None);
-                Console.WriteLine($"Source completed. Generated {sourceContext.CollectedMessages.Count} messages.");
-
-                // Process all collected messages through the pipeline
-                Console.WriteLine($"Processing {sourceContext.CollectedMessages.Count} messages through the pipeline...");
-                foreach (var message in sourceContext.CollectedMessages)
-                {
-                    try
-                    {
-                        // Apply map transformation
-                        string mappedMessage = mapper.Map(message);
-
-                        // Send to both sinks
-                        redisSink.Invoke(mappedMessage, sinkContext);
-                        kafkaSink.Invoke(mappedMessage, sinkContext);
-                    }
-                    catch (Exception msgEx)
-                    {
-                        Console.WriteLine($"Error processing message: {msgEx.Message}");
-                        // Continue processing other messages
-                    }
-                }
-
-                // Close the operators
-                Console.WriteLine("Closing operators...");
-                sourceInstance.Close();
-                redisSink.Close();
-                kafkaSink.Close();
-
-                Console.WriteLine("Job execution completed successfully.");
+                // Use the new local execution engine
+                await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
+                Console.WriteLine("Job execution completed successfully using LocalStreamExecutor.");
             }
             catch (Exception jobEx)
             {
