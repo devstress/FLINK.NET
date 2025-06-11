@@ -207,6 +207,14 @@ jobs:
             Write-Host "No AppHost PID file found."
           }
           
+          # Print apphost.pid content after stopping
+          if (Test-Path apphost.pid) {
+            Write-Host "apphost.pid content after stopping:"
+            Get-Content apphost.pid
+          } else {
+            Write-Host "apphost.pid file not found after stopping."
+          }
+          
           # Display logs
           if (Test-Path apphost.out.log) {
             Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
