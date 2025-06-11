@@ -66,7 +66,7 @@ jobs:
           )
           $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
           $proc.Id | Out-File apphost.pid
-          Start-Sleep -Seconds 60
+          Start-Sleep -Seconds 30
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
