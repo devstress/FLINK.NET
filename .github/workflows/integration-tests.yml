@@ -77,7 +77,7 @@ jobs:
           DOTNET_REDIS_URL: localhost:6379
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
-          $maxAttempts = 3
+          $maxAttempts = 2
           $delaySeconds = 5
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
