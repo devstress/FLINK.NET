@@ -8,7 +8,12 @@ on:
   pull_request:
     branches:
       - main # Or your primary branch name
+    types: [opened, synchronize, reopened]
   workflow_dispatch: # Retain manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests - reduced for faster execution
