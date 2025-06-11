@@ -44,7 +44,7 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 ## Running Integration Tests on Windows
 
-A PowerShell script is provided for executing the integration tests locally. It ensures the .NET 8 SDK version 8 or later is installed and verifies that Docker Desktop is available (Aspire uses Docker for Redis and Kafka). The script starts the Aspire AppHost, waits 5 seconds for initialization, then performs health checks with a maximum of 2 attempts spaced 5 seconds apart before running the verification tests. Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
+A PowerShell script is provided for executing the integration tests locally. It ensures the .NET 8 SDK version 8 or later is installed and verifies that Docker Desktop is available (Aspire uses Docker for Redis and Kafka). The script starts the Aspire AppHost, waits 30 seconds for initialization, then performs health checks with a maximum of 2 attempts spaced 5 seconds apart before running the verification tests. Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
 
 ```powershell
 pwsh scripts/run-integration-tests-in-windows-os.ps1
@@ -60,7 +60,7 @@ Linux users can run the integration tests using the accompanying shell script:
 bash scripts/run-integration-tests-in-linux.sh
 ```
 
-Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, launches the Aspire AppHost, waits 5 seconds for initialization, performs health checks with a maximum of 2 attempts spaced 5 seconds apart, and then runs the verification tests.
+Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, launches the Aspire AppHost, waits 30 seconds for initialization, performs health checks with a maximum of 2 attempts spaced 5 seconds apart, and then runs the verification tests.
 
 ### Configuring JobManager Ports
 

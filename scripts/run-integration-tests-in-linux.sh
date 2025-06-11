@@ -79,7 +79,7 @@ build_verifier
 start_apphost
 
 echo "Waiting for AppHost to initialize..."
-sleep 5
+sleep 30
 
 if ! health_check; then
     echo "Health check failed." >&2

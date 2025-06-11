@@ -97,7 +97,7 @@ $arguments = @(
 )
 $appHost = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
 Write-Host "Waiting for AppHost to initialize..."
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 30
 
 $verifier = "../FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 $maxAttempts = 2

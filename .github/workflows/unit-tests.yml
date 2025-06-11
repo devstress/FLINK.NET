@@ -54,7 +54,7 @@ jobs:
         run: |
           echo "Running tests for FlinkDotNet/FlinkDotNet.sln..."
           Push-Location FlinkDotNet
-          dotnet test FlinkDotNet.sln --configuration Release --logger "trx;LogFileName=flinkdotnet_tests.trx" --results-directory "TestResults"
+          dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults"
           Pop-Location
 
       - name: Build FlinkDotNetAspire solution (no tests)
@@ -77,5 +77,5 @@ jobs:
         with:
           name: dotnet-test-results
           path: |
-            FlinkDotNet/TestResults/*.trx
+            FlinkDotNet/TestResults/**/*.trx
           retention-days: 7

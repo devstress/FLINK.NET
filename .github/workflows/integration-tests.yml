@@ -79,9 +79,47 @@ jobs:
             '--configuration', 'Release',
             '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
           )
-          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
+          # Start process with continuous logging to files
+          $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+          $startInfo.FileName = 'dotnet'
+          $startInfo.Arguments = $arguments -join ' '
+          $startInfo.WorkingDirectory = $PWD
+          $startInfo.UseShellExecute = $false
+          $startInfo.RedirectStandardOutput = $true
+          $startInfo.RedirectStandardError = $true
+          $startInfo.CreateNoWindow = $true
+          
+          $proc = [System.Diagnostics.Process]::Start($startInfo)
           $proc.Id | Out-File apphost.pid
-          Start-Sleep -Seconds 5
+          
+          # Start background jobs to continuously write output to log files
+          $outputJob = Start-Job -ScriptBlock {
+            param($process)
+            try {
+              while (!$process.StandardOutput.EndOfStream -and !$process.HasExited) {
+                $line = $process.StandardOutput.ReadLine()
+                if ($line) {
+                  Add-Content -Path "apphost.out.log" -Value $line
+                }
+              }
+            } catch {}
+          } -ArgumentList $proc
+          
+          $errorJob = Start-Job -ScriptBlock {
+            param($process)
+            try {
+              while (!$process.StandardError.EndOfStream -and !$process.HasExited) {
+                $line = $process.StandardError.ReadLine()
+                if ($line) {
+                  Add-Content -Path "apphost.err.log" -Value $line
+                }
+              }
+            } catch {}
+          } -ArgumentList $proc
+          
+          $outputJob.Id | Out-File apphost.output.job
+          $errorJob.Id | Out-File apphost.error.job
+          Start-Sleep -Seconds 30
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
@@ -148,6 +186,19 @@ jobs:
       - name: Stop Aspire AppHost
         if: always()
         run: |
+          # Stop background logging jobs first
+          if (Test-Path apphost.output.job) {
+            $outputJobId = Get-Content apphost.output.job
+            Stop-Job -Id $outputJobId -ErrorAction SilentlyContinue
+            Remove-Job -Id $outputJobId -ErrorAction SilentlyContinue
+          }
+          if (Test-Path apphost.error.job) {
+            $errorJobId = Get-Content apphost.error.job
+            Stop-Job -Id $errorJobId -ErrorAction SilentlyContinue
+            Remove-Job -Id $errorJobId -ErrorAction SilentlyContinue
+          }
+          
+          # Stop AppHost process
           if (Test-Path apphost.pid) {
             $apphostPid = Get-Content apphost.pid
             Write-Host "Stopping AppHost with PID $apphostPid"
@@ -155,6 +206,8 @@ jobs:
           } else {
             Write-Host "No AppHost PID file found."
           }
+          
+          # Display logs
           if (Test-Path apphost.out.log) {
             Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
           }
