@@ -73,15 +73,106 @@ jobs:
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
-          $arguments = @(
+          
+          # Create log files
+          $outLogPath = "apphost.out.log"
+          $errLogPath = "apphost.err.log"
+          
+          Write-Host "Starting AppHost with output logging to $outLogPath and $errLogPath"
+          
+          # Use Start-Process with file redirection
+          $processArgs = @(
             'run',
             '--no-build',
             '--configuration', 'Release',
             '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
           )
-          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -WorkingDirectory $PWD -NoNewWindow -PassThru
-          $proc.Id | Out-File apphost.pid
-          Start-Sleep -Seconds 60
+          
+          # Start the process with output redirection using Start-Process
+          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru
+          $proc.Id | Out-File apphost.pid -Encoding utf8
+          
+          Write-Host "Started AppHost with PID: $($proc.Id)"
+          
+          # Start background jobs to tail the log files and display content in real-time
+          $outputJob = Start-Job -ScriptBlock {
+            param($logPath)
+            $lastSize = 0
+            $attempts = 0
+            $maxAttempts = 600  # 10 minutes of checking
+            
+            Write-Host "[OUTPUT MONITOR] Starting to monitor $logPath"
+            
+            while ($attempts -lt $maxAttempts) {
+              try {
+                if (Test-Path $logPath) {
+                  $currentSize = (Get-Item $logPath).Length
+                  if ($currentSize -gt $lastSize) {
+                    # Read new content
+                    $newContent = Get-Content $logPath -Tail ($currentSize - $lastSize) -Encoding utf8 -ErrorAction SilentlyContinue
+                    if ($newContent) {
+                      foreach ($line in $newContent) {
+                        if ($line -and $line.Trim()) {
+                          Write-Host "[APPHOST-OUT] $line"
+                        }
+                      }
+                    }
+                    $lastSize = $currentSize
+                  }
+                }
+                Start-Sleep -Seconds 1
+                $attempts++
+              } catch {
+                Write-Host "[OUTPUT MONITOR ERROR] $_"
+                Start-Sleep -Seconds 1
+                $attempts++
+              }
+            }
+            Write-Host "[OUTPUT MONITOR] Finished monitoring $logPath"
+          } -ArgumentList $outLogPath
+          
+          $errorJob = Start-Job -ScriptBlock {
+            param($logPath)
+            $lastSize = 0
+            $attempts = 0
+            $maxAttempts = 600  # 10 minutes of checking
+            
+            Write-Host "[ERROR MONITOR] Starting to monitor $logPath"
+            
+            while ($attempts -lt $maxAttempts) {
+              try {
+                if (Test-Path $logPath) {
+                  $currentSize = (Get-Item $logPath).Length
+                  if ($currentSize -gt $lastSize) {
+                    # Read new content  
+                    $newContent = Get-Content $logPath -Tail ($currentSize - $lastSize) -Encoding utf8 -ErrorAction SilentlyContinue
+                    if ($newContent) {
+                      foreach ($line in $newContent) {
+                        if ($line -and $line.Trim()) {
+                          Write-Host "[APPHOST-ERR] $line"
+                        }
+                      }
+                    }
+                    $lastSize = $currentSize
+                  }
+                }
+                Start-Sleep -Seconds 1
+                $attempts++
+              } catch {
+                Write-Host "[ERROR MONITOR ERROR] $_"
+                Start-Sleep -Seconds 1
+                $attempts++
+              }
+            }
+            Write-Host "[ERROR MONITOR] Finished monitoring $logPath"
+          } -ArgumentList $errLogPath
+          
+          $outputJob.Id | Out-File apphost.output.job -Encoding utf8
+          $errorJob.Id | Out-File apphost.error.job -Encoding utf8
+          
+          Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
+          Write-Host "AppHost started, waiting 30 seconds for initialization..."
+          Start-Sleep -Seconds 30
 
 
       # The AppHost binds Redis and Kafka to default ports. The environment
@@ -92,8 +183,8 @@ jobs:
           DOTNET_REDIS_URL: localhost:6379
           DOTNET_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: |
-          $maxAttempts = 10
-          $delaySeconds = 10
+          $maxAttempts = 2
+          $delaySeconds = 5
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
@@ -148,17 +239,122 @@ jobs:
       - name: Stop Aspire AppHost
         if: always()
         run: |
+          Write-Host "=================== STOPPING APPHOST ==================="
+          
+          # Stop background monitor jobs first
+          if (Test-Path apphost.output.job) {
+            $outputJobId = Get-Content apphost.output.job
+            Write-Host "Stopping output monitor job: $outputJobId"
+            $outputJob = Get-Job -Id $outputJobId -ErrorAction SilentlyContinue
+            if ($outputJob) {
+              Write-Host "Output job state: $($outputJob.State)"
+              Stop-Job -Id $outputJobId -ErrorAction SilentlyContinue
+              Wait-Job -Id $outputJobId -Timeout 3 -ErrorAction SilentlyContinue
+              Remove-Job -Id $outputJobId -ErrorAction SilentlyContinue
+            }
+          }
+          
+          if (Test-Path apphost.error.job) {
+            $errorJobId = Get-Content apphost.error.job
+            Write-Host "Stopping error monitor job: $errorJobId"
+            $errorJob = Get-Job -Id $errorJobId -ErrorAction SilentlyContinue
+            if ($errorJob) {
+              Write-Host "Error job state: $($errorJob.State)"
+              Stop-Job -Id $errorJobId -ErrorAction SilentlyContinue
+              Wait-Job -Id $errorJobId -Timeout 3 -ErrorAction SilentlyContinue
+              Remove-Job -Id $errorJobId -ErrorAction SilentlyContinue
+            }
+          }
+          
+          # Wait for final log writes
+          Write-Host "Waiting for final log writes..."
+          Start-Sleep -Seconds 2
+          
+          # Stop AppHost process
           if (Test-Path apphost.pid) {
             $apphostPid = Get-Content apphost.pid
             Write-Host "Stopping AppHost with PID $apphostPid"
-            Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+            
+            $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "Process is running, stopping it..."
+              Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 2
+            } else {
+              Write-Host "Process was already stopped."
+            }
+            
+            Write-Host "apphost.pid content after stopping:"
+            Get-Content apphost.pid
           } else {
             Write-Host "No AppHost PID file found."
           }
+          
+          # Give file system time to sync
+          Start-Sleep -Seconds 1
+          
+          Write-Host "=================== APPHOST OUTPUT LOG ==================="
           if (Test-Path apphost.out.log) {
-            Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log -Raw
+            $outSize = (Get-Item apphost.out.log).Length
+            Write-Host "apphost.out.log size: $outSize bytes"
+            
+            if ($outSize -gt 0) {
+              Write-Host "Reading apphost.out.log content:"
+              try {
+                $lines = Get-Content apphost.out.log -ErrorAction SilentlyContinue
+                if ($lines -and $lines.Count -gt 0) {
+                  $lines | ForEach-Object { 
+                    if ($_ -and $_.Trim()) { 
+                      Write-Host $_ 
+                    }
+                  }
+                  Write-Host "Total lines read: $($lines.Count)"
+                } else {
+                  Write-Host "No content lines found in apphost.out.log"
+                }
+              } catch {
+                Write-Host "Error reading apphost.out.log: $_"
+              }
+            } else {
+              Write-Host "apphost.out.log exists but is empty"
+            }
+          } else {
+            Write-Host "No apphost.out.log found"
           }
+          
+          Write-Host "=================== APPHOST ERROR LOG ==================="
           if (Test-Path apphost.err.log) {
-            Write-Host "apphost.err.log contents:"; Get-Content apphost.err.log -Raw
+            $errSize = (Get-Item apphost.err.log).Length
+            Write-Host "apphost.err.log size: $errSize bytes"
+            
+            if ($errSize -gt 0) {
+              Write-Host "Reading apphost.err.log content:"
+              try {
+                $lines = Get-Content apphost.err.log -ErrorAction SilentlyContinue
+                if ($lines -and $lines.Count -gt 0) {
+                  $lines | ForEach-Object { 
+                    if ($_ -and $_.Trim()) { 
+                      Write-Host $_ 
+                    }
+                  }
+                  Write-Host "Total lines read: $($lines.Count)"
+                } else {
+                  Write-Host "No content lines found in apphost.err.log"
+                }
+              } catch {
+                Write-Host "Error reading apphost.err.log: $_"
+              }
+            } else {
+              Write-Host "apphost.err.log exists but is empty"
+            }
+          } else {
+            Write-Host "No apphost.err.log found"
           }
+          
+          Write-Host "=================== DEBUG INFO ==================="
+          Write-Host "Current directory files:"
+          Get-ChildItem -Filter "apphost*" | ForEach-Object {
+            Write-Host "  $($_.Name) - Size: $($_.Length) bytes, LastWrite: $($_.LastWriteTime)"
+          }
+          
           Write-Host "AppHost cleanup complete."

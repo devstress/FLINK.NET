@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 
@@ -81,7 +80,6 @@ namespace FlinkDotNet.Core.Memory
     public class FlinkMemoryManager : IMemoryManager, IDisposable
     {
         private readonly ConcurrentDictionary<int, ConcurrentQueue<PooledMemorySegment>> _pools;
-        private readonly ArrayPool<byte> _arrayPool;
         private readonly long _maxMemory;
         private long _currentMemory;
         private long _peakMemory;
@@ -96,7 +94,6 @@ namespace FlinkDotNet.Core.Memory
         {
             _maxMemory = maxMemory;
             _pools = new ConcurrentDictionary<int, ConcurrentQueue<PooledMemorySegment>>();
-            _arrayPool = ArrayPool<byte>.Shared;
             
             // Pre-populate pools with standard sizes
             foreach (var size in StandardSizes)
@@ -121,7 +118,7 @@ namespace FlinkDotNet.Core.Memory
             if (newTotal > _maxMemory)
             {
                 Interlocked.Add(ref _currentMemory, -size);
-                throw new OutOfMemoryException($"Cannot allocate {size} bytes. Would exceed limit of {_maxMemory} bytes.");
+                throw new InsufficientMemoryException($"Cannot allocate {size} bytes. Would exceed limit of {_maxMemory} bytes.");
             }
 
             // Update peak memory usage
@@ -186,7 +183,7 @@ namespace FlinkDotNet.Core.Memory
             };
         }
 
-        private int GetPoolSize(int requestedSize)
+        private static int GetPoolSize(int requestedSize)
         {
             foreach (var size in StandardSizes)
             {
@@ -215,17 +212,26 @@ namespace FlinkDotNet.Core.Memory
 
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
             if (!_disposed)
             {
-                // Clear all pools
-                foreach (var pool in _pools.Values)
+                if (disposing)
                 {
-                    while (pool.TryDequeue(out var segment))
+                    // Clear all pools
+                    foreach (var pool in _pools.Values)
                     {
-                        segment.Dispose();
+                        while (pool.TryDequeue(out var segment))
+                        {
+                            segment.Dispose();
+                        }
                     }
+                    _pools.Clear();
                 }
-                _pools.Clear();
                 _disposed = true;
             }
         }
@@ -236,13 +242,11 @@ namespace FlinkDotNet.Core.Memory
     /// </summary>
     internal class PooledMemorySegment : IMemorySegment
     {
-        private readonly FlinkMemoryManager _manager;
         private readonly byte[] _buffer;
         private bool _disposed;
 
         public PooledMemorySegment(FlinkMemoryManager manager, int size, int poolSize)
         {
-            _manager = manager;
             _buffer = new byte[size];
             Size = size;
             PoolSize = poolSize;
@@ -265,10 +269,19 @@ namespace FlinkDotNet.Core.Memory
 
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
             if (!_disposed)
             {
+                if (disposing)
+                {
+                    // Buffer will be GC'd
+                }
                 _disposed = true;
-                // Buffer will be GC'd
             }
         }
     }
@@ -282,17 +295,48 @@ namespace FlinkDotNet.Core.Memory
         private readonly int _size;
         private bool _disposed;
 
+        /// <summary>
+        /// Initializes a new instance of the OffHeapMemorySegment class.
+        /// </summary>
+        /// <param name="size">The size of the memory segment to allocate.</param>
+        /// <remarks>
+        /// This constructor uses unsafe code to allocate unmanaged memory via Marshal.AllocHGlobal.
+        /// The unsafe keyword is required here to create a Span&lt;byte&gt; from the raw pointer.
+        /// This is safe because:
+        /// 1. The memory is properly allocated using Marshal.AllocHGlobal
+        /// 2. The size parameter is validated and stored for bounds checking
+        /// 3. The memory is zeroed immediately after allocation
+        /// 4. The memory is properly freed in the Dispose method using Marshal.FreeHGlobal
+        /// 5. Access to the memory is controlled through the Span property which checks disposal state
+        /// 6. The unsafe context is limited to only the specific operations that require it
+        /// 7. No unsafe pointer arithmetic is performed beyond creating the Span
+        /// </remarks>
+#pragma warning disable S6640 // Using "unsafe" should be reviewed - this is safe and necessary for direct memory allocation
         public unsafe OffHeapMemorySegment(int size)
+#pragma warning restore S6640
         {
             _size = size;
             _pointer = Marshal.AllocHGlobal(size);
             Id = Guid.NewGuid().ToString("N")[..8];
             
-            // Zero the memory
+            // Zero the memory - safe because we just allocated it with the exact size
             new Span<byte>((void*)_pointer, size).Clear();
         }
 
-        public unsafe Span<byte> Span => _disposed 
+        /// <summary>
+        /// Gets the memory span for this segment.
+        /// </summary>
+        /// <remarks>
+        /// This property uses unsafe code to create a Span from the unmanaged memory pointer.
+        /// This is safe because:
+        /// 1. The pointer was allocated with Marshal.AllocHGlobal and is valid until disposal
+        /// 2. The size is exactly what was allocated and stored during construction
+        /// 3. Disposal state is checked before accessing the memory
+        /// 4. The Span provides bounds checking for all subsequent access
+        /// </remarks>
+#pragma warning disable S6640 // Using "unsafe" should be reviewed - this is safe and necessary for direct memory access
+        public unsafe Span<byte> Span => _disposed
+#pragma warning restore S6640 
             ? throw new ObjectDisposedException(nameof(OffHeapMemorySegment))
             : new Span<byte>((void*)_pointer, _size);
 
@@ -302,9 +346,19 @@ namespace FlinkDotNet.Core.Memory
 
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
             if (!_disposed)
             {
-                Marshal.FreeHGlobal(_pointer);
+                if (disposing)
+                {
+                    // Free the unmanaged memory
+                    Marshal.FreeHGlobal(_pointer);
+                }
                 _disposed = true;
             }
         }
@@ -320,6 +374,7 @@ namespace FlinkDotNet.Core.Memory
         private readonly int _bufferSize;
         private readonly int _maxBuffers;
         private int _currentBuffers;
+        private bool _disposed;
 
         public NetworkMemoryPool(IMemoryManager memoryManager, int bufferSize = 32768, int maxBuffers = 1000)
         {
@@ -363,9 +418,22 @@ namespace FlinkDotNet.Core.Memory
 
         public void Dispose()
         {
-            while (_availableBuffers.TryDequeue(out var buffer))
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
             {
-                _memoryManager.Release(buffer);
+                if (disposing)
+                {
+                    while (_availableBuffers.TryDequeue(out var buffer))
+                    {
+                        _memoryManager.Release(buffer);
+                    }
+                }
+                _disposed = true;
             }
         }
     }

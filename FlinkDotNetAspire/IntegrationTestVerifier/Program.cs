@@ -329,9 +329,9 @@ namespace IntegrationTestVerifier
             }
         }
 
-        private static async Task<bool> WaitForRedisAsync(string connectionString, int retries = 5, int delaySeconds = 2)
+        private static async Task<bool> WaitForRedisAsync(string connectionString, int maxAttempts = 2, int delaySeconds = 5)
         {
-            for (int i = 0; i < retries; i++)
+            for (int i = 0; i < maxAttempts; i++)
             {
                 try
                 {
@@ -350,14 +350,14 @@ namespace IntegrationTestVerifier
             return false;
         }
 
-        private static bool WaitForKafka(string bootstrapServers, int retries = 5, int delaySeconds = 2)
+        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 2, int delaySeconds = 5)
         {
             var adminConfig = new AdminClientConfig 
             { 
                 BootstrapServers = bootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
             };
-            for (int i = 0; i < retries; i++)
+            for (int i = 0; i < maxAttempts; i++)
             {
                 try
                 {

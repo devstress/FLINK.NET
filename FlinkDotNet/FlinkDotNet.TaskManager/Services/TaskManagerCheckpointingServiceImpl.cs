@@ -8,13 +8,11 @@ namespace FlinkDotNet.TaskManager.Services
     public class TaskManagerCheckpointingServiceImpl : TaskManagerCheckpointing.TaskManagerCheckpointingBase
     {
         private readonly string _taskManagerId;
-        private readonly ActiveTaskRegistry _activeTaskRegistry; // Added
 
         // Inject TaskManagerId or get it from a shared service/config
-        public TaskManagerCheckpointingServiceImpl(string taskManagerId, ActiveTaskRegistry activeTaskRegistry) // Modified
+        public TaskManagerCheckpointingServiceImpl(string taskManagerId)
         {
             _taskManagerId = taskManagerId;
-            _activeTaskRegistry = activeTaskRegistry ?? throw new ArgumentNullException(nameof(activeTaskRegistry)); // Added
         }
 
         public override Task<TriggerCheckpointResponse> TriggerTaskCheckpoint(
@@ -22,7 +20,7 @@ namespace FlinkDotNet.TaskManager.Services
         {
             Console.WriteLine($"TaskManager [{_taskManagerId}]: Received TriggerCheckpoint request for JobID '{request.JobId}', CheckpointID {request.CheckpointId}, Timestamp {request.CheckpointTimestamp} from JM '{request.JobManagerId}'.");
 
-            var sourcesForJob = _activeTaskRegistry.GetAllSources()
+            var sourcesForJob = ActiveTaskRegistry.GetAllSources()
                                 .Where(s => s.JobId == request.JobId)
                                 .ToList();
 

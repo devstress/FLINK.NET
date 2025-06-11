@@ -52,10 +52,38 @@ jobs:
 
       - name: Run tests for FlinkDotNet solution
         run: |
-          echo "Running tests for FlinkDotNet/FlinkDotNet.sln..."
+          echo "Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection..."
           Push-Location FlinkDotNet
-          dotnet test FlinkDotNet.sln --configuration Release --logger "trx;LogFileName=flinkdotnet_tests.trx" --results-directory "TestResults"
+          dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
           Pop-Location
+
+      - name: Convert coverage to multiple formats
+        run: |
+          # Install ReportGenerator if not already installed
+          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
+          
+          Write-Host "Converting coverage files to multiple formats for SonarCloud..."
+          Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
+            $coberturaFile = $_.FullName
+            $targetDir = $_.DirectoryName
+            Write-Host "Processing coverage file: $coberturaFile"
+            
+            # Convert to OpenCover format for SonarCloud
+            $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
+            Write-Host "Converting to OpenCover format: $openCoverFile"
+            reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
+            
+            # Also generate an HTML report for debugging
+            $htmlReportDir = Join-Path $targetDir "coverage-html"
+            Write-Host "Generating HTML coverage report: $htmlReportDir"
+            reportgenerator -reports:"$coberturaFile" -targetdir:"$htmlReportDir" -reporttypes:"Html" -verbosity:Info
+          }
+          
+          # List all coverage files for debugging
+          Write-Host "Coverage files generated:"
+          Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.xml" | ForEach-Object {
+            Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+          }
 
       - name: Build FlinkDotNetAspire solution (no tests)
         run: |
@@ -77,5 +105,17 @@ jobs:
         with:
           name: dotnet-test-results
           path: |
-            FlinkDotNet/TestResults/*.trx
+            FlinkDotNet/TestResults/**/*.trx
+            FlinkDotNet/TestResults/**/*.xml
+            FlinkDotNet/TestResults/**/coverage-html/**
           retention-days: 7
+
+      - name: Upload Coverage to SonarCloud Cache
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarcloud-coverage-data
+          path: |
+            FlinkDotNet/TestResults/**/*.opencover.xml
+            FlinkDotNet/TestResults/**/*.cobertura.xml
+          retention-days: 1

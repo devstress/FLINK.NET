@@ -14,7 +14,7 @@ namespace FlinkDotNet.TaskManager
         {
             _tasks.TryRemove($"{vertexId}_{subtaskIndex}", out _);
         }
-        public IEnumerable<SourceTaskWrapper> GetAllSources() => new List<SourceTaskWrapper>();
+        public static IEnumerable<SourceTaskWrapper> GetAllSources() => new List<SourceTaskWrapper>();
     }
 
     public class SourceTaskWrapper
@@ -24,8 +24,8 @@ namespace FlinkDotNet.TaskManager
         public int SubtaskIndex { get; set; }
         public System.Threading.Channels.ChannelWriter<BarrierInjectionRequest> BarrierChannelWriter { get; set; } = System.Threading.Channels.Channel.CreateUnbounded<BarrierInjectionRequest>().Writer;
     }
-}
 
     public interface IOperatorBarrierHandler
     {
     }
+}
