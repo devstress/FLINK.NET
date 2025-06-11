@@ -136,7 +136,8 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
 
     private async Task EmitMessageAsync(ISourceContext<string> ctx, long currentSequenceId, long emittedCount)
     {
-        string message = $"MessagePayload_Seq-{currentSequenceId}";
+        // Generate message with both id and redis_ordered_id fields as requested
+        string message = $"{{\"id\":{emittedCount},\"redis_ordered_id\":{currentSequenceId},\"payload\":\"MessagePayload_Seq-{currentSequenceId}\"}}";
         ctx.Collect(message);
         _messagesSentSinceLastBarrier++;
 
