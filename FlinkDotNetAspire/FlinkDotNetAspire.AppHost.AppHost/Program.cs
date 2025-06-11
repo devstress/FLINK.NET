@@ -8,10 +8,12 @@ public class Program
         var builder = DistributedApplication.CreateBuilder(args);
 
         // Add resources
-        // Bind Redis and Kafka containers to their default ports so tests can reliably
-        // connect using localhost addresses without parsing the Aspire manifest.
-        var redis = builder.AddRedis("redis", port: ServicePorts.Redis);
-        var kafka = builder.AddKafka("kafka", port: ServicePorts.Kafka); // Add Kafka resource
+        // Use configurable ports for Redis and Kafka to avoid conflicts in CI environments
+        var redisPort = int.TryParse(Environment.GetEnvironmentVariable("DOTNET_REDIS_PORT"), out var rPort) ? rPort : ServicePorts.Redis;
+        var kafkaPort = int.TryParse(Environment.GetEnvironmentVariable("DOTNET_KAFKA_PORT"), out var kPort) ? kPort : ServicePorts.Kafka;
+        
+        var redis = builder.AddRedis("redis", port: redisPort);
+        var kafka = builder.AddKafka("kafka", port: kafkaPort); // Add Kafka resource
 
         // Set up for 1 million message high throughput test
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
