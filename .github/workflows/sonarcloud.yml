@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - main # Or your primary branch name
-    types: [opened, synchronize, reopened]
+    types: [ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

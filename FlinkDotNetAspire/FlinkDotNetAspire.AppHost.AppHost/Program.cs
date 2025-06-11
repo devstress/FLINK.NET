@@ -35,6 +35,7 @@ builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
     .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter") // Redis sink counter key
     .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id") // Redis global sequence key
     .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic") // Default Kafka topic
+    .WithEnvironment("ASPIRE_DASHBOARD_URL", "http://localhost:18888") // Default Aspire Dashboard URL
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
-builder.Build().Run();
+await builder.Build().RunAsync();

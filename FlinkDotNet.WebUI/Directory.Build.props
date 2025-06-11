@@ -1,0 +1,9 @@
+<Project>
+  <!-- SonarCloud exclusions for FlinkDotNet.WebUI solution -->
+  <!-- This is a Blazor WebAssembly UI project without unit tests -->
+  <PropertyGroup>
+    <SonarQubeExclude>true</SonarQubeExclude>
+    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
+    <SonarQubeTestProject>true</SonarQubeTestProject>
+  </PropertyGroup>
+</Project>

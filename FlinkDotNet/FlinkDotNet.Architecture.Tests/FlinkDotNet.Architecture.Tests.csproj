@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <ProjectGuid>e264a9a7-2bd6-4555-adf0-1e51a826f921</ProjectGuid>
+    <!-- SonarCloud exclusions: Architecture test project doesn't need coverage -->
+    <SonarQubeExclude>true</SonarQubeExclude>
+    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
+    <SonarQubeTestProject>true</SonarQubeTestProject>
   </PropertyGroup>
 
   <ItemGroup>
