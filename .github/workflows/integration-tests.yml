@@ -6,7 +6,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [ready_for_review, synchronize]
+    types: [ready_for_review, copilot_completion]
     branches:
       - main # Or your primary branch name
   workflow_dispatch: # Retain manual triggering
