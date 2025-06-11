@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 
 namespace FlinkDotNet.Table.Api
 {
@@ -38,7 +37,7 @@ namespace FlinkDotNet.Table.Api
         /// <summary>
         /// Converts the table to a data stream
         /// </summary>
-        FlinkDotNet.Core.Api.DataStream<T> ToDataStream<T>();
+        FlinkDotNet.Core.Api.Streaming.DataStream<T> ToDataStream<T>();
 
         /// <summary>
         /// Executes a SQL query on this table

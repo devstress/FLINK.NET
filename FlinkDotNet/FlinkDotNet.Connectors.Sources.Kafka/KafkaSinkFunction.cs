@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using Confluent.Kafka;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Context;
@@ -60,12 +59,11 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 var message = new Message<Null, T>
                 {
                     Value = value,
-                    Timestamp = new Timestamp(context.CurrentEventTime ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+                    Timestamp = new Timestamp(DateTimeOffset.FromUnixTimeMilliseconds(context.CurrentProcessingTimeMillis()).DateTime)
                 };
 
-                var deliveryResult = _producer.Produce(_topic, message);
-                _logger?.LogDebug("Message delivered to {TopicPartition} at offset {Offset}", 
-                    deliveryResult.TopicPartition, deliveryResult.Offset);
+                _producer.Produce(_topic, message);
+                _logger?.LogDebug("Message produced to topic {Topic}", _topic);
             }
             catch (ProduceException<Null, T> ex)
             {

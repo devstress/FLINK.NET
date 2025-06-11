@@ -9,6 +9,7 @@ using FlinkDotNet.Core.Abstractions.States; // For state interfaces
 using FlinkDotNet.Core.Abstractions.Models; // For JobConfiguration
 using FlinkDotNet.Core.Abstractions.Models.State; // For state descriptors
 using FlinkDotNet.Core.Abstractions.Storage; // For IStateSnapshotStore
+using FlinkDotNet.Core.Abstractions.Windowing; // For Watermark
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 using FlinkDotNet.JobManager.Models.JobGraph;
@@ -339,6 +340,30 @@ public class SimpleSourceContext<T> : ISourceContext<T>
     {
         CollectedMessages.Add(record);
     }
+
+    public Task CollectAsync(T record)
+    {
+        CollectedMessages.Add(record);
+        return Task.CompletedTask;
+    }
+
+    public void CollectWithTimestamp(T record, long timestamp)
+    {
+        CollectedMessages.Add(record);
+    }
+
+    public Task CollectWithTimestampAsync(T record, long timestamp)
+    {
+        CollectedMessages.Add(record);
+        return Task.CompletedTask;
+    }
+
+    public void EmitWatermark(Watermark watermark)
+    {
+        // For simulation purposes, we can ignore watermarks
+    }
+
+    public long ProcessingTime => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 }
 
 public class SimpleSinkContext : ISinkContext
