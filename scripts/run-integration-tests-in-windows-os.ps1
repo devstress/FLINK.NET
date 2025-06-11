@@ -115,7 +115,14 @@ Write-Host "Running verification tests..."
 dotnet $verifier
 $exitCode = $LASTEXITCODE
 
-$null = Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue
-Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log
+$null = $null
+if ($appHost -ne $null -and -not $appHost.HasExited) {
+    $null = Stop-Process -Id $appHost.Id -Force -ErrorAction SilentlyContinue
+} else {
+    Write-Host "AppHost was not running."
+}
+if (Test-Path apphost.out.log) {
+    Write-Host "apphost.out.log contents:"; Get-Content apphost.out.log
+}
 exit $exitCode
 
