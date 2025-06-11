@@ -74,7 +74,7 @@ jobs:
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
           
-          # Start AppHost process with output redirection
+          # Start AppHost process with output redirection to files
           $arguments = @(
             'run',
             '--no-build',
@@ -82,7 +82,7 @@ jobs:
             '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
           )
           
-          # Start process with proper output redirection
+          # Start process and redirect output to files directly
           $psi = New-Object System.Diagnostics.ProcessStartInfo
           $psi.FileName = 'dotnet'
           $psi.Arguments = $arguments -join ' '
@@ -92,61 +92,119 @@ jobs:
           $psi.RedirectStandardError = $true
           $psi.CreateNoWindow = $true
           
+          # Create log files
+          $outLogPath = Join-Path $PWD "apphost.out.log"
+          $errLogPath = Join-Path $PWD "apphost.err.log"
+          "" | Out-File $outLogPath -Encoding utf8
+          "" | Out-File $errLogPath -Encoding utf8
+          
+          # Start the process
           $proc = [System.Diagnostics.Process]::Start($psi)
           $proc.Id | Out-File apphost.pid -Encoding utf8
           
           Write-Host "Started AppHost with PID: $($proc.Id)"
           
-          # Create output and error log files immediately
-          "" | Out-File apphost.out.log -Encoding utf8
-          "" | Out-File apphost.err.log -Encoding utf8
-          
-          # Start background jobs to capture and log output
+          # Start background jobs to continuously read and log output
           $outputJob = Start-Job -ScriptBlock {
-            param($processId)
+            param($processId, $logPath)
             try {
               $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-              if ($null -eq $process) { return }
+              if ($null -eq $process) { 
+                Write-Host "[OUTPUT JOB] Process not found: $processId"
+                return 
+              }
+              
+              Write-Host "[OUTPUT JOB] Starting to read stdout for process $processId"
+              $reader = $process.StandardOutput
               
               while (-not $process.HasExited) {
-                $line = $process.StandardOutput.ReadLine()
-                if ($null -ne $line) {
-                  Add-Content -Path "apphost.out.log" -Value $line -Encoding utf8 -Force
-                  Write-Host "[STDOUT] $line"
+                try {
+                  if ($reader.Peek() -ge 0) {
+                    $line = $reader.ReadLine()
+                    if ($null -ne $line -and $line.Trim() -ne "") {
+                      Add-Content -Path $logPath -Value $line -Encoding utf8 -Force
+                      Write-Host "[STDOUT] $line"
+                    }
+                  }
+                  Start-Sleep -Milliseconds 100
+                  $process.Refresh()
+                } catch {
+                  Write-Host "[OUTPUT JOB] Read error: $_"
+                  break
                 }
-                Start-Sleep -Milliseconds 50
-                $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-                if ($null -eq $process) { break }
               }
+              
+              # Read any remaining output
+              try {
+                while ($reader.Peek() -ge 0) {
+                  $line = $reader.ReadLine()
+                  if ($null -ne $line -and $line.Trim() -ne "") {
+                    Add-Content -Path $logPath -Value $line -Encoding utf8 -Force
+                    Write-Host "[STDOUT] $line"
+                  }
+                }
+              } catch {
+                Write-Host "[OUTPUT JOB] Final read error: $_"
+              }
+              
+              Write-Host "[OUTPUT JOB] Finished reading stdout"
             } catch {
               Write-Host "[OUTPUT JOB ERROR] $_"
             }
-          } -ArgumentList $proc.Id
+          } -ArgumentList $proc.Id, $outLogPath
           
           $errorJob = Start-Job -ScriptBlock {
-            param($processId)
+            param($processId, $logPath)
             try {
               $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-              if ($null -eq $process) { return }
+              if ($null -eq $process) { 
+                Write-Host "[ERROR JOB] Process not found: $processId"
+                return 
+              }
+              
+              Write-Host "[ERROR JOB] Starting to read stderr for process $processId"
+              $reader = $process.StandardError
               
               while (-not $process.HasExited) {
-                $line = $process.StandardError.ReadLine()
-                if ($null -ne $line) {
-                  Add-Content -Path "apphost.err.log" -Value $line -Encoding utf8 -Force
-                  Write-Host "[STDERR] $line"
+                try {
+                  if ($reader.Peek() -ge 0) {
+                    $line = $reader.ReadLine()
+                    if ($null -ne $line -and $line.Trim() -ne "") {
+                      Add-Content -Path $logPath -Value $line -Encoding utf8 -Force
+                      Write-Host "[STDERR] $line"
+                    }
+                  }
+                  Start-Sleep -Milliseconds 100
+                  $process.Refresh()
+                } catch {
+                  Write-Host "[ERROR JOB] Read error: $_"
+                  break
                 }
-                Start-Sleep -Milliseconds 50
-                $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-                if ($null -eq $process) { break }
               }
+              
+              # Read any remaining output
+              try {
+                while ($reader.Peek() -ge 0) {
+                  $line = $reader.ReadLine()
+                  if ($null -ne $line -and $line.Trim() -ne "") {
+                    Add-Content -Path $logPath -Value $line -Encoding utf8 -Force
+                    Write-Host "[STDERR] $line"
+                  }
+                }
+              } catch {
+                Write-Host "[ERROR JOB] Final read error: $_"
+              }
+              
+              Write-Host "[ERROR JOB] Finished reading stderr"
             } catch {
               Write-Host "[ERROR JOB ERROR] $_"
             }
-          } -ArgumentList $proc.Id
+          } -ArgumentList $proc.Id, $errLogPath
           
           $outputJob.Id | Out-File apphost.output.job -Encoding utf8
           $errorJob.Id | Out-File apphost.error.job -Encoding utf8
           
+          Write-Host "Background jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
           Write-Host "AppHost started, waiting 30 seconds for initialization..."
           Start-Sleep -Seconds 30
 
@@ -215,28 +273,53 @@ jobs:
       - name: Stop Aspire AppHost
         if: always()
         run: |
-          # Stop background logging jobs first
+          Write-Host "=================== STOPPING APPHOST ==================="
+          
+          # Stop background logging jobs first and wait for them to finish
           if (Test-Path apphost.output.job) {
             $outputJobId = Get-Content apphost.output.job
             Write-Host "Stopping output job: $outputJobId"
-            Stop-Job -Id $outputJobId -ErrorAction SilentlyContinue
-            Remove-Job -Id $outputJobId -ErrorAction SilentlyContinue
+            $outputJob = Get-Job -Id $outputJobId -ErrorAction SilentlyContinue
+            if ($outputJob) {
+              Write-Host "Output job state: $($outputJob.State)"
+              Stop-Job -Id $outputJobId -ErrorAction SilentlyContinue
+              # Wait for job to finish processing
+              Wait-Job -Id $outputJobId -Timeout 5 -ErrorAction SilentlyContinue
+              Remove-Job -Id $outputJobId -ErrorAction SilentlyContinue
+            }
           }
+          
           if (Test-Path apphost.error.job) {
             $errorJobId = Get-Content apphost.error.job
             Write-Host "Stopping error job: $errorJobId"
-            Stop-Job -Id $errorJobId -ErrorAction SilentlyContinue
-            Remove-Job -Id $errorJobId -ErrorAction SilentlyContinue
+            $errorJob = Get-Job -Id $errorJobId -ErrorAction SilentlyContinue
+            if ($errorJob) {
+              Write-Host "Error job state: $($errorJob.State)"
+              Stop-Job -Id $errorJobId -ErrorAction SilentlyContinue
+              # Wait for job to finish processing
+              Wait-Job -Id $errorJobId -Timeout 5 -ErrorAction SilentlyContinue
+              Remove-Job -Id $errorJobId -ErrorAction SilentlyContinue
+            }
           }
           
-          # Small delay to ensure all file writes are flushed
-          Start-Sleep -Seconds 2
+          # Wait a moment for all file writes to complete
+          Write-Host "Waiting for file writes to complete..."
+          Start-Sleep -Seconds 3
           
           # Stop AppHost process
           if (Test-Path apphost.pid) {
             $apphostPid = Get-Content apphost.pid
             Write-Host "Stopping AppHost with PID $apphostPid"
-            Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+            
+            # Check if process is still running
+            $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "Process is running, stopping it..."
+              Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 2
+            } else {
+              Write-Host "Process was already stopped."
+            }
             
             # Print apphost.pid content after stopping
             Write-Host "apphost.pid content after stopping:"
@@ -245,12 +328,29 @@ jobs:
             Write-Host "No AppHost PID file found."
           }
           
-          # Display final logs with better formatting
+          # Force one more file system sync
+          Start-Sleep -Seconds 1
+          
           Write-Host "=================== APPHOST OUTPUT LOG ==================="
           if (Test-Path apphost.out.log) {
-            $outContent = Get-Content apphost.out.log -Raw
-            if ($outContent -and $outContent.Trim()) {
-              Write-Host $outContent
+            $outSize = (Get-Item apphost.out.log).Length
+            Write-Host "apphost.out.log size: $outSize bytes"
+            
+            if ($outSize -gt 0) {
+              $outContent = Get-Content apphost.out.log -Raw -ErrorAction SilentlyContinue
+              if ($outContent -and $outContent.Trim()) {
+                Write-Host $outContent
+              } else {
+                Write-Host "apphost.out.log has content but appears empty when read"
+                # Try reading line by line
+                $lines = Get-Content apphost.out.log -ErrorAction SilentlyContinue
+                if ($lines) {
+                  Write-Host "Reading line by line:"
+                  $lines | ForEach-Object { Write-Host $_ }
+                } else {
+                  Write-Host "No lines could be read from apphost.out.log"
+                }
+              }
             } else {
               Write-Host "apphost.out.log exists but is empty"
             }
@@ -260,9 +360,24 @@ jobs:
           
           Write-Host "=================== APPHOST ERROR LOG ==================="
           if (Test-Path apphost.err.log) {
-            $errContent = Get-Content apphost.err.log -Raw
-            if ($errContent -and $errContent.Trim()) {
-              Write-Host $errContent
+            $errSize = (Get-Item apphost.err.log).Length
+            Write-Host "apphost.err.log size: $errSize bytes"
+            
+            if ($errSize -gt 0) {
+              $errContent = Get-Content apphost.err.log -Raw -ErrorAction SilentlyContinue
+              if ($errContent -and $errContent.Trim()) {
+                Write-Host $errContent
+              } else {
+                Write-Host "apphost.err.log has content but appears empty when read"
+                # Try reading line by line
+                $lines = Get-Content apphost.err.log -ErrorAction SilentlyContinue
+                if ($lines) {
+                  Write-Host "Reading line by line:"
+                  $lines | ForEach-Object { Write-Host $_ }
+                } else {
+                  Write-Host "No lines could be read from apphost.err.log"
+                }
+              }
             } else {
               Write-Host "apphost.err.log exists but is empty"
             }
@@ -273,7 +388,13 @@ jobs:
           Write-Host "=================== DEBUG INFO ==================="
           Write-Host "Current directory files:"
           Get-ChildItem -Filter "apphost*" | ForEach-Object {
-            Write-Host "  $($_.Name) - Size: $($_.Length) bytes"
+            Write-Host "  $($_.Name) - Size: $($_.Length) bytes, LastWrite: $($_.LastWriteTime)"
+          }
+          
+          # Check if we can see any running PowerShell jobs
+          Write-Host "Remaining PowerShell jobs:"
+          Get-Job | ForEach-Object {
+            Write-Host "  Job $($_.Id): $($_.Name) - State: $($_.State)"
           }
           
           Write-Host "AppHost cleanup complete."

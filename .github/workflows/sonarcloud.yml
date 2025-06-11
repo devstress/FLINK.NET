@@ -60,6 +60,15 @@ jobs:
           New-Item -Path .\.sonar\scanner -ItemType Directory
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
 
+      # Download coverage data from unit tests workflow if available
+      - name: Download Coverage Data
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: sonarcloud-coverage-data
+          path: ./CoverageData
+        continue-on-error: true
+
       # Install .NET Aspire workload first
       - name: Install .NET Aspire Workload
         shell: pwsh
@@ -89,13 +98,14 @@ jobs:
               $output | ForEach-Object { Write-Host $_ }
 
               if ($LASTEXITCODE -ne 0) {
-                Write-Host "[FAIL] $description failed"
+                Write-Host "[FAIL] $description failed with exit code $LASTEXITCODE"
                 return -1
               }
               $outputClean = $output | ForEach-Object { StripAnsiEscapeSequences $_ }
               $warnings = $outputClean | Where-Object { $_ -match "(?i)Warning:" }
               if ($warnings.Count -gt 0) {
-                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description"
+                Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description:"
+                $warnings | ForEach-Object { Write-Host "  $_" }
               } else {
                 Write-Host "[OK] $description completed successfully with no warnings."
               }
@@ -103,13 +113,23 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml,./CoverageData/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
             $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
             $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
 
+            # List coverage data from unit tests if downloaded
+            Write-Host "Coverage data from unit tests workflow:"
+            if (Test-Path "./CoverageData") {
+              Get-ChildItem -Path "./CoverageData" -Recurse -Filter "*.xml" | ForEach-Object {
+                Write-Host "  [FROM UNIT TESTS] $($_.FullName)"
+              }
+            } else {
+              Write-Host "  No coverage data from unit tests workflow found"
+            }
+            
             # Run tests with coverage collection using OpenCover format
             Write-Host "Running tests with coverage collection..."
             $exitTest = RunCommandWithWarningCheck { dotnet test FlinkDotNet/FlinkDotNet.sln --no-build --collect:"XPlat Code Coverage" --results-directory "./TestResults" --logger trx --configuration Release } "Test FlinkDotNet with coverage"
@@ -129,9 +149,12 @@ jobs:
             }
             
             # List all coverage files for debugging
-            Write-Host "Coverage files found:"
-            Get-ChildItem -Path "./TestResults" -Recurse -Filter "*.xml" | ForEach-Object {
-              Write-Host "  $($_.FullName)"
+            Write-Host "All coverage files found:"
+            Get-ChildItem -Path "./TestResults" -Recurse -Filter "*.xml" -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "  [SONAR BUILD] $($_.FullName)"
+            }
+            Get-ChildItem -Path "./CoverageData" -Recurse -Filter "*.xml" -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "  [UNIT TESTS] $($_.FullName)"
             }
 
             $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
@@ -139,16 +162,32 @@ jobs:
 
             $totalWarnings = 0
             $buildFailed = $false
-            foreach ($exit in @($exitBegin, $exit1, $exit2, $exit3, $exitTest, $exitEnd)) {
-              if ($exit -lt 0) {
+            $failedProcesses = @()
+            
+            $results = @(
+              @{Name="Sonar begin"; Exit=$exitBegin},
+              @{Name="Build FlinkDotNet"; Exit=$exit1},
+              @{Name="Build FlinkDotNetAspire"; Exit=$exit2},
+              @{Name="Build FlinkDotNet.WebUI"; Exit=$exit3},
+              @{Name="Test FlinkDotNet with coverage"; Exit=$exitTest},
+              @{Name="Sonar end"; Exit=$exitEnd}
+            )
+            
+            foreach ($result in $results) {
+              if ($result.Exit -lt 0) {
                 $buildFailed = $true
-              } elseif ($exit -gt 0) {
-                $totalWarnings += $exit
+                $failedProcesses += $result.Name
+              } elseif ($result.Exit -gt 0) {
+                $totalWarnings += $result.Exit
               }
             }
 
             if ($buildFailed -or $exitEnd -ne 0) {
-              Write-Error "[ERROR] CI failed due to build errors."
+              if ($failedProcesses.Count -gt 0) {
+                Write-Error "[ERROR] CI failed due to build errors in: $($failedProcesses -join ', ')"
+              } else {
+                Write-Error "[ERROR] CI failed due to build errors."
+              }
             }
 
             if ($totalWarnings -gt 0) {
