@@ -9,8 +9,40 @@ public class Program
 
         // Add resources
         // Use configurable ports for Redis and Kafka to avoid conflicts in CI environments
-        var redisPort = int.TryParse(Environment.GetEnvironmentVariable("DOTNET_REDIS_PORT"), out var rPort) ? rPort : ServicePorts.Redis;
-        var kafkaPort = int.TryParse(Environment.GetEnvironmentVariable("DOTNET_KAFKA_PORT"), out var kPort) ? kPort : ServicePorts.Kafka;
+        // Priority: DOTNET_REDIS_PORT > DOTNET_REDIS_URL parsing > default
+        var redisPort = ServicePorts.Redis;
+        var kafkaPort = ServicePorts.Kafka;
+        
+        // Try to get port from environment variables set by port discovery script
+        if (int.TryParse(Environment.GetEnvironmentVariable("DOTNET_REDIS_PORT"), out var rPort))
+        {
+            redisPort = rPort;
+        }
+        else if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_REDIS_URL")))
+        {
+            // Try to parse port from URL format like "localhost:6379"
+            var redisUrl = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL");
+            if (redisUrl!.Contains(':') && int.TryParse(redisUrl.Split(':')[1], out var parsedRedisPort))
+            {
+                redisPort = parsedRedisPort;
+            }
+        }
+        
+        if (int.TryParse(Environment.GetEnvironmentVariable("DOTNET_KAFKA_PORT"), out var kPort))
+        {
+            kafkaPort = kPort;
+        }
+        else if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS")))
+        {
+            // Try to parse port from bootstrap servers format like "localhost:9092"
+            var kafkaBootstrap = Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS");
+            if (kafkaBootstrap!.Contains(':') && int.TryParse(kafkaBootstrap.Split(':')[1], out var parsedKafkaPort))
+            {
+                kafkaPort = parsedKafkaPort;
+            }
+        }
+        
+        Console.WriteLine($"Using Redis port: {redisPort}, Kafka port: {kafkaPort}");
         
         var redis = builder.AddRedis("redis", port: redisPort);
         var kafka = builder.AddKafka("kafka", port: kafkaPort); // Add Kafka resource
@@ -42,6 +74,8 @@ public class Program
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter") // Redis sink counter key
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id") // Redis global sequence key
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic") // Default Kafka topic
+            .WithEnvironment("DOTNET_REDIS_URL", $"{ServiceHosts.Localhost}:{redisPort.ToString()}") // For IntegrationTestVerifier compatibility
+            .WithEnvironment("DOTNET_KAFKA_BOOTSTRAP_SERVERS", $"{ServiceHosts.Localhost}:{kafkaPort.ToString()}") // For IntegrationTestVerifier compatibility
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
         await builder.Build().RunAsync();

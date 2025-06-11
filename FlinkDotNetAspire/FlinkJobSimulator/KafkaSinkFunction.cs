@@ -31,9 +31,16 @@ namespace FlinkJobSimulator
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
             string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+            
+            // If Aspire connection string not found, try the alternative format used by IntegrationTestVerifier
             if (string.IsNullOrEmpty(bootstrapServers))
             {
-                Console.WriteLine($"[{_taskName}] ERROR: Kafka bootstrap servers 'ConnectionStrings__kafka' not found in environment variables.");
+                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+            }
+            
+            if (string.IsNullOrEmpty(bootstrapServers))
+            {
+                Console.WriteLine($"[{_taskName}] ERROR: Kafka bootstrap servers not found in 'ConnectionStrings__kafka' or 'DOTNET_KAFKA_BOOTSTRAP_SERVERS' environment variables.");
                 // Attempt a local default if not found (useful for non-Aspire testing)
                 bootstrapServers = ServiceUris.KafkaBootstrapServers;
                 Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");

@@ -6,7 +6,6 @@ using FlinkDotNet.JobManager.Checkpointing; // For CheckpointCoordinator
 using FlinkDotNet.JobManager.Models; // For TaskManagerInfo, JobManagerConfig
 using Grpc.Net.Client; // For GrpcChannel
 using System.Text.Json; // For JsonSerializer
-using FlinkDotNet.Common.Constants;
 
 // Assuming the generated base class is global::FlinkDotNet.Proto.Internal.JobManagerInternalService.JobManagerInternalServiceBase
 // The actual name depends on the .proto service definition and Grpc.Tools generation.

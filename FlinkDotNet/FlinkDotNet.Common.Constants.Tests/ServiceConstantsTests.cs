@@ -1,5 +1,4 @@
 using Xunit;
-using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNet.Common.Constants.Tests;
 

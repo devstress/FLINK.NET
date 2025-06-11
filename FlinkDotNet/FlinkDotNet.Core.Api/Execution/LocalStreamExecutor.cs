@@ -2,7 +2,6 @@ using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators;
-using FlinkDotNet.Core.Api.Streaming;
 using FlinkDotNet.JobManager.Models.JobGraph;
 using System.Collections.Concurrent;
 
@@ -168,7 +167,7 @@ namespace FlinkDotNet.Core.Api.Execution
                 try
                 {
                     // Open the operator
-                    if (operatorInstance.Operator is IOperatorLifecycle lifecycle)
+                    if (operatorInstance.Operator is IOperatorLifecycle lifecycle && operatorInstance.RuntimeContext != null)
                     {
                         lifecycle.Open(operatorInstance.RuntimeContext);
                     }
@@ -182,7 +181,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     {
                         await Task.Run(() => stringSource.Run(sourceContext), cancellationToken);
                     }
-                    else
+                    else if (operatorInstance.Operator != null)
                     {
                         // Handle other source types using reflection
                         await RunSourceUsingReflection(operatorInstance.Operator, sourceContext, cancellationToken);
@@ -219,7 +218,7 @@ namespace FlinkDotNet.Core.Api.Execution
                 try
                 {
                     // Open the operator
-                    if (operatorInstance.Operator is IOperatorLifecycle lifecycle)
+                    if (operatorInstance.Operator is IOperatorLifecycle lifecycle && operatorInstance.RuntimeContext != null)
                     {
                         lifecycle.Open(operatorInstance.RuntimeContext);
                     }
@@ -229,7 +228,10 @@ namespace FlinkDotNet.Core.Api.Execution
                     var sinkContext = new LocalSinkContext();
 
                     // Process data from input channels
-                    await ProcessSinkData(operatorInstance.Operator, inputChannels, sinkContext, cancellationToken);
+                    if (operatorInstance.Operator != null)
+                    {
+                        await ProcessSinkData(operatorInstance.Operator, inputChannels, sinkContext, cancellationToken);
+                    }
 
                     Console.WriteLine($"[LocalStreamExecutor] Sink vertex {vertex.Name} completed");
                 }
@@ -262,7 +264,7 @@ namespace FlinkDotNet.Core.Api.Execution
                 try
                 {
                     // Open the operator
-                    if (operatorInstance.Operator is IOperatorLifecycle lifecycle)
+                    if (operatorInstance.Operator is IOperatorLifecycle lifecycle && operatorInstance.RuntimeContext != null)
                     {
                         lifecycle.Open(operatorInstance.RuntimeContext);
                     }
@@ -272,7 +274,10 @@ namespace FlinkDotNet.Core.Api.Execution
                     var outputChannels = GetOutputChannelsForVertex(vertex, jobGraph);
 
                     // Process data through the operator
-                    await ProcessOperatorData(operatorInstance.Operator, inputChannels, outputChannels, cancellationToken);
+                    if (operatorInstance.Operator != null)
+                    {
+                        await ProcessOperatorData(operatorInstance.Operator, inputChannels, outputChannels, cancellationToken);
+                    }
 
                     Console.WriteLine($"[LocalStreamExecutor] Operator vertex {vertex.Name} completed");
                 }
@@ -418,9 +423,9 @@ namespace FlinkDotNet.Core.Api.Execution
 
     internal class OperatorInstance
     {
-        public JobVertex Vertex { get; set; }
-        public object Operator { get; set; } // Renamed from OperatorInstance to Operator
-        public IRuntimeContext RuntimeContext { get; set; }
+        public JobVertex? Vertex { get; set; }
+        public object? Operator { get; set; } // Renamed from OperatorInstance to Operator
+        public IRuntimeContext? RuntimeContext { get; set; }
         public List<object> ChainedOperators { get; set; } = new();
     }
 

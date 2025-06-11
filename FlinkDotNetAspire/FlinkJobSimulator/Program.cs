@@ -86,9 +86,16 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
 
         string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
+        
+        // If Aspire connection string not found, try the alternative format used by IntegrationTestVerifier
         if (string.IsNullOrEmpty(redisConnectionString))
         {
-            Console.WriteLine($"[{_taskName}] ERROR: Redis connection string 'ConnectionStrings__redis' not found in environment variables for source.");
+            redisConnectionString = Configuration?["DOTNET_REDIS_URL"];
+        }
+        
+        if (string.IsNullOrEmpty(redisConnectionString))
+        {
+            Console.WriteLine($"[{_taskName}] ERROR: Redis connection string not found in 'ConnectionStrings__redis' or 'DOTNET_REDIS_URL' environment variables for source.");
             redisConnectionString = ServiceUris.RedisConnectionString;
             Console.WriteLine($"[{_taskName}] Using default Redis connection string for source: {redisConnectionString}");
         }
