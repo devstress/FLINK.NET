@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
   </ItemGroup>
 
 </Project>

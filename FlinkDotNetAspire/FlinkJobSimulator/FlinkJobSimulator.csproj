@@ -14,7 +14,7 @@
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Connectors.Sources.File\FlinkDotNet.Connectors.Sources.File.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Connectors.Sinks.Console\FlinkDotNet.Connectors.Sinks.Console.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
-    <ProjectReference Include="..\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.31.1" />

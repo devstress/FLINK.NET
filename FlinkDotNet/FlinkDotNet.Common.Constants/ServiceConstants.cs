@@ -29,6 +29,11 @@ public static class ServicePorts
     /// Default port for TaskManager gRPC service
     /// </summary>
     public const int TaskManagerGrpc = 40051;
+
+    /// <summary>
+    /// Base port for TaskManager instances in Aspire deployment (51070)
+    /// </summary>
+    public const int TaskManagerAspireBasePort = 51070;
 }
 
 /// <summary>
@@ -78,6 +83,13 @@ public static class ServiceUris
     /// <param name="port">Custom port number</param>
     /// <returns>TaskManager gRPC URI</returns>
     public static string TaskManagerGrpc(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
+
+    /// <summary>
+    /// Gets TaskManager port for Aspire deployment based on instance number
+    /// </summary>
+    /// <param name="instanceNumber">TaskManager instance number (1-based)</param>
+    /// <returns>Port number for the TaskManager instance</returns>
+    public static int GetTaskManagerAspirePort(int instanceNumber) => ServicePorts.TaskManagerAspireBasePort + instanceNumber;
 }
 
 /// <summary>
