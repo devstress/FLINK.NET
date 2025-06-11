@@ -5,7 +5,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [ready_for_review]
+    types: [ready_for_review, synchronize]
     branches:
       - main # Or your primary branch name
 
