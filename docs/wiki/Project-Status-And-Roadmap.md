@@ -13,6 +13,9 @@ The immediate focus is on implementing **Phase 1: Core Functionality for Exactly
 *   Basic stream processing API (`StreamExecutionEnvironment`, `DataStream`, simple operators like Map, Sink, Source).
 *   JobGraph model and submission from client to JobManager.
 *   .NET Aspire project for local cluster simulation, including Redis and Kafka integration for samples.
+*   Comprehensive testing framework with separation of concerns:
+    *   **Integration tests**: Lightweight AppHost structure validation for CI pipelines
+    *   **Stress tests**: High-throughput performance validation (1M+ messages) with full orchestration
 *   Initial observability setup using OpenTelemetry, viewable in the Aspire Dashboard.
 *   Proof-of-concept for client-side send throttling.
 *   JobManagerController now exposes endpoints for job submission, scaling, restarting and DLQ handling.

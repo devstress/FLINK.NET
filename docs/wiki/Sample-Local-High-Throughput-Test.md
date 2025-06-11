@@ -1,6 +1,8 @@
-# Sample: Local Flink.NET Setup & High Throughput Test (Redis Sequenced Messages to Kafka & Redis Sink)
+# Sample: Local Flink.NET Setup & High Throughput Stress Test (Redis Sequenced Messages to Kafka & Redis Sink)
 
-This guide explains how to set up a local Flink.NET environment using the .NET Aspire simulation project. You'll run a high-throughput test that generates messages with sequence IDs from Redis, processes them, and then sends them to both a Kafka topic and a separate Redis counter sink. This demonstrates ordered processing and data flow to multiple sinks.
+This guide explains how to set up a local Flink.NET environment using the .NET Aspire simulation project and run high-throughput stress tests. This test generates messages with sequence IDs from Redis, processes them, and then sends them to both a Kafka topic and a separate Redis counter sink. This demonstrates ordered processing and data flow to multiple sinks.
+
+> **Note**: This guide describes stress testing with full orchestration. For lightweight integration tests that validate AppHost structure without requiring Docker/Redis/Kafka, see the `FlinkDotNetAspire.IntegrationTests` project which runs in ~30ms and is suitable for CI pipelines.
 
 ## Prerequisites
 

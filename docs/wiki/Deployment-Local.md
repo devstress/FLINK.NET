@@ -60,6 +60,25 @@ The `docs/wiki/Sample-Local-High-Throughput-Test.md` provides a detailed walkthr
 *   Data flow through sources, operators, and sinks.
 *   Interaction with external services like Redis and Kafka managed by Aspire.
 
+### Testing Framework
+
+Flink.NET includes a comprehensive testing framework with two distinct types of tests:
+
+**Integration Tests (Lightweight)**:
+*   **Purpose**: Fast validation of AppHost structure and basic configuration
+*   **Location**: `FlinkDotNetAspire.IntegrationTests` project  
+*   **Runtime**: ~30ms, suitable for CI pipelines
+*   **Coverage**: Assembly loading, Program class accessibility, Main method validation, project references
+*   **Command**: `dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj`
+
+**Stress Tests (High-Throughput)**:
+*   **Purpose**: Full end-to-end performance validation with complete orchestration
+*   **Runtime**: Several minutes, processes 1M+ messages
+*   **Coverage**: JobManager/TaskManager communication, Redis/Kafka integration, exactly-once processing
+*   **Scripts**: `scripts/run-integration-tests-in-windows-os.ps1` (Windows) or `scripts/run-integration-tests-in-linux.sh` (Linux)
+
+This separation ensures fast feedback for development while maintaining comprehensive performance validation.
+
 ## Conceptual Local Execution (In-Process)
 
 The `StreamExecutionEnvironment` class contains an `ExecuteAsync(string jobName)` method. Conceptually, this method could, in the future, allow for a very lightweight local execution of a Flink.NET job within the same process, perhaps by embedding minimal versions of the JobManager and TaskManager logic.

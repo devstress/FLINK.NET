@@ -128,6 +128,14 @@ You should see the odd numbers (1, 3, 5, 7, 9) printed in the console output fro
 *   Learn about [[Connectors|Connectors-Overview]] to read from and write to external systems.
 *   Understand [[State Management|Core-Concepts-State-Management-Overview]] for building stateful applications.
 
+## Testing Your Applications
+
+Flink.NET provides comprehensive testing capabilities:
+
+*   **Integration Tests**: For quick validation of AppHost structure and basic configuration (see `FlinkDotNetAspire.IntegrationTests`)
+*   **Stress Tests**: For high-throughput performance validation with full orchestration (see [[Sample Local High Throughput Test|Sample-Local-High-Throughput-Test]])
+*   **Local Development**: Use the [[Deployment Local|Deployment-Local]] environment for interactive development and debugging
+
 **Apache Flink References:**
 
 *   [Flink DataStream API Programming Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/overview/)
