@@ -74,9 +74,9 @@ The development of Flink.NET has been significantly accelerated and enhanced wit
 Contributors can leverage GitHub Copilot Agent for development assistance:
 
 1. **Create an Issue**: Open a new issue describing the feature or bug fix needed
-2. **Assign to Copilot**: Mention `@copilot` in the issue to assign it to the Copilot Agent
-3. **Check Progress**: Monitor the issue for updates and progress reports from the Copilot Agent
-4. **Review Results**: The Copilot Agent will create pull requests that you can review and merge
+2. **Assign to Copilot**: Wait for a contributor to assign the issue to `Copilot`
+3. **Check Progress**: You will see 👀 reaction from Copilot and progress reports from the Issue & linked Pull Request
+4. **Review Results**: The Copilot Agent will create pull requests that contributors can review and merge
 
 ## Getting Involved & Contribution
 
