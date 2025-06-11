@@ -7,10 +7,6 @@
     <Nullable>enable</Nullable>
     <AssemblyName>FlinkDotNet.IntegrationTestVerifier</AssemblyName>
     <ProjectGuid>73064d61-d049-40b4-8161-29060044c6ed</ProjectGuid>
-    
-    <!-- SonarCloud exclusions - This is integration test tooling code -->
-    <SonarQubeExclude>true</SonarQubeExclude>
-    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
   </PropertyGroup>
 
   <ItemGroup>
