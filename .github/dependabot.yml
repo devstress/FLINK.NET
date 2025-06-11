@@ -1,11 +1,108 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot configuration for FLINK.NET
+# Automatically manages dependency updates for .NET packages and GitHub Actions
+# Documentation: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # NuGet packages for main FlinkDotNet solution
+  - package-ecosystem: "nuget"
+    directory: "/FlinkDotNet"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "nuget"
+      - "core"
+    reviewers:
+      - "devstress"
+    open-pull-requests-limit: 10
+    groups:
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # NuGet packages for FlinkDotNetAspire solution
+  - package-ecosystem: "nuget"
+    directory: "/FlinkDotNetAspire"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "nuget"
+      - "aspire"
+    reviewers:
+      - "devstress"
+    open-pull-requests-limit: 10
+    groups:
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # NuGet packages for FlinkDotNet.WebUI solution
+  - package-ecosystem: "nuget"
+    directory: "/FlinkDotNet.WebUI"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "nuget"
+      - "webui"
+    reviewers:
+      - "devstress"
+    open-pull-requests-limit: 10
+    groups:
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    reviewers:
+      - "devstress"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
