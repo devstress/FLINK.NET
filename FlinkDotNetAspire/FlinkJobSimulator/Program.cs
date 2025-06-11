@@ -484,7 +484,11 @@ public static class Program
             }
         }
 
-        Console.WriteLine("Job Simulator completed successfully.");
+        Console.WriteLine("Job Simulator completed successfully. Keeping process alive for Aspire orchestration...");
+        
+        // Keep the process alive so the Aspire AppHost can manage it and integration tests can run
+        // This is important for the integration test workflow which expects services to stay running
+        await Task.Delay(Timeout.Infinite);
     }
 }
 }
