@@ -13,6 +13,7 @@ using FlinkDotNet.Core.Abstractions.Windowing; // For Watermark
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 using FlinkDotNet.JobManager.Models.JobGraph;
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkJobSimulator
 {
@@ -85,10 +86,17 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
 
         string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
+        
+        // If Aspire connection string not found, try the alternative format used by IntegrationTestVerifier
         if (string.IsNullOrEmpty(redisConnectionString))
         {
-            Console.WriteLine($"[{_taskName}] ERROR: Redis connection string 'ConnectionStrings__redis' not found in environment variables for source.");
-            redisConnectionString = "localhost:6379";
+            redisConnectionString = Configuration?["DOTNET_REDIS_URL"];
+        }
+        
+        if (string.IsNullOrEmpty(redisConnectionString))
+        {
+            Console.WriteLine($"[{_taskName}] ERROR: Redis connection string not found in 'ConnectionStrings__redis' or 'DOTNET_REDIS_URL' environment variables for source.");
+            redisConnectionString = ServiceUris.RedisConnectionString;
             Console.WriteLine($"[{_taskName}] Using default Redis connection string for source: {redisConnectionString}");
         }
         else
@@ -381,7 +389,7 @@ public static class Program
         {
             // Check JobManager HTTP endpoint for task managers
             using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync($"{jobManagerGrpcUrl.Replace("50051", "8088").Replace("grpc", "http")}/api/jobmanager/taskmanagers");
+            var response = await httpClient.GetAsync($"{jobManagerGrpcUrl.Replace(ServicePorts.JobManagerGrpc.ToString(), ServicePorts.JobManagerHttp.ToString()).Replace("grpc", "http")}/api/jobmanager/taskmanagers");
             
             if (response.IsSuccessStatusCode)
             {
@@ -442,7 +450,7 @@ public static class Program
         var jobManagerGrpcUrl = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
         if (string.IsNullOrEmpty(jobManagerGrpcUrl))
         {
-            var builder = new UriBuilder("http", "localhost", 50051);
+            var builder = new UriBuilder("http", ServiceHosts.Localhost, ServicePorts.JobManagerGrpc);
             jobManagerGrpcUrl = builder.Uri.ToString();
             Console.WriteLine($"JobManager gRPC URL not found in environment variables. Using default: {jobManagerGrpcUrl}");
         }
@@ -483,66 +491,16 @@ public static class Program
             catch (Exception infraEx)
             {
                 Console.WriteLine($"Infrastructure verification failed: {infraEx.Message}");
-                Console.WriteLine("Proceeding with direct execution for integration testing...");
+                Console.WriteLine("Proceeding with local execution for integration testing...");
             }
 
-            // --- 5. Execute the job directly for integration testing ---
-            Console.WriteLine("Executing job logic directly for integration testing...");
+            // --- 5. Execute the job using the new LocalStreamExecutor ---
+            Console.WriteLine("Executing job using LocalStreamExecutor for Apache Flink 2.0 compatibility...");
             try 
             {
-                // Create instances of our operators
-                var sourceInstance = new HighVolumeSourceFunction(numMessages, new StringSerializer());
-                var mapper = new SimpleToUpperMapOperator();
-                var redisSink = new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisSinkCounterKey);
-                var kafkaSink = new FlinkJobSimulator.KafkaSinkFunction<string>(kafkaTopic);
-
-                // Create a simple runtime context for the operators
-                var runtimeContext = new SimpleRuntimeContext("IntegrationTestJob");
-
-                // Open the operators
-                Console.WriteLine("Opening operators...");
-                sourceInstance.Open(runtimeContext);
-                redisSink.Open(runtimeContext);
-                kafkaSink.Open(runtimeContext);
-
-                Console.WriteLine("Starting data processing...");
-
-                // Execute the source and process through the pipeline
-                var sourceContext = new SimpleSourceContext<string>();
-                var sinkContext = new SimpleSinkContext();
-
-                // Run the source
-                Console.WriteLine("Running source to generate messages...");
-                await sourceInstance.RunAsync(sourceContext, CancellationToken.None);
-                Console.WriteLine($"Source completed. Generated {sourceContext.CollectedMessages.Count} messages.");
-
-                // Process all collected messages through the pipeline
-                Console.WriteLine($"Processing {sourceContext.CollectedMessages.Count} messages through the pipeline...");
-                foreach (var message in sourceContext.CollectedMessages)
-                {
-                    try
-                    {
-                        // Apply map transformation
-                        string mappedMessage = mapper.Map(message);
-
-                        // Send to both sinks
-                        redisSink.Invoke(mappedMessage, sinkContext);
-                        kafkaSink.Invoke(mappedMessage, sinkContext);
-                    }
-                    catch (Exception msgEx)
-                    {
-                        Console.WriteLine($"Error processing message: {msgEx.Message}");
-                        // Continue processing other messages
-                    }
-                }
-
-                // Close the operators
-                Console.WriteLine("Closing operators...");
-                sourceInstance.Close();
-                redisSink.Close();
-                kafkaSink.Close();
-
-                Console.WriteLine("Job execution completed successfully.");
+                // Use the new local execution engine
+                await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
+                Console.WriteLine("Job execution completed successfully using LocalStreamExecutor.");
             }
             catch (Exception jobEx)
             {
@@ -565,25 +523,7 @@ public static class Program
         Console.WriteLine("Flink Job Simulator finished executing the job.");
         Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
 
-        // When running locally (not inside a container), try to launch the Aspire Dashboard
-        // so developers immediately see service status and logs.
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")))
-        {
-            try
-            {
-                var dashboardUrl = Environment.GetEnvironmentVariable("ASPIRE_DASHBOARD_URL") ?? "http://localhost:18888";
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = dashboardUrl,
-                    UseShellExecute = true
-                });
-                Console.WriteLine($"Opened Aspire Dashboard at {dashboardUrl}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to launch Aspire Dashboard automatically: {ex.Message}");
-            }
-        }
+        // Dashboard auto-launch removed - Aspire project should handle dashboard launch automatically
 
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         

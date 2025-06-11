@@ -2,6 +2,7 @@ using Grpc.Net.Client;
 using FlinkDotNet.Proto.Internal; // Namespace from your .proto file
 using FlinkDotNet.TaskManager; // For TaskExecutor
 using Microsoft.Extensions.Hosting; // For IHostedService
+using FlinkDotNet.Common.Constants;
 
 // public class TaskManagerService // old
 public class TaskManagerCoreService : IHostedService // new
@@ -41,7 +42,7 @@ public class TaskManagerCoreService : IHostedService // new
             var request = new RegisterTaskManagerRequest
             {
                 TaskManagerId = _config.TaskManagerId,
-                Address = "localhost", // Simplification: Assuming localhost. K8s would use pod IP.
+                Address = ServiceHosts.Localhost, // Simplification: Assuming localhost. K8s would use pod IP.
                 Port = Program.GrpcPort // Use the port defined in Program.cs
             };
             Console.WriteLine($"Attempting to register TaskManager {_config.TaskManagerId} (gRPC on port {Program.GrpcPort}) with JobManager at {_config.JobManagerGrpcAddress}...");

@@ -15,4 +15,8 @@
     <PackageReference Include="StackExchange.Redis" Version="2.8.41" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
+  </ItemGroup>
+
 </Project>

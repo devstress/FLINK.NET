@@ -115,7 +115,7 @@ namespace FlinkDotNet.JobManager.Services
 
                     try
                     {
-                        var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
+                        var channelAddress = $"http://{targetTm.Address}:{targetTm.Port}";
                         using var channel = GrpcChannel.ForAddress(channelAddress);
                         var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                         _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10));

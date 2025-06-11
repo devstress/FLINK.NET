@@ -29,6 +29,7 @@
     <ProjectReference Include="..\FlinkDotNet.Core\FlinkDotNet.Core.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Core.Abstractions\FlinkDotNet.Core.Abstractions.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Core.Api\FlinkDotNet.Core.Api.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
   </ItemGroup>
 
 </Project>

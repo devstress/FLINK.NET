@@ -5,13 +5,18 @@ using FlinkDotNet.JobManager.Models; // For CheckpointMetadata, TaskManagerInfo 
 using FlinkDotNet.Proto.Internal;    // For gRPC client (TaskManagerCheckpointing.TaskManagerCheckpointingClient)
 using Grpc.Net.Client;               // For GrpcChannel
 using FlinkDotNet.JobManager.Services; // Assuming TaskManagerTracker is in FlinkDotNet.JobManager.Services
+using FlinkDotNet.Storage.RocksDB;
 
 namespace FlinkDotNet.JobManager.Checkpointing
 {
+    /// <summary>
+    /// Apache Flink 2.0 enhanced checkpoint coordinator with RocksDB state backend management
+    /// </summary>
     public class CheckpointCoordinator
     {
         private readonly string _jobId; // For which job this coordinator is responsible
         private readonly ConcurrentDictionary<long, CheckpointMetadata> _checkpoints;
+        private readonly ConcurrentDictionary<string, RocksDBStateBackend> _registeredStateBackends;
         private long _nextCheckpointId = 1;
         private Timer? _checkpointTriggerTimer;
         private readonly TimeSpan _checkpointInterval;
@@ -27,10 +32,31 @@ namespace FlinkDotNet.JobManager.Checkpointing
             _jobRepository = jobRepository;
             _logger = logger; // Added
             _checkpoints = new ConcurrentDictionary<long, CheckpointMetadata>();
+            _registeredStateBackends = new ConcurrentDictionary<string, RocksDBStateBackend>();
             _config = config ?? new JobManagerConfig(); // Use default config if none provided
             _checkpointInterval = TimeSpan.FromSeconds(_config.CheckpointIntervalSecs);
 
             _logger.LogInformation("CheckpointCoordinator for job {JobId} initialized with interval {CheckpointIntervalSeconds}s.", _jobId, _checkpointInterval.TotalSeconds);
+        }
+
+        /// <summary>
+        /// Registers a state backend for coordinated checkpointing
+        /// </summary>
+        public async Task RegisterStateBackendAsync(string stateBackendId, RocksDBStateBackend stateBackend)
+        {
+            _registeredStateBackends.TryAdd(stateBackendId, stateBackend);
+            _logger.LogInformation("Registered state backend {StateBackendId} for coordinated checkpointing", stateBackendId);
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Unregisters a state backend from coordinated checkpointing
+        /// </summary>
+        public async Task UnregisterStateBackendAsync(string stateBackendId)
+        {
+            _registeredStateBackends.TryRemove(stateBackendId, out _);
+            _logger.LogInformation("Unregistered state backend {StateBackendId} from coordinated checkpointing", stateBackendId);
+            await Task.CompletedTask;
         }
 
         public void Start()
@@ -56,6 +82,37 @@ namespace FlinkDotNet.JobManager.Checkpointing
             var checkpointId = Interlocked.Increment(ref _nextCheckpointId);
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+            _logger.LogInformation("Job {JobId}: Triggering Apache Flink 2.0 style checkpoint {CheckpointId} with {StateBackendCount} state backends", 
+                _jobId, checkpointId, _registeredStateBackends.Count);
+
+            // First, trigger checkpoints on all registered state backends
+            var stateBackendCheckpointTasks = _registeredStateBackends.Select(async kvp =>
+            {
+                var (stateBackendId, stateBackend) = kvp;
+                try
+                {
+                    await stateBackend.CreateCheckpointAsync(checkpointId);
+                    _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: State backend {StateBackendId} checkpoint created", 
+                        _jobId, checkpointId, stateBackendId);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Job {JobId}, Checkpoint {CheckpointId}: Failed to create checkpoint for state backend {StateBackendId}", 
+                        _jobId, checkpointId, stateBackendId);
+                    return false;
+                }
+            });
+
+            var stateBackendResults = await Task.WhenAll(stateBackendCheckpointTasks);
+            var successfulStateBackends = stateBackendResults.Count(r => r);
+
+            if (successfulStateBackends < _registeredStateBackends.Count)
+            {
+                _logger.LogWarning("Job {JobId}, Checkpoint {CheckpointId}: Only {SuccessfulCount}/{TotalCount} state backends completed checkpoint successfully", 
+                    _jobId, checkpointId, successfulStateBackends, _registeredStateBackends.Count);
+            }
+
             // Get list of *expected* TaskManagers for this job.
             // For now, assume all registered TMs are part of this job. This needs refinement with actual job-to-TM assignment.
             // Ensure TaskManagerTracker is accessible here. It's in FlinkDotNet.JobManager.Services namespace.
@@ -80,7 +137,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             {
                 try
                 {
-                    var channelAddress = $"https://{tmInfo.Address}:{tmInfo.Port}";
+                    var channelAddress = $"http://{tmInfo.Address}:{tmInfo.Port}";
                     _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: Attempting to connect to TM {TaskManagerId} at {ChannelAddress} for TriggerTaskCheckpoint.", _jobId, checkpointId, tmInfo.TaskManagerId, channelAddress);
 
                     using var channel = GrpcChannel.ForAddress(channelAddress);
