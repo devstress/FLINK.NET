@@ -9,12 +9,6 @@ updates:
     directory: "/FlinkDotNet"
     schedule:
       interval: "monthly"
-    labels:
-      - "dependencies"
-      - "nuget"
-      - "core"
-    reviewers:
-      - "devstress"
     open-pull-requests-limit: 10
     groups:
       major:
@@ -34,12 +28,6 @@ updates:
     directory: "/FlinkDotNetAspire"
     schedule:
       interval: "monthly"
-    labels:
-      - "dependencies"
-      - "nuget"
-      - "aspire"
-    reviewers:
-      - "devstress"
     open-pull-requests-limit: 10
     groups:
       major:
@@ -59,12 +47,6 @@ updates:
     directory: "/FlinkDotNet.WebUI"
     schedule:
       interval: "monthly"
-    labels:
-      - "dependencies"
-      - "nuget"
-      - "webui"
-    reviewers:
-      - "devstress"
     open-pull-requests-limit: 10
     groups:
       major:
@@ -84,11 +66,6 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-    labels:
-      - "dependencies"
-      - "github-actions"
-    reviewers:
-      - "devstress"
     open-pull-requests-limit: 5
     groups:
       github-actions:
