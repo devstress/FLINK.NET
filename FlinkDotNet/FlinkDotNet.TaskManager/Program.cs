@@ -86,9 +86,16 @@ namespace FlinkDotNet.TaskManager
                     // Register TaskManagerCoreService (previously TaskManagerService)
                     // It needs to be an IHostedService to integrate with Generic Host lifecycle
                     services.AddSingleton(new TaskManagerCoreService.Config(TaskManagerId, JobManagerAddress));
-                    services.AddHostedService<TaskManagerCoreService>();
+                    services.AddSingleton<TaskManagerCoreService>(); // Register as singleton
+                    services.AddHostedService<TaskManagerCoreService>(sp => sp.GetRequiredService<TaskManagerCoreService>()); // Also register as IHostedService
 
-                    // Register TaskExecutor
+                    // Register all dependencies required by TaskExecutor
+                    services.AddSingleton<ActiveTaskRegistry>();
+                    services.AddSingleton<FlinkDotNet.Core.Abstractions.Execution.SerializerRegistry>();
+                    services.AddSingleton<FlinkDotNet.Core.Abstractions.Storage.IStateSnapshotStore, FlinkDotNet.Core.Abstractions.Storage.InMemoryStateSnapshotStore>();
+                    services.AddSingleton(provider => TaskManagerId); // Register TaskManagerId as injectable string
+
+                    // Register TaskExecutor with all its dependencies now available
                     services.AddSingleton<TaskExecutor>();
 
                     // Register gRPC services
