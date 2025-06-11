@@ -90,7 +90,16 @@ jobs:
                 return -1
               }
 
-              $warnings = $output | Where-Object { $_ -match "(?i)Warning:" }
+              # Filter out harmless warnings from SonarScanner and package operations
+              $warnings = $output | Where-Object { 
+                $_ -match "(?i)Warning:" -and
+                $_ -notmatch "(?i)Skipping NuGet package signature verification" -and
+                $_ -notmatch "(?i)SonarScanner for .NET" -and
+                $_ -notmatch "(?i)sonar.scanner" -and
+                $_ -notmatch "(?i)Using the .NET Core version of the Scanner for .NET" -and
+                $_ -notmatch "(?i)Pre-processing started" -and
+                $_ -notmatch "(?i)Post-processing started"
+              }
               if ($warnings.Count -gt 0) {
                 Write-Host "[WARN] Found $($warnings.Count) warning(s) in $description"
               } else {
