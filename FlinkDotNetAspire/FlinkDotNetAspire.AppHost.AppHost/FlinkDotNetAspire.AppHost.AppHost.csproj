@@ -9,6 +9,10 @@
     <Nullable>enable</Nullable>
     <IsAspireHost>true</IsAspireHost>
     <UserSecretsId>488288f7-1491-4cf0-b9bd-11390e8919ec</UserSecretsId>
+    
+    <!-- SonarCloud exclusions - This is Aspire host/tooling code -->
+    <SonarQubeExclude>true</SonarQubeExclude>
+    <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
   </PropertyGroup>
 
   <ItemGroup>
