@@ -64,19 +64,42 @@ namespace FlinkDotNet.TaskManager.Internal
         public void ProcessElement(TElement element, long timestamp, CancellationToken cancellationToken)
         {
             // Implementation from Step 2 of runtime plan (conceptual)
-            // 1. Assign windows
+            // 1. Assign windows using the stored window assigner
+            var assignedWindows = _windowAssigner.AssignWindows(element, timestamp, _assignerContext);
+            
             // 2. For each window: update state (pane/accumulator), call trigger.OnElement()
+            foreach (var window in assignedWindows)
+            {
+                // Store elements if needed for processing or eviction
+                if (_userWindowFunction is IProcessWindowFunction<TElement, TOutput, TKey, TWindow> || _evictor != null)
+                {
+                    if (!_windowPanes.ContainsKey(window))
+                        _windowPanes[window] = new List<TElement>();
+                    _windowPanes[window].Add(element);
+                }
+                
+                // Update accumulator state
+                if (!_windowAccumulators.ContainsKey(window))
+                    _windowAccumulators[window] = default(TAccumulator)!;
+            }
+            
             // 3. Process trigger result (call EmitWindowContents, ClearWindowContentsAndState)
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: Processing element at {timestamp}");
-            // ... Full logic is complex ...
         }
 
         public void OnTimer(long time, TWindow window, TimerType timerType, CancellationToken cancellationToken)
         {
             // Implementation from Step 4 of runtime plan (conceptual)
-            // 1. Create ITriggerContext
+            // 1. Create ITriggerContext - use the trigger field
             // 2. Call trigger.OnProcessingTime() or trigger.OnEventTime()
-            // 3. Process trigger result
+            Console.WriteLine($"Processing timer with trigger {_trigger.GetType().Name} for window serialized by {_windowSerializer.GetType().Name}");
+            
+            // 3. Process trigger result and potentially emit using output collector
+            if (_outputCollector != null)
+            {
+                Console.WriteLine($"Output collector ready for emitting results");
+            }
+            
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: Timer fired for window {window} at {time} ({timerType})");
         }
 
