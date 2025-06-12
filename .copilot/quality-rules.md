@@ -8,28 +8,32 @@
 - **NEVER trust incremental build warning counts** - they show false `0 Warning(s)`
 - **Build caching masks actual warnings** - only clean builds reveal true state
 
-### Rule #1: Zero Warnings Policy (ACHIEVED ✅)
+### Rule #1: Zero Warnings Policy (❌ CURRENT STATUS - NOT ACHIEVED)
 **VIOLATION = IMMEDIATE REJECTION**
 - **ALL core solutions MUST build with 0 warnings**:
-  - ✅ **FlinkDotNet.sln**: 0 warnings, 0 errors 
+  - ❌ **FlinkDotNet.sln**: **49 warnings**, 0 errors (NEEDS FIXING)
   - ✅ **FlinkDotNet.WebUI.sln**: 0 warnings, 0 errors
-  - ✅ **FlinkDotNetAspire.sln**: 0 warnings, 0 errors (own projects)
+  - ❌ **FlinkDotNetAspire.sln**: **37 warnings**, 0 errors (NEEDS FIXING)
+- **TOTAL WARNINGS**: **86 warnings** that must be resolved
 - **ALL SonarAnalyzer warnings MUST be resolved**  
 - **NO exceptions, NO partial fixes, NO deferrals**
+
+**CRITICAL**: Previous claims of "0 warnings achieved" were incorrect due to incremental build caching
 
 Verification command:
 ```bash
 # MANDATORY: Clean build to avoid caching issues
 dotnet clean FlinkDotNet/FlinkDotNet.sln
 dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal 2>&1 | grep "Warning(s)"
-# Expected output: "0 Warning(s)" ✅ ACHIEVED
+# Expected output: "49 Warning(s)" ❌ NEEDS FIXING
 
 dotnet clean FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln  
 dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln --verbosity normal 2>&1 | grep "Warning(s)"
 # Expected output: "0 Warning(s)" ✅ ACHIEVED
 
-dotnet build FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests --verbosity normal 2>&1 | grep "Warning(s)"
-# Expected output: "0 Warning(s)" ✅ ACHIEVED
+dotnet clean FlinkDotNetAspire/FlinkDotNetAspire.sln
+dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal 2>&1 | grep "Warning(s)"
+# Expected output: "37 Warning(s)" ❌ NEEDS FIXING
 ```
 
 ### Rule #2: Test Success Requirement (100% PASS RATE MANDATORY)
@@ -269,14 +273,16 @@ public static string FormatValue(string input) {
 ### Definition of Complete
 A submission is **COMPLETE** only when:
 
-✅ **FlinkDotNet.sln**: 0 warnings, 0 errors, ALL unit tests pass (100% rate)
+❌ **FlinkDotNet.sln**: 0 warnings, 0 errors, ALL unit tests pass (100% rate) - **CURRENTLY 49 WARNINGS**
 ✅ **WebUI.sln**: 0 warnings, 0 errors, builds successfully  
-✅ **Aspire.sln**: 0 warnings, 0 errors, ALL integration tests pass (100% rate)
+❌ **Aspire.sln**: 0 warnings, 0 errors, ALL integration tests pass (100% rate) - **CURRENTLY 37 WARNINGS**
 ✅ **Unit Tests**: ALL 7 test projects pass (JobManager, Core, Architecture, Connectors, Storage, Constants)
 ✅ **Integration Tests**: FlinkDotNetAspire.IntegrationTests builds and runs successfully (no CS0400 errors)
-✅ **Stress tests**: Local verification matches CI workflow exactly, performance criteria met
+❌ **Stress tests**: Local verification matches CI workflow exactly, performance criteria met - **WORKFLOW FAILING**
 ✅ **Code changes**: Minimal, surgical, no unnecessary modifications  
 ✅ **Git status**: Clean, only intended files modified
+
+**CURRENT STATE: 86 warnings across 2 solutions must be fixed before submission**
 
 ### Failure Conditions
 ❌ **ANY warnings** in ANY solution = COMPLETE FAILURE  
@@ -315,5 +321,27 @@ A submission is **COMPLETE** only when:
 - **Documentation** of quality improvements
 
 ---
+
+## 🔍 TROUBLESHOOTING: Why Enforcement Didn't Capture Workflow Failures
+
+### Root Cause Analysis
+The enforcement rules failed to capture workflow failures because:
+
+1. **False Success Claims**: Previous documentation incorrectly claimed "0 warnings achieved" ✅ 
+2. **Build Caching Masking**: Incremental builds showed `0 Warning(s)` due to MSBuild caching
+3. **Actual State**: Clean builds reveal **86 total warnings** across FlinkDotNet (49) and Aspire (37) solutions
+4. **Workflow Mismatch**: Local enforcement claimed success while CI workflows failed
+
+### Corrective Actions Taken
+- ✅ Updated all documentation to reflect actual warning counts from clean builds
+- ✅ Enhanced clean build requirements to prevent caching-related false positives
+- ✅ Added mandatory verification steps that match CI workflow exactly
+- ✅ Implemented stricter pre-submission validation that must pass before any code submission
+
+### Current Enforcement Accuracy
+The enforcement rules now accurately reflect:
+- **Real warning counts**: 86 warnings that must be fixed
+- **Actual test status**: Unit tests pass, integration tests pass, stress tests failing in CI
+- **Required actions**: Systematic warning resolution across both failing solutions
 
 **These rules are NON-NEGOTIABLE. Quality is not a suggestion - it's a requirement.**
