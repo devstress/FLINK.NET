@@ -16,6 +16,7 @@ namespace FlinkDotNet.Core.Api.Execution
     {
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ConcurrentDictionary<Guid, ConcurrentQueue<object>> _dataChannels;
+        private bool _disposed;
 
         public LocalStreamExecutor(StreamExecutionEnvironment environment)
         {
@@ -414,7 +415,20 @@ namespace FlinkDotNet.Core.Api.Execution
 
         public void Dispose()
         {
-            _cancellationTokenSource?.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _cancellationTokenSource?.Dispose();
+                }
+                _disposed = true;
+            }
         }
     }
 

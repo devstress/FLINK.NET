@@ -21,12 +21,9 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
 
         protected virtual void Dispose(bool disposing)
         {
-            if (disposing)
+            if (disposing && Directory.Exists(_testDirectory))
             {
-                if (Directory.Exists(_testDirectory))
-                {
-                    Directory.Delete(_testDirectory, recursive: true);
-                }
+                Directory.Delete(_testDirectory, recursive: true);
             }
         }
 

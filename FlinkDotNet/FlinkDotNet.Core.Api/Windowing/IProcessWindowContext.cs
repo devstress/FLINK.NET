@@ -62,6 +62,5 @@ namespace FlinkDotNet.Core.Api.Windowing
         // These interact with the event/processing time services of the operator.
 
         // Side output capability (advanced, for future)
-        // public abstract void Output<X>(OutputTag<X> outputTag, X value);
     }
 }

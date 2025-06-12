@@ -11,6 +11,7 @@ namespace FlinkDotNet.TaskManager.Services
         private readonly string _taskManagerId;
         private readonly TaskExecutor _taskExecutor; // Instance to execute the tasks
         private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeTasks = new();
+        private bool _disposed;
 
         public TaskExecutionServiceImpl(string taskManagerId, TaskExecutor taskExecutor)
         {
@@ -62,12 +63,25 @@ namespace FlinkDotNet.TaskManager.Services
 
         public void Dispose()
         {
-            foreach (var taskCts in _activeTasks.Values)
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
             {
-                taskCts?.Cancel();
-                taskCts?.Dispose();
+                if (disposing)
+                {
+                    foreach (var taskCts in _activeTasks.Values)
+                    {
+                        taskCts?.Cancel();
+                        taskCts?.Dispose();
+                    }
+                    _activeTasks.Clear();
+                }
+                _disposed = true;
             }
-            _activeTasks.Clear();
         }
     }
 }

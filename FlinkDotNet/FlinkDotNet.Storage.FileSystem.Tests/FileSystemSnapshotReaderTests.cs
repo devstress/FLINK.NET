@@ -33,23 +33,10 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
 
 
         {
-
-
-            if (disposing)
-
-
-            {
-
-
-                if (Directory.Exists(_testDirectory))
+            if (disposing && Directory.Exists(_testDirectory))
             {
                 Directory.Delete(_testDirectory, recursive: true);
-
-
             }
-
-
-        }
         }
 
         private async Task<string> CreateTestSnapshot()

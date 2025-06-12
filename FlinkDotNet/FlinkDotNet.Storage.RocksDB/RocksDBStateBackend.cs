@@ -72,8 +72,6 @@ namespace FlinkDotNet.Storage.RocksDB
         private readonly RocksDBConfiguration? _configuration;
         private readonly ILogger<RocksDBStateBackend> _logger;
         private readonly RocksDb _database;
-        private readonly ColumnFamilyOptions _columnFamilyOptions;
-        private readonly DbOptions _dbOptions;
         private readonly Dictionary<string, ColumnFamilyHandle> _columnFamilies;
         private readonly ConcurrentDictionary<long, string> _checkpoints;
         private readonly Timer _statisticsTimer;
@@ -109,10 +107,10 @@ namespace FlinkDotNet.Storage.RocksDB
             Directory.CreateDirectory(dataDir);
 
             // Configure RocksDB options for optimal performance
-            _dbOptions = new DbOptions()
+            var dbOptions = new DbOptions()
                 .SetCreateIfMissing(true);
 
-            _columnFamilyOptions = new ColumnFamilyOptions()
+            var columnFamilyOptions = new ColumnFamilyOptions()
                 .SetWriteBufferSize(_options?.WriteBufferSize ?? _configuration?.WriteBufferSize ?? 64 * 1024 * 1024);
 
             try
@@ -121,10 +119,10 @@ namespace FlinkDotNet.Storage.RocksDB
                 var columnFamilies = new ColumnFamilies();
                 foreach (var cfName in columnFamilyNames)
                 {
-                    columnFamilies.Add(cfName, _columnFamilyOptions);
+                    columnFamilies.Add(cfName, columnFamilyOptions);
                 }
 
-                _database = RocksDb.Open(_dbOptions, dataDir, columnFamilies);
+                _database = RocksDb.Open(dbOptions, dataDir, columnFamilies);
                 
                 // Store column family handles
                 foreach (var cfName in columnFamilyNames)
