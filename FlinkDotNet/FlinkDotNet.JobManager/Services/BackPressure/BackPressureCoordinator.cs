@@ -130,7 +130,10 @@ public class BackPressureCoordinator : IDisposable
         {
             var currentTaskManagers = _taskManagerOrchestrator.GetTaskManagerCount();
 
-            if (currentTaskManagers < _config.MaxTaskManagers) {
+            if (pressure.OverallPressure > _config.ScaleUpThreshold)
+            {
+                if (currentTaskManagers < _config.MaxTaskManagers)
+                {
                     _logger.LogInformation("High pressure detected ({Pressure:F2}) for {StateBackendId}. Scaling up TaskManagers.", 
                         pressure.OverallPressure, stateBackendId);
                     
@@ -141,7 +144,10 @@ public class BackPressureCoordinator : IDisposable
                     _logger.LogWarning("Maximum TaskManager count ({MaxCount}) reached. Cannot scale up further.", _config.MaxTaskManagers);
                 }
             }
-            else if (currentTaskManagers > _config.MinTaskManagers) {
+            else if (pressure.OverallPressure < _config.ScaleDownThreshold)
+            {
+                if (currentTaskManagers > _config.MinTaskManagers)
+                {
                     _logger.LogInformation("Low pressure detected ({Pressure:F2}) for {StateBackendId}. Scaling down TaskManagers.", 
                         pressure.OverallPressure, stateBackendId);
                     

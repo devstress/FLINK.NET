@@ -126,7 +126,8 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             {
                 // On Windows, Path.GetFullPath can fail with whitespace-only paths
                 // Skip test on platforms where this is not supported
-    }
+                return;
+            }
 
             DisaggregatedStateBackend? backend = null;
             try
@@ -142,8 +143,8 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             {
                 // On Windows, certain whitespace characters (like tab) are not valid in directory names
                 // This is expected behavior on Windows, so we skip the test
-    }
-
+                return;
+            }
             finally
             {
                 // Cleanup - be careful with empty paths

@@ -66,6 +66,11 @@ namespace FlinkDotNet.Connectors.Sources.File.Tests
             return _stringWriter.ToString();
         }
 
+        private void ClearConsoleOutput()
+        {
+            _stringWriter.GetStringBuilder().Clear();
+        }
+
         private string CreateTestFile(string fileName, params string[] lines)
         {
             var filePath = Path.Combine(_testDirectory, fileName);

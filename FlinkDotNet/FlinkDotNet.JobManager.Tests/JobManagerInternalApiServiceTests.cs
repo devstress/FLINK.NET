@@ -20,12 +20,13 @@ namespace FlinkDotNet.JobManager.Tests
         }
 
         // Helper to create a mock ServerCallContext
-        private static ServerCallContext MockServerCallContext()
+        private ServerCallContext MockServerCallContext()
         {
             // This is a simplified mock. Grpc.Core.Testing can provide more elaborate mocks if needed.
             // For basic tests where ServerCallContext is not heavily used, this is often sufficient.
             var mockContext = new Mock<ServerCallContext>();
             // Setup any properties or methods on mockContext if your service implementation uses them.
+            // For example: Setup(c => c.Peer).Returns("testpeer");
             return mockContext.Object;
         }
 

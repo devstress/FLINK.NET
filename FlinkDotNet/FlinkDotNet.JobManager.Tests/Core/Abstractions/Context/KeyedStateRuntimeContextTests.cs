@@ -8,9 +8,10 @@ namespace FlinkDotNet.JobManager.Tests.Core.Abstractions.Context
     public class KeyedStateRuntimeContextTests
     {
         private readonly ITypeSerializer<string> _stringSerializer = new StringSerializer();
+        private readonly ITypeSerializer<int> _intSerializer = new IntSerializer();
         private readonly ITypeSerializer<long> _longSerializer = new LongSerializer();
 
-        private static BasicRuntimeContext CreateContext() => new BasicRuntimeContext(
+        private BasicRuntimeContext CreateContext() => new BasicRuntimeContext(
             jobName: "TestJob",
             taskName: "TestTask",
             numberOfParallelSubtasks: 1,

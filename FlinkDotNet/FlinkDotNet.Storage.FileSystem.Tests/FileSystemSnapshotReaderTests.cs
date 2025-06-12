@@ -25,8 +25,6 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             GC.SuppressFinalize(this);
 
 
-        
-            Assert.True(true); // Basic assertion added
         }
 
 

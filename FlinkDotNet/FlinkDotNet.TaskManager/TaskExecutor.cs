@@ -21,7 +21,7 @@ namespace FlinkDotNet.TaskManager
             _activeTaskRegistry = activeTaskRegistry;
         }
 
-        public static Task ExecuteFromDescriptor(
+        public Task ExecuteFromDescriptor(
             TaskDeploymentDescriptor descriptor,
             Dictionary<string, string> operatorProperties,
             CancellationToken cancellationToken)
@@ -30,6 +30,6 @@ namespace FlinkDotNet.TaskManager
             return Task.CompletedTask;
         }
 
-        public static IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex) => null;
+        public IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex) => null;
     }
 }
