@@ -30,7 +30,7 @@ namespace FlinkDotNet.TaskManager
             return Task.CompletedTask;
         }
 
-        public IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex) 
+        public static IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex) 
         {
             // Implementation placeholder - registry available for future use
             return null;

@@ -105,7 +105,6 @@ namespace FlinkDotNet.Core.Api
             else if (transformType.IsGenericType && transformType.GetGenericTypeDefinition() == typeof(FlinkDotNet.Core.Api.Streaming.KeyedTransformation<,>))
             {
                 // KeyedTransformation does not wrap an operator instance directly
-                operatorInstance = currentTransform;
                 operatorClrType = transformType;
             }
 

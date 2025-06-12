@@ -133,8 +133,8 @@ public class AspireIntegrationTests
                     string taskManagerId = "TM-Test";
                     string jobManagerAddress = ServiceUris.JobManagerGrpc;
                     
-                    services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
-                    services.AddHostedService<global::TaskManagerCoreService>();
+                    services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
+                    services.AddHostedService<FlinkDotNet.TaskManager.TaskManagerCoreService>();
                     
                     // This line should fail because TaskExecutor dependencies are missing
                     services.AddSingleton<FlinkDotNet.TaskManager.TaskExecutor>();
@@ -176,7 +176,7 @@ public class AspireIntegrationTests
                 services.AddSingleton(provider => taskManagerId); // Register taskManagerId as injectable string
                 
                 // Register TaskManager services 
-                services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
+                services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
                 services.AddSingleton<FlinkDotNet.TaskManager.Services.TaskManagerCheckpointingServiceImpl>();
                 
                 // Now TaskExecutor should be constructible
@@ -253,9 +253,9 @@ public class AspireIntegrationTests
                     string jobManagerAddress = ServiceUris.JobManagerGrpc;
                     
                     // Reproduce the FIXED DI configuration from TaskManager Program.cs
-                    services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
-                    services.AddSingleton<global::TaskManagerCoreService>();
-                    services.AddHostedService<global::TaskManagerCoreService>(sp => sp.GetRequiredService<global::TaskManagerCoreService>());
+                    services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
+                    services.AddSingleton<FlinkDotNet.TaskManager.TaskManagerCoreService>();
+                    services.AddHostedService<FlinkDotNet.TaskManager.TaskManagerCoreService>(sp => sp.GetRequiredService<FlinkDotNet.TaskManager.TaskManagerCoreService>());
 
                     // Register all dependencies required by TaskExecutor (the fix)
                     services.AddSingleton<FlinkDotNet.TaskManager.ActiveTaskRegistry>();
@@ -277,7 +277,7 @@ public class AspireIntegrationTests
             // Try to get all the services - this should NOT fail now with the fix
             using var scope = host.Services.CreateScope();
             
-            var taskManagerCoreService = scope.ServiceProvider.GetRequiredService<global::TaskManagerCoreService>();
+            var taskManagerCoreService = scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.TaskManagerCoreService>();
             var activeTaskRegistry = scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.ActiveTaskRegistry>();
             var serializerRegistry = scope.ServiceProvider.GetRequiredService<FlinkDotNet.Core.Abstractions.Execution.SerializerRegistry>();
             var stateStore = scope.ServiceProvider.GetRequiredService<FlinkDotNet.Core.Abstractions.Storage.IStateSnapshotStore>();

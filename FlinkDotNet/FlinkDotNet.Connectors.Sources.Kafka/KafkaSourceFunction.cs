@@ -42,12 +42,12 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         public bool IsBounded => _isBounded;
 
-        public void Run(ISourceContext<T> context)
+        public void Run(ISourceContext<T> ctx)
         {
-            RunAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+            RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        public async Task RunAsync(ISourceContext<T> context, CancellationToken cancellationToken)
+        public async Task RunAsync(ISourceContext<T> ctx, CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var combinedToken = _cancellationTokenSource.Token;
@@ -76,11 +76,11 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                             // Emit the record with event time if available
                             if (timestamp > 0)
                             {
-                                await context.CollectWithTimestampAsync(consumeResult.Message.Value, timestamp);
+                                await ctx.CollectWithTimestampAsync(consumeResult.Message.Value, timestamp);
                             }
                             else
                             {
-                                await context.CollectAsync(consumeResult.Message.Value);
+                                await ctx.CollectAsync(consumeResult.Message.Value);
                             }
                             
                             // For bounded mode, we might want to stop after consuming all available messages
@@ -107,6 +107,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             {
                 _consumer?.Close();
                 _consumer?.Dispose();
+                _cancellationTokenSource?.Dispose();
                 _logger?.LogInformation("Kafka consumer closed");
             }
         }

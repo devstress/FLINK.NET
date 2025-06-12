@@ -109,6 +109,7 @@ namespace FlinkDotNet.TaskManager
     {
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} stopping...");
         _internalCts?.Cancel();
+        _internalCts?.Dispose();
         _heartbeatTimer?.Dispose();
         _registered = false;
         return Task.CompletedTask;

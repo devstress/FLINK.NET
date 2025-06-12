@@ -11,12 +11,6 @@ using FlinkDotNet.JobManager.Models.JobGraph; // For ShuffleMode, assuming it's 
 // The namespace FlinkDotNet.Core.Api.Windowing and its contents (Evictor, IProcessWindowFunction, ProcessWindowContext stubs)
 // have been removed as they are expected to be defined elsewhere.
 
-namespace FlinkDotNet.Core.Abstractions.Collectors
-{
-    // Re-affirming ICollector for IProcessWindowFunction if not already visible/defined elsewhere.
-    // This was also defined in TaskExecutor.cs previously.
-}
-
 
 // Assuming Transformation classes are in this namespace (e.g., from DataStream.cs or a new Transformations.cs)
 namespace FlinkDotNet.Core.Api.Streaming

@@ -12,7 +12,7 @@ namespace FlinkDotNet.Core.Api.Execution
     /// This enables local testing and development without requiring a full distributed setup.
     /// Implements core Apache Flink 2.0 execution concepts.
     /// </summary>
-    public class LocalStreamExecutor
+    public class LocalStreamExecutor : IDisposable
     {
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ConcurrentDictionary<Guid, ConcurrentQueue<object>> _dataChannels;
@@ -181,7 +181,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     else if (operatorInstance.Operator != null)
                     {
                         // Handle other source types using reflection
-                        await RunSourceUsingReflection(operatorInstance.Operator, sourceContext, cancellationToken);
+                        await RunSourceUsingReflection(operatorInstance.Operator, sourceContext);
                     }
 
                     Console.WriteLine($"[LocalStreamExecutor] Source vertex {vertex.Name} completed");
@@ -324,7 +324,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return channels;
         }
 
-        private static async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext, CancellationToken cancellationToken)
+        private static async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext)
         {
             // Find and invoke Run method using reflection
             var runMethod = sourceInstance.GetType().GetMethod("Run");

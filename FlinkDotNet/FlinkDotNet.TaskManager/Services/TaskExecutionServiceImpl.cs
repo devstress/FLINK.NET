@@ -1,14 +1,16 @@
 using System.Text.Json; // For deserializing OperatorConfiguration
+using System.Collections.Concurrent;
 using Grpc.Core;
 using FlinkDotNet.Proto.Internal; // For TaskDeploymentDescriptor, DeployTaskResponse
 // Assuming TaskExecutor is in FlinkDotNet.TaskManager namespace
 
 namespace FlinkDotNet.TaskManager.Services
 {
-    public class TaskExecutionServiceImpl : TaskExecution.TaskExecutionBase
+    public class TaskExecutionServiceImpl : TaskExecution.TaskExecutionBase, IDisposable
     {
         private readonly string _taskManagerId;
         private readonly TaskExecutor _taskExecutor; // Instance to execute the tasks
+        private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeTasks = new();
 
         public TaskExecutionServiceImpl(string taskManagerId, TaskExecutor taskExecutor)
         {
@@ -37,6 +39,7 @@ namespace FlinkDotNet.TaskManager.Services
 
                 // Create a CancellationTokenSource for this specific task execution
                 var taskCts = new CancellationTokenSource();
+                _activeTasks[request.TaskName] = taskCts;
 
                 // Fire and forget the actual task execution. The response is for acknowledging deployment.
                 // Note: Awaiting this would block the gRPC response until the task completes, which is usually not desired for DeployTask.
@@ -55,6 +58,16 @@ namespace FlinkDotNet.TaskManager.Services
                 Console.WriteLine($"TaskManager [{_taskManagerId}]: Error processing DeployTask for '{request.TaskName}': {ex.Message}");
                 return Task.FromResult(new DeployTaskResponse { Success = false, Message = ex.Message });
             }
+        }
+
+        public void Dispose()
+        {
+            foreach (var taskCts in _activeTasks.Values)
+            {
+                taskCts?.Cancel();
+                taskCts?.Dispose();
+            }
+            _activeTasks.Clear();
         }
     }
 }
