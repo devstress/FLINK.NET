@@ -28,13 +28,16 @@ dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal 2>&1 | grep "Warning
 **VIOLATION = IMMEDIATE REJECTION**
 - **ALL existing tests MUST pass (100% success rate)**
 - **NO test failures are acceptable**
-- **Integration tests, unit tests, architecture tests - ALL must pass**
+- **Integration tests, unit tests, architecture tests, stress tests - ALL must pass**
+- **Local stress test verification MUST match CI workflow exactly**
 
 Verification command:
 ```bash
 dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal
 dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal
-# Expected output: All tests pass, no failures
+./scripts/run-local-stress-tests.ps1
+./scripts/test-local-stress-workflow-alignment.ps1
+# Expected output: All tests pass, no failures, stress tests SUCCESS
 ```
 
 ### Rule #3: Build Success Requirement
@@ -52,6 +55,8 @@ Before using `report_progress`, copilot agents **MUST** complete:
 - [ ] ✅ Clean build all solutions: `dotnet clean && dotnet build --verbosity normal` 
 - [ ] ✅ Verify 0 warnings in clean build outputs (incremental builds lie!)
 - [ ] ✅ Run all tests: `dotnet test` for all test projects
+- [ ] ✅ Run stress tests: `./scripts/run-local-stress-tests.ps1`
+- [ ] ✅ Verify local/CI alignment: `./scripts/test-local-stress-workflow-alignment.ps1`
 - [ ] ✅ Confirm 100% test pass rate
 - [ ] ✅ Check git status: `git status --porcelain`
 - [ ] ✅ Verify no unwanted files staged
@@ -74,10 +79,24 @@ fi
 
 #### Gate 2: Test Validation  
 ```bash
-# Must pass for ALL test projects
+# Must pass for ALL test projects (including stress tests)
 dotnet test FlinkDotNet/FlinkDotNet.sln --logger "console;verbosity=minimal" | grep -q "Failed: 0"
 if [ $? -ne 0 ]; then
     echo "❌ QUALITY GATE FAILED: Test failures detected"
+    exit 1  
+fi
+
+# Stress test verification (local must match CI workflow)
+./scripts/run-local-stress-tests.ps1
+if [ $? -ne 0 ]; then
+    echo "❌ QUALITY GATE FAILED: Stress test verification failed"
+    exit 1  
+fi
+
+# Local/CI workflow alignment verification
+./scripts/test-local-stress-workflow-alignment.ps1
+if [ $? -ne 0 ]; then
+    echo "❌ QUALITY GATE FAILED: Local stress tests don't match CI workflow"
     exit 1  
 fi
 ```
@@ -145,6 +164,8 @@ fi
    ```bash
    dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity normal
    dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity normal
+   ./scripts/run-local-stress-tests.ps1
+   ./scripts/test-local-stress-workflow-alignment.ps1
    ```
 
 5. **Final Validation**
@@ -211,6 +232,7 @@ A submission is **COMPLETE** only when:
 ✅ **FlinkDotNet.sln**: 0 warnings, 0 errors, all tests pass  
 ✅ **WebUI.sln**: 0 warnings, 0 errors, builds successfully  
 ✅ **Aspire.sln**: 0 warnings, 0 errors, integration tests pass  
+✅ **Stress tests**: Local verification matches CI workflow exactly
 ✅ **Code changes**: Minimal, surgical, no unnecessary modifications  
 ✅ **Git status**: Clean, only intended files modified
 
@@ -218,6 +240,8 @@ A submission is **COMPLETE** only when:
 ❌ **ANY warnings** in ANY solution = COMPLETE FAILURE  
 ❌ **ANY test failures** = COMPLETE FAILURE  
 ❌ **ANY build errors** = COMPLETE FAILURE  
+❌ **Stress test failures** = COMPLETE FAILURE
+❌ **Local/CI workflow mismatch** = COMPLETE FAILURE
 ❌ **Excessive code changes** = COMPLETE FAILURE  
 
 ## 📞 Escalation Process

@@ -20,7 +20,7 @@ This document establishes strict quality standards that **MUST** be followed by 
 - **Integration tests MUST pass** in the FlinkDotNetAspire solution
 - **Unit tests MUST pass** across all test projects
 - **Architecture tests MUST pass** to ensure design compliance
-- **Stress tests MUST pass** when applicable
+- **Stress tests MUST pass** - both locally and in CI workflow
 
 ### 3. Build Verification
 - **ALL solutions must build successfully**:
@@ -57,6 +57,12 @@ dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity normal
 
 # Run integration tests  
 dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity normal
+
+# Run stress tests (local verification that matches CI workflow)
+./scripts/run-local-stress-tests.ps1
+
+# Verify local stress tests match workflow (unit tests for alignment)
+./scripts/test-local-stress-workflow-alignment.ps1
 ```
 
 **Expected Result:** All tests pass with no failures
@@ -150,8 +156,9 @@ Phase 4: Final cleanup - Target: 0 warnings
 
 ### CI/CD Pipeline Requirements
 - Code Analysis workflow must pass
-- Stress Test workflow must pass
+- Stress Test workflow must pass (verified locally with `./scripts/run-local-stress-tests.ps1`)
 - All automated quality gates must be green
+- Local stress test verification must match CI workflow exactly
 
 ### Redis Configuration
 For Aspire integration tests, use proper dependency injection:
@@ -177,7 +184,15 @@ Copilot agents **MUST** run these checks before any submission:
    ```
 2. `git status --porcelain` - Verify clean working directory
 3. Test execution commands (see Step 2 above)
-4. Warning count verification (MUST be 0 after clean builds)
+4. **STRESS TEST VERIFICATION** - Ensure local matches CI workflow:
+   ```bash
+   # Local stress test that matches CI workflow exactly
+   ./scripts/run-local-stress-tests.ps1
+   
+   # Unit tests to verify local/CI alignment
+   ./scripts/test-local-stress-workflow-alignment.ps1
+   ```
+5. Warning count verification (MUST be 0 after clean builds)
 
 ### Submission Protocol
 1. ✅ **Complete all fixes** - Address every warning and test failure
@@ -200,6 +215,7 @@ A code submission is considered complete **ONLY** when:
 - [ ] All unit tests pass (100% success rate)
 - [ ] All integration tests pass (100% success rate)  
 - [ ] All architecture tests pass (100% success rate)
+- [ ] All stress tests pass (local verification matches CI workflow)
 - [ ] Code follows established patterns and conventions
 - [ ] Changes are minimal and surgical (avoid unnecessary modifications)
 
@@ -223,10 +239,16 @@ echo "Running all tests..."
 dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal
 dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal
 
+echo "Running stress tests..."
+./scripts/run-local-stress-tests.ps1
+
+echo "Verifying local/CI stress test alignment..."
+./scripts/test-local-stress-workflow-alignment.ps1
+
 echo "=== VERIFICATION COMPLETE ==="
 ```
 
-Expected output: `0 Warning(s)` for all builds and `Passed!` for all test runs.
+Expected output: `0 Warning(s)` for all builds, `Passed!` for all test runs, and `SUCCESS` for stress test verification.
 
 ⚠️ **CRITICAL**: If incremental builds were used previously, they may have shown `0 Warning(s)` incorrectly due to build caching. Only clean builds provide accurate warning detection.
 
