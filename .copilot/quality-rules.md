@@ -2,13 +2,27 @@
 
 ## 🚨 CRITICAL REQUIREMENTS - ZERO TOLERANCE
 
-### Rule #0: Clean Build Requirement (FUNDAMENTAL)
+### Rule #0: Local/CI Warning Alignment (FUNDAMENTAL)
+**VIOLATION = IMMEDIATE REJECTION**
+- **When user reports warnings/errors that don't reproduce locally**: 
+  - **FIRST ACTION**: Fix local configuration to ensure the warnings/errors reproduce locally
+  - **NEVER ignore warnings** that appear in CI but not locally - this indicates configuration mismatch
+  - **MANDATORY**: Update build configuration, analyzer settings, or environment to match CI exactly
+  - **VERIFICATION**: Ensure `dotnet build --verbosity normal` shows the same warnings locally as CI
+- **Root cause examples**:
+  - Missing SonarAnalyzer.CSharp package references
+  - Different verbosity levels (use `--verbosity normal` minimum)
+  - Incremental builds masking warnings (always use clean builds)
+  - Missing analyzer rule sets or configurations
+  - Environment-specific path or dependency issues
+
+### Rule #1: Clean Build Requirement (FUNDAMENTAL)
 **VIOLATION = IMMEDIATE REJECTION**
 - **ALWAYS use clean builds** - Incremental builds hide warnings due to caching
 - **NEVER trust incremental build warning counts** - they show false `0 Warning(s)`
 - **Build caching masks actual warnings** - only clean builds reveal true state
 
-### Rule #1: Zero Warnings Policy (🚧 IN PROGRESS - SIGNIFICANT REDUCTION ACHIEVED)
+### Rule #2: Zero Warnings Policy (🚧 IN PROGRESS - SIGNIFICANT REDUCTION ACHIEVED)
 **VIOLATION = IMMEDIATE REJECTION**
 - **Current Progress on Warning Elimination**:
   - ✅ **FlinkDotNet.WebUI.sln**: 0 warnings, 0 errors (ACHIEVED)
@@ -36,7 +50,7 @@ dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal 2>&1 | g
 # Expected output: "~27 Warning(s)" 🚧 IN PROGRESS (reduced from 37)
 ```
 
-### Rule #2: Test Success Requirement (100% PASS RATE MANDATORY)
+### Rule #3: Test Success Requirement (100% PASS RATE MANDATORY)
 **VIOLATION = IMMEDIATE REJECTION**
 - **ALL unit tests MUST pass (100% success rate)** across all test projects:
   - FlinkDotNet.JobManager.Tests (~120 tests)
@@ -70,7 +84,7 @@ dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspi
 # Expected output: All stress tests SUCCESS, performance criteria met
 ```
 
-### Rule #3: Build Success Requirement
+### Rule #4: Build Success Requirement
 **VIOLATION = IMMEDIATE REJECTION**  
 - **ALL 3 solutions MUST build successfully**
 - **NO build errors allowed**

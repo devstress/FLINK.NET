@@ -144,15 +144,12 @@ public class BackPressureCoordinator : IDisposable
                     _logger.LogWarning("Maximum TaskManager count ({MaxCount}) reached. Cannot scale up further.", _config.MaxTaskManagers);
                 }
             }
-            else if (pressure.OverallPressure < _config.ScaleDownThreshold)
+            else if (pressure.OverallPressure < _config.ScaleDownThreshold && currentTaskManagers > _config.MinTaskManagers)
             {
-                if (currentTaskManagers > _config.MinTaskManagers)
-                {
-                    _logger.LogInformation("Low pressure detected ({Pressure:F2}) for {StateBackendId}. Scaling down TaskManagers.", 
-                        pressure.OverallPressure, stateBackendId);
-                    
-                    _ = Task.Run(async () => await _taskManagerOrchestrator.ScaleDownAsync());
-                }
+                _logger.LogInformation("Low pressure detected ({Pressure:F2}) for {StateBackendId}. Scaling down TaskManagers.", 
+                    pressure.OverallPressure, stateBackendId);
+                
+                _ = Task.Run(async () => await _taskManagerOrchestrator.ScaleDownAsync());
             }
         }
         catch (Exception ex)

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace FlinkDotNet.JobManager.Services.BackPressure;
@@ -480,11 +481,9 @@ spec:
         {
             // On Linux/macOS, dotnet is typically in /usr/share/dotnet or /usr/local/share/dotnet
             var possiblePaths = new[] { "/usr/share/dotnet/dotnet", "/usr/local/share/dotnet/dotnet", "/usr/bin/dotnet" };
-            foreach (var path in possiblePaths)
-            {
-                if (File.Exists(path))
-                    return path;
-            }
+            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            if (existingPath != null)
+                return existingPath;
             // Fallback to PATH-based resolution with warning
             return "dotnet";
         }
@@ -515,11 +514,9 @@ spec:
         else
         {
             var possiblePaths = new[] { "/usr/bin/docker", "/usr/local/bin/docker", "/opt/docker/bin/docker" };
-            foreach (var path in possiblePaths)
-            {
-                if (File.Exists(path))
-                    return path;
-            }
+            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            if (existingPath != null)
+                return existingPath;
             return "docker";
         }
     }
@@ -535,21 +532,17 @@ spec:
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "kubectl", "kubectl.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "kubectl.exe")
             };
-            foreach (var path in possiblePaths)
-            {
-                if (File.Exists(path))
-                    return path;
-            }
+            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            if (existingPath != null)
+                return existingPath;
             return "kubectl.exe";
         }
         else
         {
             var possiblePaths = new[] { "/usr/bin/kubectl", "/usr/local/bin/kubectl", "/snap/bin/kubectl" };
-            foreach (var path in possiblePaths)
-            {
-                if (File.Exists(path))
-                    return path;
-            }
+            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            if (existingPath != null)
+                return existingPath;
             return "kubectl";
         }
     }

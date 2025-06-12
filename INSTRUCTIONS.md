@@ -5,12 +5,24 @@ This document establishes strict quality standards that **MUST** be followed by 
 
 ## ✅ Pre-Submission Requirements (MANDATORY)
 
-### 0. Clean Build Policy (CRITICAL)
+### 0. Local/CI Warning Alignment Policy (CRITICAL)
+- **When user reports warnings/errors that don't reproduce locally**:
+  - **FIRST ACTION**: Fix local configuration to ensure warnings/errors reproduce locally
+  - **NEVER ignore CI-only warnings** - this indicates configuration mismatch that must be resolved
+  - **MANDATORY STEPS**:
+    1. Verify SonarAnalyzer.CSharp packages are properly installed
+    2. Use same verbosity level as CI (`--verbosity normal` minimum)
+    3. Ensure clean builds (never rely on incremental builds)
+    4. Check for missing analyzer configurations or rule sets
+    5. Verify environment variables and dependencies match CI
+  - **VERIFICATION**: Local `dotnet build --verbosity normal` must show same warnings as CI
+
+### 1. Clean Build Policy (CRITICAL)
 - **ALWAYS use clean builds** - Incremental builds mask warnings due to caching
 - **NEVER trust incremental build warning counts** - they can show `0 Warning(s)` falsely
 - **Build caching hides actual warnings** - clean builds reveal true warning state
 
-### 1. Zero Warnings Policy (🚧 SUBSTANTIAL PROGRESS ACHIEVED)
+### 2. Zero Warnings Policy (🚧 SUBSTANTIAL PROGRESS ACHIEVED)
 - **Current Warning Status (Clean Build Results)**:
   - ✅ **FlinkDotNet.WebUI.sln**: 0 warnings, 0 errors (ACHIEVED)
   - 🚧 **FlinkDotNet.sln**: **30 warnings**, 0 errors (REDUCED from 49)
@@ -20,7 +32,7 @@ This document establishes strict quality standards that **MUST** be followed by 
 - No exceptions - warnings indicate code quality issues that must be addressed
 - **CRITICAL**: Clean builds required - incremental builds showed false "0 warnings" due to caching
 
-### 2. Test Requirements (100% PASS RATE MANDATORY)
+### 3. Test Requirements (100% PASS RATE MANDATORY)
 - **ALL unit tests MUST pass** - 100% success rate required across all test projects
   - FlinkDotNet.JobManager.Tests
   - FlinkDotNet.Core.Tests  
@@ -36,7 +48,7 @@ This document establishes strict quality standards that **MUST** be followed by 
 - **NO test failures are acceptable** - Any failing test blocks submission
 - **NO build errors in test projects** - All test projects must compile successfully
 
-### 3. Build Verification
+### 4. Build Verification
 - **ALL solutions must build successfully**:
   - `FlinkDotNet/FlinkDotNet.sln` - Core framework
   - `FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln` - Web interface  
