@@ -15,12 +15,21 @@ This document establishes strict quality standards that **MUST** be followed by 
 - **ALL SonarAnalyzer warnings must be resolved**
 - No exceptions - warnings indicate code quality issues that must be addressed
 
-### 2. Test Requirements  
-- **ALL existing tests MUST pass** - no test failures are acceptable
-- **Integration tests MUST pass** in the FlinkDotNetAspire solution
-- **Unit tests MUST pass** across all test projects
-- **Architecture tests MUST pass** to ensure design compliance
-- **Stress tests MUST pass** - both locally and in CI workflow
+### 2. Test Requirements (100% PASS RATE MANDATORY)
+- **ALL unit tests MUST pass** - 100% success rate required across all test projects
+  - FlinkDotNet.JobManager.Tests
+  - FlinkDotNet.Core.Tests  
+  - FlinkDotNet.Connectors.Sinks.Console.Tests
+  - FlinkDotNet.Connectors.Sources.File.Tests
+  - FlinkDotNet.Common.Constants.Tests
+  - FlinkDotNet.Architecture.Tests
+  - FlinkDotNet.Storage.FileSystem.Tests
+- **ALL integration tests MUST pass** - 100% success rate required
+  - FlinkDotNetAspire.IntegrationTests (must build and execute successfully)
+- **ALL stress tests MUST pass** - both locally and in CI workflow
+  - Local stress test verification must match CI workflow exactly
+- **NO test failures are acceptable** - Any failing test blocks submission
+- **NO build errors in test projects** - All test projects must compile successfully
 
 ### 3. Build Verification
 - **ALL solutions must build successfully**:
@@ -50,22 +59,42 @@ dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal
 
 ⚠️ **WARNING**: Incremental builds may show `0 Warning(s)` due to caching even when warnings exist. ALWAYS clean before building to get accurate warning detection.
 
-### Step 2: Test Execution
+### Step 2: Test Execution (ALL TEST TYPES MANDATORY)
+
+#### Unit Tests Verification
 ```bash
-# Run all unit tests
+# Run ALL unit tests - 100% pass rate required
 dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity normal
 
-# Run integration tests  
+# Expected: All unit test projects pass
+# - FlinkDotNet.JobManager.Tests: ~120 tests
+# - FlinkDotNet.Core.Tests: All tests pass
+# - FlinkDotNet.Architecture.Tests: ~7 tests
+# - FlinkDotNet.Connectors.*.Tests: All connector tests pass
+# - FlinkDotNet.Storage.*.Tests: All storage tests pass
+```
+
+#### Integration Tests Verification  
+```bash
+# Run integration tests - 100% pass rate required
 dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity normal
 
+# Expected: All integration tests pass (typically ~10 tests)
+# Must build successfully (no CS0400 or other compilation errors)
+```
+
+#### Stress Tests Verification
+```bash
 # Run stress tests (local verification that matches CI workflow)
 ./scripts/run-local-stress-tests.ps1
 
 # Verify local stress tests match workflow (unit tests for alignment)
 ./scripts/test-local-stress-workflow-alignment.ps1
+
+# Expected: All stress tests pass with performance criteria met
 ```
 
-**Expected Result:** All tests pass with no failures
+**Expected Result:** 100% pass rate for ALL test categories - no exceptions
 
 ### Step 3: Warning Analysis
 If warnings exist, categorize and fix systematically:
@@ -94,9 +123,12 @@ If warnings exist, categorize and fix systematically:
 Code submissions will be **automatically rejected** if:
 
 1. **Build warnings exist** - Even a single warning blocks submission
-2. **Test failures occur** - Any failing test blocks submission  
-3. **Build errors exist** - Code must compile successfully
-4. **Integration tests fail** - Cloud deployment readiness required
+2. **Unit test failures occur** - Any failing unit test blocks submission
+3. **Integration test failures occur** - Any failing integration test blocks submission
+4. **Integration test build errors occur** - Test projects must compile successfully
+5. **Stress test failures occur** - Local stress tests must pass and match CI workflow
+6. **Build errors exist** - Code must compile successfully
+7. **Test projects fail to build** - All test projects must compile without errors
 
 ### Exception Policy
 **NO EXCEPTIONS** - These requirements apply to:
@@ -183,8 +215,17 @@ Copilot agents **MUST** run these checks before any submission:
    dotnet clean FlinkDotNetAspire/FlinkDotNetAspire.sln && dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal
    ```
 2. `git status --porcelain` - Verify clean working directory
-3. Test execution commands (see Step 2 above)
-4. **STRESS TEST VERIFICATION** - Ensure local matches CI workflow:
+3. **Unit test execution verification** - All unit test projects must pass:
+   ```bash
+   dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal
+   # Expected: 100% pass rate across all unit test projects
+   ```
+4. **Integration test execution verification** - Integration tests must pass:
+   ```bash
+   dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal
+   # Expected: 100% pass rate, no build errors (CS0400, etc.)
+   ```
+5. **STRESS TEST VERIFICATION** - Ensure local matches CI workflow:
    ```bash
    # Local stress test that matches CI workflow exactly
    ./scripts/run-local-stress-tests.ps1
@@ -192,7 +233,7 @@ Copilot agents **MUST** run these checks before any submission:
    # Unit tests to verify local/CI alignment
    ./scripts/test-local-stress-workflow-alignment.ps1
    ```
-5. Warning count verification (MUST be 0 after clean builds)
+6. Warning count verification (MUST be 0 after clean builds)
 
 ### Submission Protocol
 1. ✅ **Complete all fixes** - Address every warning and test failure
@@ -212,10 +253,17 @@ Copilot agents **MUST** run these checks before any submission:
 A code submission is considered complete **ONLY** when:
 
 - [ ] All 3 solutions build with 0 warnings, 0 errors
-- [ ] All unit tests pass (100% success rate)
-- [ ] All integration tests pass (100% success rate)  
-- [ ] All architecture tests pass (100% success rate)
-- [ ] All stress tests pass (local verification matches CI workflow)
+- [ ] **ALL unit tests pass (100% success rate)** across all test projects:
+  - [ ] FlinkDotNet.JobManager.Tests
+  - [ ] FlinkDotNet.Core.Tests  
+  - [ ] FlinkDotNet.Architecture.Tests
+  - [ ] FlinkDotNet.Connectors.*.Tests (all connector test projects)
+  - [ ] FlinkDotNet.Storage.*.Tests (all storage test projects)
+  - [ ] FlinkDotNet.Common.Constants.Tests
+- [ ] **ALL integration tests pass (100% success rate)**:
+  - [ ] FlinkDotNetAspire.IntegrationTests builds successfully (no CS0400 errors)
+  - [ ] FlinkDotNetAspire.IntegrationTests executes successfully (all tests pass)
+- [ ] **ALL stress tests pass** (local verification matches CI workflow)
 - [ ] Code follows established patterns and conventions
 - [ ] Changes are minimal and surgical (avoid unnecessary modifications)
 
@@ -235,8 +283,10 @@ dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln --verbosity normal 2>&1 | g
 dotnet clean FlinkDotNetAspire/FlinkDotNetAspire.sln
 dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal 2>&1 | grep "Warning(s)"
 
-echo "Running all tests..."
+echo "Running all unit tests..."
 dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal
+
+echo "Running all integration tests..."
 dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal
 
 echo "Running stress tests..."

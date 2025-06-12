@@ -24,20 +24,38 @@ dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal 2>&1 | grep "Warning
 # WARNING: Incremental builds may falsely show "0 Warning(s)" due to caching!
 ```
 
-### Rule #2: Test Success Requirement  
+### Rule #2: Test Success Requirement (100% PASS RATE MANDATORY)
 **VIOLATION = IMMEDIATE REJECTION**
-- **ALL existing tests MUST pass (100% success rate)**
-- **NO test failures are acceptable**
-- **Integration tests, unit tests, architecture tests, stress tests - ALL must pass**
-- **Local stress test verification MUST match CI workflow exactly**
+- **ALL unit tests MUST pass (100% success rate)** across all test projects:
+  - FlinkDotNet.JobManager.Tests (~120 tests)
+  - FlinkDotNet.Core.Tests
+  - FlinkDotNet.Architecture.Tests (~7 tests)
+  - FlinkDotNet.Connectors.*.Tests (all connector test projects)
+  - FlinkDotNet.Storage.*.Tests (all storage test projects)
+  - FlinkDotNet.Common.Constants.Tests
+- **ALL integration tests MUST pass (100% success rate)**:
+  - FlinkDotNetAspire.IntegrationTests must build without errors (no CS0400)
+  - FlinkDotNetAspire.IntegrationTests must execute with 100% pass rate
+- **ALL stress tests MUST pass**:
+  - Local stress test verification MUST match CI workflow exactly
+  - Performance criteria must be met
+- **NO test failures are acceptable** in any category
+- **NO build errors in test projects** - All test projects must compile successfully
 
-Verification command:
+Verification commands:
 ```bash
+# Unit Tests (MANDATORY 100% pass rate)
 dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal
+# Expected output: All test projects pass, no failures
+
+# Integration Tests (MANDATORY 100% pass rate)  
 dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal
+# Expected output: All integration tests pass, no build errors
+
+# Stress Tests (MANDATORY success)
 ./scripts/run-local-stress-tests.ps1
 ./scripts/test-local-stress-workflow-alignment.ps1
-# Expected output: All tests pass, no failures, stress tests SUCCESS
+# Expected output: All stress tests SUCCESS, performance criteria met
 ```
 
 ### Rule #3: Build Success Requirement
@@ -54,10 +72,11 @@ Before using `report_progress`, copilot agents **MUST** complete:
 - [ ] 🧹 **CLEAN BUILD FIRST**: `dotnet clean` all solutions to avoid caching
 - [ ] ✅ Clean build all solutions: `dotnet clean && dotnet build --verbosity normal` 
 - [ ] ✅ Verify 0 warnings in clean build outputs (incremental builds lie!)
-- [ ] ✅ Run all tests: `dotnet test` for all test projects
-- [ ] ✅ Run stress tests: `./scripts/run-local-stress-tests.ps1`
-- [ ] ✅ Verify local/CI alignment: `./scripts/test-local-stress-workflow-alignment.ps1`
-- [ ] ✅ Confirm 100% test pass rate
+- [ ] ✅ **Run unit tests**: `dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal` (100% pass required)
+- [ ] ✅ **Run integration tests**: `dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal` (100% pass required)
+- [ ] ✅ **Run stress tests**: `./scripts/run-local-stress-tests.ps1` (SUCCESS required)
+- [ ] ✅ **Verify local/CI alignment**: `./scripts/test-local-stress-workflow-alignment.ps1` (SUCCESS required)
+- [ ] ✅ **Confirm 100% test pass rate** for ALL test categories (unit, integration, stress)
 - [ ] ✅ Check git status: `git status --porcelain`
 - [ ] ✅ Verify no unwanted files staged
 
@@ -77,12 +96,20 @@ if [ "$WARNINGS" != "0" ]; then
 fi
 ```
 
-#### Gate 2: Test Validation  
+#### Gate 2: Test Validation (ALL TEST TYPES MANDATORY)
 ```bash
-# Must pass for ALL test projects (including stress tests)
+# Unit Tests - Must pass for ALL unit test projects (100% pass rate)
 dotnet test FlinkDotNet/FlinkDotNet.sln --logger "console;verbosity=minimal" | grep -q "Failed: 0"
 if [ $? -ne 0 ]; then
-    echo "❌ QUALITY GATE FAILED: Test failures detected"
+    echo "❌ QUALITY GATE FAILED: Unit test failures detected"
+    echo "All unit test projects must pass: JobManager.Tests, Core.Tests, Architecture.Tests, Connectors.*.Tests, Storage.*.Tests"
+    exit 1  
+fi
+
+# Integration Tests - Must build and pass (100% pass rate, no build errors)
+dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --logger "console;verbosity=minimal" | grep -q "Failed: 0"
+if [ $? -ne 0 ]; then
+    echo "❌ QUALITY GATE FAILED: Integration test failures or build errors detected (check for CS0400 errors)"
     exit 1  
 fi
 
@@ -160,10 +187,15 @@ fi
    # Previous incremental builds may have shown "0 Warning(s)" incorrectly due to caching
    ```
 
-4. **Test Execution**
+4. **Test Execution (ALL TEST TYPES MANDATORY)**
    ```bash
+   # Unit Tests - 100% pass rate required across all test projects
    dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity normal
+   
+   # Integration Tests - 100% pass rate required, no build errors
    dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity normal
+   
+   # Stress Tests - Performance criteria must be met
    ./scripts/run-local-stress-tests.ps1
    ./scripts/test-local-stress-workflow-alignment.ps1
    ```
@@ -229,16 +261,19 @@ public static string FormatValue(string input) {
 ### Definition of Complete
 A submission is **COMPLETE** only when:
 
-✅ **FlinkDotNet.sln**: 0 warnings, 0 errors, all tests pass  
+✅ **FlinkDotNet.sln**: 0 warnings, 0 errors, ALL unit tests pass (100% rate)
 ✅ **WebUI.sln**: 0 warnings, 0 errors, builds successfully  
-✅ **Aspire.sln**: 0 warnings, 0 errors, integration tests pass  
-✅ **Stress tests**: Local verification matches CI workflow exactly
+✅ **Aspire.sln**: 0 warnings, 0 errors, ALL integration tests pass (100% rate)
+✅ **Unit Tests**: ALL 7 test projects pass (JobManager, Core, Architecture, Connectors, Storage, Constants)
+✅ **Integration Tests**: FlinkDotNetAspire.IntegrationTests builds and runs successfully (no CS0400 errors)
+✅ **Stress tests**: Local verification matches CI workflow exactly, performance criteria met
 ✅ **Code changes**: Minimal, surgical, no unnecessary modifications  
 ✅ **Git status**: Clean, only intended files modified
 
 ### Failure Conditions
 ❌ **ANY warnings** in ANY solution = COMPLETE FAILURE  
-❌ **ANY test failures** = COMPLETE FAILURE  
+❌ **ANY unit test failures** = COMPLETE FAILURE (across all 7+ test projects)
+❌ **ANY integration test failures** = COMPLETE FAILURE (build errors or test failures)
 ❌ **ANY build errors** = COMPLETE FAILURE  
 ❌ **Stress test failures** = COMPLETE FAILURE
 ❌ **Local/CI workflow mismatch** = COMPLETE FAILURE
