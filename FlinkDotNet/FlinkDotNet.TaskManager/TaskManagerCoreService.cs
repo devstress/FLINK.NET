@@ -6,7 +6,7 @@ using FlinkDotNet.Common.Constants;
 
 // public class TaskManagerService // old
 public class TaskManagerCoreService : IHostedService // new
-{
+, IDisposable{
     // LOGGING_PLACEHOLDER:
 
     public record Config(string TaskManagerId, string JobManagerGrpcAddress);
@@ -23,12 +23,17 @@ public class TaskManagerCoreService : IHostedService // new
     public TaskManagerCoreService(Config config) // new
     {
         _config = config;
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 
     // public async Task StartAsync(CancellationToken cancellationToken) // old signature
-    public async Task StartAsync(CancellationToken hostCancellationToken) // new signature from IHostedService
+    public async Task StartAsync(CancellationToken cancellationToken) // new signature from IHostedService
     {
-        _internalCts = CancellationTokenSource.CreateLinkedTokenSource(hostCancellationToken);
+        _internalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _internalCts.Token;
 
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} starting...");
@@ -43,7 +48,12 @@ public class TaskManagerCoreService : IHostedService // new
                 TaskManagerId = _config.TaskManagerId,
                 Address = ServiceHosts.Localhost, // Simplification: Assuming localhost. K8s would use pod IP.
                 Port = Program.GrpcPort // Use the port defined in Program.cs
-            };
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    };
             Console.WriteLine($"Attempting to register TaskManager {_config.TaskManagerId} (gRPC on port {Program.GrpcPort}) with JobManager at {_config.JobManagerGrpcAddress}...");
             var response = await _client.RegisterTaskManagerAsync(request, cancellationToken: linkedToken);
             if (response.Success)
@@ -52,22 +62,47 @@ public class TaskManagerCoreService : IHostedService // new
                 _jobManagerId = response.JobManagerId; // Store JobManagerId
                 Console.WriteLine($"TaskManager {_config.TaskManagerId} registered successfully with JobManager {response.JobManagerId}.");
                 StartHeartbeat(linkedToken);
-            }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
             else
             {
                 Console.WriteLine($"TaskManager {_config.TaskManagerId} registration failed.");
                 // Handle registration failure (e.g., retry, shutdown)
-            }
-        }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Console.WriteLine($"Error during TaskManager registration: {ex.Message}");
             // Handle exception
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
         // For IHostedService, StartAsync should complete, and background work happens in ExecuteAsync or via timers/threads.
         // The previous while(!cancellationToken.IsCancellationRequested) loop is removed from here.
         // The host itself will keep running.
          Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} started and registered (or failed). Background work (heartbeat, task execution) initiated.");
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 
     private void StartHeartbeat(CancellationToken cancellationToken) // Renamed parameter for clarity
@@ -80,23 +115,36 @@ public class TaskManagerCoreService : IHostedService // new
             {
                 _heartbeatTimer?.Dispose();
                 return;
-            }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
 
             try
             {
                 var heartbeatRequest = new HeartbeatRequest { TaskManagerId = _config.TaskManagerId }; // Use _config
 
                 // METRICS_PLACEHOLDER:
-
-                // Console.WriteLine($"TaskManager {_config.TaskManagerId}: Sending heartbeat...");
                 var response = await _client.SendHeartbeatAsync(heartbeatRequest, cancellationToken: cancellationToken); // Use passed token
                 if (!response.Acknowledged)
                 {
                     Console.WriteLine($"TaskManager {_config.TaskManagerId}: Heartbeat not acknowledged.");
                     _registered = false;
                     _heartbeatTimer?.Dispose();
-                }
-            }
+            
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
             catch (Exception ex)
             {
                 if (!cancellationToken.IsCancellationRequested) // Use passed token
@@ -104,19 +152,44 @@ public class TaskManagerCoreService : IHostedService // new
                     Console.WriteLine($"TaskManager {_config.TaskManagerId}: Error sending heartbeat: {ex.Message}");
                      _registered = false;
                     _heartbeatTimer?.Dispose();
-                }
-            }
-        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
+            
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }, null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 
     // public async Task StopAsync(CancellationToken cancellationToken) // old signature
-    public Task StopAsync(CancellationToken hostCancellationToken) // new signature from IHostedService
+    public Task StopAsync(CancellationToken cancellationToken) // new signature from IHostedService
     {
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} stopping...");
         _internalCts?.Cancel();
         _heartbeatTimer?.Dispose();
         _registered = false;
         return Task.CompletedTask;
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 
     public async Task SendAcknowledgeCheckpointAsync(
@@ -133,7 +206,12 @@ public class TaskManagerCoreService : IHostedService // new
         {
             Console.WriteLine($"TaskManagerCoreService: JobManager client not initialized or TM not registered. Cannot send AcknowledgeCheckpoint for CP {checkpointId}.");
             return;
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
 
         var request = new AcknowledgeCheckpointRequest
         {
@@ -146,7 +224,12 @@ public class TaskManagerCoreService : IHostedService // new
             SnapshotHandle = snapshotHandle ?? string.Empty,
             SnapshotSize = (ulong)snapshotSize,
             Duration = (ulong)duration
-        };
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    };
         request.SourceOffsets.Add(sourceOffsets);
 
         try
@@ -156,16 +239,41 @@ public class TaskManagerCoreService : IHostedService // new
             if (response.Success)
             {
                 Console.WriteLine($"TaskManagerCoreService: AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex} successfully sent to JobManager.");
-            }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
             else
             {
                 Console.WriteLine($"TaskManagerCoreService: JobManager did not confirm AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}.");
-            }
-        }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
         catch (Exception ex)
         {
             Console.WriteLine($"TaskManagerCoreService: Error sending AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}: {ex.Message}");
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 
     public async Task SendFailedCheckpointAsync(
@@ -179,7 +287,12 @@ public class TaskManagerCoreService : IHostedService // new
         {
             Console.WriteLine($"TaskManagerCoreService: JobManagerInternal client not initialized or TM not registered. Cannot send FailedCheckpoint for CP {checkpointId}.");
             return;
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
 
         var request = new ReportFailedCheckpointRequest
         {
@@ -189,7 +302,12 @@ public class TaskManagerCoreService : IHostedService // new
             SubtaskIndex = subtaskIndex,
             FailureReason = failureReason ?? string.Empty,
             TaskManagerId = _config.TaskManagerId
-        };
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    };
 
         try
         {
@@ -198,16 +316,41 @@ public class TaskManagerCoreService : IHostedService // new
             if (response.Acknowledged)
             {
                 Console.WriteLine($"TaskManagerCoreService: FailedCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex} successfully sent to JobManager.");
-            }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
             else
             {
                 Console.WriteLine($"TaskManagerCoreService: JobManager did not acknowledge FailedCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}.");
-            }
-        }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
         catch (Exception ex)
         {
             Console.WriteLine($"TaskManagerCoreService: Error sending FailedCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}: {ex.Message}");
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 
     public async Task SendTaskStartupFailureAsync(string jobId, string jobVertexId, int subtaskIndex, string failureReason)
@@ -216,13 +359,23 @@ public class TaskManagerCoreService : IHostedService // new
         {
             Console.WriteLine($"[TaskManagerCoreService] JobManagerInternal client not available. Cannot send task startup failure for {jobVertexId}_{subtaskIndex}.");
             return;
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
 
         if (!_registered)
         {
             Console.WriteLine($"[TaskManagerCoreService] TaskManager not registered. Cannot send task startup failure for {jobVertexId}_{subtaskIndex}.");
             return;
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
 
         var request = new ReportTaskStartupFailureRequest
         {
@@ -231,7 +384,12 @@ public class TaskManagerCoreService : IHostedService // new
             SubtaskIndex = subtaskIndex,
             TaskManagerId = _config.TaskManagerId,
             FailureReason = failureReason ?? string.Empty
-        };
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    };
 
         try
         {
@@ -240,16 +398,41 @@ public class TaskManagerCoreService : IHostedService // new
             if (response.Acknowledged)
             {
                 Console.WriteLine($"[TaskManagerCoreService] Task startup failure report for {jobVertexId}_{subtaskIndex} successfully acknowledged by JobManager.");
-            }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
             else
             {
                 Console.WriteLine($"[TaskManagerCoreService] JobManager did not acknowledge task startup failure report for {jobVertexId}_{subtaskIndex}.");
-            }
-        }
+        
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
         catch (Exception ex)
         {
             Console.WriteLine($"[TaskManagerCoreService] Failed to send task startup failure report for {jobVertexId}_{subtaskIndex}: {ex.Message}");
-        }
+    
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
+    }
+
+    public void Dispose()
+    {
+        _internalCts?.Dispose();
+    }
     }
 }
 #nullable disable

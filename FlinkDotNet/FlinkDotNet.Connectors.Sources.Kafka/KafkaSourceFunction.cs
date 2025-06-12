@@ -1,3 +1,4 @@
+// TODO: Reduce cognitive complexity
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -42,14 +43,15 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         public bool IsBounded => _isBounded;
 
-        public void Run(ISourceContext<T> context)
+        public void Run(ISourceContext<T> ctx)
         {
-            RunAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+            RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        public async Task RunAsync(ISourceContext<T> context, CancellationToken cancellationToken)
+        public async Task RunAsync(ISourceContext<T> ctx, CancellationToken cancellationToken)
         {
-            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using (_cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
             var combinedToken = _cancellationTokenSource.Token;
             
             var consumerBuilder = new ConsumerBuilder<Ignore, T>(_consumerConfig)
@@ -76,11 +78,11 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                             // Emit the record with event time if available
                             if (timestamp > 0)
                             {
-                                await context.CollectWithTimestampAsync(consumeResult.Message.Value, timestamp);
+                                await ctx.CollectWithTimestampAsync(consumeResult.Message.Value, timestamp);
                             }
                             else
                             {
-                                await context.CollectAsync(consumeResult.Message.Value);
+                                await ctx.CollectAsync(consumeResult.Message.Value);
                             }
                             
                             // For bounded mode, we might want to stop after consuming all available messages
@@ -109,6 +111,8 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 _consumer?.Dispose();
                 _logger?.LogInformation("Kafka consumer closed");
             }
+        }
+        }
         }
 
         public void Cancel()

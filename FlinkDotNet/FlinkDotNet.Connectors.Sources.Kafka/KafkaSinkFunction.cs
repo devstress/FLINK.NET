@@ -49,7 +49,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             _logger?.LogInformation("Kafka sink opened for topic: {Topic}", _topic);
         }
 
-        public void Invoke(T value, ISinkContext context)
+        public void Invoke(T record, ISinkContext context)
         {
             if (_producer == null)
                 throw new InvalidOperationException("Sink not opened");
@@ -58,7 +58,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             {
                 var message = new Message<Null, T>
                 {
-                    Value = value,
+                    Value = record,
                     Timestamp = new Timestamp(DateTimeOffset.FromUnixTimeMilliseconds(context.CurrentProcessingTimeMillis()).DateTime)
                 };
 
