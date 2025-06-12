@@ -26,10 +26,14 @@ namespace FlinkDotNet.TaskManager
             Dictionary<string, string> operatorProperties,
             CancellationToken cancellationToken)
         {
-            Console.WriteLine($"[TaskExecutor] ExecuteFromDescriptor for '{descriptor.TaskName}' is not implemented.");
+            Console.WriteLine($"[TaskExecutor] ExecuteFromDescriptor for '{descriptor.TaskName}' is not implemented. Registry initialized: {_activeTaskRegistry != null}.");
             return Task.CompletedTask;
         }
 
-        public IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex) => null;
+        public IOperatorBarrierHandler? GetOperatorBarrierHandler(string jobVertexId, int subtaskIndex) 
+        {
+            // Implementation placeholder - registry available for future use
+            return null;
+        }
     }
 }

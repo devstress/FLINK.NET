@@ -1,11 +1,11 @@
 using Grpc.Net.Client;
 using FlinkDotNet.Proto.Internal; // Namespace from your .proto file
-using FlinkDotNet.TaskManager; // For TaskExecutor
 using Microsoft.Extensions.Hosting; // For IHostedService
 using FlinkDotNet.Common.Constants;
 
-// public class TaskManagerService // old
-public class TaskManagerCoreService : IHostedService // new
+namespace FlinkDotNet.TaskManager
+{
+    public class TaskManagerCoreService : IHostedService
 {
     // LOGGING_PLACEHOLDER:
 
@@ -25,10 +25,9 @@ public class TaskManagerCoreService : IHostedService // new
         _config = config;
     }
 
-    // public async Task StartAsync(CancellationToken cancellationToken) // old signature
-    public async Task StartAsync(CancellationToken hostCancellationToken) // new signature from IHostedService
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _internalCts = CancellationTokenSource.CreateLinkedTokenSource(hostCancellationToken);
+        _internalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var linkedToken = _internalCts.Token;
 
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} starting...");
@@ -86,9 +85,6 @@ public class TaskManagerCoreService : IHostedService // new
             {
                 var heartbeatRequest = new HeartbeatRequest { TaskManagerId = _config.TaskManagerId }; // Use _config
 
-                // METRICS_PLACEHOLDER:
-
-                // Console.WriteLine($"TaskManager {_config.TaskManagerId}: Sending heartbeat...");
                 var response = await _client.SendHeartbeatAsync(heartbeatRequest, cancellationToken: cancellationToken); // Use passed token
                 if (!response.Acknowledged)
                 {
@@ -109,8 +105,7 @@ public class TaskManagerCoreService : IHostedService // new
         }, null, TimeSpan.Zero, TimeSpan.FromSeconds(15));
     }
 
-    // public async Task StopAsync(CancellationToken cancellationToken) // old signature
-    public Task StopAsync(CancellationToken hostCancellationToken) // new signature from IHostedService
+    public Task StopAsync(CancellationToken cancellationToken)
     {
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} stopping...");
         _internalCts?.Cancel();
@@ -251,5 +246,6 @@ public class TaskManagerCoreService : IHostedService // new
             Console.WriteLine($"[TaskManagerCoreService] Failed to send task startup failure report for {jobVertexId}_{subtaskIndex}: {ex.Message}");
         }
     }
+}
 }
 #nullable disable
