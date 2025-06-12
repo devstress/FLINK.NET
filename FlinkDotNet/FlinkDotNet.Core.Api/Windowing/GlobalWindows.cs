@@ -14,11 +14,11 @@ namespace FlinkDotNet.Core.Api.Windowing
 
         private GlobalWindow() { } // Private constructor for singleton
 
-        public long MaxTimestamp() => long.MaxValue;
+        public override long MaxTimestamp() => long.MaxValue;
 
-        public bool Equals(object? obj) => obj is GlobalWindow;
-        public int GetHashCode() => typeof(GlobalWindow).GetHashCode();
-        public string ToString() => "GlobalWindow";
+        public override bool Equals(object? obj) => obj is GlobalWindow;
+        public override int GetHashCode() => typeof(GlobalWindow).GetHashCode();
+        public override string ToString() => "GlobalWindow";
     }
 
     /// <summary>

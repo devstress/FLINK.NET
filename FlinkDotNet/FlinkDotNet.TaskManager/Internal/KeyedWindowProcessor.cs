@@ -10,6 +10,26 @@ using FlinkDotNet.Core.Abstractions.Storage;
 namespace FlinkDotNet.TaskManager.Internal
 {
     /// <summary>
+    /// Configuration for window processing
+    /// </summary>
+    public record WindowProcessorConfig<TElement, TWindow>(
+        IWindowAssigner<TElement, TWindow> WindowAssigner,
+        Trigger<TElement, TWindow> Trigger,
+        IEvictor<TElement, TWindow>? Evictor,
+        object UserWindowFunction
+    ) where TWindow : Window;
+
+    /// <summary>
+    /// Runtime services for window processing
+    /// </summary>
+    public record WindowProcessorServices<TKey, TWindow, TOutput>(
+        IRuntimeContext RuntimeContext,
+        ICollector<TOutput> OutputCollector,
+        ITimerService<TKey, TWindow> TimerService,
+        ITypeSerializer<TWindow> WindowSerializer
+    ) where TWindow : Window;
+
+    /// <summary>
     /// Conceptual placeholder for a class that manages windowing logic for a single key.
     /// Instantiated by TaskExecutor for each active key in a window operator.
     /// </summary>
@@ -34,27 +54,21 @@ namespace FlinkDotNet.TaskManager.Internal
 
         public KeyedWindowProcessor(
             TKey key,
-            IWindowAssigner<TElement, TWindow> windowAssigner,
-            Trigger<TElement, TWindow> trigger,
-            IEvictor<TElement, TWindow>? evictor,
-            object userWindowFunction,
-            IRuntimeContext runtimeContext,
-            ICollector<TOutput> outputCollector,
-            ITimerService<TKey, TWindow> timerService,
-            ITypeSerializer<TWindow> windowSerializer)
+            WindowProcessorConfig<TElement, TWindow> config,
+            WindowProcessorServices<TKey, TWindow, TOutput> services)
         {
             _key = key;
-            _windowAssigner = windowAssigner;
-            _trigger = trigger;
-            _evictor = evictor;
-            _userWindowFunction = userWindowFunction;
-            _runtimeContext = runtimeContext;
-            _outputCollector = outputCollector;
-            _timerService = timerService;
-            _windowSerializer = windowSerializer;
+            _windowAssigner = config.WindowAssigner;
+            _trigger = config.Trigger;
+            _evictor = config.Evictor;
+            _userWindowFunction = config.UserWindowFunction;
+            _runtimeContext = services.RuntimeContext;
+            _outputCollector = services.OutputCollector;
+            _timerService = services.TimerService;
+            _windowSerializer = services.WindowSerializer;
             _assignerContext = new DefaultWindowAssignerContext(); // Assuming DefaultWindowAssignerContext is accessible
 
-            if (userWindowFunction is IProcessWindowFunction<TElement, TOutput, TKey, TWindow> || _evictor != null)
+            if (config.UserWindowFunction is IProcessWindowFunction<TElement, TOutput, TKey, TWindow> || config.Evictor != null)
             {
                 _windowPanes = new Dictionary<TWindow, List<TElement>>();
             }
