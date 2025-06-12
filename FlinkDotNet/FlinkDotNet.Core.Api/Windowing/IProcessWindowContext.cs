@@ -31,7 +31,7 @@ namespace FlinkDotNet.Core.Api.Windowing
     /// Context available to an <see cref="IProcessWindowFunction{TIn, TOut, TKey, TWindow}"/>.
     /// Provides information about the current window, key, time, and access to per-window state.
     /// </summary>
-    public abstract class IProcessWindowContext<TKey, TWindow> : WindowContext
+    public abstract class ProcessWindowContext<TKey, TWindow> : WindowContext
         where TWindow : Window
     {
         /// <summary>

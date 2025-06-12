@@ -24,7 +24,7 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
                 try
                 {
                     // Wait briefly to allow file handles to be released
-                    await Task.Delay(10);
+                    Thread.Sleep(10);
                     
                     Directory.Delete(_testDirectory, recursive: true);
                 }

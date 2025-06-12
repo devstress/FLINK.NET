@@ -26,7 +26,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// <param name="output">A collector to emit resulting elements.</param>
         void Process(
             TKey key,
-            IProcessWindowContext<TKey, TWindow> context,
+            ProcessWindowContext<TKey, TWindow> context,
             IEnumerable<TIn> elements,
             ICollector<TOut> output);
 
@@ -36,6 +36,6 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// </summary>
         /// <param name="key">The key for which this window is being evaluated.</param>
         /// <param name="context">Context object with access to window metadata, time, and state.</param>
-        void Clear(TKey key, IProcessWindowContext<TKey, TWindow> context); // Added Clear method
+        void Clear(TKey key, ProcessWindowContext<TKey, TWindow> context); // Added Clear method
     }
 }
