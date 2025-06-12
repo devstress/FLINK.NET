@@ -43,7 +43,6 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 Transformation,
                 keySelector,
-                typeof(TKey), // Store key type
                 keySelectorRep);
 
             return new KeyedDataStream<TKey, TElement>(Environment, keyedTransformation);
@@ -119,7 +118,6 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 this.Transformation,
                 keySelectorExpression, // Store the original expression for potential later analysis if needed
-                typeof(TKey),
                 serializedSelectorRepresentation
             );
 
@@ -146,7 +144,6 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 this.Transformation,
                 keySelectorInstance, // Store the instance
-                typeof(TKey),
                 serializedSelectorRepresentation
             );
 
@@ -175,7 +172,6 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 this.Transformation,
                 keySelectorType, // Store the Type; TaskExecutor will Activator.CreateInstance
-                typeof(TKey),
                 serializedSelectorRepresentation
             );
 
@@ -191,8 +187,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             var mapTransformation = new OneInputTransformation<TElement, TOut>(
                 this.Transformation,
                 "Map",
-                mapper,
-                typeof(TOut)
+                mapper
                 /* outputSerializer: null for now, JobManager will pick default or registered */
                 );
             this.Transformation.AddDownstreamTransformation(mapTransformation, ShuffleMode.Forward); // Default for map
@@ -264,8 +259,8 @@ namespace FlinkDotNet.Core.Api.Streaming
 
     public abstract class Transformation<TElement> : TransformationBase
     {
-        protected Transformation(string name, Type outputType)
-            : base(name, outputType)
+        protected Transformation(string name)
+            : base(name, typeof(TElement))
         {
         }
     }
@@ -274,8 +269,8 @@ namespace FlinkDotNet.Core.Api.Streaming
     {
         public object SourceFunction { get; } // ISourceFunction<TElement>
 
-        public SourceTransformation(string name, object sourceFunction, Type outputType)
-            : base(name, outputType)
+        public SourceTransformation(string name, object sourceFunction)
+            : base(name)
         {
             SourceFunction = sourceFunction;
         }
@@ -286,8 +281,8 @@ namespace FlinkDotNet.Core.Api.Streaming
         public Transformation<TIn> Input { get; }
         public object Operator { get; } // e.g., IMapOperator<TIn, TOut>
 
-        public OneInputTransformation(Transformation<TIn> input, string name, object @operator, Type outputType)
-            : base(name, outputType)
+        public OneInputTransformation(Transformation<TIn> input, string name, object @operator)
+            : base(name)
         {
             Input = input;
             Operator = @operator;
@@ -298,19 +293,17 @@ namespace FlinkDotNet.Core.Api.Streaming
     {
         public Transformation<TElement> Input { get; }
         public object KeySelector { get; } // KeySelector<TElement, TKey> - store as object or serialized form
-        public Type KeyType { get; }
+        public Type KeyType => typeof(TKey);
         public string SerializedKeySelectorRepresentation { get; }
 
         public KeyedTransformation(
             Transformation<TElement> input,
             object keySelector,
-            Type keyType,
             string serializedKeySelectorRepresentation)
-            : base(input.Name + ".Keyed", input.OutputType) // Name and OutputType are from input
+            : base(input.Name + ".Keyed")
         {
             Input = input;
             KeySelector = keySelector; // Store the delegate or its representation
-            KeyType = keyType;
             SerializedKeySelectorRepresentation = serializedKeySelectorRepresentation;
             // This transformation itself doesn't change data type, it's a partitioning instruction.
             // The next applied operator will be connected via a JobEdge with ShuffleMode.Hash.
@@ -323,7 +316,7 @@ namespace FlinkDotNet.Core.Api.Streaming
         public object SinkFunction { get; } // ISinkFunction<TElement>
 
         public SinkTransformation(Transformation<TElement> input, string name, object sinkFunction)
-            : base(name, input.OutputType) // OutputType is same as input, or could be typeof(void)
+            : base(name) // OutputType is same as input, or could be typeof(void)
         {
             Input = input;
             SinkFunction = sinkFunction;

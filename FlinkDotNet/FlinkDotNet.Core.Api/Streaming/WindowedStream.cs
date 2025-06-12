@@ -24,35 +24,35 @@ namespace FlinkDotNet.Core.Api.Streaming
     /// <typeparam name="TElement"></typeparam>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TWindow"></typeparam>
-    public class WindowedStream<TElement, TKey, TWindow>
+    public class WindowedStream<TElement, TWindow>
         where TWindow : Window
     {
         public StreamExecutionEnvironment Environment { get; }
-        public WindowedTransformation<TElement, TKey, TWindow> Transformation { get; }
+        public WindowedTransformation<TElement, TWindow> Transformation { get; }
 
         internal WindowedStream(
             StreamExecutionEnvironment environment,
-            WindowedTransformation<TElement, TKey, TWindow> transformation)
+            WindowedTransformation<TElement, TWindow> transformation)
         {
             Environment = environment ?? throw new ArgumentNullException(nameof(environment));
             Transformation = transformation ?? throw new ArgumentNullException(nameof(transformation));
         }
 
-        public WindowedStream<TElement, TKey, TWindow> Trigger(Trigger<TElement, TWindow> trigger)
+        public WindowedStream<TElement, TWindow> Trigger(Trigger<TElement, TWindow> trigger)
         {
             if (trigger == null) throw new ArgumentNullException(nameof(trigger));
             Transformation.Trigger = trigger;
             return this;
         }
 
-        public WindowedStream<TElement, TKey, TWindow> Evictor(IEvictor<TElement, TWindow> evictor)
+        public WindowedStream<TElement, TWindow> Evictor(IEvictor<TElement, TWindow> evictor)
         {
             if (evictor == null) throw new ArgumentNullException(nameof(evictor));
             Transformation.Evictor = evictor;
             return this;
         }
 
-        public WindowedStream<TElement, TKey, TWindow> AllowedLateness(Time lateness)
+        public WindowedStream<TElement, TWindow> AllowedLateness(Time lateness)
         {
             if (!Transformation.Assigner.IsEventTime)
             {
@@ -65,28 +65,23 @@ namespace FlinkDotNet.Core.Api.Streaming
         public DataStream<TElement> Reduce(IReduceOperator<TElement> reduceFunction)
         {
             if (reduceFunction == null) throw new ArgumentNullException(nameof(reduceFunction));
-            var reduceTrans = new WindowReduceTransformation<TElement, TKey, TWindow>(
-                Transformation, reduceFunction, typeof(TElement));
+            var reduceTrans = new WindowReduceTransformation<TElement>(Transformation, reduceFunction);
             Transformation.Input.AddDownstreamTransformation(reduceTrans, ShuffleMode.Forward); // Edges connect from KeyedTransform to Window*Function*Transform
             return new DataStream<TElement>(this.Environment, reduceTrans);
         }
 
-        public DataStream<TResult> Aggregate<TAccumulator, TResult>(
-            IAggregateOperator<TElement, TAccumulator, TResult> aggregateFunction)
+        public DataStream<TResult> Aggregate<TResult>(object aggregateFunction)
         {
             if (aggregateFunction == null) throw new ArgumentNullException(nameof(aggregateFunction));
-            var aggTrans = new WindowAggregateTransformation<TElement, TAccumulator, TResult, TKey, TWindow>(
-                Transformation, aggregateFunction, typeof(TResult));
+            var aggTrans = new WindowAggregateTransformation<TResult>(Transformation, aggregateFunction);
             Transformation.Input.AddDownstreamTransformation(aggTrans, ShuffleMode.Forward);
             return new DataStream<TResult>(this.Environment, aggTrans);
         }
 
-        public DataStream<TResult> Process<TResult>(
-            IProcessWindowFunction<TElement, TResult, TKey, TWindow> processWindowFunction)
+        public DataStream<TResult> Process<TResult>(object processWindowFunction)
         {
             if (processWindowFunction == null) throw new ArgumentNullException(nameof(processWindowFunction));
-            var procTrans = new WindowProcessTransformation<TElement, TResult, TKey, TWindow>(
-                Transformation, processWindowFunction, typeof(TResult));
+            var procTrans = new WindowProcessTransformation<TResult>(Transformation, processWindowFunction);
             Transformation.Input.AddDownstreamTransformation(procTrans, ShuffleMode.Forward);
             return new DataStream<TResult>(this.Environment, procTrans);
         }

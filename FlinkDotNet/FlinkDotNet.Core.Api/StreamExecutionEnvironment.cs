@@ -39,7 +39,7 @@ namespace FlinkDotNet.Core.Api
         public FlinkDotNet.Core.Api.Streaming.DataStream<T> AddSource<T>(Abstractions.Sources.ISourceFunction<T> sourceFunction, string name) // Corrected return type
         {
             // Correctly instantiate SourceTransformation from the Streaming namespace
-            var transformation = new FlinkDotNet.Core.Api.Streaming.SourceTransformation<T>(name, sourceFunction, typeof(T));
+            var transformation = new FlinkDotNet.Core.Api.Streaming.SourceTransformation<T>(name, sourceFunction);
             AddTransformation(transformation);
             return new FlinkDotNet.Core.Api.Streaming.DataStream<T>(this, transformation);
         }
