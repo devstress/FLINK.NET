@@ -5,7 +5,7 @@ This document establishes strict quality standards that **MUST** be followed by 
 
 ## ✅ Pre-Submission Requirements (MANDATORY)
 
-### 0. Local/CI Warning Alignment Policy (CRITICAL)
+### 0. Local/CI Warning Alignment Policy (CRITICAL - MANDATORY FIRST ACTION)
 - **When user reports warnings/errors that don't reproduce locally**:
   - **FIRST ACTION**: Fix local configuration to ensure warnings/errors reproduce locally
   - **NEVER ignore CI-only warnings** - this indicates configuration mismatch that must be resolved
@@ -15,7 +15,10 @@ This document establishes strict quality standards that **MUST** be followed by 
     3. Ensure clean builds (never rely on incremental builds)
     4. Check for missing analyzer configurations or rule sets
     5. Verify environment variables and dependencies match CI
+    6. **Run comprehensive warning detection script**: `./scripts/sonar-warning-detector.ps1`
+    7. **If warnings still don't reproduce**: Add missing analyzers/packages to match CI environment exactly
   - **VERIFICATION**: Local `dotnet build --verbosity normal` must show same warnings as CI
+  - **COPILOT ENFORCEMENT**: When user provides specific CI warnings, Copilot MUST first ensure those warnings reproduce locally before attempting fixes
 
 ### 1. Clean Build Policy (CRITICAL)
 - **ALWAYS use clean builds** - Incremental builds mask warnings due to caching

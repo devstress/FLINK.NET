@@ -481,7 +481,7 @@ spec:
         {
             // On Linux/macOS, dotnet is typically in /usr/share/dotnet or /usr/local/share/dotnet
             var possiblePaths = new[] { "/usr/share/dotnet/dotnet", "/usr/local/share/dotnet/dotnet", "/usr/bin/dotnet" };
-            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
             if (existingPath != null)
                 return existingPath;
             // Fallback to PATH-based resolution with warning
@@ -514,7 +514,7 @@ spec:
         else
         {
             var possiblePaths = new[] { "/usr/bin/docker", "/usr/local/bin/docker", "/opt/docker/bin/docker" };
-            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
             if (existingPath != null)
                 return existingPath;
             return "docker";
@@ -532,7 +532,7 @@ spec:
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "kubectl", "kubectl.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "kubectl.exe")
             };
-            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
             if (existingPath != null)
                 return existingPath;
             return "kubectl.exe";
@@ -540,7 +540,7 @@ spec:
         else
         {
             var possiblePaths = new[] { "/usr/bin/kubectl", "/usr/local/bin/kubectl", "/snap/bin/kubectl" };
-            var existingPath = possiblePaths.Where(File.Exists).FirstOrDefault();
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
             if (existingPath != null)
                 return existingPath;
             return "kubectl";

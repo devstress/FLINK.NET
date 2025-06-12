@@ -2,13 +2,19 @@
 
 ## 🚨 CRITICAL REQUIREMENTS - ZERO TOLERANCE
 
-### Rule #0: Local/CI Warning Alignment (FUNDAMENTAL)
+### Rule #0: Local/CI Warning Alignment (FUNDAMENTAL - MANDATORY FIRST ACTION)
 **VIOLATION = IMMEDIATE REJECTION**
 - **When user reports warnings/errors that don't reproduce locally**: 
   - **FIRST ACTION**: Fix local configuration to ensure the warnings/errors reproduce locally
   - **NEVER ignore warnings** that appear in CI but not locally - this indicates configuration mismatch
   - **MANDATORY**: Update build configuration, analyzer settings, or environment to match CI exactly
   - **VERIFICATION**: Ensure `dotnet build --verbosity normal` shows the same warnings locally as CI
+  - **COPILOT ENFORCEMENT**: When user provides specific CI warnings that don't reproduce locally:
+    1. FIRST run comprehensive warning detection: `./scripts/sonar-warning-detector.ps1`
+    2. THEN verify SonarAnalyzer.CSharp packages are installed in ALL projects
+    3. THEN ensure clean builds (never incremental)
+    4. THEN match analyzer configurations exactly to CI environment
+    5. ONLY AFTER local reproduction works - proceed with fixes
 - **Root cause examples**:
   - Missing SonarAnalyzer.CSharp package references
   - Different verbosity levels (use `--verbosity normal` minimum)
