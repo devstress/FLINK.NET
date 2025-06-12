@@ -11,7 +11,13 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
 
         public void Dispose()
         {
-            if (Directory.Exists(_testDirectory))
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing && Directory.Exists(_testDirectory))
             {
                 Directory.Delete(_testDirectory, recursive: true);
             }
@@ -134,7 +140,6 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             {
                 // On Windows, certain whitespace characters (like tab) are not valid in directory names
                 // This is expected behavior on Windows, so we skip the test
-                return;
             }
             finally
             {

@@ -28,8 +28,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             var mapTransformation = new OneInputTransformation<TElement, TOut>(
                 this.Transformation.Input, // Input is the transformation *before* keying conceptually for the edge
                 "MapOnKeyed",
-                mapper,
-                typeof(TOut)
+                mapper
             );
 
             // The KeyedTransformation itself doesn't become a node with the operator.
@@ -54,15 +53,15 @@ namespace FlinkDotNet.Core.Api.Streaming
         /// <typeparam name="TNewWindow">The type of Window that the WindowAssigner creates.</typeparam>
         /// <param name="assigner">The WindowAssigner that assigns elements to windows.</param>
         /// <returns>A new WindowedStream.</returns>
-        public WindowedStream<TElement, TKey, TNewWindow> Window<TNewWindow>(
-            WindowAssigner<TElement, TNewWindow> assigner)
+        public WindowedStream<TElement, TNewWindow> Window<TNewWindow>(
+            IWindowAssigner<TElement, TNewWindow> assigner)
             where TNewWindow : Window
         {
             if (assigner == null)
                 throw new ArgumentNullException(nameof(assigner));
 
             // this.Transformation is the KeyedTransformation<TKey, TElement>
-            var windowedTransformation = new WindowedTransformation<TElement, TKey, TNewWindow>(
+            var windowedTransformation = new WindowedTransformation<TElement, TNewWindow>(
                 this.Transformation,
                 assigner
             );
@@ -74,7 +73,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             // For now, WindowedTransformation primarily holds the windowing configuration.
             // The actual addition to the graph happens when a window function (Reduce, Process etc.) is applied.
 
-            return new WindowedStream<TElement, TKey, TNewWindow>(this.Environment, windowedTransformation);
+            return new WindowedStream<TElement, TNewWindow>(this.Environment, windowedTransformation);
         }
     }
 }

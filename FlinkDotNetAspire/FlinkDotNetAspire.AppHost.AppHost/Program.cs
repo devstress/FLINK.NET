@@ -1,7 +1,9 @@
 // Existing using statements (implicit for DistributedApplication, Projects)
 using FlinkDotNet.Common.Constants;
 
-public class Program
+namespace FlinkDotNetAspire.AppHost.AppHost;
+
+public static class Program
 {
     public static async Task Main(string[] args)
     {
@@ -51,7 +53,7 @@ public class Program
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
 
         // Add JobManager (1 instance)
-        var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
+        builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
             .WithEnvironment("JOBMANAGER_HTTP_PORT", ServicePorts.JobManagerHttp.ToString())
             .WithEnvironment(EnvironmentVariables.JobManagerGrpcPort, ServicePorts.JobManagerGrpc.ToString())
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development");

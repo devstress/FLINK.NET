@@ -19,6 +19,12 @@
     <!-- <TargetFrameworkVersion>net9.0</TargetFrameworkVersion> -->
   </PropertyGroup>
 
-  <!-- Remove custom analyzer packages to prevent thousands of warnings during build -->
+  <!-- SonarAnalyzer applied at repository level for systematic code quality analysis -->
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.11.0.117924">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
 
 </Project>

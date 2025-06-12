@@ -1,0 +1,173 @@
+[2025-06-12 16:37:56] [INFO] 🔍 Analyzing solution: FlinkDotNet/FlinkDotNet.sln
+[2025-06-12 16:37:56] [INFO] 🧹 Performing clean build for: FlinkDotNet/FlinkDotNet.sln
+[2025-06-12 16:37:56] [DEBUG] Cleaning solution...
+[2025-06-12 16:37:57] [DEBUG] Building with full verbosity...
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S1066 warning: Nested if statements
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:06] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:06] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3400 warning: Method returning constant
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:06] [WARN] ⚠️  Found IDE0005 warning: Unused using directive
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S107 warning: Too many parameters
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S1066 warning: Nested if statements
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:06] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:06] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:06] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3400 warning: Method returning constant
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:06] [WARN] ⚠️  Found IDE0005 warning: Unused using directive
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:06] [WARN] ⚠️  Found S107 warning: Too many parameters
+[2025-06-12 16:38:06] [WARN] ⚠️  Found 36 warnings in FlinkDotNet/FlinkDotNet.sln
+[2025-06-12 16:38:06] [INFO] 🔍 Analyzing solution: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-12 16:38:06] [INFO] 🧹 Performing clean build for: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-12 16:38:06] [DEBUG] Cleaning solution...
+[2025-06-12 16:38:09] [DEBUG] Building with full verbosity...
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S1066 warning: Nested if statements
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:24] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:24] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3400 warning: Method returning constant
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:24] [WARN] ⚠️  Found IDE0005 warning: Unused using directive
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S107 warning: Too many parameters
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S1066 warning: Nested if statements
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3267 warning: LINQ optimization
+[2025-06-12 16:38:24] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:24] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:24] [WARN] ⚠️  Found CS0114 warning: Member hiding - add override/new
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3400 warning: Method returning constant
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-12 16:38:24] [WARN] ⚠️  Found IDE0005 warning: Unused using directive
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-12 16:38:24] [WARN] ⚠️  Found S107 warning: Too many parameters
+[2025-06-12 16:38:24] [WARN] ⚠️  Found 36 warnings in FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-12 16:38:24] [INFO] 🔍 Analyzing solution: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-12 16:38:24] [INFO] 🧹 Performing clean build for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-12 16:38:24] [DEBUG] Cleaning solution...
+[2025-06-12 16:38:25] [DEBUG] Building with full verbosity...
+[2025-06-12 16:38:32] [WARN] ⚠️  Found 0 warnings in FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-12 16:38:32] [INFO] 📊 Generating comprehensive warning report...
+[2025-06-12 16:38:32] [ERROR] 🔥 TOTAL WARNINGS DETECTED: 72
+[2025-06-12 16:38:32] [INFO] 🤖 Auto-fixable warnings: 40
+[2025-06-12 16:38:32] [ERROR] 🚨 Critical warnings: 16
+[2025-06-12 16:38:32] [INFO] 📋 Warning breakdown by rule:
+[2025-06-12 16:38:32] [WARN]   ⚠️  CS0114 (Major): 12 occurrences - Member hiding - add override/new
+[2025-06-12 16:38:32] [WARN]   ⚠️  IDE0005 (Info): 4 occurrences - Unused using directive
+[2025-06-12 16:38:32] [WARN]   ⚠️  S1066 (Minor): 4 occurrences - Nested if statements
+[2025-06-12 16:38:32] [WARN]   ⚠️  S107 (Major): 4 occurrences - Too many parameters
+[2025-06-12 16:38:32] [WARN]   ⚠️  S138 (Major): 12 occurrences - Method too long
+[2025-06-12 16:38:32] [WARN]   ⚠️  S3267 (Minor): 16 occurrences - LINQ optimization
+[2025-06-12 16:38:32] [WARN]   ⚠️  S3400 (Minor): 4 occurrences - Method returning constant
+[2025-06-12 16:38:32] [WARN]   ⚠️  S3776 (Critical): 16 occurrences - High cognitive complexity
+[2025-06-12 16:38:32] [INFO] 🛠️  ACTIONABLE FIX SUGGESTIONS:
+[2025-06-12 16:38:32] [INFO] 📝 CS0114 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/GlobalWindows.cs(62,23)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/SlidingEventTimeWindows.cs(46,23)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/TumblingEventTimeWindows.cs(78,23)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/GlobalWindows.cs(62,23)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/SlidingEventTimeWindows.cs(46,23)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/TumblingEventTimeWindows.cs(78,23)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/GlobalWindows.cs(62,23)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/SlidingEventTimeWindows.cs(46,23)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/TumblingEventTimeWindows.cs(78,23)
+[2025-06-12 16:38:32] [INFO] 📝 IDE0005 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/WindowAssigner.cs(2,1)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/WindowAssigner.cs(2,1)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/WindowAssigner.cs(2,1)
+[2025-06-12 16:38:32] [INFO] 📝 S1066 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/BackPressureCoordinator.cs(149,17)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/BackPressureCoordinator.cs(149,17)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/BackPressureCoordinator.cs(149,17)
+[2025-06-12 16:38:32] [INFO] 📝 S107 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/TaskManagerCoreService.cs(118,53)
+[2025-06-12 16:38:32] [INFO]    -      4>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/TaskManagerCoreService.cs(118,53)
+[2025-06-12 16:38:32] [INFO]    -      6>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/TaskManagerCoreService.cs(118,53)
+[2025-06-12 16:38:32] [INFO] 📝 S138 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/Checkpointing/CheckpointCoordinator.cs(80,28)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/JobManagerInternalApiService.cs(147,81)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/Checkpointing/CheckpointCoordinator.cs(80,28)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/JobManagerInternalApiService.cs(147,81)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/Checkpointing/CheckpointCoordinator.cs(80,28)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/JobManagerInternalApiService.cs(147,81)
+[2025-06-12 16:38:32] [INFO] 📝 S3267 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(483,34)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(518,34)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(538,34)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(548,34)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(483,34)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(518,34)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(538,34)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(548,34)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(483,34)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(518,34)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(538,34)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(548,34)
+[2025-06-12 16:38:32] [INFO] 📝 S3400 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/GlobalWindows.cs(62,23)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/GlobalWindows.cs(62,23)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/Windowing/GlobalWindows.cs(62,23)
+[2025-06-12 16:38:32] [INFO] 📝 S3776 fixes needed in:
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Program.cs(1,1)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/Checkpointing/CheckpointCoordinator.cs(80,28)
+[2025-06-12 16:38:32] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/ChainedCollector.cs(36,21)
+[2025-06-12 16:38:32] [INFO]    -      4>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/ChainedCollector.cs(36,21)
+[2025-06-12 16:38:32] [INFO]    -      6>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/ChainedCollector.cs(36,21)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Program.cs(1,1)
+[2025-06-12 16:38:32] [INFO]    -      7>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/Checkpointing/CheckpointCoordinator.cs(80,28)
+[2025-06-12 16:38:32] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Program.cs(1,1)
+[2025-06-12 16:38:32] [INFO]    -     19>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/Checkpointing/CheckpointCoordinator.cs(80,28)
+[2025-06-12 16:38:32] [INFO] 🔧 Auto-fix disabled. Use -FixWarnings to apply automatic fixes.
+[2025-06-12 16:38:32] [INFO] 🔄 Testing local warning detection vs CI workflow alignment...
+[2025-06-12 16:38:32] [INFO] ✅ Local detection patterns match CI workflow requirements
+[2025-06-12 16:38:32] [INFO] 🎯 Warning detection system is aligned with CI environment
+[2025-06-12 16:38:32] [INFO] 📝 Updating enforcement rules based on detected warnings...
+[2025-06-12 16:38:32] [ERROR] ❌ ENFORCEMENT UPDATE: Found 72 warnings that must be fixed
+[2025-06-12 16:38:32] [INFO] 📋 Adding detected warning patterns to enforcement framework
+[2025-06-12 16:38:32] [INFO] ✅ Enforcement rules updated with current warning state
+[2025-06-12 16:38:32] [ERROR] ❌ FAILURE: 72 SonarCloud warnings must be fixed
+[2025-06-12 16:38:32] [ERROR] 🔧 Use -FixWarnings flag to attempt automatic resolution

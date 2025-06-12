@@ -12,18 +12,16 @@ namespace FlinkDotNet.Core.Api.Execution
     /// This enables local testing and development without requiring a full distributed setup.
     /// Implements core Apache Flink 2.0 execution concepts.
     /// </summary>
-    public class LocalStreamExecutor
+    public class LocalStreamExecutor : IDisposable
     {
-        private readonly StreamExecutionEnvironment _environment;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly List<Task> _executionTasks;
         private readonly ConcurrentDictionary<Guid, ConcurrentQueue<object>> _dataChannels;
+        private bool _disposed;
 
         public LocalStreamExecutor(StreamExecutionEnvironment environment)
         {
-            _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+            if (environment == null) throw new ArgumentNullException(nameof(environment));
             _cancellationTokenSource = new CancellationTokenSource();
-            _executionTasks = new List<Task>();
             _dataChannels = new ConcurrentDictionary<Guid, ConcurrentQueue<object>>();
         }
 
@@ -74,10 +72,10 @@ namespace FlinkDotNet.Core.Api.Execution
 
         private void InitializeDataChannels(JobGraph jobGraph)
         {
-            foreach (var edge in jobGraph.Edges)
+            foreach (var edgeId in jobGraph.Edges.Select(edge => edge.Id))
             {
-                _dataChannels[edge.Id] = new ConcurrentQueue<object>();
-                Console.WriteLine($"[LocalStreamExecutor] Initialized data channel for edge {edge.Id}");
+                _dataChannels[edgeId] = new ConcurrentQueue<object>();
+                Console.WriteLine($"[LocalStreamExecutor] Initialized data channel for edge {edgeId}");
             }
         }
 
@@ -110,7 +108,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return instances;
         }
 
-        private object CreateOperatorFromDefinition(OperatorDefinition operatorDef)
+        private static object CreateOperatorFromDefinition(OperatorDefinition operatorDef)
         {
             var operatorType = Type.GetType(operatorDef.FullyQualifiedName);
             if (operatorType == null)
@@ -184,7 +182,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     else if (operatorInstance.Operator != null)
                     {
                         // Handle other source types using reflection
-                        await RunSourceUsingReflection(operatorInstance.Operator, sourceContext, cancellationToken);
+                        await RunSourceUsingReflection(operatorInstance.Operator, sourceContext);
                     }
 
                     Console.WriteLine($"[LocalStreamExecutor] Source vertex {vertex.Name} completed");
@@ -327,7 +325,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return channels;
         }
 
-        private async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext, CancellationToken cancellationToken)
+        private static async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext)
         {
             // Find and invoke Run method using reflection
             var runMethod = sourceInstance.GetType().GetMethod("Run");
@@ -343,7 +341,7 @@ namespace FlinkDotNet.Core.Api.Execution
             await Task.CompletedTask;
         }
 
-        private async Task ProcessSinkData(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, CancellationToken cancellationToken)
+        private static async Task ProcessSinkData(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, CancellationToken cancellationToken)
         {
             var invokeMethod = sinkInstance.GetType().GetMethod("Invoke");
             if (invokeMethod == null) return;
@@ -373,7 +371,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
+        private static async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
             // Find the appropriate method to invoke (Map, Filter, etc.)
             var mapMethod = operatorInstance.GetType().GetMethod("Map");
@@ -417,7 +415,20 @@ namespace FlinkDotNet.Core.Api.Execution
 
         public void Dispose()
         {
-            _cancellationTokenSource?.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _cancellationTokenSource?.Dispose();
+                }
+                _disposed = true;
+            }
         }
     }
 
@@ -472,12 +483,10 @@ namespace FlinkDotNet.Core.Api.Execution
     internal class LocalSourceContext : ISourceContext<string>
     {
         private readonly List<ConcurrentQueue<object>> _outputChannels;
-        private readonly CancellationToken _cancellationToken;
 
         public LocalSourceContext(List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
             _outputChannels = outputChannels;
-            _cancellationToken = cancellationToken;
         }
 
         public void Collect(string record)
@@ -516,12 +525,10 @@ namespace FlinkDotNet.Core.Api.Execution
     internal class LocalSourceContext<T> : ISourceContext<T>
     {
         private readonly List<ConcurrentQueue<object>> _outputChannels;
-        private readonly CancellationToken _cancellationToken;
 
         public LocalSourceContext(List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
             _outputChannels = outputChannels;
-            _cancellationToken = cancellationToken;
         }
 
         public void Collect(T record)

@@ -14,7 +14,6 @@ namespace FlinkDotNet.Core.Api.Windowing
         void RegisterEventTimeTimer(long time);
         void DeleteEventTimeTimer(long time);
         // Add methods for trigger-specific state if needed, e.g.:
-        // IValueState<S> GetTriggerState<S>(ValueStateDescriptor<S> stateDescriptor);
     }
 
     /// <summary>

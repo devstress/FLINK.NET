@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace FlinkDotNet.JobManager.Services.BackPressure;
 
@@ -162,7 +163,7 @@ public class TaskManagerOrchestrator : IDisposable
         {
             instance.Status = TaskManagerStatus.Failed;
             _logger.LogError(ex, "Failed to create TaskManager instance {InstanceId}", instanceId);
-            throw;
+            throw new InvalidOperationException($"Failed to create TaskManager instance {instanceId} using deployment type {_config.DeploymentType}", ex);
         }
 
         return instance;
@@ -170,10 +171,10 @@ public class TaskManagerOrchestrator : IDisposable
 
     private async Task CreateProcessBasedTaskManagerAsync(TaskManagerInstance instance)
     {
-        // Launch TaskManager as a separate process
+        // Launch TaskManager as a separate process using full executable path (S4036 compliance)
         var startInfo = new ProcessStartInfo
         {
-            FileName = "dotnet",
+            FileName = GetDotNetExecutablePath(),
             Arguments = $"run --project FlinkDotNet.TaskManager --configuration Release",
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -209,7 +210,7 @@ public class TaskManagerOrchestrator : IDisposable
                            $"-e TASKMANAGER_MEMORY_PROCESS_SIZE={_config.TaskManagerMemoryMB} " +
                            $"flinkdotnet/taskmanager:latest";
 
-        var processInfo = new ProcessStartInfo("docker", dockerCommand)
+        var processInfo = new ProcessStartInfo(GetDockerExecutablePath(), dockerCommand)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -246,7 +247,7 @@ public class TaskManagerOrchestrator : IDisposable
         
         // Apply the pod manifest using kubectl
         var kubectlCommand = $"apply -f - -n {namespaceName}";
-        var processInfo = new ProcessStartInfo("kubectl", kubectlCommand)
+        var processInfo = new ProcessStartInfo(GetKubectlExecutablePath(), kubectlCommand)
         {
             UseShellExecute = false,
             RedirectStandardInput = true,
@@ -346,7 +347,7 @@ spec:
         }
     }
 
-    private async Task ShutdownProcessTaskManagerAsync(TaskManagerInstance instance)
+    private static async Task ShutdownProcessTaskManagerAsync(TaskManagerInstance instance)
     {
         if (instance.ProcessId.HasValue)
         {
@@ -368,7 +369,7 @@ spec:
         if (instance.DeploymentInfo?.StartsWith("Container:") == true)
         {
             var containerId = instance.DeploymentInfo.Substring("Container:".Length);
-            var processInfo = new ProcessStartInfo("docker", $"stop {containerId}")
+            var processInfo = new ProcessStartInfo(GetDockerExecutablePath(), $"stop {containerId}")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -392,7 +393,7 @@ spec:
             var podName = parts[0];
             var namespaceName = parts.Length > 1 ? parts[1] : "default";
 
-            var processInfo = new ProcessStartInfo("kubectl", $"delete pod {podName} -n {namespaceName}")
+            var processInfo = new ProcessStartInfo(GetKubectlExecutablePath(), $"delete pod {podName} -n {namespaceName}")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -433,7 +434,7 @@ spec:
             }
         }
 
-        return bestCandidate ?? candidates.First(); // Fallback to first candidate
+        return bestCandidate ?? candidates[0]; // Fallback to first candidate
     }
 
     private void CollectMetrics(object? state)
@@ -466,9 +467,94 @@ spec:
         };
     }
 
+    /// <summary>
+    /// Gets the full path to the dotnet executable for security compliance (S4036)
+    /// </summary>
+    private static string GetDotNetExecutablePath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
+        }
+        else
+        {
+            // On Linux/macOS, dotnet is typically in /usr/share/dotnet or /usr/local/share/dotnet
+            var possiblePaths = new[] { "/usr/share/dotnet/dotnet", "/usr/local/share/dotnet/dotnet", "/usr/bin/dotnet" };
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
+            if (existingPath != null)
+                return existingPath;
+            // Fallback to PATH-based resolution with warning
+            return "dotnet";
+        }
+    }
+
+    // S1192: String literal constant to avoid repetition
+    private const string DockerFolderName = "Docker";
+    
+    /// <summary>
+    /// Gets the full path to the docker executable for security compliance (S4036)
+    /// </summary>
+    private static string GetDockerExecutablePath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var dockerPath = Path.Combine(programFiles, DockerFolderName, DockerFolderName, "resources", "bin", "docker.exe");
+            if (File.Exists(dockerPath))
+                return dockerPath;
+            
+            // Alternative path for Docker Desktop
+            dockerPath = Path.Combine(programFiles, DockerFolderName, DockerFolderName, "Docker Desktop.exe");
+            if (File.Exists(dockerPath))
+                return dockerPath;
+                
+            return "docker.exe";
+        }
+        else
+        {
+            var possiblePaths = new[] { "/usr/bin/docker", "/usr/local/bin/docker", "/opt/docker/bin/docker" };
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
+            if (existingPath != null)
+                return existingPath;
+            return "docker";
+        }
+    }
+    
+    /// <summary>
+    /// Gets the full path to the kubectl executable for security compliance (S4036)
+    /// </summary>
+    private static string GetKubectlExecutablePath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var possiblePaths = new[] { 
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "kubectl", "kubectl.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "kubectl.exe")
+            };
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
+            if (existingPath != null)
+                return existingPath;
+            return "kubectl.exe";
+        }
+        else
+        {
+            var possiblePaths = new[] { "/usr/bin/kubectl", "/usr/local/bin/kubectl", "/snap/bin/kubectl" };
+            var existingPath = possiblePaths.FirstOrDefault(File.Exists);
+            if (existingPath != null)
+                return existingPath;
+            return "kubectl";
+        }
+    }
+
     public void Dispose()
     {
-        if (!_disposed)
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed && disposing)
         {
             _metricsTimer?.Dispose();
             

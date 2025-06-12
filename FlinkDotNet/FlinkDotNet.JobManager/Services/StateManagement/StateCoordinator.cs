@@ -74,7 +74,7 @@ public class StateCoordinator : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create state backend for TaskManager {TaskManagerId}, Job {JobId}", taskManagerId, jobId);
-            throw;
+            throw new InvalidOperationException($"State backend creation failed for TaskManager {taskManagerId} in Job {jobId}", ex);
         }
     }
 
@@ -183,7 +183,13 @@ public class StateCoordinator : IDisposable
 
     public void Dispose()
     {
-        if (!_disposed)
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed && disposing)
         {
             _metricsTimer?.Dispose();
             
@@ -212,7 +218,7 @@ public class StateCoordinator : IDisposable
 /// </summary>
 public class StateBackendConfig
 {
-    public string StateDir { get; set; } = "/tmp/flink-state";
+    public string StateDir { get; set; } = Path.Combine(Path.GetTempPath(), "flink-state-" + Environment.ProcessId);
     public string[]? ColumnFamilies { get; set; }
     public ulong WriteBufferSize { get; set; } = 64 * 1024 * 1024; // 64MB
     public int MaxBackgroundJobs { get; set; } = 4;
@@ -242,6 +248,7 @@ public class StateMetrics
             DiskUsageBytes = stats.DiskUsage;
             WriteLatencyMs = stats.AverageWriteLatencyMs;
             ReadLatencyMs = stats.AverageReadLatencyMs;
+            CpuUsagePercent = stats.CpuUsagePercent; // Add CPU usage tracking
             LastUpdated = DateTime.UtcNow;
             
             // Calculate records per second from previous measurement

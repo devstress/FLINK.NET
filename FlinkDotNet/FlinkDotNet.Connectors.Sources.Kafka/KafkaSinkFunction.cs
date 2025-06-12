@@ -49,7 +49,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             _logger?.LogInformation("Kafka sink opened for topic: {Topic}", _topic);
         }
 
-        public void Invoke(T value, ISinkContext context)
+        public void Invoke(T record, ISinkContext context)
         {
             if (_producer == null)
                 throw new InvalidOperationException("Sink not opened");
@@ -58,7 +58,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             {
                 var message = new Message<Null, T>
                 {
-                    Value = value,
+                    Value = record,
                     Timestamp = new Timestamp(DateTimeOffset.FromUnixTimeMilliseconds(context.CurrentProcessingTimeMillis()).DateTime)
                 };
 
@@ -68,7 +68,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             catch (ProduceException<Null, T> ex)
             {
                 _logger?.LogError(ex, "Failed to produce message to Kafka topic {Topic}: {Error}", _topic, ex.Error.Reason);
-                throw;
+                throw new InvalidOperationException($"Failed to produce message to Kafka topic '{_topic}': {ex.Error.Reason}", ex);
             }
         }
 
@@ -99,7 +99,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Failed to begin Kafka transaction");
-                throw;
+                throw new InvalidOperationException("Failed to begin Kafka transaction", ex);
             }
         }
 
@@ -123,7 +123,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Failed to commit Kafka transaction {TransactionId}", transactionId);
-                throw;
+                throw new InvalidOperationException($"Failed to commit Kafka transaction '{transactionId}'", ex);
             }
         }
 
@@ -140,13 +140,22 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Failed to abort Kafka transaction {TransactionId}", transactionId);
-                throw;
+                throw new InvalidOperationException($"Failed to abort Kafka transaction '{transactionId}'", ex);
             }
         }
 
         public void Dispose()
         {
-            Close();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                Close();
+            }
         }
     }
 

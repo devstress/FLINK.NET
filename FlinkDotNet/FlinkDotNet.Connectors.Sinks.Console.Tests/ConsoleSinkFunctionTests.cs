@@ -17,9 +17,40 @@ namespace FlinkDotNet.Connectors.Sinks.Console.Tests
         }
 
         public void Dispose()
+
+
         {
-            System.Console.SetOut(_originalOut);
+
+
+            Dispose(true);
+
+
+            GC.SuppressFinalize(this);
+
+
+        }
+
+
+
+        protected virtual void Dispose(bool disposing)
+
+
+        {
+
+
+            if (disposing)
+
+
+            {
+
+
+                System.Console.SetOut(_originalOut);
             _stringWriter.Dispose();
+
+
+            }
+
+
         }
 
         private string GetConsoleOutput()

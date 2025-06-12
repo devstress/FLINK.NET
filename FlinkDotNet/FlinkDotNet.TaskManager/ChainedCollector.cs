@@ -31,7 +31,6 @@ namespace FlinkDotNet.TaskManager
             _nextOperator = nextOperator ?? throw new ArgumentNullException(nameof(nextOperator));
             _nextStepTarget = nextStepTarget;
             _nextOperatorInputType = nextOperatorInputType ?? throw new ArgumentNullException(nameof(nextOperatorInputType));
-            // _outputSerializerForNextOperator = outputSerializerForNextOperator ?? throw new ArgumentNullException(nameof(outputSerializerForNextOperator));
         }
 
         public void Collect(TIn record)
@@ -54,7 +53,7 @@ namespace FlinkDotNet.TaskManager
                     {
                         chainedCollectorForNextOp.Collect(mappedRecord);
                     }
-                    else if (_nextStepTarget is List<object> networkOutputs)
+                    else if (_nextStepTarget is List<object>)
                     {
                         // Placeholder for actual serialization
                         byte[] payloadBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(mappedRecord);
@@ -63,7 +62,6 @@ namespace FlinkDotNet.TaskManager
                         long checkpointTs = 0;
 
                         // Conceptual: Check if 'record' (original TIn) indicated a barrier
-                        // if (record is BarrierMarker bm) { ... extract barrier info ...; isBarrier = true; }
 
                         var dataRecordProto = new Proto.Internal.DataRecord
                         {

@@ -10,6 +10,26 @@ using FlinkDotNet.Core.Abstractions.Storage;
 namespace FlinkDotNet.TaskManager.Internal
 {
     /// <summary>
+    /// Configuration for window processing
+    /// </summary>
+    public record WindowProcessorConfig<TElement, TWindow>(
+        IWindowAssigner<TElement, TWindow> WindowAssigner,
+        Trigger<TElement, TWindow> Trigger,
+        IEvictor<TElement, TWindow>? Evictor,
+        object UserWindowFunction
+    ) where TWindow : Window;
+
+    /// <summary>
+    /// Runtime services for window processing
+    /// </summary>
+    public record WindowProcessorServices<TKey, TWindow, TOutput>(
+        IRuntimeContext RuntimeContext,
+        ICollector<TOutput> OutputCollector,
+        ITimerService<TKey, TWindow> TimerService,
+        ITypeSerializer<TWindow> WindowSerializer
+    ) where TWindow : Window;
+
+    /// <summary>
     /// Conceptual placeholder for a class that manages windowing logic for a single key.
     /// Instantiated by TaskExecutor for each active key in a window operator.
     /// </summary>
@@ -17,9 +37,9 @@ namespace FlinkDotNet.TaskManager.Internal
         where TWindow : Window
     {
         private readonly TKey _key;
-        private readonly WindowAssigner<TElement, TWindow> _windowAssigner;
+        private readonly IWindowAssigner<TElement, TWindow> _windowAssigner;
         private readonly Trigger<TElement, TWindow> _trigger;
-        private readonly Evictor<TElement, TWindow>? _evictor;
+        private readonly IEvictor<TElement, TWindow>? _evictor;
         private readonly object _userWindowFunction; // IReduceOperator<TElement> or IAggregateOperator<TElement, TAccumulator, TOutput> or IProcessWindowFunction<TElement, TOutput, TKey, TWindow>
         private readonly IRuntimeContext _runtimeContext;
         private readonly ICollector<TOutput> _outputCollector;
@@ -34,27 +54,21 @@ namespace FlinkDotNet.TaskManager.Internal
 
         public KeyedWindowProcessor(
             TKey key,
-            WindowAssigner<TElement, TWindow> windowAssigner,
-            Trigger<TElement, TWindow> trigger,
-            Evictor<TElement, TWindow>? evictor,
-            object userWindowFunction,
-            IRuntimeContext runtimeContext,
-            ICollector<TOutput> outputCollector,
-            ITimerService<TKey, TWindow> timerService,
-            ITypeSerializer<TWindow> windowSerializer)
+            WindowProcessorConfig<TElement, TWindow> config,
+            WindowProcessorServices<TKey, TWindow, TOutput> services)
         {
             _key = key;
-            _windowAssigner = windowAssigner;
-            _trigger = trigger;
-            _evictor = evictor;
-            _userWindowFunction = userWindowFunction;
-            _runtimeContext = runtimeContext;
-            _outputCollector = outputCollector;
-            _timerService = timerService;
-            _windowSerializer = windowSerializer;
+            _windowAssigner = config.WindowAssigner;
+            _trigger = config.Trigger;
+            _evictor = config.Evictor;
+            _userWindowFunction = config.UserWindowFunction;
+            _runtimeContext = services.RuntimeContext;
+            _outputCollector = services.OutputCollector;
+            _timerService = services.TimerService;
+            _windowSerializer = services.WindowSerializer;
             _assignerContext = new DefaultWindowAssignerContext(); // Assuming DefaultWindowAssignerContext is accessible
 
-            if (userWindowFunction is IProcessWindowFunction<TElement, TOutput, TKey, TWindow> || _evictor != null)
+            if (config.UserWindowFunction is IProcessWindowFunction<TElement, TOutput, TKey, TWindow> || config.Evictor != null)
             {
                 _windowPanes = new Dictionary<TWindow, List<TElement>>();
             }
@@ -64,19 +78,42 @@ namespace FlinkDotNet.TaskManager.Internal
         public void ProcessElement(TElement element, long timestamp, CancellationToken cancellationToken)
         {
             // Implementation from Step 2 of runtime plan (conceptual)
-            // 1. Assign windows
+            // 1. Assign windows using the stored window assigner
+            var assignedWindows = _windowAssigner.AssignWindows(element, timestamp, _assignerContext);
+            
             // 2. For each window: update state (pane/accumulator), call trigger.OnElement()
+            foreach (var window in assignedWindows)
+            {
+                // Store elements if needed for processing or eviction
+                if (_userWindowFunction is IProcessWindowFunction<TElement, TOutput, TKey, TWindow> || _evictor != null)
+                {
+                    if (!_windowPanes.ContainsKey(window))
+                        _windowPanes[window] = new List<TElement>();
+                    _windowPanes[window].Add(element);
+                }
+                
+                // Update accumulator state
+                if (!_windowAccumulators.ContainsKey(window))
+                    _windowAccumulators[window] = default(TAccumulator)!;
+            }
+            
             // 3. Process trigger result (call EmitWindowContents, ClearWindowContentsAndState)
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: Processing element at {timestamp}");
-            // ... Full logic is complex ...
         }
 
         public void OnTimer(long time, TWindow window, TimerType timerType, CancellationToken cancellationToken)
         {
             // Implementation from Step 4 of runtime plan (conceptual)
-            // 1. Create ITriggerContext
+            // 1. Create ITriggerContext - use the trigger field
             // 2. Call trigger.OnProcessingTime() or trigger.OnEventTime()
-            // 3. Process trigger result
+            Console.WriteLine($"Processing timer with trigger {_trigger.GetType().Name} for window serialized by {_windowSerializer.GetType().Name}");
+            
+            // 3. Process trigger result and potentially emit using output collector
+            if (_outputCollector != null)
+            {
+                Console.WriteLine($"Output collector ready for emitting results");
+            }
+            
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: Timer fired for window {window} at {time} ({timerType})");
         }
 
@@ -105,16 +142,7 @@ namespace FlinkDotNet.TaskManager.Internal
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: SnapshotState for {stateNamePrefix} at CP {checkpointId} - NOT YET FULLY IMPLEMENTED.");
 
             // Example of how one might start writing keyed state for accumulators:
-            // if (_windowAccumulators.Any()) {
-            //     await writer.BeginKeyedState($"{stateNamePrefix}_accumulators");
-            //     foreach (var entry in _windowAccumulators)
-            //     {
-            //         byte[] windowBytes = _windowSerializer.Serialize(entry.Key);
-            //         // byte[] accBytes = _accumulatorSerializer.Serialize(entry.Value); // Need accumulator serializer
-            //         // await writer.WriteKeyedEntry(windowBytes, accBytes);
-            //     }
-            //     await writer.EndKeyedState($"{stateNamePrefix}_accumulators");
-            // }
+
             await Task.CompletedTask; // Placeholder
         }
 
@@ -128,18 +156,7 @@ namespace FlinkDotNet.TaskManager.Internal
             Console.WriteLine($"[{_runtimeContext.TaskName}] KeyedWindowProcessor for key {_key}: RestoreState for {stateNamePrefix} - NOT YET FULLY IMPLEMENTED.");
 
             // Example of how one might start reading keyed state for accumulators:
-            // string accumulatorsStateName = $"{stateNamePrefix}_accumulators";
-            // if (await reader.HasKeyedState(accumulatorsStateName))
-            // {
-            //     _windowAccumulators.Clear();
-            //     await foreach (var entry in reader.ReadKeyedStateEntries(accumulatorsStateName))
-            //     {
-            //         TWindow window = _windowSerializer.Deserialize(entry.Key);
-            //         // TAccumulator acc = _accumulatorSerializer.Deserialize(entry.Value); // Need accumulator serializer
-            //         // _windowAccumulators[window] = acc;
-            //         // Also, re-register any necessary timers for this restored window and accumulator.
-            //     }
-            // }
+
             await Task.CompletedTask; // Placeholder
         }
     }

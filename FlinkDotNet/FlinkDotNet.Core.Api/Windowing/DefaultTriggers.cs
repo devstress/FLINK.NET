@@ -15,15 +15,15 @@ namespace FlinkDotNet.Core.Api.Windowing
             else
             {
                 ctx.RegisterEventTimeTimer(window.MaxTimestamp());
-                return TriggerResult.Continue;
+                return TriggerResult.None;
             }
         }
 
-        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.Continue;
+        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
 
         public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx)
         {
-            return time == window.MaxTimestamp() ? TriggerResult.Fire : TriggerResult.Continue;
+            return time == window.MaxTimestamp() ? TriggerResult.Fire : TriggerResult.None;
         }
         public override void Clear(TWindow window, ITriggerContext ctx) => ctx.DeleteEventTimeTimer(window.MaxTimestamp());
     }
@@ -33,21 +33,21 @@ namespace FlinkDotNet.Core.Api.Windowing
         public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx)
         {
             ctx.RegisterProcessingTimeTimer(window.MaxTimestamp());
-            return TriggerResult.Continue;
+            return TriggerResult.None;
         }
         public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx)
         {
-            return time == window.MaxTimestamp() ? TriggerResult.Fire : TriggerResult.Continue;
+            return time == window.MaxTimestamp() ? TriggerResult.Fire : TriggerResult.None;
         }
-        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.Continue;
+        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
         public override void Clear(TWindow window, ITriggerContext ctx) => ctx.DeleteProcessingTimeTimer(window.MaxTimestamp());
     }
 
     public class NeverTrigger<TElement, TWindow> : Trigger<TElement, TWindow> where TWindow : Window
     {
-        public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx) => TriggerResult.Continue;
-        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.Continue;
-        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.Continue;
+        public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx) => TriggerResult.None;
+        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
+        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
         public override void Clear(TWindow window, ITriggerContext ctx) { }
     }
 }

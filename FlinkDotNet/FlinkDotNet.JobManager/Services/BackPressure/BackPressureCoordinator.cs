@@ -84,7 +84,7 @@ public class BackPressureCoordinator : IDisposable
         return metrics;
     }
 
-    private double CalculateStatePressure(StateMetrics stateMetrics)
+    private static double CalculateStatePressure(StateMetrics stateMetrics)
     {
         // High write latency or memory usage indicates state pressure
         var latencyPressure = Math.Min(stateMetrics.WriteLatencyMs / 1000.0, 1.0); // Normalize to 1 second
@@ -93,7 +93,7 @@ public class BackPressureCoordinator : IDisposable
         return Math.Max(latencyPressure, memoryPressure);
     }
 
-    private double CalculateNetworkPressure(Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
+    private static double CalculateNetworkPressure(Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
     {
         if (!taskManagerMetrics.Any()) return 0.0;
 
@@ -101,7 +101,7 @@ public class BackPressureCoordinator : IDisposable
         return Math.Min(avgNetworkUtilization / 100.0, 1.0);
     }
 
-    private double CalculateCpuPressure(Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
+    private static double CalculateCpuPressure(Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
     {
         if (!taskManagerMetrics.Any()) return 0.0;
 
@@ -109,7 +109,7 @@ public class BackPressureCoordinator : IDisposable
         return Math.Min(avgCpuUtilization / 100.0, 1.0);
     }
 
-    private double CalculateMemoryPressure(StateMetrics stateMetrics, Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
+    private static double CalculateMemoryPressure(StateMetrics stateMetrics, Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
     {
         var statePressure = Math.Min(stateMetrics.MemoryUsageBytes / (double)(512 * 1024 * 1024), 1.0); // 512MB threshold
         
@@ -144,15 +144,12 @@ public class BackPressureCoordinator : IDisposable
                     _logger.LogWarning("Maximum TaskManager count ({MaxCount}) reached. Cannot scale up further.", _config.MaxTaskManagers);
                 }
             }
-            else if (pressure.OverallPressure < _config.ScaleDownThreshold)
+            else if (pressure.OverallPressure < _config.ScaleDownThreshold && currentTaskManagers > _config.MinTaskManagers)
             {
-                if (currentTaskManagers > _config.MinTaskManagers)
-                {
-                    _logger.LogInformation("Low pressure detected ({Pressure:F2}) for {StateBackendId}. Scaling down TaskManagers.", 
-                        pressure.OverallPressure, stateBackendId);
-                    
-                    _ = Task.Run(async () => await _taskManagerOrchestrator.ScaleDownAsync());
-                }
+                _logger.LogInformation("Low pressure detected ({Pressure:F2}) for {StateBackendId}. Scaling down TaskManagers.", 
+                    pressure.OverallPressure, stateBackendId);
+                
+                _ = Task.Run(async () => await _taskManagerOrchestrator.ScaleDownAsync());
             }
         }
         catch (Exception ex)
@@ -199,7 +196,13 @@ public class BackPressureCoordinator : IDisposable
 
     public void Dispose()
     {
-        if (!_disposed)
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed && disposing)
         {
             _monitoringTimer?.Dispose();
             _pressureMetrics.Clear();

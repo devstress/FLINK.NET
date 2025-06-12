@@ -34,31 +34,32 @@ namespace FlinkDotNet.Core.Api.Windowing
     /// <summary>
     /// Assigns all elements to a single <see cref="GlobalWindow"/>.
     /// </summary>
-    public class GlobalWindows<TElement> : WindowAssigner<TElement, GlobalWindow>
+    public class GlobalWindows<TElement> : IWindowAssigner<TElement, GlobalWindow>
     {
         private GlobalWindows() { }
 
         public static GlobalWindows<TElement> Create() => new GlobalWindows<TElement>();
 
-        public override ICollection<GlobalWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context)
+        public ICollection<GlobalWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context)
         {
             return new List<GlobalWindow> { GlobalWindow.Instance };
         }
 
-        public override Trigger<TElement, GlobalWindow> GetDefaultTrigger(StreamExecutionEnvironment environment)
+        public Trigger<TElement, GlobalWindow> GetDefaultTrigger(StreamExecutionEnvironment environment)
         {
             // GlobalWindows by default never fire unless a custom trigger is specified.
             return new NeverTrigger<TElement, GlobalWindow>();
         }
 
-        public override ITypeSerializer<GlobalWindow> GetWindowSerializer() => new GlobalWindowSerializer();
+        public ITypeSerializer<GlobalWindow> GetWindowSerializer() => new GlobalWindowSerializer();
 
         // GlobalWindows can be used with either event time or processing time,
         // depending on the trigger. Default trigger (NeverTrigger) doesn't rely on time.
         // If an event time trigger is used, then it's event time.
         // For now, let's default to false, meaning it doesn't inherently impose event time.
-        public override bool IsEventTime => false;
+        public bool IsEventTime => false;
 
-        public override string ToString() => "GlobalWindows";
+        private const string WindowName = "GlobalWindows";
+        public override string ToString() => WindowName;
     }
 }

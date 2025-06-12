@@ -63,7 +63,7 @@ namespace FlinkDotNet.Table.Api
                     throw new ArgumentException($"Field '{fieldName}' not found in table schema");
             }
 
-            return new GroupedStreamTable<T>(this, fieldNames);
+            return new GroupedStreamTable(this, fieldNames);
         }
 
         public ITable Join(ITable other, string condition)
@@ -103,7 +103,6 @@ namespace FlinkDotNet.Table.Api
     internal class ProjectedTable<T> : ITable
     {
         private readonly ITable _sourceTable;
-        private readonly string[] _projectedFields;
 
         public TableSchema Schema { get; }
 
@@ -111,12 +110,11 @@ namespace FlinkDotNet.Table.Api
         {
             _sourceTable = sourceTable;
             Schema = schema;
-            _projectedFields = projectedFields;
         }
 
         public ITable Select(params string[] fieldNames) => _sourceTable.Select(fieldNames);
         public ITable Where(string condition) => new FilteredTable<T>(this, condition);
-        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable<T>(this, fieldNames);
+        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable(this, fieldNames);
         public ITable Join(ITable other, string condition) => new JoinedTable(this, other, condition);
         public DataStream<TOut> ToDataStream<TOut>() => _sourceTable.ToDataStream<TOut>();
         public ITable Sql(string query) => _sourceTable.Sql(query);
@@ -140,7 +138,7 @@ namespace FlinkDotNet.Table.Api
 
         public ITable Select(params string[] fieldNames) => _sourceTable.Select(fieldNames);
         public ITable Where(string condition) => new FilteredTable<T>(_sourceTable, $"({_condition}) AND ({condition})");
-        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable<T>(this, fieldNames);
+        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable(this, fieldNames);
         public ITable Join(ITable other, string condition) => new JoinedTable(this, other, condition);
         public DataStream<TOut> ToDataStream<TOut>() => _sourceTable.ToDataStream<TOut>();
         public ITable Sql(string query) => _sourceTable.Sql(query);
@@ -149,7 +147,7 @@ namespace FlinkDotNet.Table.Api
     /// <summary>
     /// Grouped table implementation
     /// </summary>
-    internal class GroupedStreamTable<T> : IGroupedTable
+    internal class GroupedStreamTable : IGroupedTable
     {
         private readonly ITable _sourceTable;
         private readonly string[] _groupByFields;
@@ -183,8 +181,6 @@ namespace FlinkDotNet.Table.Api
     internal class AggregatedTable : ITable
     {
         private readonly ITable _sourceTable;
-        private readonly string[] _groupByFields;
-        private readonly IAggregateFunction[] _aggregates;
 
         public TableSchema Schema { get; }
 
@@ -192,13 +188,11 @@ namespace FlinkDotNet.Table.Api
         {
             _sourceTable = sourceTable;
             Schema = schema;
-            _groupByFields = groupByFields;
-            _aggregates = aggregates;
         }
 
         public ITable Select(params string[] fieldNames) => new ProjectedTable<object>(this, Schema, fieldNames);
         public ITable Where(string condition) => new FilteredTable<object>(this, condition);
-        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable<object>(this, fieldNames);
+        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable(this, fieldNames);
         public ITable Join(ITable other, string condition) => new JoinedTable(this, other, condition);
         public DataStream<TOut> ToDataStream<TOut>() => _sourceTable.ToDataStream<TOut>();
         public ITable Sql(string query) => _sourceTable.Sql(query);
@@ -210,25 +204,21 @@ namespace FlinkDotNet.Table.Api
     internal class JoinedTable : ITable
     {
         private readonly ITable _leftTable;
-        private readonly ITable _rightTable;
-        private readonly string _condition;
 
         public TableSchema Schema { get; }
 
         public JoinedTable(ITable leftTable, ITable rightTable, string condition)
         {
             _leftTable = leftTable;
-            _rightTable = rightTable;
-            _condition = condition;
 
             // Combine schemas (simplified - would need to handle name conflicts)
-            var combinedFields = _leftTable.Schema.Fields.Concat(_rightTable.Schema.Fields);
+            var combinedFields = _leftTable.Schema.Fields.Concat(rightTable.Schema.Fields);
             Schema = new TableSchema(combinedFields);
         }
 
         public ITable Select(params string[] fieldNames) => new ProjectedTable<object>(this, Schema, fieldNames);
         public ITable Where(string condition) => new FilteredTable<object>(this, condition);
-        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable<object>(this, fieldNames);
+        public IGroupedTable GroupBy(params string[] fieldNames) => new GroupedStreamTable(this, fieldNames);
         public ITable Join(ITable other, string condition) => new JoinedTable(this, other, condition);
         public DataStream<TOut> ToDataStream<TOut>() => _leftTable.ToDataStream<TOut>();
         public ITable Sql(string query) => _leftTable.Sql(query);

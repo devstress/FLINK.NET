@@ -13,8 +13,7 @@ public class AspireIntegrationTests
     public void AspireAppHost_Assembly_Can_Be_Loaded()
     {
         // This test verifies that the AppHost assembly can be loaded successfully
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         
         Assert.NotNull(appHostAssembly);
         Assert.Contains("FlinkDotNetAspire.AppHost.AppHost", appHostAssembly.FullName);
@@ -24,10 +23,9 @@ public class AspireIntegrationTests
     public void AppHost_Assembly_Contains_Program_Type()
     {
         // Load the AppHost assembly and verify it contains a Program type
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         
-        var programType = appHostAssembly.GetType("Program");
+        var programType = appHostAssembly.GetType("FlinkDotNetAspire.AppHost.AppHost.Program");
         Assert.NotNull(programType);
         Assert.True(programType.IsPublic);
     }
@@ -36,10 +34,9 @@ public class AspireIntegrationTests
     public void AppHost_Program_Has_Main_Method()
     {
         // Verify the Main method exists and is correctly defined for an Aspire host
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         
-        var programType = appHostAssembly.GetType("Program");
+        var programType = appHostAssembly.GetType("FlinkDotNetAspire.AppHost.AppHost.Program");
         Assert.NotNull(programType);
         
         var mainMethod = programType.GetMethod("Main");
@@ -54,13 +51,11 @@ public class AspireIntegrationTests
         // This test ensures the project references are working correctly
         // by verifying we can access types from the AppHost project
         
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         Assert.NotNull(appHostAssembly);
         
         // Also verify Aspire framework assemblies are available
-        var aspireHostingAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Aspire.Hosting.dll"));
+        var aspireHostingAssembly = System.Reflection.Assembly.Load("Aspire.Hosting");
         Assert.NotNull(aspireHostingAssembly);
     }
 
@@ -138,8 +133,8 @@ public class AspireIntegrationTests
                     string taskManagerId = "TM-Test";
                     string jobManagerAddress = ServiceUris.JobManagerGrpc;
                     
-                    services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
-                    services.AddHostedService<global::TaskManagerCoreService>();
+                    services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
+                    services.AddHostedService<FlinkDotNet.TaskManager.TaskManagerCoreService>();
                     
                     // This line should fail because TaskExecutor dependencies are missing
                     services.AddSingleton<FlinkDotNet.TaskManager.TaskExecutor>();
@@ -153,7 +148,7 @@ public class AspireIntegrationTests
             
             // Try to get the TaskExecutor - this should trigger the DI error
             using var scope = host.Services.CreateScope();
-            var taskExecutor = scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.TaskExecutor>();
+            scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.TaskExecutor>();
         });
         
         // We expect an InvalidOperationException about missing services
@@ -181,7 +176,7 @@ public class AspireIntegrationTests
                 services.AddSingleton(provider => taskManagerId); // Register taskManagerId as injectable string
                 
                 // Register TaskManager services 
-                services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
+                services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
                 services.AddSingleton<FlinkDotNet.TaskManager.Services.TaskManagerCheckpointingServiceImpl>();
                 
                 // Now TaskExecutor should be constructible
@@ -229,7 +224,7 @@ public class AspireIntegrationTests
             using var admin = new Confluent.Kafka.AdminClientBuilder(adminConfig).Build();
             
             // Try to get metadata - this should fail if Kafka is not available
-            var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5));
+            admin.GetMetadata(TimeSpan.FromSeconds(5));
         });
         
         // We expect a Kafka exception when the broker is unavailable
@@ -258,9 +253,9 @@ public class AspireIntegrationTests
                     string jobManagerAddress = ServiceUris.JobManagerGrpc;
                     
                     // Reproduce the FIXED DI configuration from TaskManager Program.cs
-                    services.AddSingleton(new global::TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
-                    services.AddSingleton<global::TaskManagerCoreService>();
-                    services.AddHostedService<global::TaskManagerCoreService>(sp => sp.GetRequiredService<global::TaskManagerCoreService>());
+                    services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
+                    services.AddSingleton<FlinkDotNet.TaskManager.TaskManagerCoreService>();
+                    services.AddHostedService<FlinkDotNet.TaskManager.TaskManagerCoreService>(sp => sp.GetRequiredService<FlinkDotNet.TaskManager.TaskManagerCoreService>());
 
                     // Register all dependencies required by TaskExecutor (the fix)
                     services.AddSingleton<FlinkDotNet.TaskManager.ActiveTaskRegistry>();
@@ -282,7 +277,7 @@ public class AspireIntegrationTests
             // Try to get all the services - this should NOT fail now with the fix
             using var scope = host.Services.CreateScope();
             
-            var taskManagerCoreService = scope.ServiceProvider.GetRequiredService<global::TaskManagerCoreService>();
+            var taskManagerCoreService = scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.TaskManagerCoreService>();
             var activeTaskRegistry = scope.ServiceProvider.GetRequiredService<FlinkDotNet.TaskManager.ActiveTaskRegistry>();
             var serializerRegistry = scope.ServiceProvider.GetRequiredService<FlinkDotNet.Core.Abstractions.Execution.SerializerRegistry>();
             var stateStore = scope.ServiceProvider.GetRequiredService<FlinkDotNet.Core.Abstractions.Storage.IStateSnapshotStore>();

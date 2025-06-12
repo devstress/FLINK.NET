@@ -42,73 +42,108 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         public bool IsBounded => _isBounded;
 
-        public void Run(ISourceContext<T> context)
+        public void Run(ISourceContext<T> ctx)
         {
-            RunAsync(context, CancellationToken.None).GetAwaiter().GetResult();
+            RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        public async Task RunAsync(ISourceContext<T> context, CancellationToken cancellationToken)
+        public async Task RunAsync(ISourceContext<T> ctx, CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var combinedToken = _cancellationTokenSource.Token;
             
+            InitializeConsumer();
+            
+            try
+            {
+                SubscribeToTopics();
+                await ConsumeMessagesAsync(ctx, combinedToken);
+            }
+            finally
+            {
+                CleanupResources();
+            }
+        }
+
+        private void InitializeConsumer()
+        {
             var consumerBuilder = new ConsumerBuilder<Ignore, T>(_consumerConfig)
                 .SetValueDeserializer(_valueDeserializer)
                 .SetErrorHandler((_, e) => _logger?.LogError("Kafka consumer error: {Error}", e.Reason));
 
             _consumer = consumerBuilder.Build();
-            
-            try
-            {
-                _consumer.Subscribe(_topics);
-                _logger?.LogInformation("Kafka consumer subscribed to topics: {Topics}", string.Join(", ", _topics));
+        }
 
-                while (!combinedToken.IsCancellationRequested)
+        private void SubscribeToTopics()
+        {
+            _consumer!.Subscribe(_topics);
+            _logger?.LogInformation("Kafka consumer subscribed to topics: {Topics}", string.Join(", ", _topics));
+        }
+
+        private async Task ConsumeMessagesAsync(ISourceContext<T> ctx, CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
                 {
-                    try
+                    var consumeResult = _consumer!.Consume(_readTimeout ?? TimeSpan.FromMilliseconds(100));
+                    
+                    if (await ProcessConsumeResult(ctx, consumeResult))
                     {
-                        var consumeResult = _consumer.Consume(_readTimeout ?? TimeSpan.FromMilliseconds(100));
-                        
-                        if (consumeResult?.Message != null)
-                        {
-                            var timestamp = consumeResult.Message.Timestamp.UnixTimestampMs;
-                            
-                            // Emit the record with event time if available
-                            if (timestamp > 0)
-                            {
-                                await context.CollectWithTimestampAsync(consumeResult.Message.Value, timestamp);
-                            }
-                            else
-                            {
-                                await context.CollectAsync(consumeResult.Message.Value);
-                            }
-                            
-                            // For bounded mode, we might want to stop after consuming all available messages
-                            if (_isBounded && consumeResult.IsPartitionEOF)
-                            {
-                                _logger?.LogInformation("Reached end of partition for bounded Kafka source");
-                                break;
-                            }
-                        }
+                        break; // End of partition reached in bounded mode
                     }
-                    catch (ConsumeException ex)
+                }
+                catch (ConsumeException ex)
+                {
+                    if (HandleConsumeException(ex))
                     {
-                        _logger?.LogError(ex, "Error consuming from Kafka: {Error}", ex.Error.Reason);
-                        
-                        // For critical errors, we should stop processing
-                        if (ex.Error.IsFatal)
-                        {
-                            break;
-                        }
+                        break; // Fatal error encountered
                     }
                 }
             }
-            finally
+        }
+
+        private async Task<bool> ProcessConsumeResult(ISourceContext<T> ctx, ConsumeResult<Ignore, T>? consumeResult)
+        {
+            if (consumeResult?.Message == null)
+                return false;
+
+            var timestamp = consumeResult.Message.Timestamp.UnixTimestampMs;
+            
+            // Emit the record with event time if available
+            if (timestamp > 0)
             {
-                _consumer?.Close();
-                _consumer?.Dispose();
-                _logger?.LogInformation("Kafka consumer closed");
+                await ctx.CollectWithTimestampAsync(consumeResult.Message.Value, timestamp);
             }
+            else
+            {
+                await ctx.CollectAsync(consumeResult.Message.Value);
+            }
+            
+            // For bounded mode, stop after consuming all available messages
+            if (_isBounded && consumeResult.IsPartitionEOF)
+            {
+                _logger?.LogInformation("Reached end of partition for bounded Kafka source");
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool HandleConsumeException(ConsumeException ex)
+        {
+            _logger?.LogError(ex, "Error consuming from Kafka: {Error}", ex.Error.Reason);
+            
+            // For critical errors, we should stop processing
+            return ex.Error.IsFatal;
+        }
+
+        private void CleanupResources()
+        {
+            _consumer?.Close();
+            _consumer?.Dispose();
+            _cancellationTokenSource?.Dispose();
+            _logger?.LogInformation("Kafka consumer closed");
         }
 
         public void Cancel()

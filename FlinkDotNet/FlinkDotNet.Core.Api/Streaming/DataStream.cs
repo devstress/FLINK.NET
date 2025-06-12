@@ -43,47 +43,17 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 Transformation,
                 keySelector,
-                typeof(TKey), // Store key type
                 keySelectorRep);
 
             return new KeyedDataStream<TKey, TElement>(Environment, keyedTransformation);
         }
 
         /// <summary>
-        /// Applies a Map transformation to this DataStream.
-        /// (Example of a typical DataStream operator to show context)
+        /// Partitions the DataStream by the given expression key selector.
         /// </summary>
-        public DataStream<TOut> Map<TOut>(IMapOperator<TElement, TOut> mapper)
-        {
-            var mapTransformation = new OneInputTransformation<TElement, TOut>(
-                this.Transformation,
-                "Map",
-                mapper,
-                typeof(TOut)
-                /* outputSerializer: null for now, JobManager will pick default or registered */
-                );
-            this.Transformation.AddDownstreamTransformation(mapTransformation, ShuffleMode.Forward); // Default for map
-            return new DataStream<TOut>(this.Environment, mapTransformation);
-        }
-
-        // Add other common DataStream operations here like Filter, FlatMap, Sink, etc.
-        public void AddSink(ISinkFunction<TElement> sinkFunction, string name = "Sink")
-        {
-            if (sinkFunction == null)
-                throw new ArgumentNullException(nameof(sinkFunction));
-
-            var sinkTransformation = new SinkTransformation<TElement>(
-                this.Transformation,
-                name,
-                sinkFunction);
-
-            // Add to environment's list of transformations
-            this.Environment.AddTransformation(sinkTransformation);
-
-            // Link current transformation to this new sink transformation
-            this.Transformation.AddDownstreamTransformation(sinkTransformation, ShuffleMode.Forward);
-        }
-
+        /// <typeparam name="TKey">The type of the key.</typeparam>
+        /// <param name="keySelectorExpression">The expression to extract the key from each element.</param>
+        /// <returns>A KeyedDataStream.</returns>
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(
             Expression<Func<TElement, TKey>> keySelectorExpression)
         {
@@ -148,13 +118,18 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 this.Transformation,
                 keySelectorExpression, // Store the original expression for potential later analysis if needed
-                typeof(TKey),
                 serializedSelectorRepresentation
             );
 
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
         }
 
+        /// <summary>
+        /// Partitions the DataStream by the given key selector instance.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the key.</typeparam>
+        /// <param name="keySelectorInstance">The key selector instance.</param>
+        /// <returns>A KeyedDataStream.</returns>
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(
             IKeySelector<TElement, TKey> keySelectorInstance)
         {
@@ -169,13 +144,18 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 this.Transformation,
                 keySelectorInstance, // Store the instance
-                typeof(TKey),
                 serializedSelectorRepresentation
             );
 
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
         }
 
+        /// <summary>
+        /// Partitions the DataStream by the given key selector type.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the key.</typeparam>
+        /// <param name="keySelectorType">The key selector type.</param>
+        /// <returns>A KeyedDataStream.</returns>
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(Type keySelectorType)
         {
             if (keySelectorType == null)
@@ -185,10 +165,6 @@ namespace FlinkDotNet.Core.Api.Streaming
             // but full validation (including generic type arguments) is complex and might be
             // better deferred to the TaskExecutor's KeySelectorActivator, which will try to instantiate it.
             // Example check (might not work for all generic scenarios without more complex reflection):
-            // if (!typeof(IKeySelector<TElement, TKey>).IsAssignableFrom(keySelectorType))
-            // {
-            //    throw new ArgumentException($"Provided type {keySelectorType.FullName} does not implement IKeySelector<{typeof(TElement).Name}, {typeof(TKey).Name}>.", nameof(keySelectorType));
-            // }
 
             string serializedSelectorRepresentation = $"type:{keySelectorType.AssemblyQualifiedName}";
             // string keyTypeName = typeof(TKey).AssemblyQualifiedName!; // KeyType in KeyedTransformation is Type object
@@ -196,11 +172,44 @@ namespace FlinkDotNet.Core.Api.Streaming
             var keyedTransformation = new KeyedTransformation<TKey, TElement>(
                 this.Transformation,
                 keySelectorType, // Store the Type; TaskExecutor will Activator.CreateInstance
-                typeof(TKey),
                 serializedSelectorRepresentation
             );
 
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
+        }
+
+        /// <summary>
+        /// Applies a Map transformation to this DataStream.
+        /// (Example of a typical DataStream operator to show context)
+        /// </summary>
+        public DataStream<TOut> Map<TOut>(IMapOperator<TElement, TOut> mapper)
+        {
+            var mapTransformation = new OneInputTransformation<TElement, TOut>(
+                this.Transformation,
+                "Map",
+                mapper
+                /* outputSerializer: null for now, JobManager will pick default or registered */
+                );
+            this.Transformation.AddDownstreamTransformation(mapTransformation, ShuffleMode.Forward); // Default for map
+            return new DataStream<TOut>(this.Environment, mapTransformation);
+        }
+
+        // Add other common DataStream operations here like Filter, FlatMap, Sink, etc.
+        public void AddSink(ISinkFunction<TElement> sinkFunction, string name = "Sink")
+        {
+            if (sinkFunction == null)
+                throw new ArgumentNullException(nameof(sinkFunction));
+
+            var sinkTransformation = new SinkTransformation<TElement>(
+                this.Transformation,
+                name,
+                sinkFunction);
+
+            // Add to environment's list of transformations
+            this.Environment.AddTransformation(sinkTransformation);
+
+            // Link current transformation to this new sink transformation
+            this.Transformation.AddDownstreamTransformation(sinkTransformation, ShuffleMode.Forward);
         }
 
         public DataStream<TElement> StartNewChain()
@@ -250,8 +259,8 @@ namespace FlinkDotNet.Core.Api.Streaming
 
     public abstract class Transformation<TElement> : TransformationBase
     {
-        protected Transformation(string name, Type outputType)
-            : base(name, outputType)
+        protected Transformation(string name)
+            : base(name, typeof(TElement))
         {
         }
     }
@@ -260,8 +269,8 @@ namespace FlinkDotNet.Core.Api.Streaming
     {
         public object SourceFunction { get; } // ISourceFunction<TElement>
 
-        public SourceTransformation(string name, object sourceFunction, Type outputType)
-            : base(name, outputType)
+        public SourceTransformation(string name, object sourceFunction)
+            : base(name)
         {
             SourceFunction = sourceFunction;
         }
@@ -272,8 +281,8 @@ namespace FlinkDotNet.Core.Api.Streaming
         public Transformation<TIn> Input { get; }
         public object Operator { get; } // e.g., IMapOperator<TIn, TOut>
 
-        public OneInputTransformation(Transformation<TIn> input, string name, object @operator, Type outputType)
-            : base(name, outputType)
+        public OneInputTransformation(Transformation<TIn> input, string name, object @operator)
+            : base(name)
         {
             Input = input;
             Operator = @operator;
@@ -284,19 +293,17 @@ namespace FlinkDotNet.Core.Api.Streaming
     {
         public Transformation<TElement> Input { get; }
         public object KeySelector { get; } // KeySelector<TElement, TKey> - store as object or serialized form
-        public Type KeyType { get; }
+        public Type KeyType => typeof(TKey);
         public string SerializedKeySelectorRepresentation { get; }
 
         public KeyedTransformation(
             Transformation<TElement> input,
             object keySelector,
-            Type keyType,
             string serializedKeySelectorRepresentation)
-            : base(input.Name + ".Keyed", input.OutputType) // Name and OutputType are from input
+            : base(input.Name + ".Keyed")
         {
             Input = input;
             KeySelector = keySelector; // Store the delegate or its representation
-            KeyType = keyType;
             SerializedKeySelectorRepresentation = serializedKeySelectorRepresentation;
             // This transformation itself doesn't change data type, it's a partitioning instruction.
             // The next applied operator will be connected via a JobEdge with ShuffleMode.Hash.
@@ -309,7 +316,7 @@ namespace FlinkDotNet.Core.Api.Streaming
         public object SinkFunction { get; } // ISinkFunction<TElement>
 
         public SinkTransformation(Transformation<TElement> input, string name, object sinkFunction)
-            : base(name, input.OutputType) // OutputType is same as input, or could be typeof(void)
+            : base(name) // OutputType is same as input, or could be typeof(void)
         {
             Input = input;
             SinkFunction = sinkFunction;
