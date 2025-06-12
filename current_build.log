@@ -1,0 +1,47 @@
+MSBuild version 17.8.27+3ab07f0cf for .NET
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Debug/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Debug/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Debug/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.Connectors.Sinks.Console.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll
+  FlinkDotNet.Connectors.Sources.File.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Debug/net8.0/FlinkDotNet.Core.dll
+  FlinkDotNet.Connectors.Sources.Kafka -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.Kafka.dll
+  FlinkDotNet.Storage.FileSystem.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Debug/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll
+  FlinkDotNet.Core.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Debug/net8.0/FlinkDotNet.Core.Tests.dll
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(511,9): error CS1524: Expected catch or finally [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(514,6): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,30): error CS1026: ) expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,30): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,32): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,32): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(224,9): error CS1524: Expected catch or finally [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(227,6): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,34): error CS1026: ) expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,34): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,36): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,36): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+  FlinkDotNet.Common.Constants.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Debug/net8.0/FlinkDotNet.Common.Constants.Tests.dll
+
+Build FAILED.
+
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(511,9): error CS1524: Expected catch or finally [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(514,6): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,30): error CS1026: ) expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,30): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,32): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/BackPressure/TaskManagerOrchestrator.cs(515,32): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(224,9): error CS1524: Expected catch or finally [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(227,6): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,34): error CS1026: ) expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,34): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,36): error CS1002: ; expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs(228,36): error CS1513: } expected [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj]
+    0 Warning(s)
+    12 Error(s)
+
+Time Elapsed 00:00:02.04

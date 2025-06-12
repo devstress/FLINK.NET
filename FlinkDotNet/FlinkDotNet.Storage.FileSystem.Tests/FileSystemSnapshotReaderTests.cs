@@ -14,11 +14,42 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
         }
 
         public void Dispose()
+
+
         {
-            if (Directory.Exists(_testDirectory))
+
+
+            Dispose(true);
+
+
+            GC.SuppressFinalize(this);
+
+
+        }
+
+
+
+        protected virtual void Dispose(bool disposing)
+
+
+        {
+
+
+            if (disposing)
+
+
+            {
+
+
+                if (Directory.Exists(_testDirectory))
             {
                 Directory.Delete(_testDirectory, recursive: true);
+
+
             }
+
+
+        }
         }
 
         private async Task<string> CreateTestSnapshot()

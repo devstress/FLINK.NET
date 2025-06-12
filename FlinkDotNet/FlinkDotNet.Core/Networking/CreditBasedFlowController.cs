@@ -257,11 +257,16 @@ namespace FlinkDotNet.Core.Networking
 
         public void Dispose()
         {
-            if (!_disposed)
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
             {
                 _monitoringTimer?.Dispose();
                 _disposed = true;
-                GC.SuppressFinalize(this);
             }
         }
     }

@@ -190,11 +190,16 @@ namespace FlinkDotNet.Core.Windowing
 
         public void Dispose()
         {
-            if (!_disposed)
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
             {
                 _timer?.Dispose();
                 _disposed = true;
-                GC.SuppressFinalize(this);
             }
         }
     }

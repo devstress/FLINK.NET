@@ -21,13 +21,44 @@ namespace FlinkDotNet.Connectors.Sources.File.Tests
         }
 
         public void Dispose()
+
+
         {
-            System.Console.SetOut(_originalOut);
+
+
+            Dispose(true);
+
+
+            GC.SuppressFinalize(this);
+
+
+        }
+
+
+
+        protected virtual void Dispose(bool disposing)
+
+
+        {
+
+
+            if (disposing)
+
+
+            {
+
+
+                System.Console.SetOut(_originalOut);
             _stringWriter.Dispose();
             if (Directory.Exists(_testDirectory))
             {
                 Directory.Delete(_testDirectory, recursive: true);
+
+
             }
+
+
+        }
         }
 
         private string GetConsoleOutput()
