@@ -50,40 +50,11 @@ namespace FlinkDotNet.Core.Api.Streaming
         }
 
         /// <summary>
-        /// Applies a Map transformation to this DataStream.
-        /// (Example of a typical DataStream operator to show context)
+        /// Partitions the DataStream by the given expression key selector.
         /// </summary>
-        public DataStream<TOut> Map<TOut>(IMapOperator<TElement, TOut> mapper)
-        {
-            var mapTransformation = new OneInputTransformation<TElement, TOut>(
-                this.Transformation,
-                "Map",
-                mapper,
-                typeof(TOut)
-                /* outputSerializer: null for now, JobManager will pick default or registered */
-                );
-            this.Transformation.AddDownstreamTransformation(mapTransformation, ShuffleMode.Forward); // Default for map
-            return new DataStream<TOut>(this.Environment, mapTransformation);
-        }
-
-        // Add other common DataStream operations here like Filter, FlatMap, Sink, etc.
-        public void AddSink(ISinkFunction<TElement> sinkFunction, string name = "Sink")
-        {
-            if (sinkFunction == null)
-                throw new ArgumentNullException(nameof(sinkFunction));
-
-            var sinkTransformation = new SinkTransformation<TElement>(
-                this.Transformation,
-                name,
-                sinkFunction);
-
-            // Add to environment's list of transformations
-            this.Environment.AddTransformation(sinkTransformation);
-
-            // Link current transformation to this new sink transformation
-            this.Transformation.AddDownstreamTransformation(sinkTransformation, ShuffleMode.Forward);
-        }
-
+        /// <typeparam name="TKey">The type of the key.</typeparam>
+        /// <param name="keySelectorExpression">The expression to extract the key from each element.</param>
+        /// <returns>A KeyedDataStream.</returns>
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(
             Expression<Func<TElement, TKey>> keySelectorExpression)
         {
@@ -155,6 +126,12 @@ namespace FlinkDotNet.Core.Api.Streaming
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
         }
 
+        /// <summary>
+        /// Partitions the DataStream by the given key selector instance.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the key.</typeparam>
+        /// <param name="keySelectorInstance">The key selector instance.</param>
+        /// <returns>A KeyedDataStream.</returns>
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(
             IKeySelector<TElement, TKey> keySelectorInstance)
         {
@@ -176,6 +153,12 @@ namespace FlinkDotNet.Core.Api.Streaming
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
         }
 
+        /// <summary>
+        /// Partitions the DataStream by the given key selector type.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the key.</typeparam>
+        /// <param name="keySelectorType">The key selector type.</param>
+        /// <returns>A KeyedDataStream.</returns>
         public KeyedDataStream<TKey, TElement> KeyBy<TKey>(Type keySelectorType)
         {
             if (keySelectorType == null)
@@ -197,6 +180,41 @@ namespace FlinkDotNet.Core.Api.Streaming
             );
 
             return new KeyedDataStream<TKey, TElement>(this.Environment, keyedTransformation);
+        }
+
+        /// <summary>
+        /// Applies a Map transformation to this DataStream.
+        /// (Example of a typical DataStream operator to show context)
+        /// </summary>
+        public DataStream<TOut> Map<TOut>(IMapOperator<TElement, TOut> mapper)
+        {
+            var mapTransformation = new OneInputTransformation<TElement, TOut>(
+                this.Transformation,
+                "Map",
+                mapper,
+                typeof(TOut)
+                /* outputSerializer: null for now, JobManager will pick default or registered */
+                );
+            this.Transformation.AddDownstreamTransformation(mapTransformation, ShuffleMode.Forward); // Default for map
+            return new DataStream<TOut>(this.Environment, mapTransformation);
+        }
+
+        // Add other common DataStream operations here like Filter, FlatMap, Sink, etc.
+        public void AddSink(ISinkFunction<TElement> sinkFunction, string name = "Sink")
+        {
+            if (sinkFunction == null)
+                throw new ArgumentNullException(nameof(sinkFunction));
+
+            var sinkTransformation = new SinkTransformation<TElement>(
+                this.Transformation,
+                name,
+                sinkFunction);
+
+            // Add to environment's list of transformations
+            this.Environment.AddTransformation(sinkTransformation);
+
+            // Link current transformation to this new sink transformation
+            this.Transformation.AddDownstreamTransformation(sinkTransformation, ShuffleMode.Forward);
         }
 
         public DataStream<TElement> StartNewChain()

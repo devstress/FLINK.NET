@@ -45,7 +45,7 @@ namespace FlinkDotNet.Core.Api.Streaming
             return this;
         }
 
-        public WindowedStream<TElement, TKey, TWindow> Evictor(Evictor<TElement, TWindow> evictor)
+        public WindowedStream<TElement, TKey, TWindow> Evictor(IEvictor<TElement, TWindow> evictor)
         {
             if (evictor == null) throw new ArgumentNullException(nameof(evictor));
             Transformation.Evictor = evictor;

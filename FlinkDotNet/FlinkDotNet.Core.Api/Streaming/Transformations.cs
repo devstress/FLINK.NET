@@ -6,12 +6,20 @@ using FlinkDotNet.Core.Abstractions.Windowing; // For Window
 namespace FlinkDotNet.Core.Api.Windowing // Place Evictor stub here for organization
 {
     /// <summary>
-    /// Placeholder for Evictor. Evictors can remove elements from a window
+    /// Interface for Evictor. Evictors can remove elements from a window
     /// after a trigger fires but before the window function is applied.
     /// </summary>
-    public abstract class Evictor<TElement, TWindow> where TWindow : Window
+    public interface IEvictor<TElement, TWindow> where TWindow : Window
     {
-        // Example methods an evictor might have:
+        /// <summary>
+        /// Called before the window function is applied.
+        /// </summary>
+        void EvictBefore(IEnumerable<TElement> elements, int size, TWindow window);
+        
+        /// <summary>
+        /// Called after the window function is applied.
+        /// </summary>
+        void EvictAfter(IEnumerable<TElement> elements, int size, TWindow window);
     }
 }
 
@@ -25,7 +33,7 @@ namespace FlinkDotNet.Core.Api.Streaming
         public WindowAssigner<TElement, TWindow> Assigner { get; }
 
         public Trigger<TElement, TWindow>? Trigger { get; internal set; }
-        public Evictor<TElement, TWindow>? Evictor { get; internal set; }
+        public IEvictor<TElement, TWindow>? Evictor { get; internal set; }
         public Time? AllowedLateness { get; internal set; }
         // The ITypeSerializer<TWindow> from Assigner.GetWindowSerializer() will be used by the runtime.
 

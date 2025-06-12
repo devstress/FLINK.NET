@@ -19,7 +19,7 @@ namespace FlinkDotNet.TaskManager.Internal
         private readonly TKey _key;
         private readonly WindowAssigner<TElement, TWindow> _windowAssigner;
         private readonly Trigger<TElement, TWindow> _trigger;
-        private readonly Evictor<TElement, TWindow>? _evictor;
+        private readonly IEvictor<TElement, TWindow>? _evictor;
         private readonly object _userWindowFunction; // IReduceOperator<TElement> or IAggregateOperator<TElement, TAccumulator, TOutput> or IProcessWindowFunction<TElement, TOutput, TKey, TWindow>
         private readonly IRuntimeContext _runtimeContext;
         private readonly ICollector<TOutput> _outputCollector;
@@ -36,7 +36,7 @@ namespace FlinkDotNet.TaskManager.Internal
             TKey key,
             WindowAssigner<TElement, TWindow> windowAssigner,
             Trigger<TElement, TWindow> trigger,
-            Evictor<TElement, TWindow>? evictor,
+            IEvictor<TElement, TWindow>? evictor,
             object userWindowFunction,
             IRuntimeContext runtimeContext,
             ICollector<TOutput> outputCollector,
