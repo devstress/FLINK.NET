@@ -5,6 +5,11 @@ This document establishes strict quality standards that **MUST** be followed by 
 
 ## ✅ Pre-Submission Requirements (MANDATORY)
 
+### 0. Clean Build Policy (CRITICAL)
+- **ALWAYS use clean builds** - Incremental builds mask warnings due to caching
+- **NEVER trust incremental build warning counts** - they can show `0 Warning(s)` falsely
+- **Build caching hides actual warnings** - clean builds reveal true warning state
+
 ### 1. Zero Warnings Policy
 - **ALL code must build with ZERO warnings** across all solutions
 - **ALL SonarAnalyzer warnings must be resolved**
@@ -25,9 +30,12 @@ This document establishes strict quality standards that **MUST** be followed by 
 
 ## 🔧 Quality Verification Process
 
-### Step 1: Build Verification
+### Step 1: Clean Build Verification (MANDATORY)
+
+⚠️ **CRITICAL: Always use clean builds** - Incremental builds can mask warnings due to build caching!
+
 ```bash
-# Clean and build all solutions
+# MANDATORY: Clean builds to avoid caching issues
 dotnet clean FlinkDotNet/FlinkDotNet.sln
 dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal
 
@@ -39,6 +47,8 @@ dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal
 ```
 
 **Expected Result:** `0 Warning(s), 0 Error(s)` for ALL solutions
+
+⚠️ **WARNING**: Incremental builds may show `0 Warning(s)` due to caching even when warnings exist. ALWAYS clean before building to get accurate warning detection.
 
 ### Step 2: Test Execution
 ```bash
@@ -158,10 +168,16 @@ ConnectionMultiplexer.Connect("localhost:6379")
 ### Pre-Commit Checks
 Copilot agents **MUST** run these checks before any submission:
 
-1. `git status --porcelain` - Verify clean working directory
-2. Build verification commands (see Step 1 above)
+1. **CLEAN BUILD VERIFICATION** - Avoid caching issues:
+   ```bash
+   # MANDATORY clean builds - incremental builds hide warnings!
+   dotnet clean FlinkDotNet/FlinkDotNet.sln && dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal
+   dotnet clean FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln && dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln --verbosity normal
+   dotnet clean FlinkDotNetAspire/FlinkDotNetAspire.sln && dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal
+   ```
+2. `git status --porcelain` - Verify clean working directory
 3. Test execution commands (see Step 2 above)
-4. Warning count verification
+4. Warning count verification (MUST be 0 after clean builds)
 
 ### Submission Protocol
 1. ✅ **Complete all fixes** - Address every warning and test failure
@@ -189,11 +205,18 @@ A code submission is considered complete **ONLY** when:
 
 ### Quality Verification
 ```bash
-# Final verification command
+# Final verification command - CLEAN BUILDS REQUIRED
 echo "=== QUALITY GATE VERIFICATION ===" 
-echo "Building all solutions..."
+echo "WARNING: Using clean builds to avoid caching issues..."
+
+echo "Cleaning and building all solutions..."
+dotnet clean FlinkDotNet/FlinkDotNet.sln
 dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal 2>&1 | grep "Warning(s)"
+
+dotnet clean FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln --verbosity normal 2>&1 | grep "Warning(s)"  
+
+dotnet clean FlinkDotNetAspire/FlinkDotNetAspire.sln
 dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal 2>&1 | grep "Warning(s)"
 
 echo "Running all tests..."
@@ -204,6 +227,8 @@ echo "=== VERIFICATION COMPLETE ==="
 ```
 
 Expected output: `0 Warning(s)` for all builds and `Passed!` for all test runs.
+
+⚠️ **CRITICAL**: If incremental builds were used previously, they may have shown `0 Warning(s)` incorrectly due to build caching. Only clean builds provide accurate warning detection.
 
 ---
 

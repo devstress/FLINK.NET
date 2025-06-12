@@ -2,6 +2,12 @@
 
 ## 🚨 CRITICAL REQUIREMENTS - ZERO TOLERANCE
 
+### Rule #0: Clean Build Requirement (FUNDAMENTAL)
+**VIOLATION = IMMEDIATE REJECTION**
+- **ALWAYS use clean builds** - Incremental builds hide warnings due to caching
+- **NEVER trust incremental build warning counts** - they show false `0 Warning(s)`
+- **Build caching masks actual warnings** - only clean builds reveal true state
+
 ### Rule #1: Zero Warnings Policy
 **VIOLATION = IMMEDIATE REJECTION**
 - **ALL solutions MUST build with 0 warnings**
@@ -10,8 +16,12 @@
 
 Verification command:
 ```bash
+# MANDATORY: Clean build to avoid caching issues
+dotnet clean FlinkDotNet/FlinkDotNet.sln
 dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal 2>&1 | grep "Warning(s)"
 # Expected output: "0 Warning(s)"
+
+# WARNING: Incremental builds may falsely show "0 Warning(s)" due to caching!
 ```
 
 ### Rule #2: Test Success Requirement  
@@ -38,21 +48,26 @@ dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspi
 ### Pre-Submission Checklist (MANDATORY)
 Before using `report_progress`, copilot agents **MUST** complete:
 
-- [ ] ✅ Clean build all solutions: `dotnet clean && dotnet build` 
-- [ ] ✅ Verify 0 warnings in all build outputs
+- [ ] 🧹 **CLEAN BUILD FIRST**: `dotnet clean` all solutions to avoid caching
+- [ ] ✅ Clean build all solutions: `dotnet clean && dotnet build --verbosity normal` 
+- [ ] ✅ Verify 0 warnings in clean build outputs (incremental builds lie!)
 - [ ] ✅ Run all tests: `dotnet test` for all test projects
 - [ ] ✅ Confirm 100% test pass rate
 - [ ] ✅ Check git status: `git status --porcelain`
 - [ ] ✅ Verify no unwanted files staged
 
+⚠️ **CRITICAL**: Never trust incremental build warning counts - they can show `0 Warning(s)` due to caching even when warnings exist!
+
 ### Automated Quality Gates
 
-#### Gate 1: Warning Detection
+#### Gate 1: Clean Build Warning Detection
 ```bash
-# Must return 0 for ALL solutions
-WARNINGS=$(dotnet build FlinkDotNet/FlinkDotNet.sln 2>&1 | grep -o "[0-9]* Warning(s)" | grep -o "[0-9]*")
+# CRITICAL: Clean build required - incremental builds hide warnings!
+dotnet clean FlinkDotNet/FlinkDotNet.sln
+WARNINGS=$(dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal 2>&1 | grep -o "[0-9]* Warning(s)" | grep -o "[0-9]*")
 if [ "$WARNINGS" != "0" ]; then
-    echo "❌ QUALITY GATE FAILED: $WARNINGS warnings detected"
+    echo "❌ QUALITY GATE FAILED: $WARNINGS warnings detected (after clean build)"
+    echo "⚠️  Note: Incremental builds may have shown 0 warnings incorrectly due to caching"
     exit 1
 fi
 ```
@@ -67,12 +82,13 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-#### Gate 3: Build Validation
+#### Gate 3: Clean Build Validation
 ```bash
-# Must succeed for ALL solutions
+# CRITICAL: Clean build required for accurate results
+dotnet clean FlinkDotNet/FlinkDotNet.sln
 dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity quiet
 if [ $? -ne 0 ]; then
-    echo "❌ QUALITY GATE FAILED: Build errors detected"
+    echo "❌ QUALITY GATE FAILED: Build errors detected (after clean build)"
     exit 1
 fi
 ```
@@ -101,24 +117,28 @@ fi
 
 ### Step-by-Step Verification
 
-1. **Clean Environment**
+1. **Clean Environment (CRITICAL for accurate warnings)**
    ```bash
+   # MANDATORY: Clean all solutions to avoid build caching issues
    dotnet clean FlinkDotNet/FlinkDotNet.sln
    dotnet clean FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
    dotnet clean FlinkDotNetAspire/FlinkDotNetAspire.sln
    ```
+   ⚠️ **WARNING**: Skipping clean builds can result in false `0 Warning(s)` reports due to caching!
 
-2. **Build Verification** 
+2. **Build Verification (After Clean)** 
    ```bash
+   # MANDATORY: Build after clean to get accurate warning detection
    dotnet build FlinkDotNet/FlinkDotNet.sln --verbosity normal
-   dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln --verbosity normal  
+   dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln --verbosity normal
    dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal
    ```
 
-3. **Warning Inspection**
+3. **Warning Inspection (Post-Clean Build)**
    ```bash
-   # Each build MUST show: "0 Warning(s), 0 Error(s)"
+   # Each clean build MUST show: "0 Warning(s), 0 Error(s)"
    # ANY warnings = IMMEDIATE FAILURE
+   # Previous incremental builds may have shown "0 Warning(s)" incorrectly due to caching
    ```
 
 4. **Test Execution**
