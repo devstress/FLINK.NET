@@ -74,7 +74,7 @@ public class StateCoordinator : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create state backend for TaskManager {TaskManagerId}, Job {JobId}", taskManagerId, jobId);
-            throw;
+            throw new InvalidOperationException($"State backend creation failed for TaskManager {taskManagerId} in Job {jobId}", ex);
         }
     }
 

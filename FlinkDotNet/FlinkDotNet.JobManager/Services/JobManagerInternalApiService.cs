@@ -115,7 +115,9 @@ namespace FlinkDotNet.JobManager.Services
 
                     try
                     {
-                        var channelAddress = $"http://{targetTm.Address}:{targetTm.Port}";
+                        // Use HTTPS by default for security (S5332 compliance)
+                        // For development/internal networks, this could be configurable
+                        var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
                         using var channel = GrpcChannel.ForAddress(channelAddress);
                         var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                         _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10));

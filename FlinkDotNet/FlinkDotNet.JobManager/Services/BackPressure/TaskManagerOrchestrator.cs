@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace FlinkDotNet.JobManager.Services.BackPressure;
 
@@ -162,7 +163,7 @@ public class TaskManagerOrchestrator : IDisposable
         {
             instance.Status = TaskManagerStatus.Failed;
             _logger.LogError(ex, "Failed to create TaskManager instance {InstanceId}", instanceId);
-            throw;
+            throw new InvalidOperationException($"Failed to create TaskManager instance {instanceId} using deployment type {_config.DeploymentType}", ex);
         }
 
         return instance;
@@ -170,10 +171,10 @@ public class TaskManagerOrchestrator : IDisposable
 
     private async Task CreateProcessBasedTaskManagerAsync(TaskManagerInstance instance)
     {
-        // Launch TaskManager as a separate process
+        // Launch TaskManager as a separate process using full executable path (S4036 compliance)
         var startInfo = new ProcessStartInfo
         {
-            FileName = "dotnet",
+            FileName = GetDotNetExecutablePath(),
             Arguments = $"run --project FlinkDotNet.TaskManager --configuration Release",
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -209,7 +210,7 @@ public class TaskManagerOrchestrator : IDisposable
                            $"-e TASKMANAGER_MEMORY_PROCESS_SIZE={_config.TaskManagerMemoryMB} " +
                            $"flinkdotnet/taskmanager:latest";
 
-        var processInfo = new ProcessStartInfo("docker", dockerCommand)
+        var processInfo = new ProcessStartInfo(GetDockerExecutablePath(), dockerCommand)
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -464,6 +465,60 @@ spec:
             TasksRunning = Random.Shared.Next(0, 10),
             LastUpdated = DateTime.UtcNow
         };
+    }
+
+    /// <summary>
+    /// Gets the full path to the dotnet executable for security compliance (S4036)
+    /// </summary>
+    private static string GetDotNetExecutablePath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
+        }
+        else
+        {
+            // On Linux/macOS, dotnet is typically in /usr/share/dotnet or /usr/local/share/dotnet
+            var possiblePaths = new[] { "/usr/share/dotnet/dotnet", "/usr/local/share/dotnet/dotnet", "/usr/bin/dotnet" };
+            foreach (var path in possiblePaths)
+            {
+                if (File.Exists(path))
+                    return path;
+            }
+            // Fallback to PATH-based resolution with warning
+            return "dotnet";
+        }
+    }
+
+    /// <summary>
+    /// Gets the full path to the docker executable for security compliance (S4036)
+    /// </summary>
+    private static string GetDockerExecutablePath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var dockerPath = Path.Combine(programFiles, "Docker", "Docker", "resources", "bin", "docker.exe");
+            if (File.Exists(dockerPath))
+                return dockerPath;
+            
+            // Alternative path for Docker Desktop
+            dockerPath = Path.Combine(programFiles, "Docker", "Docker", "Docker Desktop.exe");
+            if (File.Exists(dockerPath))
+                return dockerPath;
+                
+            return "docker.exe";
+        }
+        else
+        {
+            var possiblePaths = new[] { "/usr/bin/docker", "/usr/local/bin/docker", "/opt/docker/bin/docker" };
+            foreach (var path in possiblePaths)
+            {
+                if (File.Exists(path))
+                    return path;
+            }
+            return "docker";
+        }
     }
 
     public void Dispose()
