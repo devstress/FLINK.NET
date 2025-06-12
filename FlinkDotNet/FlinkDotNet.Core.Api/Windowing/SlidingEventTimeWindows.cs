@@ -43,6 +43,6 @@ namespace FlinkDotNet.Core.Api.Windowing
 
         public bool IsEventTime => true;
 
-        public string ToString() => $"SlidingEventTimeWindows(size={Size.Milliseconds}ms, slide={Slide.Milliseconds}ms)";
+        public override string ToString() => $"SlidingEventTimeWindows(size={Size.Milliseconds}ms, slide={Slide.Milliseconds}ms)";
     }
 }

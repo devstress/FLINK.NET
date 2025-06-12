@@ -7,18 +7,19 @@ This document establishes strict quality standards that **MUST** be followed by 
 
 ### 0. Local/CI Warning Alignment Policy (CRITICAL - MANDATORY FIRST ACTION)
 - **When user reports warnings/errors that don't reproduce locally**:
-  - **FIRST ACTION**: Fix local configuration to ensure warnings/errors reproduce locally
-  - **NEVER ignore CI-only warnings** - this indicates configuration mismatch that must be resolved
+  - **IMMEDIATE MANDATORY ACTION**: Fix local configuration to ensure exact same warnings/errors reproduce locally BEFORE attempting any fixes
+  - **ZERO TOLERANCE for CI-only warnings** - this indicates critical configuration mismatch that MUST be resolved first
   - **MANDATORY STEPS**:
-    1. Verify SonarAnalyzer.CSharp packages are properly installed
-    2. Use same verbosity level as CI (`--verbosity normal` minimum)
-    3. Ensure clean builds (never rely on incremental builds)
-    4. Check for missing analyzer configurations or rule sets
-    5. Verify environment variables and dependencies match CI
-    6. **Run comprehensive warning detection script**: `./scripts/sonar-warning-detector.ps1`
-    7. **If warnings still don't reproduce**: Add missing analyzers/packages to match CI environment exactly
-  - **VERIFICATION**: Local `dotnet build --verbosity normal` must show same warnings as CI
-  - **COPILOT ENFORCEMENT**: When user provides specific CI warnings, Copilot MUST first ensure those warnings reproduce locally before attempting fixes
+    1. **CLEAN BUILD FIRST**: `dotnet clean` all solutions, then `dotnet build --verbosity normal --configuration Release`
+    2. **Verify SonarAnalyzer.CSharp packages** are installed in ALL projects (not just some)
+    3. **Check missing analyzers**: If CI shows warnings not visible locally, add required analyzer packages
+    4. **Match CI environment exactly**: Use same .NET version, same verbosity, same configuration flags
+    5. **Verify Directory.Build.props**: Ensure analyzer configurations are properly inherited
+    6. **Run enhanced warning detection**: Use comprehensive build commands that match CI exactly
+    7. **ABSOLUTE REQUIREMENT**: Local build output must contain EXACT same warning codes (S3776, IDE0005, CS0114, etc.) as reported in CI
+  - **VERIFICATION REQUIREMENT**: Local `dotnet build --verbosity normal --configuration Release` must show IDENTICAL warnings to CI before any fix attempts
+  - **ZERO WARNINGS BEFORE COMMIT**: NO commits allowed until local build shows 0 warnings across all solutions
+  - **COPILOT ENFORCEMENT**: Copilot agents MUST achieve 100% local/CI warning alignment as first step, then resolve ALL warnings before any commits
 
 ### 1. Clean Build Policy (CRITICAL)
 - **ALWAYS use clean builds** - Incremental builds mask warnings due to caching

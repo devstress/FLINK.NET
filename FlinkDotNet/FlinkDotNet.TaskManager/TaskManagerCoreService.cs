@@ -11,6 +11,16 @@ namespace FlinkDotNet.TaskManager
 
     public record Config(string TaskManagerId, string JobManagerGrpcAddress);
 
+    public record CheckpointAcknowledgment(
+        string JobId,
+        long CheckpointId,
+        string SnapshotHandle,
+        long SnapshotSize,
+        long Duration,
+        string JobVertexId,
+        int SubtaskIndex,
+        Dictionary<string, long> SourceOffsets);
+
     private readonly Config _config;
     private Timer? _heartbeatTimer;
     private TaskManagerRegistration.TaskManagerRegistrationClient? _client;
@@ -115,52 +125,44 @@ namespace FlinkDotNet.TaskManager
         return Task.CompletedTask;
     }
 
-    public async Task SendAcknowledgeCheckpointAsync(
-        string jobId,
-        long checkpointId,
-        string snapshotHandle,
-        long snapshotSize,
-        long duration,
-        string jobVertexId,
-        int subtaskIndex,
-        Dictionary<string, long> sourceOffsets)
+    public async Task SendAcknowledgeCheckpointAsync(CheckpointAcknowledgment acknowledgment)
     {
         if (!_registered || _client == null) // _client is _jmRegistrationClient
         {
-            Console.WriteLine($"TaskManagerCoreService: JobManager client not initialized or TM not registered. Cannot send AcknowledgeCheckpoint for CP {checkpointId}.");
+            Console.WriteLine($"TaskManagerCoreService: JobManager client not initialized or TM not registered. Cannot send AcknowledgeCheckpoint for CP {acknowledgment.CheckpointId}.");
             return;
         }
 
         var request = new AcknowledgeCheckpointRequest
         {
             JobManagerId = _jobManagerId, // The ID of the JM this TM is registered with
-            JobId = jobId,
-            CheckpointId = checkpointId,
+            JobId = acknowledgment.JobId,
+            CheckpointId = acknowledgment.CheckpointId,
             TaskManagerId = _config.TaskManagerId, // This TM's ID from _config
-            JobVertexId = jobVertexId,
-            SubtaskIndex = subtaskIndex,
-            SnapshotHandle = snapshotHandle ?? string.Empty,
-            SnapshotSize = (ulong)snapshotSize,
-            Duration = (ulong)duration
+            JobVertexId = acknowledgment.JobVertexId,
+            SubtaskIndex = acknowledgment.SubtaskIndex,
+            SnapshotHandle = acknowledgment.SnapshotHandle ?? string.Empty,
+            SnapshotSize = (ulong)acknowledgment.SnapshotSize,
+            Duration = (ulong)acknowledgment.Duration
         };
-        request.SourceOffsets.Add(sourceOffsets);
+        request.SourceOffsets.Add(acknowledgment.SourceOffsets);
 
         try
         {
-            Console.WriteLine($"TaskManagerCoreService: Sending AcknowledgeCheckpoint for Job {jobId}, CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}, Handle: {snapshotHandle}");
+            Console.WriteLine($"TaskManagerCoreService: Sending AcknowledgeCheckpoint for Job {acknowledgment.JobId}, CP {acknowledgment.CheckpointId}, Task {acknowledgment.JobVertexId}_{acknowledgment.SubtaskIndex}, Handle: {acknowledgment.SnapshotHandle}");
             var response = await _client.AcknowledgeCheckpointAsync(request); // Removed deadline for now, can be added back from config
             if (response.Success)
             {
-                Console.WriteLine($"TaskManagerCoreService: AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex} successfully sent to JobManager.");
+                Console.WriteLine($"TaskManagerCoreService: AcknowledgeCheckpoint for CP {acknowledgment.CheckpointId}, Task {acknowledgment.JobVertexId}_{acknowledgment.SubtaskIndex} successfully sent to JobManager.");
             }
             else
             {
-                Console.WriteLine($"TaskManagerCoreService: JobManager did not confirm AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}.");
+                Console.WriteLine($"TaskManagerCoreService: JobManager did not confirm AcknowledgeCheckpoint for CP {acknowledgment.CheckpointId}, Task {acknowledgment.JobVertexId}_{acknowledgment.SubtaskIndex}.");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"TaskManagerCoreService: Error sending AcknowledgeCheckpoint for CP {checkpointId}, Task {jobVertexId}_{subtaskIndex}: {ex.Message}");
+            Console.WriteLine($"TaskManagerCoreService: Error sending AcknowledgeCheckpoint for CP {acknowledgment.CheckpointId}, Task {acknowledgment.JobVertexId}_{acknowledgment.SubtaskIndex}: {ex.Message}");
         }
     }
 

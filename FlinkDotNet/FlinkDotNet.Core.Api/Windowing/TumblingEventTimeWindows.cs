@@ -75,6 +75,6 @@ namespace FlinkDotNet.Core.Api.Windowing
 
         public bool IsEventTime => true;
 
-        public string ToString() => $"TumblingEventTimeWindows({Size.Milliseconds}ms, {Offset.Milliseconds}ms)";
+        public override string ToString() => $"TumblingEventTimeWindows({Size.Milliseconds}ms, {Offset.Milliseconds}ms)";
     }
 }

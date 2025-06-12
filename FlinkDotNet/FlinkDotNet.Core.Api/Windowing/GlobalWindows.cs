@@ -59,6 +59,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         // For now, let's default to false, meaning it doesn't inherently impose event time.
         public bool IsEventTime => false;
 
-        public string ToString() => "GlobalWindows";
+        private const string WindowName = "GlobalWindows";
+        public override string ToString() => WindowName;
     }
 }
