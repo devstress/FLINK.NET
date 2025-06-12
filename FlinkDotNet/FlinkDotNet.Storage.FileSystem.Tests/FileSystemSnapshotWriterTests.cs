@@ -23,9 +23,8 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
             {
                 try
                 {
-                    // Force garbage collection to close any lingering file handles
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
+                    // Wait briefly to allow file handles to be released
+                    await Task.Delay(10);
                     
                     Directory.Delete(_testDirectory, recursive: true);
                 }

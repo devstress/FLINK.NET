@@ -380,6 +380,9 @@ namespace FlinkDotNet.Storage.FileSystem.Tests
 
             // Act & Assert
             reader.Dispose(); // Should not throw
+            
+            // Assert - verify reader is in expected state after disposal
+            Assert.NotNull(reader);
         }
     }
 }

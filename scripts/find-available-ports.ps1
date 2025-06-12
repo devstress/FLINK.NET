@@ -139,6 +139,12 @@ if ($OutputFormat -eq "json") {
     Write-Host "DOTNET_REDIS_URL=localhost:$redisPort"
     Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:$kafkaPort"
     
+    # Set environment variables for the current PowerShell session
+    $env:DOTNET_REDIS_PORT = $redisPort.ToString()
+    $env:DOTNET_KAFKA_PORT = $kafkaPort.ToString()
+    $env:DOTNET_REDIS_URL = "localhost:$redisPort"
+    $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS = "localhost:$kafkaPort"
+    
     # Also output to GitHub Actions if running in CI
     if ($env:GITHUB_ENV) {
         Write-Host ""

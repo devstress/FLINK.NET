@@ -207,11 +207,11 @@ namespace FlinkDotNet.Storage.RocksDB
                 {
                     MemoryUsage = long.TryParse(memoryUsage, out var mem) ? mem : 0,
                     DiskUsage = diskUsage,
-                    AverageWriteLatencyMs = GetWriteLatency(),
-                    AverageReadLatencyMs = GetReadLatency(),
-                    WritesPerSecond = GetWritesPerSecond(),
-                    ReadsPerSecond = GetReadsPerSecond(),
-                    CpuUsagePercent = GetCpuUsage()
+                    AverageWriteLatencyMs = DefaultWriteLatencyMs,
+                    AverageReadLatencyMs = DefaultReadLatencyMs,
+                    WritesPerSecond = DefaultWritesPerSecond,
+                    ReadsPerSecond = DefaultReadsPerSecond,
+                    CpuUsagePercent = DefaultCpuUsagePercent
                 };
             }
             catch (Exception ex)
@@ -261,35 +261,12 @@ namespace FlinkDotNet.Storage.RocksDB
             }
         }
 
-        private static double GetWriteLatency()
-        {
-            // Simplified - in production would use RocksDB statistics
-            return 1.0; // ms
-        }
-
-        private static double GetReadLatency()
-        {
-            // Simplified - in production would use RocksDB statistics  
-            return 0.5; // ms
-        }
-
-        private static long GetWritesPerSecond()
-        {
-            // Simplified - in production would calculate from RocksDB counters
-            return 1000;
-        }
-
-        private static long GetReadsPerSecond()
-        {
-            // Simplified - in production would calculate from RocksDB counters
-            return 2000;
-        }
-
-        private static double GetCpuUsage()
-        {
-            // Simplified - in production would use system metrics
-            return 25.0; // 25% CPU usage
-        }
+        // Statistics constants - in production these would be calculated from RocksDB statistics
+        private const double DefaultWriteLatencyMs = 1.0;
+        private const double DefaultReadLatencyMs = 0.5;
+        private const long DefaultWritesPerSecond = 1000;
+        private const long DefaultReadsPerSecond = 2000;
+        private const double DefaultCpuUsagePercent = 25.0;
 
         protected virtual void Dispose(bool disposing)
         {

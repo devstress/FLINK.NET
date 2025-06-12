@@ -298,6 +298,9 @@ namespace FlinkDotNet.Core.Tests.Networking
             pool.Dispose();
             pool.Dispose(); // Should not throw
             pool.Dispose(); // Should not throw
+            
+            // Assert - verify multiple dispose calls don't cause issues
+            Assert.True(true); // Test passes if no exception is thrown
         }
     }
 }

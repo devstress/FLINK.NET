@@ -119,8 +119,9 @@ try {
     Write-Host "Discovering available ports for Redis and Kafka services..." -ForegroundColor White
     
     & ./scripts/find-available-ports.ps1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Port discovery failed with exit code $LASTEXITCODE"
+    # Check if port discovery was successful by verifying environment variables are set
+    if (-not $env:DOTNET_REDIS_URL -or -not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
+        throw "Port discovery failed - required environment variables not set"
     }
     
     Write-Host "Port discovery results:" -ForegroundColor Gray
