@@ -21,6 +21,7 @@
   - Incremental builds masking warnings (always use clean builds)
   - Missing analyzer rule sets or configurations
   - Environment-specific path or dependency issues
+  - **BEFORE COMMIT**: Run clean builds for all solutions and verify the same warnings appear locally as in CI. If warnings differ, fix your local setup first.
 
 ### Rule #1: Clean Build Requirement (FUNDAMENTAL)
 **VIOLATION = IMMEDIATE REJECTION**
@@ -70,6 +71,8 @@ dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal 2>&1 | g
   - FlinkDotNetAspire.IntegrationTests must execute with 100% pass rate
 - **ALL stress tests MUST pass**:
   - Local stress test verification MUST match CI workflow exactly
+  - Keep `scripts/run-local-stress-tests.ps1` in sync with `.github/workflows/stress-tests.yml`
+  - Verify alignment with `./scripts/test-local-stress-workflow-alignment.ps1`
   - Performance criteria must be met
 - **NO test failures are acceptable** in any category
 - **NO build errors in test projects** - All test projects must compile successfully

@@ -60,14 +60,6 @@ jobs:
           New-Item -Path .\.sonar\scanner -ItemType Directory
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
 
-      # Download coverage data from unit tests workflow if available
-      - name: Download Coverage Data
-        if: github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        with:
-          name: sonarcloud-coverage-data
-          path: ./CoverageData
-        continue-on-error: true
 
       # Install .NET Aspire workload first
       - name: Install .NET Aspire Workload
@@ -81,6 +73,14 @@ jobs:
           dotnet workload restore FlinkDotNet/FlinkDotNet.sln
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+
+      - name: Download Coverage Data
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: sonarcloud-coverage-data
+          path: ./CoverageData
+        continue-on-error: true
 
       - name: Build and analyze
         env:
@@ -109,28 +109,14 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="./CoverageData/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="CoverageData/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
             $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
             $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
 
-            # List coverage data from unit tests if downloaded
-            Write-Host "Coverage data from unit tests workflow:"
-            if (Test-Path "./CoverageData") {
-              Get-ChildItem -Path "./CoverageData" -Recurse -Filter "*.xml" | ForEach-Object {
-                Write-Host "  [FROM UNIT TESTS] $($_.FullName)"
-              }
-            } else {
-              Write-Host "  No coverage data from unit tests workflow found"
-            }
-            
-            # List all coverage files for debugging
-            Write-Host "All coverage files found for SonarCloud:"
-            Get-ChildItem -Path "./CoverageData" -Recurse -Filter "*.xml" -ErrorAction SilentlyContinue | ForEach-Object {
-              Write-Host "  [UNIT TESTS] $($_.FullName)"
-            }
+            # Coverage files are generated directly in the Unit Tests workflow
 
             $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
             $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end"

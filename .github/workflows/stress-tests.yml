@@ -189,19 +189,7 @@ jobs:
           Write-Host "Checking for Redis/Kafka container processes..."
           docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | Write-Host
           
-          Write-Host "`nTesting basic connectivity to discovered ports..."
-          $redisPort = ($env:DOTNET_REDIS_URL -split ':')[1]
-          $kafkaPort = ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS -split ':')[1]
-          
-          if ($redisPort) {
-            $redisReachable = Test-NetConnection -ComputerName "localhost" -Port $redisPort -InformationLevel Quiet -WarningAction SilentlyContinue
-            Write-Host "Redis port $redisPort reachable: $redisReachable"
-          }
-          
-          if ($kafkaPort) {
-            $kafkaReachable = Test-NetConnection -ComputerName "localhost" -Port $kafkaPort -InformationLevel Quiet -WarningAction SilentlyContinue  
-            Write-Host "Kafka port $kafkaPort reachable: $kafkaReachable"
-          }
+          # Connectivity checks removed - Redis/Kafka are only reachable inside Aspire network
 
 
       # The AppHost binds Redis and Kafka to dynamically discovered ports.
