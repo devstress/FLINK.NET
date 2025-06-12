@@ -247,7 +247,7 @@ public class TaskManagerOrchestrator : IDisposable
         
         // Apply the pod manifest using kubectl
         var kubectlCommand = $"apply -f - -n {namespaceName}";
-        var processInfo = new ProcessStartInfo("kubectl", kubectlCommand)
+        var processInfo = new ProcessStartInfo(GetKubectlExecutablePath(), kubectlCommand)
         {
             UseShellExecute = false,
             RedirectStandardInput = true,
@@ -369,7 +369,7 @@ spec:
         if (instance.DeploymentInfo?.StartsWith("Container:") == true)
         {
             var containerId = instance.DeploymentInfo.Substring("Container:".Length);
-            var processInfo = new ProcessStartInfo("docker", $"stop {containerId}")
+            var processInfo = new ProcessStartInfo(GetDockerExecutablePath(), $"stop {containerId}")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -393,7 +393,7 @@ spec:
             var podName = parts[0];
             var namespaceName = parts.Length > 1 ? parts[1] : "default";
 
-            var processInfo = new ProcessStartInfo("kubectl", $"delete pod {podName} -n {namespaceName}")
+            var processInfo = new ProcessStartInfo(GetKubectlExecutablePath(), $"delete pod {podName} -n {namespaceName}")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -490,6 +490,9 @@ spec:
         }
     }
 
+    // S1192: String literal constant to avoid repetition
+    private const string DockerFolderName = "Docker";
+    
     /// <summary>
     /// Gets the full path to the docker executable for security compliance (S4036)
     /// </summary>
@@ -498,12 +501,12 @@ spec:
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            var dockerPath = Path.Combine(programFiles, "Docker", "Docker", "resources", "bin", "docker.exe");
+            var dockerPath = Path.Combine(programFiles, DockerFolderName, DockerFolderName, "resources", "bin", "docker.exe");
             if (File.Exists(dockerPath))
                 return dockerPath;
             
             // Alternative path for Docker Desktop
-            dockerPath = Path.Combine(programFiles, "Docker", "Docker", "Docker Desktop.exe");
+            dockerPath = Path.Combine(programFiles, DockerFolderName, DockerFolderName, "Docker Desktop.exe");
             if (File.Exists(dockerPath))
                 return dockerPath;
                 
@@ -518,6 +521,36 @@ spec:
                     return path;
             }
             return "docker";
+        }
+    }
+    
+    /// <summary>
+    /// Gets the full path to the kubectl executable for security compliance (S4036)
+    /// </summary>
+    private static string GetKubectlExecutablePath()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var possiblePaths = new[] { 
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "kubectl", "kubectl.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "kubectl.exe")
+            };
+            foreach (var path in possiblePaths)
+            {
+                if (File.Exists(path))
+                    return path;
+            }
+            return "kubectl.exe";
+        }
+        else
+        {
+            var possiblePaths = new[] { "/usr/bin/kubectl", "/usr/local/bin/kubectl", "/snap/bin/kubectl" };
+            foreach (var path in possiblePaths)
+            {
+                if (File.Exists(path))
+                    return path;
+            }
+            return "kubectl";
         }
     }
 

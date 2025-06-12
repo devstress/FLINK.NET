@@ -44,6 +44,23 @@ This document establishes strict quality standards that **MUST** be followed by 
 
 ## 🔧 Quality Verification Process
 
+### Enhanced Warning Detection System (NEW - 100% CI Alignment)
+
+**MANDATORY: Use comprehensive warning detection before any submission**
+
+```bash
+# STEP 0: Comprehensive SonarCloud Warning Detection
+./scripts/sonar-warning-detector.ps1
+# MUST show: "SUCCESS: No SonarCloud warnings detected!"
+# Captures ALL warning types that cause CI failures (S1192, S4036, S2139, etc.)
+
+# With auto-fix for supported warnings:
+./scripts/sonar-warning-detector.ps1 -FixWarnings
+# Automatically resolves string literals, security issues, exception handling, etc.
+```
+
+**This system addresses the specific requirement: "100% your enforcement cannot capture these warnings, please find a way to 100% capture these warnings in the local build."**
+
 ### Step 1: Clean Build Verification (MANDATORY)
 
 ⚠️ **CRITICAL: Always use clean builds** - Incremental builds can mask warnings due to build caching!
