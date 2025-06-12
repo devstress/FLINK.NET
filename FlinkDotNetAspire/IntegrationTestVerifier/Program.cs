@@ -246,8 +246,23 @@ namespace IntegrationTestVerifier
         private static bool VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages)
         {
             Console.WriteLine($"Connecting to Kafka ({bootstrapServers})...");
-            bool kafkaVerified = true;
-            var consumerConfig = new ConsumerConfig
+            
+            var consumerConfig = CreateKafkaConsumerConfig(bootstrapServers);
+            using var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build();
+            
+            consumer.Subscribe(topic);
+            Console.WriteLine($"✓ Subscribed to Kafka topic: {topic}");
+
+            var messagesConsumed = ConsumeKafkaMessages(consumer, expectedMessages);
+            bool kafkaVerified = ValidateKafkaResults(messagesConsumed, expectedMessages, topic);
+            
+            Console.WriteLine($"Kafka verification result: {(kafkaVerified ? "✓ PASSED" : "✗ FAILED")}");
+            return kafkaVerified;
+        }
+
+        private static ConsumerConfig CreateKafkaConsumerConfig(string bootstrapServers)
+        {
+            return new ConsumerConfig
             {
                 BootstrapServers = bootstrapServers,
                 GroupId = $"flinkdotnet-integration-verifier-{Guid.NewGuid()}",
@@ -255,94 +270,101 @@ namespace IntegrationTestVerifier
                 EnableAutoCommit = false,
                 SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
             };
+        }
 
-            using (var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build())
+        private static List<string> ConsumeKafkaMessages(IConsumer<Ignore, string> consumer, int expectedMessages)
+        {
+            var messagesConsumed = new List<string>();
+            var consumeTimeout = TimeSpan.FromSeconds(30);
+            var stopwatch = Stopwatch.StartNew();
+            var lastLogTime = DateTime.UtcNow;
+
+            try
             {
-                consumer.Subscribe(topic);
-                Console.WriteLine($"✓ Subscribed to Kafka topic: {topic}");
-
-                var messagesConsumed = new List<string>();
-                var consumeTimeout = TimeSpan.FromSeconds(30); // Increased timeout for large message volumes
-                var stopwatch = Stopwatch.StartNew();
-                var lastLogTime = DateTime.UtcNow;
-
-                try
+                Console.WriteLine($"Starting to consume messages (timeout: {consumeTimeout.TotalSeconds}s)...");
+                while (stopwatch.Elapsed < consumeTimeout && messagesConsumed.Count < expectedMessages)
                 {
-                    Console.WriteLine($"Starting to consume messages (timeout: {consumeTimeout.TotalSeconds}s)...");
-                    while (stopwatch.Elapsed < consumeTimeout && messagesConsumed.Count < expectedMessages)
+                    var consumeResult = consumer.Consume(TimeSpan.FromSeconds(5));
+                    if (consumeResult == null || consumeResult.IsPartitionEOF)
                     {
-                        var consumeResult = consumer.Consume(TimeSpan.FromSeconds(5));
-                        if (consumeResult == null || consumeResult.IsPartitionEOF)
-                        {
-                            var now = DateTime.UtcNow;
-                            if ((now - lastLogTime).TotalSeconds >= 5) // Log every 5 seconds
-                            {
-                                Console.WriteLine($"Waiting for messages... Current count: {messagesConsumed.Count:N0}/{expectedMessages:N0} ({messagesConsumed.Count * 100.0 / expectedMessages:F1}%). Elapsed: {stopwatch.Elapsed.TotalSeconds:F1}s");
-                                lastLogTime = now;
-                            }
-                            
-                            if (messagesConsumed.Count < expectedMessages && stopwatch.Elapsed >= consumeTimeout) {
-                                Console.WriteLine($"✗ TIMEOUT: Expected {expectedMessages:N0}, got {messagesConsumed.Count:N0} messages.");
-                                kafkaVerified = false;
-                                break;
-                            }
-                            if (messagesConsumed.Count >= expectedMessages)
-                            {
-                                Console.WriteLine($"✓ Received expected number of messages: {messagesConsumed.Count:N0}");
-                                break;
-                            }
-                            continue;
-                        }
-                        messagesConsumed.Add(consumeResult.Message.Value);
-                        
-                        // Log progress for large numbers
-                        if (messagesConsumed.Count % Math.Max(1, expectedMessages / 10) == 0)
-                        {
-                            Console.WriteLine($"Progress: {messagesConsumed.Count:N0}/{expectedMessages:N0} messages ({messagesConsumed.Count * 100.0 / expectedMessages:F1}%)");
-                        }
+                        HandleNoMessage(messagesConsumed, expectedMessages, stopwatch, ref lastLogTime, consumeTimeout);
+                        if (messagesConsumed.Count >= expectedMessages) break;
+                        continue;
                     }
+                    
+                    messagesConsumed.Add(consumeResult.Message.Value);
+                    LogConsumeProgress(messagesConsumed.Count, expectedMessages);
                 }
-                catch (ConsumeException e)
-                {
-                    Console.WriteLine($"✗ Kafka consume error: {e.Error.Reason}");
-                    Console.WriteLine($"  Error code: {e.Error.Code}");
-                    kafkaVerified = false;
-                }
-                finally
-                {
-                    consumer.Close(); // Close before dispose for graceful shutdown
-                }
+            }
+            catch (ConsumeException e)
+            {
+                Console.WriteLine($"✗ Kafka consume error: {e.Error.Reason}");
+                Console.WriteLine($"  Error code: {e.Error.Code}");
+            }
+            finally
+            {
+                consumer.Close();
+            }
 
-                stopwatch.Stop();
-                Console.WriteLine($"Kafka consumption completed in {stopwatch.Elapsed.TotalSeconds:F1}s");
-                Console.WriteLine($"Total messages received: {messagesConsumed.Count:N0}");
+            stopwatch.Stop();
+            Console.WriteLine($"Kafka consumption completed in {stopwatch.Elapsed.TotalSeconds:F1}s");
+            Console.WriteLine($"Total messages received: {messagesConsumed.Count:N0}");
+            
+            return messagesConsumed;
+        }
+
+        private static void HandleNoMessage(List<string> messagesConsumed, int expectedMessages, 
+            Stopwatch stopwatch, ref DateTime lastLogTime, TimeSpan consumeTimeout)
+        {
+            var now = DateTime.UtcNow;
+            if ((now - lastLogTime).TotalSeconds >= 5)
+            {
+                Console.WriteLine($"Waiting for messages... Current count: {messagesConsumed.Count:N0}/{expectedMessages:N0} ({messagesConsumed.Count * 100.0 / expectedMessages:F1}%). Elapsed: {stopwatch.Elapsed.TotalSeconds:F1}s");
+                lastLogTime = now;
+            }
+            
+            if (messagesConsumed.Count < expectedMessages && stopwatch.Elapsed >= consumeTimeout)
+            {
+                Console.WriteLine($"✗ TIMEOUT: Expected {expectedMessages:N0}, got {messagesConsumed.Count:N0} messages.");
+            }
+        }
+
+        private static void LogConsumeProgress(int currentCount, int expectedMessages)
+        {
+            if (currentCount % Math.Max(1, expectedMessages / 10) == 0)
+            {
+                Console.WriteLine($"Progress: {currentCount:N0}/{expectedMessages:N0} messages ({currentCount * 100.0 / expectedMessages:F1}%)");
+            }
+        }
+
+        private static bool ValidateKafkaResults(List<string> messagesConsumed, int expectedMessages, string topic)
+        {
+            bool kafkaVerified = true;
+            
+            if (messagesConsumed.Count < expectedMessages)
+            {
+                Console.WriteLine($"✗ ERROR: Expected at least {expectedMessages:N0} messages from Kafka topic '{topic}', but only received {messagesConsumed.Count:N0}.");
+                Console.WriteLine($"  Shortfall: {expectedMessages - messagesConsumed.Count:N0} messages ({(expectedMessages - messagesConsumed.Count) * 100.0 / expectedMessages:F1}%)");
+                kafkaVerified = false;
+            }
+            else
+            {
+                Console.WriteLine($"✓ SUCCESS: Received {messagesConsumed.Count:N0} messages from Kafka topic '{topic}'.");
                 
-                if (messagesConsumed.Count < expectedMessages)
+                Console.WriteLine("Verifying message ordering...");
+                bool fifoOrderingPassed = VerifyFIFOOrdering(messagesConsumed);
+                if (fifoOrderingPassed)
                 {
-                    Console.WriteLine($"✗ ERROR: Expected at least {expectedMessages:N0} messages from Kafka topic '{topic}', but only received {messagesConsumed.Count:N0}.");
-                    Console.WriteLine($"  Shortfall: {expectedMessages - messagesConsumed.Count:N0} messages ({(expectedMessages - messagesConsumed.Count) * 100.0 / expectedMessages:F1}%)");
-                    kafkaVerified = false;
+                    Console.WriteLine("✓ FIFO ordering verification PASSED");
+                    PrintTopAndBottomMessages(messagesConsumed, 10);
                 }
                 else
                 {
-                    Console.WriteLine($"✓ SUCCESS: Received {messagesConsumed.Count:N0} messages from Kafka topic '{topic}'.");
-                    
-                    // Check FIFO ordering and print top 10 and bottom 10 messages
-                    Console.WriteLine("Verifying message ordering...");
-                    bool fifoOrderingPassed = VerifyFIFOOrdering(messagesConsumed);
-                    if (fifoOrderingPassed)
-                    {
-                        Console.WriteLine("✓ FIFO ordering verification PASSED");
-                        PrintTopAndBottomMessages(messagesConsumed, 10);
-                    }
-                    else
-                    {
-                        Console.WriteLine("✗ FIFO ordering verification FAILED");  
-                        kafkaVerified = false;
-                    }
+                    Console.WriteLine("✗ FIFO ordering verification FAILED");  
+                    kafkaVerified = false;
                 }
             }
-            Console.WriteLine($"Kafka verification result: {(kafkaVerified ? "✓ PASSED" : "✗ FAILED")}");
+            
             return kafkaVerified;
         }
 

@@ -12,6 +12,8 @@ using FlinkDotNet.Core.Abstractions.Storage; // For IStateSnapshotStore
 using FlinkDotNet.Core.Abstractions.Windowing; // For Watermark
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using FlinkDotNet.JobManager.Models.JobGraph;
 using FlinkDotNet.Common.Constants;
 
@@ -53,30 +55,25 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
 {
     private readonly long _numberOfMessagesToGenerate;
     private readonly ITypeSerializer<string> _serializer;
+    private readonly IDatabase _redisDb;
     private volatile bool _isRunning = true;
     private string _taskName = nameof(HighVolumeSourceFunction);
 
-    private ConnectionMultiplexer? _redisConnection;
-    private IDatabase? _redisDb;
     private readonly string _globalSequenceRedisKey;
-
-    private static readonly IConfiguration Configuration = new ConfigurationBuilder()
-        .AddEnvironmentVariables()
-        .Build();
 
     // --- Checkpoint Barrier Injection Fields ---
     private long _messagesSentSinceLastBarrier = 0;
     private const long MessagesPerBarrier = 1000; // Inject a barrier every 1000 messages for testing
     private static long _nextCheckpointId = 1; // Static to ensure unique IDs across potential re-instantiations in some test scenarios (though for a single run, instance field is fine)
 
-
-    public HighVolumeSourceFunction(long numberOfMessagesToGenerate, ITypeSerializer<string> serializer)
+    public HighVolumeSourceFunction(long numberOfMessagesToGenerate, ITypeSerializer<string> serializer, IDatabase redisDatabase, IConfiguration configuration)
     {
         _numberOfMessagesToGenerate = numberOfMessagesToGenerate;
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        _redisDb = redisDatabase ?? throw new ArgumentNullException(nameof(redisDatabase));
         if (numberOfMessagesToGenerate <= 0) throw new ArgumentOutOfRangeException(nameof(numberOfMessagesToGenerate), "Number of messages must be positive.");
 
-        _globalSequenceRedisKey = Configuration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
+        _globalSequenceRedisKey = configuration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
         Console.WriteLine($"[HighVolumeSourceFunction] Configured to use global sequence Redis key: '{_globalSequenceRedisKey}'");
     }
 
@@ -85,31 +82,8 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         _taskName = context.TaskName;
         Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
 
-        string? redisConnectionString = Configuration?["ConnectionStrings__redis"];
-        
-        // If Aspire connection string not found, try the alternative format used by IntegrationTestVerifier
-        if (string.IsNullOrEmpty(redisConnectionString))
-        {
-            redisConnectionString = Configuration?["DOTNET_REDIS_URL"];
-        }
-        
-        if (string.IsNullOrEmpty(redisConnectionString))
-        {
-            Console.WriteLine($"[{_taskName}] ERROR: Redis connection string not found in 'ConnectionStrings__redis' or 'DOTNET_REDIS_URL' environment variables for source.");
-            redisConnectionString = ServiceUris.RedisConnectionString;
-            Console.WriteLine($"[{_taskName}] Using default Redis connection string for source: {redisConnectionString}");
-        }
-        else
-        {
-            Console.WriteLine($"[{_taskName}] Source found Redis connection string from environment.");
-        }
-
         try
         {
-            _redisConnection = ConnectionMultiplexer.Connect(redisConnectionString);
-            _redisDb = _redisConnection.GetDatabase();
-            Console.WriteLine($"[{_taskName}] Source successfully connected to Redis for sequence generation.");
-
             _redisDb.StringSet(_globalSequenceRedisKey, "0");
             Console.WriteLine($"[{_taskName}] Global sequence Redis key '{_globalSequenceRedisKey}' initialized to 0.");
         }
@@ -147,7 +121,7 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
     {
         // Generate message with both id and redis_ordered_id fields as requested
         string message = $"{{\"id\":{emittedCount},\"redis_ordered_id\":{currentSequenceId},\"payload\":\"MessagePayload_Seq-{currentSequenceId}\"}}";
-        ctx.Collect(message);
+        await ctx.CollectAsync(message);
         _messagesSentSinceLastBarrier++;
 
         if (emittedCount % 100000 == 0)
@@ -159,12 +133,6 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
 
 public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancellationToken = default)
     {
-        if (_redisDb == null)
-        {
-            Console.WriteLine($"[{_taskName}] ERROR: Redis database not available in Run(). Source cannot generate sequences.");
-            return;
-        }
-
         Console.WriteLine($"[{_taskName}] Starting to emit {_numberOfMessagesToGenerate} messages with Redis-generated sequence IDs and barrier injection every {MessagesPerBarrier} messages...");
         long emittedCount = 0;
         for (long i = 0; i < _numberOfMessagesToGenerate; i++)
@@ -202,7 +170,7 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             long finalTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string finalBarrierMessage = $"BARRIER_{finalCheckpointId}_{finalTimestamp}_FINAL";
             Console.WriteLine($"[{_taskName}] Injecting Final Barrier: {finalBarrierMessage}");
-            ctx.Collect(finalBarrierMessage);
+            await ctx.CollectAsync(finalBarrierMessage);
         }
 
         Console.WriteLine($"[{_taskName}] Finished emitting. Total data messages emitted: {emittedCount}. Last global sequence ID used (approx): {_redisDb.StringGet(_globalSequenceRedisKey)}");
@@ -217,9 +185,7 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
     public void Close()
     {
         Console.WriteLine($"[{_taskName}] Closing HighVolumeSourceFunction.");
-        _redisConnection?.Close();
-        _redisConnection?.Dispose();
-        Console.WriteLine($"[{_taskName}] Source Redis connection closed.");
+        Console.WriteLine($"[{_taskName}] Source Redis database reference released.");
     }
 
     public ITypeSerializer<string> Serializer => _serializer;
@@ -431,6 +397,22 @@ public static class Program
     {
         Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
 
+        // Set up host builder with dependency injection
+        var builder = Host.CreateApplicationBuilder(args);
+        
+        // Add Redis client using Aspire pattern
+        builder.AddRedisClient("redis");
+        
+        // Register configuration and other services
+        builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
+        
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        // Get Redis database from DI container
+        var redisDatabase = host.Services.GetRequiredService<IDatabase>();
+        var configuration = host.Services.GetRequiredService<IConfiguration>();
+
         // --- Configuration ---
         long numMessages = 10000; // Default, can be overridden by env var set in AppHost
         string? envNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES");
@@ -450,8 +432,8 @@ public static class Program
         var jobManagerGrpcUrl = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
         if (string.IsNullOrEmpty(jobManagerGrpcUrl))
         {
-            var builder = new UriBuilder("http", ServiceHosts.Localhost, ServicePorts.JobManagerGrpc);
-            jobManagerGrpcUrl = builder.Uri.ToString();
+            var uriBuilder = new UriBuilder("http", ServiceHosts.Localhost, ServicePorts.JobManagerGrpc);
+            jobManagerGrpcUrl = uriBuilder.Uri.ToString();
             Console.WriteLine($"JobManager gRPC URL not found in environment variables. Using default: {jobManagerGrpcUrl}");
         }
         else
@@ -465,15 +447,15 @@ public static class Program
             var env = StreamExecutionEnvironment.GetExecutionEnvironment();
             env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 
-            // --- 2. Define the job ---
-            var source = new HighVolumeSourceFunction(numMessages, new StringSerializer());
+            // --- 2. Define the job with dependency-injected Redis ---
+            var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
             DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
 
             var mapOperator = new SimpleToUpperMapOperator();
             DataStream<string> mappedStream = stream.Map(mapOperator);
 
             // Fork the mapped stream to two sinks:
-            mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisSinkCounterKey), "redis-processed-counter-sink");
+            mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisDatabase, redisSinkCounterKey), "redis-processed-counter-sink");
             mappedStream.AddSink(new FlinkJobSimulator.KafkaSinkFunction<string>(kafkaTopic), "kafka-output-sink");
 
             // --- 3. Build the JobGraph ---
@@ -522,8 +504,6 @@ public static class Program
 
         Console.WriteLine("Flink Job Simulator finished executing the job.");
         Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
-
-        // Dashboard auto-launch removed - Aspire project should handle dashboard launch automatically
 
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         

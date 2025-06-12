@@ -13,8 +13,7 @@ public class AspireIntegrationTests
     public void AspireAppHost_Assembly_Can_Be_Loaded()
     {
         // This test verifies that the AppHost assembly can be loaded successfully
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         
         Assert.NotNull(appHostAssembly);
         Assert.Contains("FlinkDotNetAspire.AppHost.AppHost", appHostAssembly.FullName);
@@ -24,10 +23,9 @@ public class AspireIntegrationTests
     public void AppHost_Assembly_Contains_Program_Type()
     {
         // Load the AppHost assembly and verify it contains a Program type
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         
-        var programType = appHostAssembly.GetType("Program");
+        var programType = appHostAssembly.GetType("FlinkDotNetAspire.AppHost.AppHost.Program");
         Assert.NotNull(programType);
         Assert.True(programType.IsPublic);
     }
@@ -36,10 +34,9 @@ public class AspireIntegrationTests
     public void AppHost_Program_Has_Main_Method()
     {
         // Verify the Main method exists and is correctly defined for an Aspire host
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         
-        var programType = appHostAssembly.GetType("Program");
+        var programType = appHostAssembly.GetType("FlinkDotNetAspire.AppHost.AppHost.Program");
         Assert.NotNull(programType);
         
         var mainMethod = programType.GetMethod("Main");
@@ -54,13 +51,11 @@ public class AspireIntegrationTests
         // This test ensures the project references are working correctly
         // by verifying we can access types from the AppHost project
         
-        var appHostAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FlinkDotNetAspire.AppHost.AppHost.dll"));
+        var appHostAssembly = System.Reflection.Assembly.Load("FlinkDotNetAspire.AppHost.AppHost");
         Assert.NotNull(appHostAssembly);
         
         // Also verify Aspire framework assemblies are available
-        var aspireHostingAssembly = System.Reflection.Assembly.LoadFrom(
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Aspire.Hosting.dll"));
+        var aspireHostingAssembly = System.Reflection.Assembly.Load("Aspire.Hosting");
         Assert.NotNull(aspireHostingAssembly);
     }
 

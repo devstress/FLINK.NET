@@ -1,7 +1,9 @@
 // Existing using statements (implicit for DistributedApplication, Projects)
 using FlinkDotNet.Common.Constants;
 
-public class Program
+namespace FlinkDotNetAspire.AppHost.AppHost;
+
+public static class Program
 {
     public static async Task Main(string[] args)
     {
