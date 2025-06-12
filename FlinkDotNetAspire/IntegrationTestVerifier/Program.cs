@@ -461,49 +461,110 @@ namespace IntegrationTestVerifier
 
         private static async Task<bool> WaitForRedisAsync(string connectionString, int maxAttempts = 2, int delaySeconds = 5)
         {
+            Console.WriteLine($"WaitForRedisAsync: connectionString='{connectionString}', maxAttempts={maxAttempts}, delaySeconds={delaySeconds}");
+            
             for (int i = 0; i < maxAttempts; i++)
             {
                 try
                 {
-                    using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
+                    Console.WriteLine($"Redis attempt {i + 1}/{maxAttempts}: Connecting to {connectionString}");
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    
+                    // Increase connection timeout for CI environments
+                    var options = ConfigurationOptions.Parse(connectionString);
+                    options.ConnectTimeout = 15000; // 15 seconds instead of default 5 seconds
+                    options.SyncTimeout = 15000;    // 15 seconds for operations
+                    options.AbortOnConnectFail = false; // Don't abort on first connection failure
+                    
+                    using var redis = await ConnectionMultiplexer.ConnectAsync(options);
+                    stopwatch.Stop();
+                    
                     if (redis.IsConnected)
                     {
+                        Console.WriteLine($"✓ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
+                        
+                        // Test basic operation
+                        var db = redis.GetDatabase();
+                        await db.PingAsync();
+                        Console.WriteLine("✓ Redis ping successful");
                         return true;
                     }
+                    else
+                    {
+                        Console.WriteLine($"✗ Redis connection established but not connected (took {stopwatch.ElapsedMilliseconds}ms)");
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // ignored
+                    Console.WriteLine($"✗ Redis connection failed: {ex.GetType().Name}: {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+                    }
                 }
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                
+                if (i < maxAttempts - 1)
+                {
+                    Console.WriteLine($"Waiting {delaySeconds} seconds before next Redis attempt...");
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                }
             }
+            
+            Console.WriteLine($"✗ Redis connection failed after {maxAttempts} attempts");
             return false;
         }
 
         private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 2, int delaySeconds = 5)
         {
+            Console.WriteLine($"WaitForKafka: bootstrapServers='{bootstrapServers}', maxAttempts={maxAttempts}, delaySeconds={delaySeconds}");
+            
             var adminConfig = new AdminClientConfig 
             { 
                 BootstrapServers = bootstrapServers,
-                SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
+                SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
+                SocketTimeoutMs = 10000, // 10 seconds timeout
+                ApiVersionRequestTimeoutMs = 10000 // 10 seconds for API version requests
             };
+            
             for (int i = 0; i < maxAttempts; i++)
             {
                 try
                 {
+                    Console.WriteLine($"Kafka attempt {i + 1}/{maxAttempts}: Connecting to {bootstrapServers}");
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    
                     using var admin = new AdminClientBuilder(adminConfig).Build();
                     var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                    stopwatch.Stop();
+                    
                     if (metadata.Topics != null)
                     {
+                        Console.WriteLine($"✓ Kafka connection successful in {stopwatch.ElapsedMilliseconds}ms");
+                        Console.WriteLine($"✓ Found {metadata.Topics.Count} topics, {metadata.Brokers.Count} brokers");
                         return true;
                     }
+                    else
+                    {
+                        Console.WriteLine($"✗ Kafka metadata retrieved but no topics found (took {stopwatch.ElapsedMilliseconds}ms)");
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // ignored
+                    Console.WriteLine($"✗ Kafka connection failed: {ex.GetType().Name}: {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+                    }
                 }
-                Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+                
+                if (i < maxAttempts - 1)
+                {
+                    Console.WriteLine($"Waiting {delaySeconds} seconds before next Kafka attempt...");
+                    Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+                }
             }
+            
+            Console.WriteLine($"✗ Kafka connection failed after {maxAttempts} attempts");
             return false;
         }
     }

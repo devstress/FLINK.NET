@@ -179,8 +179,29 @@ jobs:
           $errorJob.Id | Out-File apphost.error.job -Encoding utf8
           
           Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
-          Write-Host "AppHost started, waiting 30 seconds for initialization..."
-          Start-Sleep -Seconds 30
+          Write-Host "AppHost started, waiting 60 seconds for Redis/Kafka container initialization..."
+          
+          # Wait longer in CI for container startup - Redis can be slow to initialize
+          Start-Sleep -Seconds 60
+          
+          # Add container diagnostics
+          Write-Host "`n=== Container Diagnostics ==="
+          Write-Host "Checking for Redis/Kafka container processes..."
+          docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | Write-Host
+          
+          Write-Host "`nTesting basic connectivity to discovered ports..."
+          $redisPort = ($env:DOTNET_REDIS_URL -split ':')[1]
+          $kafkaPort = ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS -split ':')[1]
+          
+          if ($redisPort) {
+            $redisReachable = Test-NetConnection -ComputerName "localhost" -Port $redisPort -InformationLevel Quiet -WarningAction SilentlyContinue
+            Write-Host "Redis port $redisPort reachable: $redisReachable"
+          }
+          
+          if ($kafkaPort) {
+            $kafkaReachable = Test-NetConnection -ComputerName "localhost" -Port $kafkaPort -InformationLevel Quiet -WarningAction SilentlyContinue  
+            Write-Host "Kafka port $kafkaPort reachable: $kafkaReachable"
+          }
 
 
       # The AppHost binds Redis and Kafka to dynamically discovered ports.
@@ -190,21 +211,50 @@ jobs:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
         run: |
-          $maxAttempts = 2
-          $delaySeconds = 5
+          $maxAttempts = 5  # Increased from 2 to 5 for CI environment
+          $delaySeconds = 10  # Increased from 5 to 10 seconds between attempts
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
+          Write-Host "`n=== Health Check Configuration ==="
+          Write-Host "Max attempts: $maxAttempts"
+          Write-Host "Delay between attempts: $delaySeconds seconds"
+          Write-Host "Total max time: $($maxAttempts * $delaySeconds) seconds"
+          Write-Host "Environment variables:"
+          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            echo "Health check attempt $attempt/$maxAttempts..."
+            Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
+            Write-Host "Starting health check at $(Get-Date -Format 'HH:mm:ss')..."
+            
             & dotnet $verifierDll --health-check
-            if ($LASTEXITCODE -eq 0) {
-              echo "Health check PASSED."
+            $healthExitCode = $LASTEXITCODE
+            
+            if ($healthExitCode -eq 0) {
+              Write-Host "✅ Health check PASSED on attempt $attempt" -ForegroundColor Green
               break
             }
-            echo "Health check FAILED. Waiting $delaySeconds seconds before retry..."
-            Start-Sleep -Seconds $delaySeconds
-            if ($attempt -eq $maxAttempts) {
-              echo "Max health check attempts reached. Failing workflow."
+            
+            Write-Host "❌ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
+            
+            if ($attempt -lt $maxAttempts) {
+              Write-Host "Waiting $delaySeconds seconds before retry..." -ForegroundColor Yellow
+              Start-Sleep -Seconds $delaySeconds
+            } else {
+              Write-Host "❌ Max health check attempts ($maxAttempts) reached. Health checks failed." -ForegroundColor Red
+              Write-Host "`n=== Final Diagnostics ==="
+              Write-Host "AppHost process status:"
+              if (Test-Path apphost.pid) {
+                $apphostPid = Get-Content apphost.pid
+                $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
+                if ($process) {
+                  Write-Host "  AppHost PID $apphostPid is still running"
+                } else {
+                  Write-Host "  AppHost PID $apphostPid is no longer running"
+                }
+              } else {
+                Write-Host "  AppHost PID file not found"
+              }
               exit 1
             }
           }

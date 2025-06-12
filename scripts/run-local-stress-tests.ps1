@@ -204,32 +204,40 @@ try {
     $global:BackgroundJobs += $outputJob
     Write-Host "Background monitor job started: $($outputJob.Id)" -ForegroundColor Gray
     
-    Write-Host "AppHost started, waiting 30 seconds for initialization..." -ForegroundColor White
-    Start-Sleep -Seconds 30
+    Write-Host "AppHost started, waiting 45 seconds for initialization..." -ForegroundColor White
+    Start-Sleep -Seconds 45  # Increased for consistency with CI improvements
 
     # Step 5: Health Check (matches workflow)
     Write-Host "`n=== Step 5: Health Check ===" -ForegroundColor Yellow
     
-    $maxAttempts = 2
-    $delaySeconds = 5
+    $maxAttempts = 5  # Increased to match CI workflow
+    $delaySeconds = 10  # Increased to match CI workflow
     $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
     
+    Write-Host "Health Check Configuration:" -ForegroundColor Gray
+    Write-Host "  Max attempts: $maxAttempts" -ForegroundColor Gray
+    Write-Host "  Delay between attempts: $delaySeconds seconds" -ForegroundColor Gray
+    Write-Host "  Total max time: $($maxAttempts * $delaySeconds) seconds" -ForegroundColor Gray
+    
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        Write-Host "Health check attempt $attempt/$maxAttempts..." -ForegroundColor White
+        Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---" -ForegroundColor White
+        Write-Host "Starting health check at $(Get-Date -Format 'HH:mm:ss')..." -ForegroundColor White
         
         dotnet $verifierDll --health-check
         $healthExitCode = $LASTEXITCODE
         
         if ($healthExitCode -eq 0) {
-            Write-Host "✅ Health check PASSED" -ForegroundColor Green
+            Write-Host "✅ Health check PASSED on attempt $attempt" -ForegroundColor Green
             break
         }
         
-        Write-Host "❌ Health check FAILED. Waiting $delaySeconds seconds before retry..." -ForegroundColor Red
-        Start-Sleep -Seconds $delaySeconds
+        Write-Host "❌ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
         
-        if ($attempt -eq $maxAttempts) {
-            throw "Max health check attempts reached. Health checks failed."
+        if ($attempt -lt $maxAttempts) {
+            Write-Host "Waiting $delaySeconds seconds before retry..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $delaySeconds
+        } else {
+            throw "Max health check attempts ($maxAttempts) reached. Health checks failed."
         }
     }
 
