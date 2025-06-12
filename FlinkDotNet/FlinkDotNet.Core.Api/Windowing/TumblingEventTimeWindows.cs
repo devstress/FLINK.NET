@@ -26,7 +26,7 @@ namespace FlinkDotNet.Core.Api.Windowing
     }
 
 
-    public class TumblingEventTimeWindows<TElement> : WindowAssigner<TElement, TimeWindow>
+    public class TumblingEventTimeWindows<TElement> : IWindowAssigner<TElement, TimeWindow>
     {
         public Time Size { get; }
         public Time Offset { get; }
@@ -53,7 +53,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         public static TumblingEventTimeWindows<TElement> Of(Time size, Time offset) =>
             new TumblingEventTimeWindows<TElement>(size, offset);
 
-        public override ICollection<TimeWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context)
+        public ICollection<TimeWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context)
         {
             if (timestamp > long.MinValue) // Valid timestamp for event time
             {
@@ -66,15 +66,15 @@ namespace FlinkDotNet.Core.Api.Windowing
                 $"Invalid timestamp for event time processing: {timestamp}. Ensure timestamps are properly assigned.");
         }
 
-        public override Trigger<TElement, TimeWindow> GetDefaultTrigger(StreamExecutionEnvironment environment)
+        public Trigger<TElement, TimeWindow> GetDefaultTrigger(StreamExecutionEnvironment environment)
         {
             return new EventTimeTrigger<TElement, TimeWindow>();
         }
 
-        public override ITypeSerializer<TimeWindow> GetWindowSerializer() => new TimeWindowSerializer();
+        public ITypeSerializer<TimeWindow> GetWindowSerializer() => new TimeWindowSerializer();
 
-        public override bool IsEventTime => true;
+        public bool IsEventTime => true;
 
-        public override string ToString() => $"TumblingEventTimeWindows({Size.Milliseconds}ms, {Offset.Milliseconds}ms)";
+        public string ToString() => $"TumblingEventTimeWindows({Size.Milliseconds}ms, {Offset.Milliseconds}ms)";
     }
 }

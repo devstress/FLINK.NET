@@ -30,7 +30,7 @@ namespace FlinkDotNet.Core.Api.Streaming
     {
         // Input is KeyedTransformation<TKey, TElement> which itself is a Transformation<TElement>
         public Transformation<TElement> Input { get; }
-        public WindowAssigner<TElement, TWindow> Assigner { get; }
+        public IWindowAssigner<TElement, TWindow> Assigner { get; }
 
         public Trigger<TElement, TWindow>? Trigger { get; internal set; }
         public IEvictor<TElement, TWindow>? Evictor { get; internal set; }
@@ -39,7 +39,7 @@ namespace FlinkDotNet.Core.Api.Streaming
 
         public WindowedTransformation(
             Transformation<TElement> input, // Specifically, this will be a KeyedTransformation<TKey, TElement>
-            WindowAssigner<TElement, TWindow> assigner)
+            IWindowAssigner<TElement, TWindow> assigner)
             : base(input.Name + $".Window({assigner.GetType().Name})")
         {
             Input = input;

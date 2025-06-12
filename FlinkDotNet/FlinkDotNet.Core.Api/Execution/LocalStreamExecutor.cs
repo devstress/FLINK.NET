@@ -72,10 +72,10 @@ namespace FlinkDotNet.Core.Api.Execution
 
         private void InitializeDataChannels(JobGraph jobGraph)
         {
-            foreach (var edge in jobGraph.Edges)
+            foreach (var edgeId in jobGraph.Edges.Select(edge => edge.Id))
             {
-                _dataChannels[edge.Id] = new ConcurrentQueue<object>();
-                Console.WriteLine($"[LocalStreamExecutor] Initialized data channel for edge {edge.Id}");
+                _dataChannels[edgeId] = new ConcurrentQueue<object>();
+                Console.WriteLine($"[LocalStreamExecutor] Initialized data channel for edge {edgeId}");
             }
         }
 

@@ -4,7 +4,7 @@ using FlinkDotNet.Core.Abstractions.Windowing;
 
 namespace FlinkDotNet.Core.Api.Windowing
 {
-    public class SlidingEventTimeWindows<TElement> : WindowAssigner<TElement, TimeWindow>
+    public class SlidingEventTimeWindows<TElement> : IWindowAssigner<TElement, TimeWindow>
     {
         public Time Size { get; }
         public Time Slide { get; }
@@ -25,7 +25,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         public static SlidingEventTimeWindows<TElement> Of(Time size, Time slide, Time offset) =>
             new SlidingEventTimeWindows<TElement>(size, slide, offset);
 
-        public override ICollection<TimeWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context)
+        public ICollection<TimeWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context)
         {
             var windows = new List<TimeWindow>();
             long lastStart = TimeWindow.GetWindowStartWithOffset(timestamp, Offset.Milliseconds, Slide.Milliseconds);
@@ -36,13 +36,13 @@ namespace FlinkDotNet.Core.Api.Windowing
             return windows;
         }
 
-        public override Trigger<TElement, TimeWindow> GetDefaultTrigger(StreamExecutionEnvironment environment)
+        public Trigger<TElement, TimeWindow> GetDefaultTrigger(StreamExecutionEnvironment environment)
             => new EventTimeTrigger<TElement, TimeWindow>();
 
-        public override ITypeSerializer<TimeWindow> GetWindowSerializer() => new TimeWindowSerializer();
+        public ITypeSerializer<TimeWindow> GetWindowSerializer() => new TimeWindowSerializer();
 
-        public override bool IsEventTime => true;
+        public bool IsEventTime => true;
 
-        public override string ToString() => $"SlidingEventTimeWindows(size={Size.Milliseconds}ms, slide={Slide.Milliseconds}ms)";
+        public string ToString() => $"SlidingEventTimeWindows(size={Size.Milliseconds}ms, slide={Slide.Milliseconds}ms)";
     }
 }

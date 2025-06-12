@@ -140,9 +140,9 @@ namespace FlinkDotNet.Storage.RocksDB
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to initialize RocksDB state backend");
+                _logger.LogError(ex, "Failed to initialize RocksDB state backend at {DataDirectory}", dataDir);
                 Dispose();
-                throw;
+                throw new InvalidOperationException($"RocksDB initialization failed at {dataDir}", ex);
             }
         }
 
@@ -167,9 +167,9 @@ namespace FlinkDotNet.Storage.RocksDB
         public async Task CreateCheckpointAsync(long checkpointId)
         {
             await Task.CompletedTask; // Make truly async
+            var checkpointPath = Path.Combine(DataDirectory, "checkpoints", $"checkpoint-{checkpointId}");
             try
             {
-                var checkpointPath = Path.Combine(DataDirectory, "checkpoints", $"checkpoint-{checkpointId}");
                 Directory.CreateDirectory(Path.GetDirectoryName(checkpointPath)!);
                 
                 // Simple checkpoint implementation - copy database files
@@ -187,8 +187,8 @@ namespace FlinkDotNet.Storage.RocksDB
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create checkpoint {CheckpointId}", checkpointId);
-                throw;
+                _logger.LogError(ex, "Failed to create checkpoint {CheckpointId} at {CheckpointPath}", checkpointId, checkpointPath);
+                throw new InvalidOperationException($"Checkpoint creation failed for checkpoint {checkpointId}", ex);
             }
         }
 
@@ -334,8 +334,9 @@ namespace FlinkDotNet.Storage.RocksDB
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to store snapshot");
-                throw;
+                var key = $"snapshot_{jobId}_{checkpointId}_{taskManagerId}_{operatorId}";
+                _logger.LogError(ex, "Failed to store snapshot with key {Key}, size {Size} bytes", key, snapshotData.Length);
+                throw new InvalidOperationException($"Snapshot storage failed for key {key}", ex);
             }
         }
 

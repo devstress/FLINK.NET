@@ -8,7 +8,7 @@ namespace FlinkDotNet.Core.Api.Windowing
     public enum TriggerResult : byte
     {
         /// <summary>Do nothing.</summary>
-        Continue = 0, // 0000
+        None = 0, // 0000
 
         /// <summary>Fire the window function and emit results.</summary>
         Fire = 1,     // 0001

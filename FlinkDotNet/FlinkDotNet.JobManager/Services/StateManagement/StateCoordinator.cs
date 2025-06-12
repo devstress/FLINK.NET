@@ -218,7 +218,7 @@ public class StateCoordinator : IDisposable
 /// </summary>
 public class StateBackendConfig
 {
-    public string StateDir { get; set; } = "/tmp/flink-state";
+    public string StateDir { get; set; } = Path.Combine(Path.GetTempPath(), "flink-state-" + Environment.ProcessId);
     public string[]? ColumnFamilies { get; set; }
     public ulong WriteBufferSize { get; set; } = 64 * 1024 * 1024; // 64MB
     public int MaxBackgroundJobs { get; set; } = 4;

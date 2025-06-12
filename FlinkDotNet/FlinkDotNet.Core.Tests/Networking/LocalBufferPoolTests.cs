@@ -226,7 +226,7 @@ namespace FlinkDotNet.Core.Tests.Networking
 
             // Act - Start async request and cancel immediately
             var asyncTask = localPool.RequestBufferAsync(cts.Token);
-            cts.Cancel();
+            await cts.CancelAsync();
 
             // Assert
             await Assert.ThrowsAsync<TaskCanceledException>(() => asyncTask.AsTask());

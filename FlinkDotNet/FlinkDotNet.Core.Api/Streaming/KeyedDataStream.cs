@@ -54,7 +54,7 @@ namespace FlinkDotNet.Core.Api.Streaming
         /// <param name="assigner">The WindowAssigner that assigns elements to windows.</param>
         /// <returns>A new WindowedStream.</returns>
         public WindowedStream<TElement, TNewWindow> Window<TNewWindow>(
-            WindowAssigner<TElement, TNewWindow> assigner)
+            IWindowAssigner<TElement, TNewWindow> assigner)
             where TNewWindow : Window
         {
             if (assigner == null)

@@ -1,5 +1,5 @@
 using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer
-using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment (if needed by GetDefaultTrigger)
+using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment 
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window, Trigger
 
 namespace FlinkDotNet.Core.Api.Windowing
@@ -33,7 +33,7 @@ namespace FlinkDotNet.Core.Api.Windowing
     /// </summary>
     /// <typeparam name="TElement">The type of elements to which windows are assigned.</typeparam>
     /// <typeparam name="TWindow">The type of <see cref="Window"/> that this assigner assigns.</typeparam>
-    public abstract class WindowAssigner<TElement, TWindow> where TWindow : Window
+    public interface IWindowAssigner<TElement, TWindow> where TWindow : Window
     {
         /// <summary>
         /// Given an element and its timestamp, returns the set of windows to which it should be assigned.
@@ -42,24 +42,24 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// <param name="timestamp">The timestamp of the element, used for time-based windows.</param>
         /// <param name="context">The <see cref="IWindowAssignerContext"/> in which the assigner operates.</param>
         /// <returns>A collection of windows.</returns>
-        public abstract ICollection<TWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context);
+        ICollection<TWindow> AssignWindows(TElement element, long timestamp, IWindowAssignerContext context);
 
         /// <summary>
         /// Returns the default <see cref="Trigger{TElement, TWindow}"/> for this.
         /// This trigger is used if no custom trigger is specified on the <see cref="WindowedStream{TElement, TKey, TWindow}"/>.
         /// </summary>
         /// <param name="environment">The stream execution environment.</param>
-        public abstract Trigger<TElement, TWindow> GetDefaultTrigger(StreamExecutionEnvironment environment);
+        Trigger<TElement, TWindow> GetDefaultTrigger(StreamExecutionEnvironment environment);
 
         /// <summary>
         /// Returns an <see cref="ITypeSerializer{TWindow}"/> for serializing windows of type <c>TWindow</c>.
         /// This is crucial for checkpointing window state.
         /// </summary>
-        public abstract ITypeSerializer<TWindow> GetWindowSerializer();
+        ITypeSerializer<TWindow> GetWindowSerializer();
 
         /// <summary>
         /// Returns <c>true</c> if this assigner assigns windows based on event time, <c>false</c> otherwise (e.g., processing time).
         /// </summary>
-        public abstract bool IsEventTime { get; }
+        bool IsEventTime { get; }
     }
 }
