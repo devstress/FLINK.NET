@@ -1,35 +1,35 @@
-[2025-06-13 08:34:26] [INFO] 🔍 Analyzing solution: FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 08:34:26] [INFO] 🧪 Running unit tests for: FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 08:34:42] [INFO] ✅ Unit tests PASSED for FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 08:34:42] [INFO] 🧹 Performing clean build for: FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 08:34:42] [DEBUG] Cleaning solution...
-[2025-06-13 08:34:44] [DEBUG] Building with Release configuration to match CI...
-[2025-06-13 08:34:52] [WARN] ⚠️  Found 0 warnings in FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 08:34:52] [INFO] 🔍 Analyzing solution: FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 08:34:52] [INFO] 🧪 Running unit tests for: FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 08:35:13] [INFO] ✅ Unit tests PASSED for FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 08:35:13] [INFO] 🧹 Performing clean build for: FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 08:35:13] [DEBUG] Cleaning solution...
-[2025-06-13 08:35:14] [DEBUG] Building with Release configuration to match CI...
-[2025-06-13 08:35:23] [WARN] ⚠️  Found 0 warnings in FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 08:35:23] [INFO] 🔍 Analyzing solution: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 08:35:23] [INFO] 🧪 Running unit tests for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 08:35:25] [INFO] ✅ Unit tests PASSED for FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 08:35:25] [INFO] 🧹 Performing clean build for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 08:35:25] [DEBUG] Cleaning solution...
-[2025-06-13 08:35:25] [DEBUG] Building with Release configuration to match CI...
-[2025-06-13 08:35:29] [WARN] ⚠️  Found 0 warnings in FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 08:35:29] [INFO] 📊 Generating comprehensive warning report...
-[2025-06-13 08:35:29] [ERROR] 🔥 TOTAL WARNINGS DETECTED: 0
-[2025-06-13 08:35:29] [INFO] 🤖 Auto-fixable warnings: 0
-[2025-06-13 08:35:29] [ERROR] 🚨 Critical warnings: 0
-[2025-06-13 08:35:29] [INFO] 📋 Warning breakdown by rule:
-[2025-06-13 08:35:29] [INFO] 🛠️  ACTIONABLE FIX SUGGESTIONS:
-[2025-06-13 08:35:29] [INFO] 🔧 Auto-fix disabled. Use -FixWarnings to apply automatic fixes.
-[2025-06-13 08:35:29] [INFO] 🔄 Testing local warning detection vs CI workflow alignment...
-[2025-06-13 08:35:29] [INFO] ✅ Local detection patterns match CI workflow requirements
-[2025-06-13 08:35:29] [INFO] 🎯 Warning detection system is aligned with CI environment
-[2025-06-13 08:35:29] [INFO] 📝 Updating enforcement rules based on detected warnings...
-[2025-06-13 08:35:29] [INFO] ✅ No warnings detected - enforcement rules are accurate
-[2025-06-13 08:35:29] [INFO] 🎉 SUCCESS: No SonarCloud warnings detected and all unit tests passed!
-[2025-06-13 08:35:29] [INFO] ✅ Local environment fully aligned with CI requirements
+[2025-06-13 08:52:40] [INFO] 🔍 Analyzing solution: FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 08:52:40] [INFO] 🧪 Running unit tests for: FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 08:52:53] [INFO] ✅ Unit tests PASSED for FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 08:52:53] [INFO] 🧹 Performing clean build for: FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 08:52:53] [DEBUG] Cleaning solution...
+[2025-06-13 08:52:54] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 08:53:03] [WARN] ⚠️  Found 0 warnings in FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 08:53:03] [INFO] 🔍 Analyzing solution: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 08:53:03] [INFO] 🧪 Running unit tests for: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 08:53:24] [INFO] ✅ Unit tests PASSED for FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 08:53:24] [INFO] 🧹 Performing clean build for: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 08:53:24] [DEBUG] Cleaning solution...
+[2025-06-13 08:53:25] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 08:53:34] [WARN] ⚠️  Found 0 warnings in FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 08:53:34] [INFO] 🔍 Analyzing solution: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 08:53:34] [INFO] 🧪 Running unit tests for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 08:53:35] [INFO] ✅ Unit tests PASSED for FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 08:53:35] [INFO] 🧹 Performing clean build for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 08:53:35] [DEBUG] Cleaning solution...
+[2025-06-13 08:53:36] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 08:53:39] [WARN] ⚠️  Found 0 warnings in FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 08:53:39] [INFO] 📊 Generating comprehensive warning report...
+[2025-06-13 08:53:39] [ERROR] 🔥 TOTAL WARNINGS DETECTED: 0
+[2025-06-13 08:53:39] [INFO] 🤖 Auto-fixable warnings: 0
+[2025-06-13 08:53:39] [ERROR] 🚨 Critical warnings: 0
+[2025-06-13 08:53:39] [INFO] 📋 Warning breakdown by rule:
+[2025-06-13 08:53:39] [INFO] 🛠️  ACTIONABLE FIX SUGGESTIONS:
+[2025-06-13 08:53:39] [INFO] 🔧 Auto-fix disabled. Use -FixWarnings to apply automatic fixes.
+[2025-06-13 08:53:39] [INFO] 🔄 Testing local warning detection vs CI workflow alignment...
+[2025-06-13 08:53:39] [INFO] ✅ Local detection patterns match CI workflow requirements
+[2025-06-13 08:53:39] [INFO] 🎯 Warning detection system is aligned with CI environment
+[2025-06-13 08:53:39] [INFO] 📝 Updating enforcement rules based on detected warnings...
+[2025-06-13 08:53:39] [INFO] ✅ No warnings detected - enforcement rules are accurate
+[2025-06-13 08:53:39] [INFO] 🎉 SUCCESS: No SonarCloud warnings detected and all unit tests passed!
+[2025-06-13 08:53:39] [INFO] ✅ Local environment fully aligned with CI requirements

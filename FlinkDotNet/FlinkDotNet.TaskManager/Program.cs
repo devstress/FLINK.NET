@@ -48,7 +48,9 @@ namespace FlinkDotNet.TaskManager
 
             Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
             Console.WriteLine($"JobManager Address: {JobManagerAddress}");
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
             Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
+#pragma warning restore S5332
 
             var host = CreateHostBuilder(args).Build();
 

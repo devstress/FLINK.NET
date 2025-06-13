@@ -92,19 +92,25 @@ public static class ServiceUris
         /// <summary>
         /// JobManager gRPC address (insecure HTTP - use only for local development)
         /// </summary>
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
         public static string JobManagerGrpcHttp => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
+#pragma warning restore S5332
 
         /// <summary>
         /// JobManager HTTP API address (insecure HTTP - use only for local development)
         /// </summary>
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
         public static string JobManagerHttpApi => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
+#pragma warning restore S5332
 
         /// <summary>
         /// TaskManager gRPC address with specified port (insecure HTTP - use only for local development)
         /// </summary>
         /// <param name="port">Custom port number</param>
         /// <returns>TaskManager gRPC URI</returns>
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
         public static string TaskManagerGrpcHttp(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
+#pragma warning restore S5332
     }
 
     /// <summary>
