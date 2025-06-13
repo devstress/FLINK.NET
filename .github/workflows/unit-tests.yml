@@ -5,7 +5,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [synchronize]
+    types: [opened, synchronize]
     branches:
       - main # Or your primary branch name
 
