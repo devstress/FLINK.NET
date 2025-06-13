@@ -12,6 +12,7 @@ The core objective is to implement fundamental stream processing concepts like s
 - [Samples and Tutorials](#samples-and-tutorials)
 - [AI-Assisted Development](#ai-assisted-development)
 - [Getting Involved & Contribution](#getting-involved--contribution)
+- [Code analysis status](#code-analysis-status)
 - [License](#license)
 
 ## Why Flink.NET?
