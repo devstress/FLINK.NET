@@ -74,34 +74,66 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      # Download test results and coverage from unit-tests workflow
-      - name: Download test artifacts
+      # Try to download test results and coverage from unit-tests workflow (if available)
+      - name: Download test artifacts (if available)
         uses: actions/download-artifact@v4
+        continue-on-error: true # Don't fail if artifacts aren't available yet
         with:
           name: dotnet-test-results
           path: ./FlinkDotNet/TestResults
 
-      - name: Verify downloaded coverage files
+      - name: Check for existing test artifacts and run tests if needed
         shell: pwsh
         run: |
-          Write-Host "Verifying downloaded test artifacts..."
+          $artifactsAvailable = $false
+          
+          # Check if we have test artifacts from unit-tests workflow
           if (Test-Path "./FlinkDotNet/TestResults") {
-            Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse | ForEach-Object {
-              Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
-            }
-            
-            # Check for OpenCover format files needed by SonarCloud
-            $openCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml"
+            $openCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
             if ($openCoverFiles.Count -gt 0) {
-              Write-Host "Found OpenCover files for SonarCloud:"
+              Write-Host "Found existing test artifacts from unit-tests workflow:"
               $openCoverFiles | ForEach-Object {
                 Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
               }
-            } else {
-              Write-Host "No OpenCover files found - SonarCloud will run without coverage data"
+              $artifactsAvailable = $true
+            }
+          }
+          
+          if (-not $artifactsAvailable) {
+            Write-Host "No test artifacts available from unit-tests workflow - running tests locally for coverage..."
+            
+            # Run tests with coverage collection for SonarCloud
+            Push-Location FlinkDotNet
+            dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
+            Pop-Location
+            
+            # Convert coverage to OpenCover format for SonarCloud
+            dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
+            
+            Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
+              $coberturaFile = $_.FullName
+              $targetDir = $_.DirectoryName
+              Write-Host "Converting coverage file: $coberturaFile"
+              
+              # Convert to OpenCover format for SonarCloud
+              $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
+              Write-Host "Converting to OpenCover format: $openCoverFile"
+              reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
+            }
+            
+            Write-Host "Local test execution completed with coverage collection."
+          }
+          
+          # Final verification of coverage files
+          Write-Host "Final coverage files verification:"
+          $finalOpenCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
+          if ($finalOpenCoverFiles.Count -gt 0) {
+            Write-Host "Coverage files ready for SonarCloud:"
+            $finalOpenCoverFiles | ForEach-Object {
+              Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
             }
           } else {
-            Write-Host "No test results directory found"
+            Write-Host "Warning: No OpenCover files found - SonarCloud will run without coverage data"
           }
 
 
