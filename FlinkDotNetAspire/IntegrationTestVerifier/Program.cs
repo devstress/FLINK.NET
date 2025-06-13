@@ -291,6 +291,16 @@ namespace IntegrationTestVerifier
         public double MonitoringDurationSec { get; set; }
     }
 
+    public class RedisPerformanceMetrics
+    {
+        public double ReadSpeedOpsPerSec { get; set; }
+        public double WriteSpeedOpsPerSec { get; set; }
+        public double ReadLatencyMs { get; set; }
+        public double WriteLatencyMs { get; set; }
+        public int TestOpsCount { get; set; }
+        public double TotalTestDurationMs { get; set; }
+    }
+
     public static class Program
     {
 
@@ -487,6 +497,18 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   🎯 Predicted completion time: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
             Console.WriteLine($"   📈 Prediction accuracy: {(analysis.PredictedRequirements.EstimatedCompletionTimeMs / verificationStopwatch.ElapsedMilliseconds * 100):F1}% of actual");
             
+            // Processing time per message analysis
+            var processingTimePerMessageMs = verificationStopwatch.ElapsedMilliseconds / (double)expectedMessages;
+            var messagesPerMs = expectedMessages / (double)verificationStopwatch.ElapsedMilliseconds;
+            Console.WriteLine($"   🚀 Processing time per message: {processingTimePerMessageMs:F4}ms/msg");
+            Console.WriteLine($"   🚀 Processing rate: {messagesPerMs:F2} msg/ms ({messagesPerMs * 1000:F0} msg/sec)");
+            
+            // Total processing time breakdown
+            Console.WriteLine($"\n📊 TOTAL PROCESSING TIME BREAKDOWN:");
+            Console.WriteLine($"   ⏱️  Total verification duration: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
+            Console.WriteLine($"   ⏱️  Average per message: {processingTimePerMessageMs:F4}ms");
+            Console.WriteLine($"   ⏱️  Monitoring duration: {analysis.PerformanceMetrics.MonitoringDurationSec:F1}s");
+            
             // Read max allowed time from environment variable, default to 1 second
             long maxAllowedTimeMs = 1000; // 1 second default
             if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
@@ -495,6 +517,17 @@ namespace IntegrationTestVerifier
             }
             
             bool timingPassed = verificationStopwatch.ElapsedMilliseconds <= maxAllowedTimeMs;
+            
+            // Redis performance analysis
+            if (s_lastRedisPerformance != null)
+            {
+                Console.WriteLine($"\n🔴 REDIS PERFORMANCE ANALYSIS:");
+                Console.WriteLine($"   📊 Read speed from Redis: {s_lastRedisPerformance.ReadSpeedOpsPerSec:N0} ops/sec");
+                Console.WriteLine($"   📊 Write speed to Redis: {s_lastRedisPerformance.WriteSpeedOpsPerSec:N0} ops/sec");
+                Console.WriteLine($"   📊 Read latency: {s_lastRedisPerformance.ReadLatencyMs:F2}ms avg");
+                Console.WriteLine($"   📊 Write latency: {s_lastRedisPerformance.WriteLatencyMs:F2}ms avg");
+                Console.WriteLine($"   📊 Performance test duration: {s_lastRedisPerformance.TotalTestDurationMs:F0}ms ({s_lastRedisPerformance.TestOpsCount} ops)");
+            }
             
             // Resource utilization validation
             Console.WriteLine($"\n💾 MEMORY ANALYSIS:");
@@ -696,10 +729,73 @@ namespace IntegrationTestVerifier
         private static async Task<bool> PerformRedisValidation(IDatabase db, int expectedMessages, string globalSeqKey, string sinkCounterKey)
         {
             Console.WriteLine($"\n   📋 Verifying Redis data according to stress test documentation:");
+            
+            // Measure Redis performance first
+            var redisPerf = await MeasureRedisPerformance(db);
+            Console.WriteLine($"\n   ⚡ Redis Performance Measurements:");
+            Console.WriteLine($"      📊 Read speed: {redisPerf.ReadSpeedOpsPerSec:N0} ops/sec (avg latency: {redisPerf.ReadLatencyMs:F2}ms)");
+            Console.WriteLine($"      📊 Write speed: {redisPerf.WriteSpeedOpsPerSec:N0} ops/sec (avg latency: {redisPerf.WriteLatencyMs:F2}ms)");
+            Console.WriteLine($"      📊 Test operations: {redisPerf.TestOpsCount:N0} in {redisPerf.TotalTestDurationMs:F0}ms");
+
+            // Store for later use in performance validation
+            s_lastRedisPerformance = redisPerf;
+            
             bool redisVerified = true;
             redisVerified &= await CheckRedisKey(db, globalSeqKey, "Source Sequence Generation", "TEST 1.1", expectedMessages);
             redisVerified &= await CheckRedisKey(db, sinkCounterKey, "Redis Sink Processing", "TEST 1.2", expectedMessages);
             return redisVerified;
+        }
+
+        private static RedisPerformanceMetrics? s_lastRedisPerformance;
+
+        private static async Task<RedisPerformanceMetrics> MeasureRedisPerformance(IDatabase db)
+        {
+            const int testOpsCount = 100; // Small test to avoid interference
+            const string testKeyPrefix = "perf_test_";
+            var testKeys = new List<string>();
+            
+            var stopwatch = Stopwatch.StartNew();
+            
+            // Write performance test
+            var writeStopwatch = Stopwatch.StartNew();
+            for (int i = 0; i < testOpsCount; i++)
+            {
+                var key = $"{testKeyPrefix}{i}";
+                testKeys.Add(key);
+                await db.StringSetAsync(key, $"test_value_{i}");
+            }
+            writeStopwatch.Stop();
+            
+            // Read performance test
+            var readStopwatch = Stopwatch.StartNew();
+            for (int i = 0; i < testOpsCount; i++)
+            {
+                await db.StringGetAsync(testKeys[i]);
+            }
+            readStopwatch.Stop();
+            
+            stopwatch.Stop();
+            
+            // Cleanup test keys
+            try
+            {
+                var redisKeys = testKeys.Select(k => (RedisKey)k).ToArray();
+                await db.KeyDeleteAsync(redisKeys);
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+            
+            return new RedisPerformanceMetrics
+            {
+                ReadSpeedOpsPerSec = testOpsCount / (readStopwatch.ElapsedMilliseconds / 1000.0),
+                WriteSpeedOpsPerSec = testOpsCount / (writeStopwatch.ElapsedMilliseconds / 1000.0),
+                ReadLatencyMs = readStopwatch.ElapsedMilliseconds / (double)testOpsCount,
+                WriteLatencyMs = writeStopwatch.ElapsedMilliseconds / (double)testOpsCount,
+                TestOpsCount = testOpsCount,
+                TotalTestDurationMs = stopwatch.ElapsedMilliseconds
+            };
         }
 
         private static async Task<bool> CheckRedisKey(IDatabase db, string keyName, string description, string testStep, int expectedMessages)
