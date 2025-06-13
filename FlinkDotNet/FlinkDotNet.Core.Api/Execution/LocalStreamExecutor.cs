@@ -3,27 +3,43 @@ using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.JobManager.Models.JobGraph;
+using FlinkDotNet.Core.Api.BackPressure;
 using System.Collections.Concurrent;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace FlinkDotNet.Core.Api.Execution
 {
     /// <summary>
     /// Local execution engine for FlinkDotNet that can execute JobGraphs in a single process.
     /// This enables local testing and development without requiring a full distributed setup.
-    /// Implements core Apache Flink 2.0 execution concepts.
+    /// Implements core Apache Flink 2.0 execution concepts including back pressure handling.
     /// </summary>
     public class LocalStreamExecutor : IDisposable
     {
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ConcurrentDictionary<Guid, ConcurrentQueue<object>> _dataChannels;
+        private readonly LocalBackPressureDetector _backPressureDetector;
+        private readonly ILogger<LocalStreamExecutor>? _logger;
         private bool _disposed;
 
-        public LocalStreamExecutor(StreamExecutionEnvironment environment)
+        public LocalStreamExecutor(StreamExecutionEnvironment environment, ILogger<LocalStreamExecutor>? logger = null)
         {
             if (environment == null) throw new ArgumentNullException(nameof(environment));
             _cancellationTokenSource = new CancellationTokenSource();
             _dataChannels = new ConcurrentDictionary<Guid, ConcurrentQueue<object>>();
+            _logger = logger;
+            
+            // Initialize back pressure detection for Apache Flink 2.0 compatibility
+            _backPressureDetector = new LocalBackPressureDetector(
+                new LocalBackPressureConfiguration
+                {
+                    BackPressureThreshold = 0.8, // 80% queue utilization triggers throttling
+                    BaseThrottleDelayMs = 10,
+                    DefaultMaxQueueSize = 1000
+                });
+            
+            _logger?.LogInformation("LocalStreamExecutor initialized with Apache Flink 2.0 style back pressure detection");
         }
 
         /// <summary>
@@ -241,10 +257,10 @@ namespace FlinkDotNet.Core.Api.Execution
                     var inputChannels = GetInputChannelsForVertex(vertex, jobGraph);
                     var sinkContext = new LocalSinkContext();
 
-                    // Process data from input channels
+                    // Process data from input channels with back pressure monitoring
                     if (operatorInstance.Operator != null)
                     {
-                        await ProcessSinkData(operatorInstance.Operator, inputChannels, sinkContext, cancellationToken);
+                        await ProcessSinkData(operatorInstance.Operator, inputChannels, sinkContext, cancellationToken, vertex.Name);
                     }
 
                     Console.WriteLine($"[LocalStreamExecutor] Sink vertex {vertex.Name} completed");
@@ -287,10 +303,10 @@ namespace FlinkDotNet.Core.Api.Execution
                     var inputChannels = GetInputChannelsForVertex(vertex, jobGraph);
                     var outputChannels = GetOutputChannelsForVertex(vertex, jobGraph);
 
-                    // Process data through the operator
+                    // Process data through the operator with back pressure monitoring
                     if (operatorInstance.Operator != null)
                     {
-                        await ProcessOperatorData(operatorInstance.Operator, inputChannels, outputChannels, cancellationToken);
+                        await ProcessOperatorData(operatorInstance.Operator, inputChannels, outputChannels, cancellationToken, vertex.Name);
                     }
 
                     Console.WriteLine($"[LocalStreamExecutor] Operator vertex {vertex.Name} completed");
@@ -357,16 +373,16 @@ namespace FlinkDotNet.Core.Api.Execution
             await Task.CompletedTask;
         }
 
-        private static async Task ProcessSinkData(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, CancellationToken cancellationToken)
+        private async Task ProcessSinkData(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, CancellationToken cancellationToken, string sinkId)
         {
             var invokeMethod = sinkInstance.GetType().GetMethod("Invoke");
             if (invokeMethod == null) return;
 
-            // Process all data from input channels without arbitrary limits
-            await ProcessSinkDataLoop(sinkInstance, inputChannels, sinkContext, invokeMethod, cancellationToken);
+            // Process all data from input channels with back pressure handling
+            await ProcessSinkDataLoop(sinkInstance, inputChannels, sinkContext, invokeMethod, cancellationToken, sinkId);
         }
 
-        private static async Task ProcessSinkDataLoop(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, MethodInfo invokeMethod, CancellationToken cancellationToken)
+        private async Task ProcessSinkDataLoop(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, MethodInfo invokeMethod, CancellationToken cancellationToken, string sinkId)
         {
             var processed = 0;
             var noDataCount = 0;
@@ -376,7 +392,7 @@ namespace FlinkDotNet.Core.Api.Execution
             
             while (!cancellationToken.IsCancellationRequested)
             {
-                var hasData = ProcessSinkChannels(inputChannels, sinkInstance, sinkContext, invokeMethod, ref processed);
+                var hasData = ProcessSinkChannels(inputChannels, sinkInstance, sinkContext, invokeMethod, ref processed, sinkId);
                 
                 if (hasData)
                 {
@@ -430,9 +446,25 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private static bool ProcessSinkChannels(List<ConcurrentQueue<object>> inputChannels, object sinkInstance, ISinkContext sinkContext, MethodInfo invokeMethod, ref int processed)
+        private bool ProcessSinkChannels(List<ConcurrentQueue<object>> inputChannels, object sinkInstance, ISinkContext sinkContext, MethodInfo invokeMethod, ref int processed, string sinkId)
         {
             var hasData = false;
+            
+            // Monitor queue sizes for back pressure detection
+            var totalQueueSize = inputChannels.Sum(c => c.Count);
+            var maxQueueCapacity = inputChannels.Count * 1000; // Assume 1000 capacity per channel
+            _backPressureDetector.RecordQueueSize(sinkId, totalQueueSize, maxQueueCapacity);
+            
+            // Apply throttling if back pressure is detected
+            if (_backPressureDetector.ShouldThrottle(sinkId))
+            {
+                var throttleDelay = _backPressureDetector.GetThrottleDelayMs();
+                if (throttleDelay > 0)
+                {
+                    _logger?.LogDebug("Applying back pressure throttling for sink {SinkId}: {DelayMs}ms", sinkId, throttleDelay);
+                    Thread.Sleep(Math.Min(throttleDelay, 100)); // Cap at 100ms to prevent excessive delays
+                }
+            }
             
             foreach (var channel in inputChannels)
             {
@@ -445,7 +477,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     // Log progress for large volumes
                     if (processed % 100000 == 0)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records");
+                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records (pressure: {_backPressureDetector.GetOverallPressureLevel():F2})");
                     }
                 }
             }
@@ -453,16 +485,16 @@ namespace FlinkDotNet.Core.Api.Execution
             return hasData;
         }
 
-        private static async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
+        private async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken, string operatorId)
         {
             // Find the appropriate method to invoke (Map, Filter, etc.)
             var mapMethod = operatorInstance.GetType().GetMethod("Map");
             if (mapMethod == null) return;
 
-            await ProcessOperatorDataLoop(operatorInstance, inputChannels, outputChannels, mapMethod, cancellationToken);
+            await ProcessOperatorDataLoop(operatorInstance, inputChannels, outputChannels, mapMethod, cancellationToken, operatorId);
         }
 
-        private static async Task ProcessOperatorDataLoop(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, MethodInfo mapMethod, CancellationToken cancellationToken)
+        private async Task ProcessOperatorDataLoop(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, MethodInfo mapMethod, CancellationToken cancellationToken, string operatorId)
         {
             var processed = 0;
             var noDataCount = 0;
@@ -474,7 +506,27 @@ namespace FlinkDotNet.Core.Api.Execution
             
             while (!cancellationToken.IsCancellationRequested)
             {
-                var hasData = ProcessOperatorChannels(inputChannels, outputChannels, operatorInstance, mapMethod, ref processed);
+                // Monitor back pressure for both input and output queues
+                var inputQueueSize = inputChannels.Sum(c => c.Count);
+                var outputQueueSize = outputChannels.Sum(c => c.Count);
+                var maxInputCapacity = inputChannels.Count * 1000;
+                var maxOutputCapacity = outputChannels.Count * 1000;
+                
+                _backPressureDetector.RecordQueueSize($"{operatorId}-input", inputQueueSize, maxInputCapacity);
+                _backPressureDetector.RecordQueueSize($"{operatorId}-output", outputQueueSize, maxOutputCapacity);
+                
+                // Apply throttling if back pressure is detected
+                if (_backPressureDetector.ShouldThrottle(operatorId))
+                {
+                    var throttleDelay = _backPressureDetector.GetThrottleDelayMs();
+                    if (throttleDelay > 0)
+                    {
+                        _logger?.LogDebug("Applying back pressure throttling for operator {OperatorId}: {DelayMs}ms", operatorId, throttleDelay);
+                        Thread.Sleep(Math.Min(throttleDelay, 50)); // Cap at 50ms for operators
+                    }
+                }
+                
+                var hasData = ProcessOperatorChannels(inputChannels, outputChannels, operatorInstance, mapMethod, ref processed, operatorId);
                 
                 if (!hasData)
                 {
@@ -483,9 +535,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     // Enhanced logging for debugging timeout issues
                     if (noDataCount % 60000 == 0) // Every 5 minutes
                     {
-                        var inputQueueSize = inputChannels.Sum(c => c.Count);
-                        var outputQueueSize = outputChannels.Sum(c => c.Count);
-                        Console.WriteLine($"[LocalStreamExecutor] Operator: No data for {noDataCount * 5}ms ({noDataCount * 5 / 60000:F1} min). Processed: {processed}, Input queue: {inputQueueSize}, Output queue: {outputQueueSize}");
+                        Console.WriteLine($"[LocalStreamExecutor] Operator waiting for data: {noDataCount * 5}ms. Processed: {processed}, Input queue: {inputQueueSize}, Output queue: {outputQueueSize}, Pressure: {_backPressureDetector.GetOverallPressureLevel():F2}");
                     }
                     
                     if (noDataCount >= maxNoDataIterations)
@@ -502,9 +552,9 @@ namespace FlinkDotNet.Core.Api.Execution
                     // Enhanced progress logging for debugging
                     if (processed % 10000 == 0 && processed > 0)
                     {
-                        var inputQueueSize = inputChannels.Sum(c => c.Count);
-                        var outputQueueSize = outputChannels.Sum(c => c.Count);
-                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records, input queue: {inputQueueSize}, output queue: {outputQueueSize}");
+                        var inputQueueSizeForLogging = inputChannels.Sum(c => c.Count);
+                        var outputQueueSizeForLogging = outputChannels.Sum(c => c.Count);
+                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records, input queue: {inputQueueSizeForLogging}, output queue: {outputQueueSizeForLogging}");
                     }
                 }
             }
@@ -512,7 +562,7 @@ namespace FlinkDotNet.Core.Api.Execution
             Console.WriteLine($"[LocalStreamExecutor] Operator completed processing {processed} total records");
         }
 
-        private static bool ProcessOperatorChannels(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, object operatorInstance, MethodInfo mapMethod, ref int processed)
+        private static bool ProcessOperatorChannels(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, object operatorInstance, MethodInfo mapMethod, ref int processed, string operatorId)
         {
             var hasData = false;
             
@@ -532,9 +582,10 @@ namespace FlinkDotNet.Core.Api.Execution
                     processed++;
                     hasData = true;
                     
-                    // Log progress for large volumes
+                    // Log progress for large volumes with back pressure info
                     if (processed % 100000 == 0)
                     {
+                        Console.WriteLine($"[LocalStreamExecutor] Operator {operatorId} processed {processed} records");
                         Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records");
                     }
                 }
@@ -561,6 +612,7 @@ namespace FlinkDotNet.Core.Api.Execution
                 if (disposing)
                 {
                     _cancellationTokenSource?.Dispose();
+                    _backPressureDetector?.Dispose();
                 }
                 _disposed = true;
             }
