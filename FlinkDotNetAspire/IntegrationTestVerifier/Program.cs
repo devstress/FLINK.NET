@@ -739,6 +739,22 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"\n   🚨 JOB EXECUTION ERROR DETECTED:");
                 Console.WriteLine($"      Error: {jobError}");
                 Console.WriteLine($"      This explains why sinks are not processing messages.");
+                
+                // Enhanced diagnostics for different error types
+                var errorString = jobError.ToString();
+                if (errorString.Contains("Redis", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"      💡 Redis-related error detected - check Redis connectivity and performance");
+                }
+                else if (errorString.Contains("Timeout", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"      💡 Timeout error detected - job may need more time or resources");
+                }
+                else if (errorString.Contains("LocalStreamExecutor", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"      💡 LocalStreamExecutor error - check operator chain execution");
+                }
+                
                 Console.WriteLine($"      Clearing error indicator for next test...");
                 await db.KeyDeleteAsync(jobErrorKey);
             }
