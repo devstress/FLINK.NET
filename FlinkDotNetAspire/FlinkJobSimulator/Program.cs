@@ -190,7 +190,15 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
         {
             if (!_isRunning || cancellationToken.IsCancellationRequested)
             {
-                Console.WriteLine($"[{_taskName}] Emission cancelled after {emittedCount} messages. Loop index: {i}, _isRunning: {_isRunning}, cancellationRequested: {cancellationToken.IsCancellationRequested}");
+                Console.WriteLine($"");
+                Console.WriteLine($"🛑 [{_taskName}] ============ EMISSION LOOP TERMINATED ============");
+                Console.WriteLine($"🛑 [{_taskName}] TERMINATION AT: Message {i+1}/{_numberOfMessagesToGenerate} ({(double)(i+1)/_numberOfMessagesToGenerate*100:F2}%)");
+                Console.WriteLine($"🛑 [{_taskName}] EMITTED COUNT: {emittedCount}");
+                Console.WriteLine($"🛑 [{_taskName}] LOOP INDEX: {i}");
+                Console.WriteLine($"🛑 [{_taskName}] _isRunning: {_isRunning}");
+                Console.WriteLine($"🛑 [{_taskName}] cancellationRequested: {cancellationToken.IsCancellationRequested}");
+                Console.WriteLine($"🛑 [{_taskName}] =============================================");
+                Console.WriteLine($"");
                 break;
             }
 
@@ -250,7 +258,14 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
 
     private async Task HandleRetryableException(Exception ex, long messageIndex, int attempt, int maxRetries)
     {
-        Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} for message {messageIndex+1} failed: {ex.GetType().Name} - {ex.Message}");
+        // 🚨 PROMINENT WARNING LOGGING as requested
+        Console.WriteLine($"");
+        Console.WriteLine($"🚨 [{_taskName}] ============ RETRY WARNING ============");
+        Console.WriteLine($"🚨 [{_taskName}] MESSAGE: {messageIndex+1} | ATTEMPT: {attempt}/{maxRetries}");
+        Console.WriteLine($"🚨 [{_taskName}] ERROR: {ex.GetType().Name} - {ex.Message}");
+        Console.WriteLine($"🚨 [{_taskName}] PROGRESS: {messageIndex+1:N0}/{_numberOfMessagesToGenerate:N0} ({(double)(messageIndex+1)/_numberOfMessagesToGenerate*100:F2}%)");
+        Console.WriteLine($"🚨 [{_taskName}] ========================================");
+        Console.WriteLine($"");
         
         // Progressive backoff with longer delays for stress tests
         int delayMs = 200 * attempt; // 200ms, 400ms, 600ms, 800ms
@@ -287,14 +302,20 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
 
     private bool HandleFinalException(Exception ex, long messageIndex, long emittedCount)
     {
-        Console.WriteLine($"[{_taskName}] ERROR: All 5 attempts failed for message {messageIndex+1} (emitted count: {emittedCount}):");
-        Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
-        Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
-        Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
+        // 💥 PROMINENT ERROR LOGGING AFTER RETRY TIMEOUT as requested
+        Console.WriteLine($"");
+        Console.WriteLine($"💥 [{_taskName}] ============ FINAL ERROR AFTER ALL RETRIES FAILED ============");
+        Console.WriteLine($"💥 [{_taskName}] MESSAGE: {messageIndex+1} | EMITTED COUNT: {emittedCount}");
+        Console.WriteLine($"💥 [{_taskName}] PROGRESS: {messageIndex+1:N0}/{_numberOfMessagesToGenerate:N0} ({(double)(messageIndex+1)/_numberOfMessagesToGenerate*100:F2}%)");
+        Console.WriteLine($"💥 [{_taskName}] EXCEPTION TYPE: {ex.GetType().Name}");
+        Console.WriteLine($"💥 [{_taskName}] EXCEPTION MESSAGE: {ex.Message}");
+        Console.WriteLine($"💥 [{_taskName}] STACK TRACE: {ex.StackTrace}");
         if (ex.InnerException != null)
         {
-            Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
+            Console.WriteLine($"💥 [{_taskName}] INNER EXCEPTION: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
         }
+        Console.WriteLine($"💥 [{_taskName}] ============================================================");
+        Console.WriteLine($"");
         
         return ApplyEnhancedResilienceLogic(messageIndex);
     }
@@ -305,15 +326,27 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
         Console.WriteLine($"[{_taskName}] ENHANCED RESILIENCE: Skipping message {messageIndex+1} and continuing (for stress test compatibility)");
         Console.WriteLine($"[{_taskName}] Source will continue processing remaining messages to maximize throughput");
         
+        // Calculate 1% threshold correctly
+        long onePercentThreshold = _numberOfMessagesToGenerate / 100; // 1% of total messages
+        if (onePercentThreshold < 1000) onePercentThreshold = 1000; // Minimum threshold for small tests
+        
+        Console.WriteLine($"[{_taskName}] RESILIENCE CHECK: Message {messageIndex+1} vs 1% threshold {onePercentThreshold} ({(double)onePercentThreshold/_numberOfMessagesToGenerate*100:F1}%)");
+        
         // Only stop if we're in the first 1% of messages (indicating fundamental issues)
-        if (messageIndex < _numberOfMessagesToGenerate * 0.01)
+        if (messageIndex < onePercentThreshold)
         {
-            Console.WriteLine($"[{_taskName}] CRITICAL: Early failure in first 1% of messages - stopping source");
+            Console.WriteLine($"💥 [{_taskName}] ============ CRITICAL EARLY FAILURE DETECTED ============");
+            Console.WriteLine($"💥 [{_taskName}] STOPPING SOURCE: Failure in first 1% of messages indicates fundamental issue");
+            Console.WriteLine($"💥 [{_taskName}] FAILED AT: Message {messageIndex+1}/{_numberOfMessagesToGenerate} ({(double)(messageIndex+1)/_numberOfMessagesToGenerate*100:F2}%)");
+            Console.WriteLine($"💥 [{_taskName}] THRESHOLD: First {onePercentThreshold} messages ({(double)onePercentThreshold/_numberOfMessagesToGenerate*100:F1}%)");
+            Console.WriteLine($"💥 [{_taskName}] ACTION: Setting _isRunning = false to stop source execution");
+            Console.WriteLine($"💥 [{_taskName}] ========================================================");
             _isRunning = false;
             return false;
         }
         
         // For stress tests, log and continue with degraded performance rather than stopping
+        Console.WriteLine($"[{_taskName}] RESILIENCE: Message {messageIndex+1} is beyond 1% threshold - continuing execution");
         return false; // Skip this message but don't stop the source
     }
 
@@ -345,7 +378,14 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
 
     public void Cancel()
     {
-        Console.WriteLine($"[{_taskName}] Cancel called.");
+        Console.WriteLine($"");
+        Console.WriteLine($"🛑 [{_taskName}] ============ CANCEL() CALLED ============");
+        Console.WriteLine($"🛑 [{_taskName}] SOURCE CANCELLATION REQUESTED");
+        Console.WriteLine($"🛑 [{_taskName}] CURRENT STATE: _isRunning = {_isRunning}");
+        Console.WriteLine($"🛑 [{_taskName}] STACK TRACE OF CANCEL CALL:");
+        Console.WriteLine($"🛑 [{_taskName}] {Environment.StackTrace}");
+        Console.WriteLine($"🛑 [{_taskName}] =========================================");
+        Console.WriteLine($"");
         _isRunning = false;
     }
 
