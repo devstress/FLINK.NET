@@ -346,11 +346,12 @@ namespace FlinkDotNet.Core.Api.Execution
             var invokeMethod = sinkInstance.GetType().GetMethod("Invoke");
             if (invokeMethod == null) return;
 
-            // Simple round-robin consumption from input channels
-            // In a real implementation, this would be more sophisticated
+            // Process all data from input channels without arbitrary limits
             var processed = 0;
+            var noDataCount = 0;
+            const int maxNoDataIterations = 1000; // Exit after 10 seconds of no data (1000 * 10ms)
             
-            while (!cancellationToken.IsCancellationRequested && processed < 100000) // Reasonable limit
+            while (!cancellationToken.IsCancellationRequested)
             {
                 var hasData = false;
                 
@@ -361,14 +362,29 @@ namespace FlinkDotNet.Core.Api.Execution
                         invokeMethod.Invoke(sinkInstance, new object[] { item!, sinkContext });
                         processed++;
                         hasData = true;
+                        noDataCount = 0; // Reset counter when data is found
+                        
+                        // Log progress for large volumes
+                        if (processed % 100000 == 0)
+                        {
+                            Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records");
+                        }
                     }
                 }
                 
                 if (!hasData)
                 {
+                    noDataCount++;
+                    if (noDataCount >= maxNoDataIterations)
+                    {
+                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available)");
+                        break;
+                    }
                     await Task.Delay(10, cancellationToken); // Small delay when no data
                 }
             }
+            
+            Console.WriteLine($"[LocalStreamExecutor] Sink completed processing {processed} total records");
         }
 
         private static async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
@@ -378,8 +394,10 @@ namespace FlinkDotNet.Core.Api.Execution
             if (mapMethod == null) return;
 
             var processed = 0;
+            var noDataCount = 0;
+            const int maxNoDataIterations = 1000; // Exit after 10 seconds of no data (1000 * 10ms)
             
-            while (!cancellationToken.IsCancellationRequested && processed < 100000) // Reasonable limit
+            while (!cancellationToken.IsCancellationRequested)
             {
                 var hasData = false;
                 
@@ -398,14 +416,29 @@ namespace FlinkDotNet.Core.Api.Execution
                         
                         processed++;
                         hasData = true;
+                        noDataCount = 0; // Reset counter when data is found
+                        
+                        // Log progress for large volumes
+                        if (processed % 100000 == 0)
+                        {
+                            Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records");
+                        }
                     }
                 }
                 
                 if (!hasData)
                 {
+                    noDataCount++;
+                    if (noDataCount >= maxNoDataIterations)
+                    {
+                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available)");
+                        break;
+                    }
                     await Task.Delay(10, cancellationToken); // Small delay when no data
                 }
             }
+            
+            Console.WriteLine($"[LocalStreamExecutor] Operator completed processing {processed} total records");
         }
 
         public void Cancel()
