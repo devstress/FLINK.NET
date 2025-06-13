@@ -10,7 +10,7 @@ using FlinkDotNet.Core.Abstractions.Models; // For JobConfiguration
 using FlinkDotNet.Core.Abstractions.Models.State; // For state descriptors
 using FlinkDotNet.Core.Abstractions.Storage; // For IStateSnapshotStore
 using FlinkDotNet.Core.Abstractions.Windowing; // For Watermark
-using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts
+using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts and IConnectionMultiplexer
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -402,6 +402,13 @@ public static class Program
         
         // Add Redis client using Aspire pattern
         builder.AddRedisClient("redis");
+        
+        // Register IDatabase as a singleton service
+        builder.Services.AddSingleton<IDatabase>(provider => 
+        {
+            var connectionMultiplexer = provider.GetRequiredService<IConnectionMultiplexer>();
+            return connectionMultiplexer.GetDatabase();
+        });
         
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
