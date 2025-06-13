@@ -177,11 +177,26 @@ namespace FlinkDotNet.Core.Api.Execution
                     // Run the source
                     if (operatorInstance.Operator is ISourceFunction<string> stringSource)
                     {
-                        await Task.Run(() => stringSource.Run(sourceContext), cancellationToken);
+                        Console.WriteLine($"[LocalStreamExecutor] Running string source function directly");
+                        await Task.Run(() => 
+                        {
+                            try
+                            {
+                                stringSource.Run(sourceContext);
+                                Console.WriteLine($"[LocalStreamExecutor] String source function Run() completed successfully");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[LocalStreamExecutor] String source function Run() failed: {ex.GetType().Name}: {ex.Message}");
+                                Console.WriteLine($"[LocalStreamExecutor] Stack trace: {ex.StackTrace}");
+                                throw;
+                            }
+                        }, cancellationToken);
                     }
                     else if (operatorInstance.Operator != null)
                     {
                         // Handle other source types using reflection
+                        Console.WriteLine($"[LocalStreamExecutor] Running source function using reflection");
                         await RunSourceUsingReflection(operatorInstance.Operator, sourceContext);
                     }
 
@@ -516,6 +531,7 @@ namespace FlinkDotNet.Core.Api.Execution
     internal class LocalSourceContext : ISourceContext<string>
     {
         private readonly List<ConcurrentQueue<object>> _outputChannels;
+        private long _totalCollected = 0;
 
         public LocalSourceContext(List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
         {
@@ -527,6 +543,13 @@ namespace FlinkDotNet.Core.Api.Execution
             foreach (var channel in _outputChannels)
             {
                 channel.Enqueue(record);
+            }
+            
+            var collected = Interlocked.Increment(ref _totalCollected);
+            if (collected % 100000 == 0)
+            {
+                var totalQueueSize = _outputChannels.Sum(c => c.Count);
+                Console.WriteLine($"[LocalSourceContext] Collected {collected} records, total queue size: {totalQueueSize}");
             }
         }
 

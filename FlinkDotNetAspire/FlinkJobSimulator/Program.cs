@@ -179,8 +179,8 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
                 break;
             }
 
-            // Add progress tracking for the final messages
-            if (i >= _numberOfMessagesToGenerate - 10)
+            // Add progress tracking for debugging early termination
+            if (i % 10000 == 0 || i >= _numberOfMessagesToGenerate - 100)
             {
                 Console.WriteLine($"[{_taskName}] Processing message {i+1}/{_numberOfMessagesToGenerate} (emitted so far: {emittedCount})");
             }
@@ -204,7 +204,7 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
                 {
                     Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
                 }
-                Console.WriteLine($"[{_taskName}] Stopping source due to error.");
+                Console.WriteLine($"[{_taskName}] Stopping source due to error at message {i+1}.");
                 _isRunning = false;
                 break;
             }
@@ -215,16 +215,24 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
         // Send one final barrier after all data messages (optional, but good for some checkpointing models)
         if (_isRunning && emittedCount > 0)
         {
-            long finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
-            if (finalCheckpointId == 0)
+            try
             {
-                finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
-            }
+                long finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
+                if (finalCheckpointId == 0)
+                {
+                    finalCheckpointId = Interlocked.Increment(ref _nextCheckpointId) - 1;
+                }
 
-            long finalTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            string finalBarrierMessage = $"BARRIER_{finalCheckpointId}_{finalTimestamp}_FINAL";
-            Console.WriteLine($"[{_taskName}] Injecting Final Barrier: {finalBarrierMessage}");
-            await ctx.CollectAsync(finalBarrierMessage);
+                long finalTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                string finalBarrierMessage = $"BARRIER_{finalCheckpointId}_{finalTimestamp}_FINAL";
+                Console.WriteLine($"[{_taskName}] Injecting Final Barrier: {finalBarrierMessage}");
+                await ctx.CollectAsync(finalBarrierMessage);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] ERROR during final barrier injection: {ex.GetType().Name} - {ex.Message}");
+                // Don't fail the entire source for final barrier issues
+            }
         }
 
         var lastSequenceId = _redisDb?.StringGet(_globalSequenceRedisKey) ?? "unknown";

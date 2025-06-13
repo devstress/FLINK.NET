@@ -65,10 +65,19 @@ namespace FlinkJobSimulator
                 }
             }
 
+            // Fix IPv6 issue by forcing IPv4 localhost resolution
+            var cleanBootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+            if (cleanBootstrapServers != bootstrapServers)
+            {
+                Console.WriteLine($"[{_taskName}] Fixed IPv6 issue: Using {cleanBootstrapServers} instead of {bootstrapServers}");
+                bootstrapServers = cleanBootstrapServers;
+            }
+
             var config = new ProducerConfig
             {
                 BootstrapServers = bootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
+                SocketTimeoutMs = 10000 // 10 seconds timeout
                 // Add other producer configurations if needed, e.g., Acks, Retries, etc.
                 // For high throughput, consider:
                 // LingerMs = 5, // Time to wait for more messages before sending a batch
@@ -141,8 +150,9 @@ namespace FlinkJobSimulator
             {
                 var adminConfig = new AdminClientConfig 
                 { 
-                    BootstrapServers = bootstrapServers,
-                    SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
+                    BootstrapServers = bootstrapServers, // Already cleaned to use IPv4 in calling method
+                    SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
+                    SocketTimeoutMs = 10000 // 10 seconds timeout
                 };
                 using var admin = new AdminClientBuilder(adminConfig).Build();
                 
