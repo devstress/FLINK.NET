@@ -6,48 +6,48 @@ namespace FlinkDotNet.Core.Api.Windowing
 
     public class EventTimeTrigger<TElement, TWindow> : Trigger<TElement, TWindow> where TWindow : Window
     {
-        public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx)
+        public override TriggerResults OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx)
         {
             if (window.MaxTimestamp() <= ctx.CurrentWatermark)
             {
-                return TriggerResult.Fire; // Fire if watermark already passed window end
+                return TriggerResults.Fire; // Fire if watermark already passed window end
             }
             else
             {
                 ctx.RegisterEventTimeTimer(window.MaxTimestamp());
-                return TriggerResult.None;
+                return TriggerResults.None;
             }
         }
 
-        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
+        public override TriggerResults OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResults.None;
 
-        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx)
+        public override TriggerResults OnEventTime(long time, TWindow window, ITriggerContext ctx)
         {
-            return time == window.MaxTimestamp() ? TriggerResult.Fire : TriggerResult.None;
+            return time == window.MaxTimestamp() ? TriggerResults.Fire : TriggerResults.None;
         }
         public override void Clear(TWindow window, ITriggerContext ctx) => ctx.DeleteEventTimeTimer(window.MaxTimestamp());
     }
 
     public class ProcessingTimeTrigger<TElement, TWindow> : Trigger<TElement, TWindow> where TWindow : Window
     {
-        public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx)
+        public override TriggerResults OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx)
         {
             ctx.RegisterProcessingTimeTimer(window.MaxTimestamp());
-            return TriggerResult.None;
+            return TriggerResults.None;
         }
-        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx)
+        public override TriggerResults OnProcessingTime(long time, TWindow window, ITriggerContext ctx)
         {
-            return time == window.MaxTimestamp() ? TriggerResult.Fire : TriggerResult.None;
+            return time == window.MaxTimestamp() ? TriggerResults.Fire : TriggerResults.None;
         }
-        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
+        public override TriggerResults OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResults.None;
         public override void Clear(TWindow window, ITriggerContext ctx) => ctx.DeleteProcessingTimeTimer(window.MaxTimestamp());
     }
 
     public class NeverTrigger<TElement, TWindow> : Trigger<TElement, TWindow> where TWindow : Window
     {
-        public override TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx) => TriggerResult.None;
-        public override TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
-        public override TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResult.None;
+        public override TriggerResults OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx) => TriggerResults.None;
+        public override TriggerResults OnProcessingTime(long time, TWindow window, ITriggerContext ctx) => TriggerResults.None;
+        public override TriggerResults OnEventTime(long time, TWindow window, ITriggerContext ctx) => TriggerResults.None;
         public override void Clear(TWindow window, ITriggerContext ctx) { }
     }
 }

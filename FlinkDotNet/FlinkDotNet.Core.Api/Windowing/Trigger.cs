@@ -32,7 +32,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// <param name="window">The window to which the element was assigned.</param>
         /// <param name="ctx">A context object that can be used to register timers and access state.</param>
         /// <returns>The action that should be taken on the window.</returns>
-        public abstract TriggerResult OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx);
+        public abstract TriggerResults OnElement(TElement element, long timestamp, TWindow window, ITriggerContext ctx);
 
         /// <summary>
         /// Called when a processing-time timer that was set using the trigger context fires.
@@ -41,7 +41,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// <param name="window">The window for which the timer fired.</param>
         /// <param name="ctx">A context object that can be used to register timers and access state.</param>
         /// <returns>The action that should be taken on the window.</returns>
-        public abstract TriggerResult OnProcessingTime(long time, TWindow window, ITriggerContext ctx);
+        public abstract TriggerResults OnProcessingTime(long time, TWindow window, ITriggerContext ctx);
 
         /// <summary>
         /// Called when an event-time timer that was set using the trigger context fires.
@@ -50,7 +50,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// <param name="window">The window for which the timer fired.</param>
         /// <param name="ctx">A context object that can be used to register timers and access state.</param>
         /// <returns>The action that should be taken on the window.</returns>
-        public abstract TriggerResult OnEventTime(long time, TWindow window, ITriggerContext ctx);
+        public abstract TriggerResults OnEventTime(long time, TWindow window, ITriggerContext ctx);
 
         /// <summary>
         /// Called when a window is merged into another window (e.g., in session windows).

@@ -5,7 +5,7 @@ namespace FlinkDotNet.Core.Api.Windowing
     /// e.g., fire, purge, or do nothing.
     /// </summary>
     [Flags]
-    public enum TriggerResult : byte
+    public enum TriggerResults : byte
     {
         /// <summary>Do nothing.</summary>
         None = 0, // 0000
@@ -20,9 +20,9 @@ namespace FlinkDotNet.Core.Api.Windowing
         FireAndPurge = Fire | Purge // 0011
     }
 
-    public static class TriggerResultExtensions
+    public static class TriggerResultsExtensions
     {
-        public static bool IsFire(this TriggerResult result) => (result & TriggerResult.Fire) != 0;
-        public static bool IsPurge(this TriggerResult result) => (result & TriggerResult.Purge) != 0;
+        public static bool IsFire(this TriggerResults result) => (result & TriggerResults.Fire) != 0;
+        public static bool IsPurge(this TriggerResults result) => (result & TriggerResults.Purge) != 0;
     }
 }
