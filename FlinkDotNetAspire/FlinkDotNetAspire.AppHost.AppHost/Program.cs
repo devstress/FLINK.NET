@@ -14,9 +14,6 @@ public static class Program
         var redis = builder.AddRedis("redis")
             .PublishAsContainer(); // Ensure Redis is accessible from host
         var kafka = builder.AddKafka("kafka")
-            .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
-            .WithEnvironment("KAFKA_NUM_PARTITIONS", "1") 
-            .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
             .PublishAsContainer(); // Ensure Kafka is accessible from host
 
         // Set up for 1 million message high throughput test
