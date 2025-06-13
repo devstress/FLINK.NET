@@ -22,6 +22,7 @@ namespace FlinkDotNet.TaskManager.Internal
     /// <summary>
     /// Runtime services for window processing
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2436", Justification = "Generic parameters match Flink semantics")]
     public record WindowProcessorServices<TKey, TWindow, TOutput>(
         IRuntimeContext RuntimeContext,
         ICollector<TOutput> OutputCollector,
@@ -33,6 +34,7 @@ namespace FlinkDotNet.TaskManager.Internal
     /// Conceptual placeholder for a class that manages windowing logic for a single key.
     /// Instantiated by TaskExecutor for each active key in a window operator.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2436", Justification = "Generic parameters match Flink semantics")]
     public class KeyedWindowProcessor<TElement, TKey, TWindow, TAccumulator, TOutput>
         where TWindow : Window
     {

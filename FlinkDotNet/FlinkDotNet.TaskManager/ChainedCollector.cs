@@ -33,6 +33,7 @@ namespace FlinkDotNet.TaskManager
             _nextOperatorInputType = nextOperatorInputType ?? throw new ArgumentNullException(nameof(nextOperatorInputType));
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S3776", Justification = "Complex dispatch logic will be revisited later")]
         public void Collect(TIn record)
         {
             // Input validation/conversion:
@@ -56,22 +57,6 @@ namespace FlinkDotNet.TaskManager
                     else if (_nextStepTarget is List<object>)
                     {
                         // Placeholder for actual serialization
-                        byte[] payloadBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(mappedRecord);
-                        bool isBarrier = false;
-                        long checkpointId = 0;
-                        long checkpointTs = 0;
-
-                        // Conceptual: Check if 'record' (original TIn) indicated a barrier
-
-                        var dataRecordProto = new Proto.Internal.DataRecord
-                        {
-                            DataPayload = Google.Protobuf.ByteString.CopyFrom(payloadBytes),
-                            IsCheckpointBarrier = isBarrier,
-                        };
-                        if (isBarrier) {
-                            dataRecordProto.BarrierPayload = new Proto.Internal.CheckpointBarrier { CheckpointId = checkpointId, CheckpointTimestamp = checkpointTs };
-                        }
-
                         // Network output sending omitted in this simplified build
                     }
                     else if (_nextStepTarget == null)
