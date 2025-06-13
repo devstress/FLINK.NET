@@ -291,6 +291,16 @@ namespace IntegrationTestVerifier
         public double MonitoringDurationSec { get; set; }
     }
 
+    public class RedisPerformanceMetrics
+    {
+        public double ReadSpeedOpsPerSec { get; set; }
+        public double WriteSpeedOpsPerSec { get; set; }
+        public double ReadLatencyMs { get; set; }
+        public double WriteLatencyMs { get; set; }
+        public int TestOpsCount { get; set; }
+        public double TotalTestDurationMs { get; set; }
+    }
+
     public static class Program
     {
 
@@ -481,22 +491,91 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"\n🚀 SCENARIO 3: Performance & Resource Validation");
             Console.WriteLine($"   📋 Testing: Processing time and resource utilization within acceptable limits");
             
-            // Performance timing validation
+            PrintTimingAnalysis(verificationStopwatch, expectedMessages, analysis);
+            
+            long maxAllowedTimeMs = GetMaxAllowedTimeMs(config);
+            bool timingPassed = ValidateAndPrintCriticalAssertion(verificationStopwatch, expectedMessages, maxAllowedTimeMs);
+            
+            PrintRedisPerformanceAnalysis();
+            
+            bool memoryPassed = ValidateAndPrintMemoryAnalysis(analysis);
+            bool cpuPassed = ValidateAndPrintCpuAnalysis(analysis);
+            bool throughputPassed = ValidateAndPrintThroughputAnalysis(verificationStopwatch, expectedMessages, analysis);
+            
+            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
+            PrintAssessmentResults(timingPassed, memoryPassed, cpuPassed, throughputPassed, allPassed, maxAllowedTimeMs);
+            
+            return allPassed;
+        }
+
+        private static void PrintTimingAnalysis(Stopwatch verificationStopwatch, int expectedMessages, ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n⏰ TIMING ANALYSIS:");
             Console.WriteLine($"   📊 Actual verification time: {verificationStopwatch.ElapsedMilliseconds:N0}ms for {expectedMessages:N0} messages");
             Console.WriteLine($"   🎯 Predicted completion time: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
             Console.WriteLine($"   📈 Prediction accuracy: {(analysis.PredictedRequirements.EstimatedCompletionTimeMs / verificationStopwatch.ElapsedMilliseconds * 100):F1}% of actual");
             
-            // Read max allowed time from environment variable, default to 1 second
+            var processingTimePerMessageMs = verificationStopwatch.ElapsedMilliseconds / (double)expectedMessages;
+            var messagesPerMs = expectedMessages / (double)verificationStopwatch.ElapsedMilliseconds;
+            Console.WriteLine($"   🚀 Processing time per message: {processingTimePerMessageMs:F4}ms/msg");
+            Console.WriteLine($"   🚀 Processing rate: {messagesPerMs:F2} msg/ms ({messagesPerMs * 1000:F0} msg/sec)");
+            
+            Console.WriteLine($"\n📊 TOTAL PROCESSING TIME BREAKDOWN:");
+            Console.WriteLine($"   ⏱️  Total verification duration: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
+            Console.WriteLine($"   ⏱️  Average per message: {processingTimePerMessageMs:F4}ms");
+            Console.WriteLine($"   ⏱️  Monitoring duration: {analysis.PerformanceMetrics.MonitoringDurationSec:F1}s");
+        }
+
+        private static long GetMaxAllowedTimeMs(IConfigurationRoot config)
+        {
             long maxAllowedTimeMs = 1000; // 1 second default
             if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
             {
                 maxAllowedTimeMs = configuredTimeMs;
             }
-            
+            return maxAllowedTimeMs;
+        }
+
+        private static bool ValidateAndPrintCriticalAssertion(Stopwatch verificationStopwatch, int expectedMessages, long maxAllowedTimeMs)
+        {
             bool timingPassed = verificationStopwatch.ElapsedMilliseconds <= maxAllowedTimeMs;
             
-            // Resource utilization validation
+            Console.WriteLine($"\n🎯 CRITICAL PERFORMANCE ASSERTION:");
+            Console.WriteLine($"   📋 REQUIREMENT: Process {expectedMessages:N0} messages in less than {maxAllowedTimeMs:N0}ms (1 second)");
+            Console.WriteLine($"   📊 ACTUAL TIME: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
+            Console.WriteLine($"   📈 PERFORMANCE: {(timingPassed ? "✅ ASSERTION PASSED" : "❌ ASSERTION FAILED")}");
+            
+            if (!timingPassed)
+            {
+                var exceededBy = verificationStopwatch.ElapsedMilliseconds - maxAllowedTimeMs;
+                var exceededPercent = (double)exceededBy / maxAllowedTimeMs * 100;
+                Console.WriteLine($"   ⚠️  EXCEEDED BY: {exceededBy:N0}ms ({exceededPercent:F1}% over limit)");
+            }
+            else
+            {
+                var underBy = maxAllowedTimeMs - verificationStopwatch.ElapsedMilliseconds;
+                var underPercent = (double)underBy / maxAllowedTimeMs * 100;
+                Console.WriteLine($"   ✅ UNDER LIMIT BY: {underBy:N0}ms ({underPercent:F1}% under limit)");
+            }
+            
+            return timingPassed;
+        }
+
+        private static void PrintRedisPerformanceAnalysis()
+        {
+            if (s_lastRedisPerformance != null)
+            {
+                Console.WriteLine($"\n🔴 REDIS PERFORMANCE ANALYSIS:");
+                Console.WriteLine($"   📊 Read speed from Redis: {s_lastRedisPerformance.ReadSpeedOpsPerSec:N0} ops/sec");
+                Console.WriteLine($"   📊 Write speed to Redis: {s_lastRedisPerformance.WriteSpeedOpsPerSec:N0} ops/sec");
+                Console.WriteLine($"   📊 Read latency: {s_lastRedisPerformance.ReadLatencyMs:F2}ms avg");
+                Console.WriteLine($"   📊 Write latency: {s_lastRedisPerformance.WriteLatencyMs:F2}ms avg");
+                Console.WriteLine($"   📊 Performance test duration: {s_lastRedisPerformance.TotalTestDurationMs:F0}ms ({s_lastRedisPerformance.TestOpsCount} ops)");
+            }
+        }
+
+        private static bool ValidateAndPrintMemoryAnalysis(ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n💾 MEMORY ANALYSIS:");
             Console.WriteLine($"   📊 Peak process memory: {analysis.PerformanceMetrics.PeakMemoryMB:N0}MB");
             Console.WriteLine($"   📊 Average process memory: {analysis.PerformanceMetrics.AverageMemoryMB:F1}MB");
@@ -504,28 +583,33 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   🛡️  Safety margin: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% ({(analysis.SystemSpec.AvailableRamMB - analysis.PredictedRequirements.RequiredMemoryMB):F0}MB headroom)");
             Console.WriteLine($"   📈 Memory efficiency: {(analysis.PerformanceMetrics.PeakMemoryMB / analysis.PredictedRequirements.RequiredMemoryMB * 100):F1}% of predicted");
             
-            bool memoryPassed = analysis.PredictedRequirements.MemorySafetyMarginPercent > 10; // Require 10% safety margin
-            
+            return analysis.PredictedRequirements.MemorySafetyMarginPercent > 10; // Require 10% safety margin
+        }
+
+        private static bool ValidateAndPrintCpuAnalysis(ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n⚡ CPU ANALYSIS:");
             Console.WriteLine($"   📊 Peak CPU usage: {analysis.PerformanceMetrics.PeakCpuPercent:F1}%");
             Console.WriteLine($"   📊 Average CPU usage: {analysis.PerformanceMetrics.AverageCpuPercent:F1}%");
             Console.WriteLine($"   🎯 Available cores: {analysis.SystemSpec.CpuCores} ({analysis.SystemSpec.TaskManagerInstances} TaskManagers)");
-            Console.WriteLine($"   📈 CPU efficiency: {(analysis.PerformanceMetrics.AverageCpuPercent / (analysis.SystemSpec.CpuCores * 25)):F1}% (target: <25% per core)"); // 25% per core max
+            Console.WriteLine($"   📈 CPU efficiency: {(analysis.PerformanceMetrics.AverageCpuPercent / (analysis.SystemSpec.CpuCores * 25)):F1}% (target: <25% per core)");
             
-            bool cpuPassed = analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80); // Don't exceed 80% per core
-            
-            // Throughput analysis
+            return analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80); // Don't exceed 80% per core
+        }
+
+        private static bool ValidateAndPrintThroughputAnalysis(Stopwatch verificationStopwatch, int expectedMessages, ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n🚀 THROUGHPUT ANALYSIS:");
             var actualThroughput = expectedMessages / (verificationStopwatch.ElapsedMilliseconds / 1000.0);
             Console.WriteLine($"   📊 Actual throughput: {actualThroughput:N0} messages/second");
             Console.WriteLine($"   🎯 Predicted throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} messages/second");
             Console.WriteLine($"   📈 Throughput achievement: {(actualThroughput / analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 100):F1}% of predicted");
             
-            bool throughputPassed = actualThroughput >= (analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.5); // Achieve at least 50% of predicted
-            
-            // Overall assessment
-            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
-            
+            return actualThroughput >= (analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.5); // Achieve at least 50% of predicted
+        }
+
+        private static void PrintAssessmentResults(bool timingPassed, bool memoryPassed, bool cpuPassed, bool throughputPassed, bool allPassed, long maxAllowedTimeMs)
+        {
             Console.WriteLine($"\n   🎯 ASSESSMENT RESULTS:");
             Console.WriteLine($"      ⏰ Timing: {(timingPassed ? "✅ PASS" : "❌ FAIL")} (≤{maxAllowedTimeMs:N0}ms requirement)");
             Console.WriteLine($"      💾 Memory: {(memoryPassed ? "✅ PASS" : "❌ FAIL")} (≥10% safety margin requirement)");
@@ -551,8 +635,6 @@ namespace IntegrationTestVerifier
                 if (!throughputPassed)
                     Console.WriteLine($"         🚀 Throughput below 50% of predicted performance");
             }
-            
-            return allPassed;
         }
 
         private static void PrintFinalResult(bool allChecksPassed)
@@ -688,6 +770,22 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"\n   🚨 JOB EXECUTION ERROR DETECTED:");
                 Console.WriteLine($"      Error: {jobError}");
                 Console.WriteLine($"      This explains why sinks are not processing messages.");
+                
+                // Enhanced diagnostics for different error types
+                var errorString = jobError.ToString();
+                if (errorString.Contains("Redis", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"      💡 Redis-related error detected - check Redis connectivity and performance");
+                }
+                else if (errorString.Contains("Timeout", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"      💡 Timeout error detected - job may need more time or resources");
+                }
+                else if (errorString.Contains("LocalStreamExecutor", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"      💡 LocalStreamExecutor error - check operator chain execution");
+                }
+                
                 Console.WriteLine($"      Clearing error indicator for next test...");
                 await db.KeyDeleteAsync(jobErrorKey);
             }
@@ -696,10 +794,73 @@ namespace IntegrationTestVerifier
         private static async Task<bool> PerformRedisValidation(IDatabase db, int expectedMessages, string globalSeqKey, string sinkCounterKey)
         {
             Console.WriteLine($"\n   📋 Verifying Redis data according to stress test documentation:");
+            
+            // Measure Redis performance first
+            var redisPerf = await MeasureRedisPerformance(db);
+            Console.WriteLine($"\n   ⚡ Redis Performance Measurements:");
+            Console.WriteLine($"      📊 Read speed: {redisPerf.ReadSpeedOpsPerSec:N0} ops/sec (avg latency: {redisPerf.ReadLatencyMs:F2}ms)");
+            Console.WriteLine($"      📊 Write speed: {redisPerf.WriteSpeedOpsPerSec:N0} ops/sec (avg latency: {redisPerf.WriteLatencyMs:F2}ms)");
+            Console.WriteLine($"      📊 Test operations: {redisPerf.TestOpsCount:N0} in {redisPerf.TotalTestDurationMs:F0}ms");
+
+            // Store for later use in performance validation
+            s_lastRedisPerformance = redisPerf;
+            
             bool redisVerified = true;
             redisVerified &= await CheckRedisKey(db, globalSeqKey, "Source Sequence Generation", "TEST 1.1", expectedMessages);
             redisVerified &= await CheckRedisKey(db, sinkCounterKey, "Redis Sink Processing", "TEST 1.2", expectedMessages);
             return redisVerified;
+        }
+
+        private static RedisPerformanceMetrics? s_lastRedisPerformance;
+
+        private static async Task<RedisPerformanceMetrics> MeasureRedisPerformance(IDatabase db)
+        {
+            const int testOpsCount = 100; // Small test to avoid interference
+            const string testKeyPrefix = "perf_test_";
+            var testKeys = new List<string>();
+            
+            var stopwatch = Stopwatch.StartNew();
+            
+            // Write performance test
+            var writeStopwatch = Stopwatch.StartNew();
+            for (int i = 0; i < testOpsCount; i++)
+            {
+                var key = $"{testKeyPrefix}{i}";
+                testKeys.Add(key);
+                await db.StringSetAsync(key, $"test_value_{i}");
+            }
+            writeStopwatch.Stop();
+            
+            // Read performance test
+            var readStopwatch = Stopwatch.StartNew();
+            for (int i = 0; i < testOpsCount; i++)
+            {
+                await db.StringGetAsync(testKeys[i]);
+            }
+            readStopwatch.Stop();
+            
+            stopwatch.Stop();
+            
+            // Cleanup test keys
+            try
+            {
+                var redisKeys = testKeys.Select(k => (RedisKey)k).ToArray();
+                await db.KeyDeleteAsync(redisKeys);
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+            
+            return new RedisPerformanceMetrics
+            {
+                ReadSpeedOpsPerSec = testOpsCount / (readStopwatch.ElapsedMilliseconds / 1000.0),
+                WriteSpeedOpsPerSec = testOpsCount / (writeStopwatch.ElapsedMilliseconds / 1000.0),
+                ReadLatencyMs = readStopwatch.ElapsedMilliseconds / (double)testOpsCount,
+                WriteLatencyMs = writeStopwatch.ElapsedMilliseconds / (double)testOpsCount,
+                TestOpsCount = testOpsCount,
+                TotalTestDurationMs = stopwatch.ElapsedMilliseconds
+            };
         }
 
         private static async Task<bool> CheckRedisKey(IDatabase db, string keyName, string description, string testStep, int expectedMessages)
@@ -761,10 +922,39 @@ namespace IntegrationTestVerifier
                 {
                     Console.WriteLine($"           ... and {allKeys.Count - 10} more keys");
                 }
+                
+                // 🔍 ROOT CAUSE ANALYSIS
+                Console.WriteLine($"\n         🔍 ROOT CAUSE ANALYSIS:");
+                if (allKeys.Count == 0)
+                {
+                    Console.WriteLine($"           🚨 CRITICAL: No FlinkDotNet keys found - Job never started or Redis connection failed");
+                    Console.WriteLine($"           💡 SUGGESTION: Check AppHost startup logs, verify Redis container is running");
+                }
+                else if (allKeys.Any(k => k.Contains("global_sequence_id")))
+                {
+                    var seqKey = allKeys.First(k => k.Contains("global_sequence_id"));
+                    var seqVal = await db.StringGetAsync(seqKey);
+                    Console.WriteLine($"           📊 Source function generated {seqVal} messages but stopped early");
+                    Console.WriteLine($"           💡 SUGGESTION: Check for LocalStreamExecutor timeout, source function errors, or resource exhaustion");
+                }
+                else
+                {
+                    Console.WriteLine($"           🚨 CRITICAL: Source function never initialized - sequence generation failed");
+                    Console.WriteLine($"           💡 SUGGESTION: Check source function startup, Redis connectivity in source");
+                }
+                
+                // Check for sink processing indicators
+                if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase) && 
+                    !allKeys.Any(k => k.Contains("processed_message_counter")))
+                {
+                    Console.WriteLine($"           🚨 SINK ISSUE: No sink counter key found - RedisIncrementSinkFunction never executed");
+                    Console.WriteLine($"           💡 SUGGESTION: Check sink function registration, Redis sink connectivity");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"         ⚠️  Could not enumerate keys: {ex.Message}");
+                Console.WriteLine($"         💡 This may indicate Redis connectivity issues during diagnostics");
             }
         }
 
@@ -779,6 +969,29 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"            - Source stopped at {actualValue:N0}/{expectedMessages:N0} messages");
                 Console.WriteLine($"            - This suggests LocalStreamExecutor timeout or error in source execution");
                 Console.WriteLine($"            - Check AppHost logs for source function error messages");
+                
+                // 🔍 SOURCE-SPECIFIC DIAGNOSTICS
+                Console.WriteLine($"\n         🔍 SOURCE-SPECIFIC DIAGNOSTICS:");
+                if (actualValue == 0)
+                {
+                    Console.WriteLine($"            🚨 CRITICAL: Source never generated any messages");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection failure, source function not registered, job execution error");
+                }
+                else if (actualValue < expectedMessages * 0.1)
+                {
+                    Console.WriteLine($"            ⚠️  Source failed very early (<10% completion)");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Source initialization error, immediate timeout, resource exhaustion");
+                }
+                else if (actualValue < expectedMessages * 0.5)
+                {
+                    Console.WriteLine($"            ⚠️  Source failed mid-execution (<50% completion)");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection timeout, memory issues, LocalStreamExecutor timeout");
+                }
+                else
+                {
+                    Console.WriteLine($"            ✅ Source made good progress (>{actualValue * 100.0 / expectedMessages:F1}% completion)");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Controlled shutdown, late-stage timeout, resource constraints");
+                }
             }
             else if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase))
             {
@@ -791,11 +1004,42 @@ namespace IntegrationTestVerifier
                 var sourceValue = await db.StringGetAsync(sourceKey);
                 if (sourceValue.HasValue)
                 {
+                    var sourceCount = (long)sourceValue;
                     Console.WriteLine($"            - Source generated {sourceValue} messages vs sink processed {actualValue}");
-                    if ((long)sourceValue > actualValue)
+                    if (sourceCount > actualValue)
                     {
-                        Console.WriteLine($"            - ⚠️  Data loss: Sink missed {(long)sourceValue - actualValue} messages");
+                        var dataLoss = sourceCount - actualValue;
+                        var dataLossPercent = (double)dataLoss / sourceCount * 100;
+                        Console.WriteLine($"            - ⚠️  Data loss: Sink missed {dataLoss} messages ({dataLossPercent:F1}% loss rate)");
+                        
+                        // 🔍 SINK-SPECIFIC DIAGNOSTICS
+                        Console.WriteLine($"\n         🔍 SINK-SPECIFIC DIAGNOSTICS:");
+                        if (actualValue == 0)
+                        {
+                            Console.WriteLine($"            🚨 CRITICAL: Sink never processed any messages despite source generating {sourceCount}");
+                            Console.WriteLine($"            💡 LIKELY CAUSES: Sink function not registered, sink Redis connection failure, sink execution error");
+                        }
+                        else if (dataLossPercent > 50)
+                        {
+                            Console.WriteLine($"            ⚠️  High data loss rate (>{dataLossPercent:F1}%)");
+                            Console.WriteLine($"            💡 LIKELY CAUSES: Sink connection instability, processing exceptions, sink timeout");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"            ⚠️  Moderate data loss ({dataLossPercent:F1}%)");
+                            Console.WriteLine($"            💡 LIKELY CAUSES: Processing backpressure, occasional failures, late shutdown");
+                        }
                     }
+                    else if (sourceCount == actualValue)
+                    {
+                        Console.WriteLine($"            ✅ Perfect source-to-sink ratio - data flow is working correctly");
+                        Console.WriteLine($"            💡 Issue is likely in source generation capacity, not sink processing");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"            🚨 CRITICAL: Cannot compare with source - source key not found");
+                    Console.WriteLine($"            💡 Both source and sink may have failed completely");
                 }
             }
         }
@@ -872,6 +1116,39 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"   ❌ THEN: Kafka subscription FAILED");
                 Console.WriteLine($"      🔌 Could not subscribe to topic '{topic}': {ex.Message}");
                 Console.WriteLine($"      💡 This indicates Kafka container is not accessible or topic doesn't exist");
+                
+                // 🔍 KAFKA-SPECIFIC DIAGNOSTICS
+                Console.WriteLine($"\n      🔍 KAFKA SUBSCRIPTION DIAGNOSTICS:");
+                Console.WriteLine($"         📊 Bootstrap servers: {cleanBootstrapServers}");
+                Console.WriteLine($"         📊 Topic name: {topic}");
+                Console.WriteLine($"         📊 Exception type: {ex.GetType().Name}");
+                
+                if (ex.Message.Contains("UnknownTopicOrPart"))
+                {
+                    Console.WriteLine($"         🚨 ROOT CAUSE: Topic '{topic}' does not exist on Kafka broker");
+                    Console.WriteLine($"         💡 LIKELY CAUSES:");
+                    Console.WriteLine($"            - KafkaSinkFunction failed to create topic during job execution");
+                    Console.WriteLine($"            - Kafka auto-topic creation is disabled");
+                    Console.WriteLine($"            - Topic name mismatch between producer and consumer");
+                    Console.WriteLine($"         💡 SUGGESTIONS:");
+                    Console.WriteLine($"            - Check AppHost logs for KafkaSinkFunction errors");
+                    Console.WriteLine($"            - Verify Kafka container is running and topic creation succeeded");
+                    Console.WriteLine($"            - Check if job execution completed successfully");
+                }
+                else if (ex.Message.Contains("timeout") || ex.Message.Contains("connect"))
+                {
+                    Console.WriteLine($"         🚨 ROOT CAUSE: Cannot connect to Kafka broker at {cleanBootstrapServers}");
+                    Console.WriteLine($"         💡 SUGGESTIONS:");
+                    Console.WriteLine($"            - Verify Kafka container is running on the expected port");
+                    Console.WriteLine($"            - Check docker port mapping for Kafka service");
+                    Console.WriteLine($"            - Ensure no firewall blocking localhost connections");
+                }
+                else
+                {
+                    Console.WriteLine($"         🚨 ROOT CAUSE: Unexpected Kafka subscription error");
+                    Console.WriteLine($"         💡 SUGGESTION: Check Kafka broker logs and consumer configuration");
+                }
+                
                 return false;
             }
 
@@ -936,6 +1213,27 @@ namespace IntegrationTestVerifier
             {
                 Console.WriteLine($"❌ Kafka consume error: {e.Error.Reason}");
                 Console.WriteLine($"  Error code: {e.Error.Code}");
+                
+                // 🔍 CONSUMPTION ERROR DIAGNOSTICS
+                Console.WriteLine($"\n🔍 KAFKA CONSUMPTION ERROR DIAGNOSTICS:");
+                if (e.Error.Code == ErrorCode.UnknownTopicOrPart)
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: Topic does not exist or partition not available");
+                    Console.WriteLine($"   💡 LIKELY CAUSES:");
+                    Console.WriteLine($"      - KafkaSinkFunction failed to create topic during job execution");
+                    Console.WriteLine($"      - Topic was created but not yet available for consumption");
+                    Console.WriteLine($"      - Producer hasn't written any messages to topic yet");
+                }
+                else if (e.Error.Code == ErrorCode.BrokerNotAvailable)
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: Kafka broker is not available or unreachable");
+                    Console.WriteLine($"   💡 SUGGESTION: Check Kafka container status and network connectivity");
+                }
+                else
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: Unexpected Kafka consumption error ({e.Error.Code})");
+                    Console.WriteLine($"   💡 SUGGESTION: Check Kafka broker logs and consumer permissions");
+                }
             }
             finally
             {
@@ -962,6 +1260,42 @@ namespace IntegrationTestVerifier
             if (messagesConsumed.Count < expectedMessages && stopwatch.Elapsed >= consumeTimeout)
             {
                 Console.WriteLine($"❌ TIMEOUT: Expected {expectedMessages:N0}, got {messagesConsumed.Count:N0} messages.");
+                
+                // 🔍 TIMEOUT DIAGNOSTICS
+                Console.WriteLine($"\n🔍 KAFKA TIMEOUT DIAGNOSTICS:");
+                if (messagesConsumed.Count == 0)
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: No messages received at all within {consumeTimeout.TotalSeconds}s timeout");
+                    Console.WriteLine($"   💡 LIKELY CAUSES:");
+                    Console.WriteLine($"      - KafkaSinkFunction never produced messages to topic");
+                    Console.WriteLine($"      - Topic exists but is empty (producer failed)");
+                    Console.WriteLine($"      - Wrong topic name between producer and consumer");
+                    Console.WriteLine($"      - Kafka consumer offset configuration issue");
+                }
+                else
+                {
+                    var receivedPercent = messagesConsumed.Count * 100.0 / expectedMessages;
+                    Console.WriteLine($"   ⚠️  PARTIAL SUCCESS: Received {messagesConsumed.Count:N0}/{expectedMessages:N0} messages ({receivedPercent:F1}%)");
+                    Console.WriteLine($"   💡 LIKELY CAUSES:");
+                    if (receivedPercent < 10)
+                    {
+                        Console.WriteLine($"      - Producer failed early in message generation");
+                        Console.WriteLine($"      - Source function stopped generating messages");
+                    }
+                    else if (receivedPercent < 50)
+                    {
+                        Console.WriteLine($"      - Producer stopped mid-execution (timeout, error, resource limit)");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"      - Producer nearly completed but stopped short");
+                        Console.WriteLine($"      - May just need longer consumption timeout");
+                    }
+                }
+                Console.WriteLine($"   💡 SUGGESTIONS:");
+                Console.WriteLine($"      - Check FlinkJobSimulator execution logs for errors");
+                Console.WriteLine($"      - Verify Redis sequence generation completed");
+                Console.WriteLine($"      - Check AppHost for KafkaSinkFunction error messages");
             }
         }
 

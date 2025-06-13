@@ -166,12 +166,15 @@ namespace FlinkJobSimulator
                 { 
                     BootstrapServers = bootstrapServers, // Already cleaned to use IPv4 in calling method
                     SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
-                    SocketTimeoutMs = 10000 // 10 seconds timeout
+                    SocketTimeoutMs = 10000, // 10 seconds timeout
+                    ApiVersionRequestTimeoutMs = 10000
                 };
                 using var admin = new AdminClientBuilder(adminConfig).Build();
                 
+                Console.WriteLine($"[{_taskName}] Connecting to Kafka admin at {bootstrapServers} to check topic '{_topic}'...");
+                
                 // Check if topic exists
-                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
                 var topicExists = metadata.Topics.Any(t => t.Topic == _topic);
                 
                 if (!topicExists)
@@ -187,6 +190,9 @@ namespace FlinkJobSimulator
 
                     await admin.CreateTopicsAsync(new[] { topicSpec });
                     Console.WriteLine($"[{_taskName}] Topic '{_topic}' created successfully.");
+                    
+                    // Wait a bit for topic to be fully available
+                    await Task.Delay(2000);
                 }
                 else
                 {
@@ -195,8 +201,9 @@ namespace FlinkJobSimulator
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{_taskName}] WARNING: Could not create/verify topic '{_topic}': {ex.Message}");
-                Console.WriteLine($"[{_taskName}] Continuing anyway - topic may be auto-created on first message.");
+                Console.WriteLine($"[{_taskName}] WARNING: Could not create/verify topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                Console.WriteLine($"[{_taskName}] Continuing anyway - topic may be auto-created on first message or may already exist.");
+                // Don't throw - let the producer try to work anyway
             }
         }
 
