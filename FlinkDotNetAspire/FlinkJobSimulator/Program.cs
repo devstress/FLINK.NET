@@ -569,6 +569,45 @@ public static class Program
         return env;
     }
 
+    private static async Task CleanRedisStateForFreshTest(IDatabase redisDatabase)
+    {
+        var globalSequenceKey = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE") ?? "flinkdotnet:global_sequence_id";
+        var sinkCounterKey = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_SINK_COUNTER") ?? "flinkdotnet:sample:processed_message_counter";
+        var jobErrorKey = "flinkdotnet:job_execution_error";
+        
+        Console.WriteLine($"Cleaning Redis keys for fresh test run:");
+        Console.WriteLine($"  - Deleting global sequence key: {globalSequenceKey}");
+        Console.WriteLine($"  - Deleting sink counter key: {sinkCounterKey}");
+        Console.WriteLine($"  - Deleting job error key: {jobErrorKey}");
+        
+        try
+        {
+            // Delete all test-related keys to ensure fresh state
+            var deletedCount = await redisDatabase.KeyDeleteAsync(new RedisKey[] { 
+                globalSequenceKey, 
+                sinkCounterKey, 
+                jobErrorKey 
+            });
+            Console.WriteLine($"Successfully deleted {deletedCount} Redis keys");
+            
+            // Verify cleanup
+            var remaining = await redisDatabase.StringGetAsync(globalSequenceKey);
+            if (remaining.HasValue)
+            {
+                Console.WriteLine($"WARNING: Global sequence key still exists with value: {remaining}");
+            }
+            else
+            {
+                Console.WriteLine("✅ Verified: Global sequence key successfully cleared");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"WARNING: Redis cleanup failed: {ex.Message}");
+            Console.WriteLine("Continuing with test execution...");
+        }
+    }
+
     private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string jobManagerGrpcUrl, IDatabase redisDatabase)
     {
         Console.WriteLine("Building JobGraph...");
@@ -576,6 +615,10 @@ public static class Program
         Console.WriteLine($"JobGraph created with name: {jobGraph.JobName}");
         Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
 
+        // *** CRITICAL FIX: Clean Redis state before each test run ***
+        Console.WriteLine("=== REDIS STATE CLEANUP ===");
+        await CleanRedisStateForFreshTest(redisDatabase);
+        
         // Verify infrastructure
         Console.WriteLine("Verifying JobManager and TaskManager infrastructure...");
         try 

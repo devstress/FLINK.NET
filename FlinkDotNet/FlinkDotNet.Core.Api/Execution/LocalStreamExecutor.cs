@@ -370,7 +370,11 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            const int maxNoDataIterations = 300000; // Exit after ~30 minutes of no data (300000 * 5ms)
+            
+            // Increased timeout for high-volume processing - 2 hours instead of 30 minutes
+            const int maxNoDataIterations = 1440000; // Exit after ~2 hours of no data (1440000 * 5ms)
+            
+            Console.WriteLine($"[LocalStreamExecutor] Sink starting data processing loop...");
             
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -379,9 +383,17 @@ namespace FlinkDotNet.Core.Api.Execution
                 if (!hasData)
                 {
                     noDataCount++;
+                    
+                    // Enhanced logging for debugging timeout issues
+                    if (noDataCount % 60000 == 0) // Every 5 minutes
+                    {
+                        var totalQueueSize = inputChannels.Sum(c => c.Count);
+                        Console.WriteLine($"[LocalStreamExecutor] Sink: No data for {noDataCount * 5}ms ({noDataCount * 5 / 60000:F1} min). Processed: {processed}, Queue size: {totalQueueSize}");
+                    }
+                    
                     if (noDataCount >= maxNoDataIterations)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available after 30 minutes)");
+                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available after 2 hours)");
                         break;
                     }
                     await Task.Delay(5, cancellationToken); // Reduced delay for better responsiveness
@@ -390,10 +402,11 @@ namespace FlinkDotNet.Core.Api.Execution
                 {
                     noDataCount = 0; // Reset counter when data is found
                     
-                    // Log progress more frequently for debugging
-                    if (processed % 1000 == 0 && processed > 0)
+                    // Enhanced progress logging for debugging
+                    if (processed % 10000 == 0 && processed > 0)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records so far");
+                        var totalQueueSize = inputChannels.Sum(c => c.Count);
+                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records, queue size: {totalQueueSize}");
                     }
                 }
             }
@@ -437,7 +450,11 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            const int maxNoDataIterations = 300000; // Exit after ~30 minutes of no data (300000 * 5ms)
+            
+            // Increased timeout for high-volume processing - 2 hours instead of 30 minutes
+            const int maxNoDataIterations = 1440000; // Exit after ~2 hours of no data (1440000 * 5ms)
+            
+            Console.WriteLine($"[LocalStreamExecutor] Operator starting data processing loop...");
             
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -446,9 +463,18 @@ namespace FlinkDotNet.Core.Api.Execution
                 if (!hasData)
                 {
                     noDataCount++;
+                    
+                    // Enhanced logging for debugging timeout issues
+                    if (noDataCount % 60000 == 0) // Every 5 minutes
+                    {
+                        var inputQueueSize = inputChannels.Sum(c => c.Count);
+                        var outputQueueSize = outputChannels.Sum(c => c.Count);
+                        Console.WriteLine($"[LocalStreamExecutor] Operator: No data for {noDataCount * 5}ms ({noDataCount * 5 / 60000:F1} min). Processed: {processed}, Input queue: {inputQueueSize}, Output queue: {outputQueueSize}");
+                    }
+                    
                     if (noDataCount >= maxNoDataIterations)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 30 minutes)");
+                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 2 hours)");
                         break;
                     }
                     await Task.Delay(5, cancellationToken); // Reduced delay for better responsiveness
@@ -457,10 +483,12 @@ namespace FlinkDotNet.Core.Api.Execution
                 {
                     noDataCount = 0; // Reset counter when data is found
                     
-                    // Log progress more frequently for debugging
-                    if (processed % 1000 == 0 && processed > 0)
+                    // Enhanced progress logging for debugging
+                    if (processed % 10000 == 0 && processed > 0)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records so far");
+                        var inputQueueSize = inputChannels.Sum(c => c.Count);
+                        var outputQueueSize = outputChannels.Sum(c => c.Count);
+                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records, input queue: {inputQueueSize}, output queue: {outputQueueSize}");
                     }
                 }
             }
@@ -589,10 +617,16 @@ namespace FlinkDotNet.Core.Api.Execution
             }
             
             var collected = Interlocked.Increment(ref _totalCollected);
-            if (collected % 100000 == 0)
+            if (collected % 10000 == 0)
             {
                 var totalQueueSize = _outputChannels.Sum(c => c.Count);
                 Console.WriteLine($"[LocalSourceContext] Collected {collected} records, total queue size: {totalQueueSize}");
+                
+                // Enhanced backpressure monitoring
+                if (totalQueueSize > 100000)
+                {
+                    Console.WriteLine($"[LocalSourceContext] WARNING: High queue backpressure detected! Queue size: {totalQueueSize}");
+                }
             }
         }
 

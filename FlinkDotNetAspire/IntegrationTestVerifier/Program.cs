@@ -355,6 +355,9 @@ namespace IntegrationTestVerifier
             if (!value.HasValue) {
                 Console.WriteLine($"      ❌ THEN: Key validation FAILED - Redis key '{keyName}' not found");
                 Console.WriteLine($"         💡 This indicates the {description.ToLower()} did not execute or failed to write");
+                
+                // Enhanced diagnostics for missing keys
+                await ProvideEnhancedDiagnostics(db, keyName, description);
                 return false;
             }
             
@@ -363,10 +366,81 @@ namespace IntegrationTestVerifier
             
             if (actualValue != expectedMessages) {
                 LogValueValidationFailure(actualValue, expectedMessages, keyName);
+                
+                // Enhanced diagnostics for value mismatches
+                await ProvideValueMismatchDiagnostics(db, actualValue, expectedMessages, description);
                 return false;
             }
             Console.WriteLine($"      ✅ THEN: Value validation PASSED - Correct value: {actualValue:N0}");
             return true;
+        }
+
+        private static async Task ProvideEnhancedDiagnostics(IDatabase db, string keyName, string description)
+        {
+            Console.WriteLine($"\n      🔍 ENHANCED DIAGNOSTICS for missing {description}:");
+            
+            // Check if there are any job execution errors
+            var jobErrorKey = "flinkdotnet:job_execution_error";
+            RedisValue jobError = await db.StringGetAsync(jobErrorKey);
+            if (jobError.HasValue)
+            {
+                Console.WriteLine($"         🚨 JOB EXECUTION ERROR FOUND: {jobError}");
+                Console.WriteLine($"         ⚠️  This explains why {description.ToLower()} failed");
+            }
+            
+            // Check for partial execution (look for related keys)
+            try
+            {
+                var server = db.Multiplexer.GetServer(db.Multiplexer.GetEndPoints()[0]);
+                var allKeys = server.Keys(pattern: "flinkdotnet*").Select(k => k.ToString()).ToList();
+                
+                Console.WriteLine($"         📋 Found {allKeys.Count} Redis keys with 'flinkdotnet' prefix:");
+                foreach (var key in allKeys.Take(10)) // Show first 10 keys
+                {
+                    var val = await db.StringGetAsync(key);
+                    Console.WriteLine($"           - {key}: {val}");
+                }
+                if (allKeys.Count > 10)
+                {
+                    Console.WriteLine($"           ... and {allKeys.Count - 10} more keys");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"         ⚠️  Could not enumerate keys: {ex.Message}");
+            }
+        }
+
+        private static async Task ProvideValueMismatchDiagnostics(IDatabase db, long actualValue, int expectedMessages, string description)
+        {
+            Console.WriteLine($"\n      🔍 VALUE MISMATCH DIAGNOSTICS:");
+            Console.WriteLine($"         📊 Gap Analysis: {expectedMessages - actualValue:N0} messages missing ({(double)(expectedMessages - actualValue) / expectedMessages * 100:F1}% failure rate)");
+            
+            if (description.Contains("Source", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"         💡 Source Function Insights:");
+                Console.WriteLine($"            - Source stopped at {actualValue:N0}/{expectedMessages:N0} messages");
+                Console.WriteLine($"            - This suggests LocalStreamExecutor timeout or error in source execution");
+                Console.WriteLine($"            - Check AppHost logs for source function error messages");
+            }
+            else if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"         💡 Sink Function Insights:");
+                Console.WriteLine($"            - Sink processed {actualValue:N0}/{expectedMessages:N0} messages");
+                Console.WriteLine($"            - Check if source generated full volume or if sink processing failed");
+                
+                // Check source volume
+                var sourceKey = "flinkdotnet:global_sequence_id";
+                var sourceValue = await db.StringGetAsync(sourceKey);
+                if (sourceValue.HasValue)
+                {
+                    Console.WriteLine($"            - Source generated {sourceValue} messages vs sink processed {actualValue}");
+                    if ((long)sourceValue > actualValue)
+                    {
+                        Console.WriteLine($"            - ⚠️  Data loss: Sink missed {(long)sourceValue - actualValue} messages");
+                    }
+                }
+            }
         }
 
         private static void LogValueValidationFailure(long actualValue, int expectedMessages, string keyName)

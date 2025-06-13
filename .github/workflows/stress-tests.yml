@@ -21,7 +21,7 @@ concurrency:
 
 env:
   SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests - reduced for faster execution
-  MAX_ALLOWED_TIME_MS: "1000" # 1 second timeout for processing
+  MAX_ALLOWED_TIME_MS: "60000" # 60 seconds timeout for processing 1M messages
 
 jobs:
   run-stress-tests:

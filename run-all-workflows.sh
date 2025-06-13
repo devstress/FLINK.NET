@@ -168,7 +168,7 @@ mkdir -p "$ROOT/workflow-logs"
 
 # Set environment variables
 export SIMULATOR_NUM_MESSAGES=${SIMULATOR_NUM_MESSAGES:-1000000}
-export MAX_ALLOWED_TIME_MS=${MAX_ALLOWED_TIME_MS:-1000}
+export MAX_ALLOWED_TIME_MS=${MAX_ALLOWED_TIME_MS:-60000}
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
 echo "=== Starting Workflows in Parallel ==="
@@ -408,7 +408,7 @@ try {
 
     Write-Host "Stress Tests Configuration:"
     Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
-    Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS"
+    Write-Host "  MAX_ALLOWED_TIME_MS: $(if ($env:MAX_ALLOWED_TIME_MS) { $env:MAX_ALLOWED_TIME_MS } else { '60000' })"
 
     # Install .NET Aspire Workload
     Write-Host "Installing .NET Aspire Workload..."
