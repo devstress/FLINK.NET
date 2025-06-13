@@ -483,6 +483,11 @@ public static class Program
         HighVolumeSourceFunction.GlobalRedisDatabase = redisDatabase;
         HighVolumeSourceFunction.GlobalConfiguration = configuration;
 
+        // Set static configuration for sink functions
+        RedisIncrementSinkFunction<string>.GlobalRedisDatabase = redisDatabase;
+        RedisIncrementSinkFunction<string>.GlobalRedisKey = redisSinkCounterKey;
+        KafkaSinkFunction<string>.GlobalKafkaTopic = kafkaTopic;
+
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 

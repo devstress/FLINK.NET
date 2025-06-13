@@ -7,12 +7,17 @@ namespace FlinkJobSimulator
 {
     public class RedisIncrementSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle
     {
-        private readonly IDatabase _redisDb;
-        private readonly string _redisKey = "flinkdotnet:sample:counter"; // Default key, make configurable if needed
+        private IDatabase? _redisDb;
+        private string _redisKey = "flinkdotnet:sample:counter"; // Default key, make configurable if needed
         private string _taskName = nameof(RedisIncrementSinkFunction<T>);
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
 
+        // Static configuration for LocalStreamExecutor compatibility
+        public static IDatabase? GlobalRedisDatabase { get; set; }
+        public static string? GlobalRedisKey { get; set; }
+
+        // Constructor with dependencies (for manual instantiation)
         public RedisIncrementSinkFunction(IDatabase redisDatabase, string? redisKey = null)
         {
             _redisDb = redisDatabase ?? throw new ArgumentNullException(nameof(redisDatabase));
@@ -23,10 +28,28 @@ namespace FlinkJobSimulator
             Console.WriteLine($"RedisIncrementSinkFunction will use Redis key: '{_redisKey}'");
         }
 
+        // Parameterless constructor (for LocalStreamExecutor reflection)
+        public RedisIncrementSinkFunction()
+        {
+            _redisKey = GlobalRedisKey ?? "flinkdotnet:sample:counter";
+            Console.WriteLine($"RedisIncrementSinkFunction parameterless constructor: key '{_redisKey}'");
+        }
+
         public void Open(IRuntimeContext context)
         {
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening RedisIncrementSinkFunction for key '{_redisKey}'.");
+
+            // If using parameterless constructor, get Redis database from static configuration
+            if (_redisDb == null)
+            {
+                _redisDb = GlobalRedisDatabase;
+                if (_redisDb == null)
+                {
+                    throw new InvalidOperationException("Redis database not available. Ensure GlobalRedisDatabase is set before job execution.");
+                }
+                Console.WriteLine($"[{_taskName}] Using global Redis database from static configuration.");
+            }
 
             try
             {
@@ -54,6 +77,7 @@ namespace FlinkJobSimulator
 
             try
             {
+                if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
                 _redisDb.StringIncrement(_redisKey);
                 long currentCount = Interlocked.Increment(ref _processedCount);
 
@@ -73,8 +97,15 @@ namespace FlinkJobSimulator
             Console.WriteLine($"[{_taskName}] Closing RedisIncrementSinkFunction. Processed {_processedCount} records for key '{_redisKey}'.");
             try
             {
-                long finalValue = (long)_redisDb.StringGet(_redisKey);
-                Console.WriteLine($"[{_taskName}] Final value of Redis key '{_redisKey}': {finalValue}");
+                if (_redisDb != null)
+                {
+                    long finalValue = (long)_redisDb.StringGet(_redisKey);
+                    Console.WriteLine($"[{_taskName}] Final value of Redis key '{_redisKey}': {finalValue}");
+                }
+                else
+                {
+                    Console.WriteLine($"[{_taskName}] Redis database was null, could not get final value.");
+                }
             }
             catch(Exception ex)
             {

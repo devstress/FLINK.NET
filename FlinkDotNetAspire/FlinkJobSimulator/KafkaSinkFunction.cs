@@ -15,14 +15,25 @@ namespace FlinkJobSimulator
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
 
+        // Static configuration for LocalStreamExecutor compatibility
+        public static string? GlobalKafkaTopic { get; set; }
+
         private static readonly IConfiguration Configuration = new ConfigurationBuilder()
             .AddEnvironmentVariables()
             .Build();
 
-        public KafkaSinkFunction(string? topic = null) // Constructor allows overriding topic
+        // Constructor with dependencies (for manual instantiation)
+        public KafkaSinkFunction(string topic) // Constructor requires topic
         {
-            _topic = topic ?? Configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.default.topic";
+            _topic = topic ?? throw new ArgumentNullException(nameof(topic));
             Console.WriteLine($"KafkaSinkFunction will use Kafka topic: '{_topic}'");
+        }
+
+        // Parameterless constructor (for LocalStreamExecutor reflection)
+        public KafkaSinkFunction()
+        {
+            _topic = GlobalKafkaTopic ?? Configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.default.topic";
+            Console.WriteLine($"KafkaSinkFunction parameterless constructor: topic '{_topic}'");
         }
 
         public void Open(IRuntimeContext context)
