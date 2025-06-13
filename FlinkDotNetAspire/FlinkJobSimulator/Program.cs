@@ -54,19 +54,25 @@ public class CountingSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle
 // Modified Source Function for High Volume with Redis Sequence ID and Barrier Injection
 public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecycle
 {
-    private readonly long _numberOfMessagesToGenerate;
-    private readonly ITypeSerializer<string> _serializer;
-    private readonly IDatabase _redisDb;
+    private long _numberOfMessagesToGenerate;
+    private ITypeSerializer<string> _serializer;
+    private IDatabase? _redisDb;
     private volatile bool _isRunning = true;
     private string _taskName = nameof(HighVolumeSourceFunction);
 
-    private readonly string _globalSequenceRedisKey;
+    private string _globalSequenceRedisKey = "flinkdotnet:global_sequence_id";
 
     // --- Checkpoint Barrier Injection Fields ---
     private long _messagesSentSinceLastBarrier = 0;
     private const long MessagesPerBarrier = 1000; // Inject a barrier every 1000 messages for testing
     private static long _nextCheckpointId = 1; // Static to ensure unique IDs across potential re-instantiations in some test scenarios (though for a single run, instance field is fine)
 
+    // Static configuration for LocalStreamExecutor compatibility
+    public static long NumberOfMessagesToGenerate { get; set; } = 1000;
+    public static IDatabase? GlobalRedisDatabase { get; set; }
+    public static IConfiguration? GlobalConfiguration { get; set; }
+
+    // Constructor with dependencies (for manual instantiation)
     public HighVolumeSourceFunction(long numberOfMessagesToGenerate, ITypeSerializer<string> serializer, IDatabase redisDatabase, IConfiguration configuration)
     {
         _numberOfMessagesToGenerate = numberOfMessagesToGenerate;
@@ -78,10 +84,30 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
         Console.WriteLine($"[HighVolumeSourceFunction] Configured to use global sequence Redis key: '{_globalSequenceRedisKey}'");
     }
 
+    // Parameterless constructor (for LocalStreamExecutor reflection)
+    public HighVolumeSourceFunction()
+    {
+        _numberOfMessagesToGenerate = NumberOfMessagesToGenerate;
+        _serializer = new StringSerializer();
+        _globalSequenceRedisKey = GlobalConfiguration?["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
+        Console.WriteLine($"[HighVolumeSourceFunction] Parameterless constructor: {_numberOfMessagesToGenerate} messages, key: '{_globalSequenceRedisKey}'");
+    }
+
     public void Open(IRuntimeContext context)
     {
         _taskName = context.TaskName;
         Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
+
+        // If using parameterless constructor, get Redis database from static configuration
+        if (_redisDb == null)
+        {
+            _redisDb = GlobalRedisDatabase;
+            if (_redisDb == null)
+            {
+                throw new InvalidOperationException("Redis database not available. Ensure GlobalRedisDatabase is set before job execution.");
+            }
+            Console.WriteLine($"[{_taskName}] Using global Redis database from static configuration.");
+        }
 
         try
         {
@@ -148,6 +174,7 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
 
             try
             {
+                if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
                 long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
                 emittedCount++;
                 await EmitMessageAsync(ctx, currentSequenceId, emittedCount);
@@ -174,7 +201,8 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             await ctx.CollectAsync(finalBarrierMessage);
         }
 
-        Console.WriteLine($"[{_taskName}] Finished emitting. Total data messages emitted: {emittedCount}. Last global sequence ID used (approx): {_redisDb.StringGet(_globalSequenceRedisKey)}");
+        var lastSequenceId = _redisDb?.StringGet(_globalSequenceRedisKey) ?? "unknown";
+        Console.WriteLine($"[{_taskName}] Finished emitting. Total data messages emitted: {emittedCount}. Last global sequence ID used (approx): {lastSequenceId}");
     }
 
     public void Cancel()
@@ -408,20 +436,6 @@ public static class Program
             return connectionMultiplexer.GetDatabase();
         });
         
-        // For stress test compatibility: If DOTNET_REDIS_URL is set (by port discovery script),
-        // override the Aspire redis connection with the discovered connection
-        var envRedisUrl = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL");
-        if (!string.IsNullOrEmpty(envRedisUrl))
-        {
-            Console.WriteLine($"Found DOTNET_REDIS_URL environment variable: {envRedisUrl}");
-            Console.WriteLine("Overriding Aspire Redis connection with discovered Redis connection for stress test compatibility...");
-            
-            builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
-            {
-                return ConnectionMultiplexer.Connect(envRedisUrl);
-            });
-        }
-        
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
@@ -464,6 +478,11 @@ public static class Program
     private static StreamExecutionEnvironment SetupFlinkEnvironment(long numMessages, string redisSinkCounterKey, string kafkaTopic, 
         IDatabase redisDatabase, IConfiguration configuration)
     {
+        // Set static configuration for LocalStreamExecutor compatibility
+        HighVolumeSourceFunction.NumberOfMessagesToGenerate = numMessages;
+        HighVolumeSourceFunction.GlobalRedisDatabase = redisDatabase;
+        HighVolumeSourceFunction.GlobalConfiguration = configuration;
+
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 

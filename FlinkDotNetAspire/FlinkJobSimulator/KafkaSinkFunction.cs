@@ -30,22 +30,22 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            // Priority order for Kafka bootstrap servers:
-            // 1. DOTNET_KAFKA_BOOTSTRAP_SERVERS (set by port discovery script for stress tests)
-            // 2. ConnectionStrings__kafka (Aspire service reference)
+            // Priority order for Kafka bootstrap servers (Aspire integration first):
+            // 1. ConnectionStrings__kafka (Aspire service reference)
+            // 2. DOTNET_KAFKA_BOOTSTRAP_SERVERS (for external integration tests)
             // 3. ServiceUris.KafkaBootstrapServers (default fallback)
             
-            string? bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+            string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
             if (!string.IsNullOrEmpty(bootstrapServers))
             {
-                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from DOTNET_KAFKA_BOOTSTRAP_SERVERS: {bootstrapServers}");
+                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
             }
             else
             {
-                bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
                 if (!string.IsNullOrEmpty(bootstrapServers))
                 {
-                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from external integration test: {bootstrapServers}");
                 }
                 else
                 {
