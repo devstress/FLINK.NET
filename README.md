@@ -134,6 +134,9 @@ Contributors can leverage GitHub Copilot Agent for development assistance:
 
 We welcome contributions! If you're a senior engineer interested in becoming an admin with merge rights, please contact the maintainers with your LinkedIn profile.
 
+## Code analysis Status[
+https://sonarcloud.io/summary/overall?id=devstress_FLINK.NET&branch=main
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
