@@ -4,6 +4,7 @@ using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.JobManager.Models.JobGraph;
 using System.Collections.Concurrent;
+using System.Reflection;
 
 namespace FlinkDotNet.Core.Api.Execution
 {
@@ -362,30 +363,18 @@ namespace FlinkDotNet.Core.Api.Execution
             if (invokeMethod == null) return;
 
             // Process all data from input channels without arbitrary limits
+            await ProcessSinkDataLoop(sinkInstance, inputChannels, sinkContext, invokeMethod, cancellationToken);
+        }
+
+        private static async Task ProcessSinkDataLoop(object sinkInstance, List<ConcurrentQueue<object>> inputChannels, ISinkContext sinkContext, MethodInfo invokeMethod, CancellationToken cancellationToken)
+        {
             var processed = 0;
             var noDataCount = 0;
             const int maxNoDataIterations = 1000; // Exit after 10 seconds of no data (1000 * 10ms)
             
             while (!cancellationToken.IsCancellationRequested)
             {
-                var hasData = false;
-                
-                foreach (var channel in inputChannels)
-                {
-                    if (channel.TryDequeue(out var item))
-                    {
-                        invokeMethod.Invoke(sinkInstance, new object[] { item!, sinkContext });
-                        processed++;
-                        hasData = true;
-                        noDataCount = 0; // Reset counter when data is found
-                        
-                        // Log progress for large volumes
-                        if (processed % 100000 == 0)
-                        {
-                            Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records");
-                        }
-                    }
-                }
+                var hasData = ProcessSinkChannels(inputChannels, sinkInstance, sinkContext, invokeMethod, ref processed);
                 
                 if (!hasData)
                 {
@@ -397,9 +386,36 @@ namespace FlinkDotNet.Core.Api.Execution
                     }
                     await Task.Delay(10, cancellationToken); // Small delay when no data
                 }
+                else
+                {
+                    noDataCount = 0; // Reset counter when data is found
+                }
             }
             
             Console.WriteLine($"[LocalStreamExecutor] Sink completed processing {processed} total records");
+        }
+
+        private static bool ProcessSinkChannels(List<ConcurrentQueue<object>> inputChannels, object sinkInstance, ISinkContext sinkContext, MethodInfo invokeMethod, ref int processed)
+        {
+            var hasData = false;
+            
+            foreach (var channel in inputChannels)
+            {
+                if (channel.TryDequeue(out var item))
+                {
+                    invokeMethod.Invoke(sinkInstance, new object[] { item!, sinkContext });
+                    processed++;
+                    hasData = true;
+                    
+                    // Log progress for large volumes
+                    if (processed % 100000 == 0)
+                    {
+                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records");
+                    }
+                }
+            }
+            
+            return hasData;
         }
 
         private static async Task ProcessOperatorData(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
@@ -408,38 +424,18 @@ namespace FlinkDotNet.Core.Api.Execution
             var mapMethod = operatorInstance.GetType().GetMethod("Map");
             if (mapMethod == null) return;
 
+            await ProcessOperatorDataLoop(operatorInstance, inputChannels, outputChannels, mapMethod, cancellationToken);
+        }
+
+        private static async Task ProcessOperatorDataLoop(object operatorInstance, List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, MethodInfo mapMethod, CancellationToken cancellationToken)
+        {
             var processed = 0;
             var noDataCount = 0;
             const int maxNoDataIterations = 1000; // Exit after 10 seconds of no data (1000 * 10ms)
             
             while (!cancellationToken.IsCancellationRequested)
             {
-                var hasData = false;
-                
-                foreach (var inputChannel in inputChannels)
-                {
-                    if (inputChannel.TryDequeue(out var item))
-                    {
-                        // Apply transformation
-                        var result = mapMethod.Invoke(operatorInstance, new object[] { item! });
-                        
-                        // Send to output channels
-                        foreach (var outputChannel in outputChannels)
-                        {
-                            outputChannel.Enqueue(result!);
-                        }
-                        
-                        processed++;
-                        hasData = true;
-                        noDataCount = 0; // Reset counter when data is found
-                        
-                        // Log progress for large volumes
-                        if (processed % 100000 == 0)
-                        {
-                            Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records");
-                        }
-                    }
-                }
+                var hasData = ProcessOperatorChannels(inputChannels, outputChannels, operatorInstance, mapMethod, ref processed);
                 
                 if (!hasData)
                 {
@@ -451,9 +447,44 @@ namespace FlinkDotNet.Core.Api.Execution
                     }
                     await Task.Delay(10, cancellationToken); // Small delay when no data
                 }
+                else
+                {
+                    noDataCount = 0; // Reset counter when data is found
+                }
             }
             
             Console.WriteLine($"[LocalStreamExecutor] Operator completed processing {processed} total records");
+        }
+
+        private static bool ProcessOperatorChannels(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, object operatorInstance, MethodInfo mapMethod, ref int processed)
+        {
+            var hasData = false;
+            
+            foreach (var inputChannel in inputChannels)
+            {
+                if (inputChannel.TryDequeue(out var item))
+                {
+                    // Apply transformation
+                    var result = mapMethod.Invoke(operatorInstance, new object[] { item! });
+                    
+                    // Send to output channels
+                    foreach (var outputChannel in outputChannels)
+                    {
+                        outputChannel.Enqueue(result!);
+                    }
+                    
+                    processed++;
+                    hasData = true;
+                    
+                    // Log progress for large volumes
+                    if (processed % 100000 == 0)
+                    {
+                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records");
+                    }
+                }
+            }
+            
+            return hasData;
         }
 
         public void Cancel()

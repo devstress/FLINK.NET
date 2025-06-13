@@ -171,6 +171,19 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
     {
         Console.WriteLine($"[{_taskName}] Starting to emit {_numberOfMessagesToGenerate} messages with Redis-generated sequence IDs and barrier injection every {MessagesPerBarrier} messages...");
         long emittedCount = 0;
+        
+        emittedCount = await ProcessMessageEmissionLoop(ctx, cancellationToken, emittedCount);
+        
+        Console.WriteLine($"[{_taskName}] Main emission loop completed. Final emittedCount: {emittedCount}, target: {_numberOfMessagesToGenerate}");
+        
+        await EmitFinalBarrierIfNeeded(ctx, emittedCount);
+        
+        var lastSequenceId = _redisDb?.StringGet(_globalSequenceRedisKey) ?? "unknown";
+        Console.WriteLine($"[{_taskName}] Finished emitting. Total data messages emitted: {emittedCount}. Last global sequence ID used (approx): {lastSequenceId}");
+    }
+
+    private async Task<long> ProcessMessageEmissionLoop(ISourceContext<string> ctx, CancellationToken cancellationToken, long emittedCount)
+    {
         for (long i = 0; i < _numberOfMessagesToGenerate; i++)
         {
             if (!_isRunning || cancellationToken.IsCancellationRequested)
@@ -187,31 +200,42 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
 
             InjectBarrierIfNeeded(ctx);
 
-            try
+            if (!await ProcessSingleMessage(ctx, i, emittedCount))
             {
-                if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
-                long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
-                emittedCount++;
-                await EmitMessageAsync(ctx, currentSequenceId, emittedCount);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR during message emission or Redis INCR at iteration {i} (emitted count: {emittedCount}):");
-                Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
-                Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
-                Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
-                }
-                Console.WriteLine($"[{_taskName}] Stopping source due to error at message {i+1}.");
-                _isRunning = false;
                 break;
             }
+            emittedCount++;
         }
-        
-        Console.WriteLine($"[{_taskName}] Main emission loop completed. Final emittedCount: {emittedCount}, target: {_numberOfMessagesToGenerate}");
-        
+        return emittedCount;
+    }
+
+    private async Task<bool> ProcessSingleMessage(ISourceContext<string> ctx, long messageIndex, long emittedCount)
+    {
+        try
+        {
+            if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
+            long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
+            await EmitMessageAsync(ctx, currentSequenceId, emittedCount + 1);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[{_taskName}] ERROR during message emission or Redis INCR at iteration {messageIndex} (emitted count: {emittedCount}):");
+            Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
+            Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
+            Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
+            }
+            Console.WriteLine($"[{_taskName}] Stopping source due to error at message {messageIndex+1}.");
+            _isRunning = false;
+            return false;
+        }
+    }
+
+    private async Task EmitFinalBarrierIfNeeded(ISourceContext<string> ctx, long emittedCount)
+    {
         // Send one final barrier after all data messages (optional, but good for some checkpointing models)
         if (_isRunning && emittedCount > 0)
         {
@@ -234,9 +258,6 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
                 // Don't fail the entire source for final barrier issues
             }
         }
-
-        var lastSequenceId = _redisDb?.StringGet(_globalSequenceRedisKey) ?? "unknown";
-        Console.WriteLine($"[{_taskName}] Finished emitting. Total data messages emitted: {emittedCount}. Last global sequence ID used (approx): {lastSequenceId}");
     }
 
     public void Cancel()

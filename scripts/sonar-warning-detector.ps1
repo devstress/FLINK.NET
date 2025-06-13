@@ -120,6 +120,13 @@ $SonarWarningPatterns = @{
         Severity = "Minor"
         AutoFix = $true
     }
+    "S1172" = @{
+        Pattern = "Remove this unused method parameter '.*?'"
+        Description = "Unused method parameter"
+        Category = "Code Smells"
+        Severity = "Major"
+        AutoFix = $true
+    }
 }
 
 function Write-Log {

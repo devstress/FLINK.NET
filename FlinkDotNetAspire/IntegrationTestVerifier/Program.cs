@@ -158,6 +158,74 @@ namespace IntegrationTestVerifier
             return overall ? 0 : 1;
         }
 
+        private static void PrintBddScenarioDocumentation(string globalSequenceKey, int expectedMessages, string sinkCounterKey, string kafkaTopic)
+        {
+            Console.WriteLine("📖 GIVEN: Local Flink.NET Setup with Aspire orchestration");
+            Console.WriteLine($"   ├─ Redis provides sequence ID generation (key: '{globalSequenceKey}')");
+            Console.WriteLine($"   ├─ HighVolumeSourceFunction generates {expectedMessages:N0} ordered messages");
+            Console.WriteLine($"   ├─ RedisIncrementSinkFunction counts messages (key: '{sinkCounterKey}')");
+            Console.WriteLine($"   └─ KafkaSinkFunction writes messages to topic ('{kafkaTopic}')");
+            Console.WriteLine("");
+            
+            Console.WriteLine("🎯 WHEN: FlinkJobSimulator executes the dual-sink job");
+            Console.WriteLine("   ├─ Source: Redis INCR generates sequence IDs 1 to N");
+            Console.WriteLine("   ├─ Map: SimpleToUpperMapOperator processes messages (P=1 for FIFO order)");
+            Console.WriteLine("   ├─ Fork: Stream splits to Redis sink AND Kafka sink");
+            Console.WriteLine("   └─ Execution: LocalStreamExecutor runs the job");
+            Console.WriteLine("");
+            
+            Console.WriteLine("✅ THEN: Expected behavior according to documentation:");
+            Console.WriteLine($"   ├─ Global sequence key should equal {expectedMessages:N0}");
+            Console.WriteLine($"   ├─ Sink counter key should equal {expectedMessages:N0}");
+            Console.WriteLine($"   ├─ Kafka topic contains {expectedMessages:N0} ordered messages");
+            Console.WriteLine($"   └─ FIFO ordering maintained with Redis-generated sequence IDs");
+        }
+
+        private static bool ValidatePerformanceRequirements(Stopwatch verificationStopwatch, int expectedMessages, IConfigurationRoot config)
+        {
+            verificationStopwatch.Stop();
+            Console.WriteLine($"\n🚀 SCENARIO 3: Performance Requirements");
+            Console.WriteLine($"   📋 Testing: Processing time within acceptable limits");
+            Console.WriteLine($"   📊 Actual verification time: {verificationStopwatch.ElapsedMilliseconds:N0}ms for {expectedMessages:N0} messages");
+            
+            // Read max allowed time from environment variable, default to 10 seconds
+            long maxAllowedTimeMs = 10000; // 10 seconds default
+            if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
+            {
+                maxAllowedTimeMs = configuredTimeMs;
+            }
+            
+            if (verificationStopwatch.ElapsedMilliseconds > maxAllowedTimeMs)
+            {
+                Console.WriteLine($"   ❌ THEN: Performance requirement FAILED");
+                Console.WriteLine($"      📈 Expected: ≤ {maxAllowedTimeMs:N0}ms, Actual: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
+                return false;
+            }
+            else
+            {
+                Console.WriteLine($"   ✅ THEN: Performance requirement PASSED");
+                Console.WriteLine($"      📈 Expected: ≤ {maxAllowedTimeMs:N0}ms, Actual: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
+                return true;
+            }
+        }
+
+        private static void PrintFinalResult(bool allChecksPassed)
+        {
+            Console.WriteLine($"\n🏁 === FINAL VERIFICATION RESULT ===");
+            if (allChecksPassed)
+            {
+                Console.WriteLine("🎉 STRESS TEST: ✅ **PASSED** - All scenarios validated successfully");
+                Console.WriteLine("   ✓ Redis sequence generation and sink counting");
+                Console.WriteLine("   ✓ Kafka message ordering and content");
+                Console.WriteLine("   ✓ Performance within acceptable limits");
+            }
+            else
+            {
+                Console.WriteLine("💥 STRESS TEST: ❌ **FAILED** - One or more scenarios failed validation");
+                Console.WriteLine("   ℹ️  Check individual scenario results above for details");
+            }
+        }
+
         private static async Task<int> RunFullVerificationAsync(IConfigurationRoot config)
         {
             Console.WriteLine("\n=== 🧪 FLINK.NET HIGH-THROUGHPUT STRESS TEST VERIFICATION ===");
@@ -178,25 +246,7 @@ namespace IntegrationTestVerifier
             }
 
             // Print test specification from documentation
-            Console.WriteLine("📖 GIVEN: Local Flink.NET Setup with Aspire orchestration");
-            Console.WriteLine($"   ├─ Redis provides sequence ID generation (key: '{globalSequenceKey}')");
-            Console.WriteLine($"   ├─ HighVolumeSourceFunction generates {expectedMessages:N0} ordered messages");
-            Console.WriteLine($"   ├─ RedisIncrementSinkFunction counts messages (key: '{sinkCounterKey}')");
-            Console.WriteLine($"   └─ KafkaSinkFunction writes messages to topic ('{kafkaTopic}')");
-            Console.WriteLine("");
-            
-            Console.WriteLine("🎯 WHEN: FlinkJobSimulator executes the dual-sink job");
-            Console.WriteLine("   ├─ Source: Redis INCR generates sequence IDs 1 to N");
-            Console.WriteLine("   ├─ Map: SimpleToUpperMapOperator processes messages (P=1 for FIFO order)");
-            Console.WriteLine("   ├─ Fork: Stream splits to Redis sink AND Kafka sink");
-            Console.WriteLine("   └─ Execution: LocalStreamExecutor runs the job");
-            Console.WriteLine("");
-            
-            Console.WriteLine("✅ THEN: Expected behavior according to documentation:");
-            Console.WriteLine($"   ├─ Global sequence key should equal {expectedMessages:N0}");
-            Console.WriteLine($"   ├─ Sink counter key should equal {expectedMessages:N0}");
-            Console.WriteLine($"   ├─ Kafka topic contains {expectedMessages:N0} ordered messages");
-            Console.WriteLine($"   └─ FIFO ordering maintained with Redis-generated sequence IDs");
+            PrintBddScenarioDocumentation(globalSequenceKey, expectedMessages, sinkCounterKey, kafkaTopic);
 
             if (string.IsNullOrEmpty(redisConnectionStringFull))
             {
@@ -231,43 +281,9 @@ namespace IntegrationTestVerifier
             Console.WriteLine("   📋 Testing: Message ordering and content in Kafka topic");
             allChecksPassed &= VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages);
 
-            verificationStopwatch.Stop();
-            Console.WriteLine($"\n🚀 SCENARIO 3: Performance Requirements");
-            Console.WriteLine($"   📋 Testing: Processing time within acceptable limits");
-            Console.WriteLine($"   📊 Actual verification time: {verificationStopwatch.ElapsedMilliseconds:N0}ms for {expectedMessages:N0} messages");
-            
-            // Read max allowed time from environment variable, default to 10 seconds
-            long maxAllowedTimeMs = 10000; // 10 seconds default
-            if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
-            {
-                maxAllowedTimeMs = configuredTimeMs;
-            }
-            
-            if (verificationStopwatch.ElapsedMilliseconds > maxAllowedTimeMs)
-            {
-                Console.WriteLine($"   ❌ THEN: Performance requirement FAILED");
-                Console.WriteLine($"      📈 Expected: ≤ {maxAllowedTimeMs:N0}ms, Actual: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
-                allChecksPassed = false;
-            }
-            else
-            {
-                Console.WriteLine($"   ✅ THEN: Performance requirement PASSED");
-                Console.WriteLine($"      📈 Expected: ≤ {maxAllowedTimeMs:N0}ms, Actual: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
-            }
+            allChecksPassed &= ValidatePerformanceRequirements(verificationStopwatch, expectedMessages, config);
 
-            Console.WriteLine($"\n🏁 === FINAL VERIFICATION RESULT ===");
-            if (allChecksPassed)
-            {
-                Console.WriteLine("🎉 STRESS TEST: ✅ **PASSED** - All scenarios validated successfully");
-                Console.WriteLine("   ✓ Redis sequence generation and sink counting");
-                Console.WriteLine("   ✓ Kafka message ordering and content");
-                Console.WriteLine("   ✓ Performance within acceptable limits");
-            }
-            else
-            {
-                Console.WriteLine("💥 STRESS TEST: ❌ **FAILED** - One or more scenarios failed validation");
-                Console.WriteLine("   ℹ️  Check individual scenario results above for details");
-            }
+            PrintFinalResult(allChecksPassed);
             Console.WriteLine($"📅 Completed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
             
             return allChecksPassed ? 0 : 1;
@@ -392,7 +408,7 @@ namespace IntegrationTestVerifier
             }
 
             var messagesConsumed = ConsumeKafkaMessages(consumer, expectedMessages);
-            bool kafkaVerified = ValidateKafkaResults(messagesConsumed, expectedMessages, topic);
+            bool kafkaVerified = ValidateKafkaResults(messagesConsumed, expectedMessages);
             
             if (kafkaVerified)
             {
@@ -489,7 +505,7 @@ namespace IntegrationTestVerifier
             }
         }
 
-        private static bool ValidateKafkaResults(List<string> messagesConsumed, int expectedMessages, string topic)
+        private static bool ValidateKafkaResults(List<string> messagesConsumed, int expectedMessages)
         {
             bool kafkaVerified = true;
             
