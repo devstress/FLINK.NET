@@ -55,7 +55,7 @@ public static class Program
 
         builder.Services.Configure<RocksDBOptions>(options =>
         {
-            options.DataDirectory = Environment.GetEnvironmentVariable("ROCKSDB_DATA_DIR") ?? "/tmp/flink-rocksdb";
+            options.DataDirectory = Environment.GetEnvironmentVariable("ROCKSDB_DATA_DIR") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "flink-rocksdb");
             options.MaxBackgroundJobs = int.TryParse(Environment.GetEnvironmentVariable("ROCKSDB_MAX_BACKGROUND_JOBS"), out var jobs) ? jobs : 4;
             options.WriteBufferSize = ulong.TryParse(Environment.GetEnvironmentVariable("ROCKSDB_WRITE_BUFFER_SIZE"), out var bufferSize) ? bufferSize : 64 * 1024 * 1024;
         });
