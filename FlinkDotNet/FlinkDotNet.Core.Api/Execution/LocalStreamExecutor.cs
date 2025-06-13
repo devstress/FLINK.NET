@@ -370,48 +370,67 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            
-            // Increased timeout for high-volume processing - 2 hours instead of 30 minutes
             const int maxNoDataIterations = 1440000; // Exit after ~2 hours of no data (1440000 * 5ms)
             
-            Console.WriteLine($"[LocalStreamExecutor] Sink starting data processing loop...");
+            Console.WriteLine($"[LocalStreamExecutor] 🚀 SINK STARTING: Sink starting data processing loop with {inputChannels.Count} input channels...");
             
             while (!cancellationToken.IsCancellationRequested)
             {
                 var hasData = ProcessSinkChannels(inputChannels, sinkInstance, sinkContext, invokeMethod, ref processed);
                 
-                if (!hasData)
-                {
-                    noDataCount++;
-                    
-                    // Enhanced logging for debugging timeout issues
-                    if (noDataCount % 60000 == 0) // Every 5 minutes
-                    {
-                        var totalQueueSize = inputChannels.Sum(c => c.Count);
-                        Console.WriteLine($"[LocalStreamExecutor] Sink: No data for {noDataCount * 5}ms ({noDataCount * 5 / 60000:F1} min). Processed: {processed}, Queue size: {totalQueueSize}");
-                    }
-                    
-                    if (noDataCount >= maxNoDataIterations)
-                    {
-                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available after 2 hours)");
-                        break;
-                    }
-                    await Task.Delay(5, cancellationToken); // Reduced delay for better responsiveness
-                }
-                else
+                if (hasData)
                 {
                     noDataCount = 0; // Reset counter when data is found
-                    
-                    // Enhanced progress logging for debugging
-                    if (processed % 10000 == 0 && processed > 0)
-                    {
-                        var totalQueueSize = inputChannels.Sum(c => c.Count);
-                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records, queue size: {totalQueueSize}");
-                    }
+                    LogSinkProgress(inputChannels, processed);
+                }
+                else if (await HandleSinkNoData(inputChannels, processed, ++noDataCount, maxNoDataIterations, cancellationToken))
+                {
+                    break;
                 }
             }
             
-            Console.WriteLine($"[LocalStreamExecutor] Sink completed processing {processed} total records");
+            Console.WriteLine($"[LocalStreamExecutor] ✅ SINK COMPLETED: Sink completed processing {processed} total records");
+        }
+
+        private static void LogSinkProgress(List<ConcurrentQueue<object>> inputChannels, int processed)
+        {
+            if (processed % 10000 == 0 && processed > 0)
+            {
+                var totalQueueSize = inputChannels.Sum(c => c.Count);
+                Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records, queue size: {totalQueueSize}");
+            }
+        }
+
+        private static async Task<bool> HandleSinkNoData(List<ConcurrentQueue<object>> inputChannels, int processed, int noDataCount, int maxNoDataIterations, CancellationToken cancellationToken)
+        {
+            LogSinkWaitingStatus(inputChannels, processed, noDataCount);
+            
+            if (noDataCount >= maxNoDataIterations)
+            {
+                Console.WriteLine($"[LocalStreamExecutor] 🛑 SINK TIMEOUT: Sink stopping after processing {processed} records (no more data available after 2 hours)");
+                return true;
+            }
+            
+            await Task.Delay(5, cancellationToken);
+            return false;
+        }
+
+        private static void LogSinkWaitingStatus(List<ConcurrentQueue<object>> inputChannels, int processed, int noDataCount)
+        {
+            if (noDataCount % 60000 == 0) // Every 5 minutes
+            {
+                var totalQueueSize = inputChannels.Sum(c => c.Count);
+                Console.WriteLine($"[LocalStreamExecutor] 🔍 SINK WAITING: No data for {noDataCount * 5}ms ({noDataCount * 5 / 60000:F1} min). Processed: {processed}, Queue size: {totalQueueSize}");
+            }
+            
+            if (noDataCount <= 10 || noDataCount % 1000 == 0)
+            {
+                var totalQueueSize = inputChannels.Sum(c => c.Count);
+                Console.WriteLine($"[LocalStreamExecutor] 🔍 SINK DEBUG: No data iteration {noDataCount}, processed: {processed}, input queue size: {totalQueueSize}");
+            }
+        }
+            
+            Console.WriteLine($"[LocalStreamExecutor] ✅ SINK COMPLETED: Sink completed processing {processed} total records");
         }
 
         private static bool ProcessSinkChannels(List<ConcurrentQueue<object>> inputChannels, object sinkInstance, ISinkContext sinkContext, MethodInfo invokeMethod, ref int processed)
