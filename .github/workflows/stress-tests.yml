@@ -22,7 +22,6 @@ concurrency:
 env:
   SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests - reduced for faster execution
   MAX_ALLOWED_TIME_MS: "10000" # 10 seconds timeout for processing
-  # Redis and Kafka ports will be discovered dynamically by the find-available-ports.ps1 script
 
 jobs:
   run-stress-tests:
@@ -68,15 +67,7 @@ jobs:
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Discover Available Ports
-        run: |
-          Write-Host "Discovering available ports for Redis and Kafka services..."
-          & ./scripts/find-available-ports.ps1
-          
-          Write-Host "Current environment variables:"
-          Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
-          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-
+      - name: Start Aspire AppHost
       - name: Start Aspire AppHost
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
@@ -188,8 +179,15 @@ jobs:
           Write-Host "`n=== Container Diagnostics ==="
           Write-Host "Checking for Redis/Kafka container processes..."
           docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | Write-Host
+
+      - name: Discover Aspire Container Ports
+        run: |
+          Write-Host "Discovering actual Aspire container ports after AppHost startup..."
+          & ./scripts/discover-aspire-ports.ps1
           
-          # Connectivity checks removed - Redis/Kafka are only reachable inside Aspire network
+          Write-Host "Current environment variables after discovery:"
+          Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
 
 
       # The AppHost binds Redis and Kafka to dynamically discovered ports.

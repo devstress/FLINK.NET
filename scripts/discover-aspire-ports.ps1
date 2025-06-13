@@ -11,52 +11,77 @@
 
 function Get-RedisConnectionInfo {
     try {
-        # Get Redis port
-        $redisContainer = docker ps --filter "ancestor=redis" --format "{{.Ports}}" | Select-Object -First 1
-        $redisPort = $null
-        if ($redisContainer -and $redisContainer -match "127\.0\.0\.1:(\d+)->6379/tcp") {
-            $redisPort = [int]$Matches[1]
-        } else {
-            # Fallback: try by container name pattern
-            $allContainers = docker ps --format "table {{.Names}}\t{{.Ports}}" | Where-Object { $_ -match "redis.*6379" }
-            foreach ($container in $allContainers) {
-                if ($container -match "127\.0\.0\.1:(\d+)->6379/tcp") {
-                    $redisPort = [int]$Matches[1]
-                    break
+        # Get Redis containers with different image patterns
+        $redisContainers = @()
+        $redisContainers += docker ps --filter "ancestor=redis" --format "{{.ID}}" 2>/dev/null
+        $redisContainers += docker ps --filter "ancestor=redis:7.4" --format "{{.ID}}" 2>/dev/null
+        $redisContainers += docker ps --filter "ancestor=redis:latest" --format "{{.ID}}" 2>/dev/null
+        
+        # If no exact matches, try pattern matching in names/images
+        if (-not ($redisContainers | Where-Object { $_ -and $_.Trim() })) {
+            Write-Host "No exact Redis ancestor matches, checking all containers for Redis..." -ForegroundColor Yellow
+            $allContainers = docker ps --format "{{.ID}}\t{{.Image}}" 2>/dev/null
+            foreach ($line in $allContainers) {
+                if ($line -match "redis") {
+                    $containerId = ($line -split '\t')[0]
+                    if ($containerId -and $containerId.Length -gt 5) { # Valid container ID should be longer
+                        $redisContainers += $containerId
+                        Write-Host "Found Redis container by image pattern: $containerId" -ForegroundColor Green
+                    }
                 }
             }
         }
         
-        if (-not $redisPort) {
+        $redisContainers = $redisContainers | Where-Object { $_ -and $_.Trim() -and $_.Length -gt 5 } | Select-Object -Unique
+
+        if (-not $redisContainers) {
+            Write-Host "No Redis containers found" -ForegroundColor Yellow
             return $null
         }
-        
-        # Get Redis password from container environment
-        $containerId = docker ps --filter "ancestor=redis:7.4" --format "{{.ID}}" | Select-Object -First 1
-        if ($containerId) {
-            $envOutput = docker inspect $containerId | ConvertFrom-Json
-            $redisPassword = $null
+
+        # Ensure we get the first container as a string, not a character
+        if ($redisContainers -is [array]) {
+            $containerId = $redisContainers[0]
+        } else {
+            $containerId = $redisContainers
+        }
+        Write-Host "Using Redis container: $containerId" -ForegroundColor Green
+
+        # Get port mapping using docker port command
+        $portInfo = docker port $containerId 6379 2>/dev/null
+        $redisPort = $null
+        if ($portInfo -and $portInfo -match "127\.0\.0\.1:(\d+)") {
+            $redisPort = [int]$Matches[1]
+            Write-Host "Redis mapped to host port: $redisPort" -ForegroundColor Green
+        } else {
+            Write-Host "Could not determine Redis host port mapping from: '$portInfo'" -ForegroundColor Red
+            return $null
+        }
+
+        # Try to get Redis password from container environment
+        $envOutput = docker inspect $containerId 2>/dev/null | ConvertFrom-Json
+        $redisPassword = $null
+        if ($envOutput -and $envOutput[0].Config.Env) {
             foreach ($env in $envOutput[0].Config.Env) {
                 if ($env -match "REDIS_PASSWORD=(.+)") {
                     $redisPassword = $Matches[1]
+                    Write-Host "Redis password found in container environment" -ForegroundColor Green
                     break
                 }
             }
-            
-            if ($redisPassword) {
-                return @{
-                    Port = $redisPort
-                    Password = $redisPassword
-                    ConnectionString = "localhost:$redisPort,password=$redisPassword"
-                }
-            }
         }
-        
-        # Fallback without password
+
+        # Build connection string based on Aspire/StackExchange.Redis format
+        if ($redisPassword) {
+            $connectionString = "localhost:$redisPort,password=$redisPassword"
+        } else {
+            $connectionString = "localhost:$redisPort"
+        }
+
         return @{
             Port = $redisPort
-            Password = $null
-            ConnectionString = "localhost:$redisPort"
+            Password = $redisPassword
+            ConnectionString = $connectionString
         }
     } catch {
         Write-Host "Error discovering Redis connection info: $_" -ForegroundColor Red
@@ -75,17 +100,52 @@ function Get-RedisPort {
 
 function Get-KafkaPort {
     try {
-        $kafkaContainer = docker ps --filter "ancestor=confluentinc/confluent-local" --format "{{.Ports}}" | Select-Object -First 1
-        if ($kafkaContainer -and $kafkaContainer -match "127\.0\.0\.1:(\d+)->9092/tcp") {
-            return [int]$Matches[1]
+        # Get Kafka containers with different image patterns
+        $kafkaContainers = @()
+        $kafkaContainers += docker ps --filter "ancestor=confluentinc/confluent-local" --format "{{.ID}}" 2>/dev/null
+        $kafkaContainers += docker ps --filter "ancestor=confluentinc/confluent-local:7.9.0" --format "{{.ID}}" 2>/dev/null
+        $kafkaContainers += docker ps --filter "ancestor=apache/kafka" --format "{{.ID}}" 2>/dev/null
+        $kafkaContainers += docker ps --filter "ancestor=confluentinc/cp-kafka" --format "{{.ID}}" 2>/dev/null
+
+        # If no exact matches, try pattern matching in names/images
+        if (-not ($kafkaContainers | Where-Object { $_ -and $_.Trim() })) {
+            Write-Host "No exact Kafka ancestor matches, checking all containers for Kafka..." -ForegroundColor Yellow
+            $allContainers = docker ps --format "{{.ID}}\t{{.Image}}" 2>/dev/null
+            foreach ($line in $allContainers) {
+                if ($line -match "kafka" -or $line -match "confluent") {
+                    $containerId = ($line -split '\t')[0]
+                    if ($containerId -and $containerId.Length -gt 5) { # Valid container ID should be longer
+                        $kafkaContainers += $containerId
+                        Write-Host "Found Kafka container by image pattern: $containerId" -ForegroundColor Green
+                    }
+                }
+            }
         }
         
-        # Fallback: try by container name pattern
-        $allContainers = docker ps --format "table {{.Names}}\t{{.Ports}}" | Where-Object { $_ -match "kafka.*9092" }
-        foreach ($container in $allContainers) {
-            if ($container -match "127\.0\.0\.1:(\d+)->9092/tcp") {
-                return [int]$Matches[1]
-            }
+        $kafkaContainers = $kafkaContainers | Where-Object { $_ -and $_.Trim() -and $_.Length -gt 5 } | Select-Object -Unique
+
+        if (-not $kafkaContainers) {
+            Write-Host "No Kafka containers found" -ForegroundColor Yellow
+            return $null
+        }
+
+        # Ensure we get the first container as a string, not a character
+        if ($kafkaContainers -is [array]) {
+            $containerId = $kafkaContainers[0]
+        } else {
+            $containerId = $kafkaContainers
+        }
+        Write-Host "Using Kafka container: $containerId" -ForegroundColor Green
+
+        # Get port mapping
+        $portInfo = docker port $containerId 9092 2>/dev/null
+        if ($portInfo -and $portInfo -match "127\.0\.0\.1:(\d+)") {
+            $kafkaPort = [int]$Matches[1]
+            Write-Host "Kafka mapped to host port: $kafkaPort" -ForegroundColor Green
+            return $kafkaPort
+        } else {
+            Write-Host "Could not determine Kafka host port mapping from: '$portInfo'" -ForegroundColor Red
+            return $null
         }
     } catch {
         Write-Host "Error discovering Kafka port: $_" -ForegroundColor Red
