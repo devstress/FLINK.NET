@@ -74,13 +74,6 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      - name: Download Coverage Data
-        if: github.event_name == 'pull_request'
-        uses: actions/download-artifact@v4
-        with:
-          name: sonarcloud-coverage-data
-          path: ./CoverageData
-        continue-on-error: true
 
       - name: Build and analyze
         env:
@@ -109,14 +102,13 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="CoverageData/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
             $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
             $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
 
-            # Coverage files are generated directly in the Unit Tests workflow
 
             $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
             $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end"
