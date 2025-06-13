@@ -116,7 +116,7 @@ if not exist "%ROOT%\workflow-logs" mkdir "%ROOT%\workflow-logs"
 
 REM Set environment variables
 if not defined SIMULATOR_NUM_MESSAGES set SIMULATOR_NUM_MESSAGES=1000000
-if not defined MAX_ALLOWED_TIME_MS set MAX_ALLOWED_TIME_MS=10000
+if not defined MAX_ALLOWED_TIME_MS set MAX_ALLOWED_TIME_MS=1000
 set ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
 echo === Starting Workflows in Parallel ===

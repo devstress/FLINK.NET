@@ -225,7 +225,6 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             {
                 Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} for message {messageIndex+1} failed: {ex.GetType().Name} - {ex.Message}");
                 await Task.Delay(100 * attempt); // Progressive backoff: 100ms, 200ms, 300ms
-                continue;
             }
             catch (Exception ex)
             {

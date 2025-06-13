@@ -168,7 +168,7 @@ mkdir -p "$ROOT/workflow-logs"
 
 # Set environment variables
 export SIMULATOR_NUM_MESSAGES=${SIMULATOR_NUM_MESSAGES:-1000000}
-export MAX_ALLOWED_TIME_MS=${MAX_ALLOWED_TIME_MS:-10000}
+export MAX_ALLOWED_TIME_MS=${MAX_ALLOWED_TIME_MS:-1000}
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
 echo "=== Starting Workflows in Parallel ==="

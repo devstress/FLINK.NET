@@ -91,7 +91,6 @@ namespace FlinkJobSimulator
                 {
                     Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
                     Thread.Sleep(50 * attempt); // Progressive backoff: 50ms, 100ms, 150ms
-                    continue;
                 }
                 catch (Exception ex)
                 {
