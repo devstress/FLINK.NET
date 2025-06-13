@@ -370,7 +370,7 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            const int maxNoDataIterations = 1000; // Exit after 10 seconds of no data (1000 * 10ms)
+            const int maxNoDataIterations = 30000; // Exit after 5 minutes of no data (30000 * 10ms)
             
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -381,7 +381,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     noDataCount++;
                     if (noDataCount >= maxNoDataIterations)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available)");
+                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available after 5 minutes)");
                         break;
                     }
                     await Task.Delay(10, cancellationToken); // Small delay when no data
@@ -431,7 +431,7 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            const int maxNoDataIterations = 1000; // Exit after 10 seconds of no data (1000 * 10ms)
+            const int maxNoDataIterations = 30000; // Exit after 5 minutes of no data (30000 * 10ms)
             
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -442,7 +442,7 @@ namespace FlinkDotNet.Core.Api.Execution
                     noDataCount++;
                     if (noDataCount >= maxNoDataIterations)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available)");
+                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 5 minutes)");
                         break;
                     }
                     await Task.Delay(10, cancellationToken); // Small delay when no data

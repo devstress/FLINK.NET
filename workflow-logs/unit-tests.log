@@ -1,31 +1,36 @@
 === UNIT TESTS WORKFLOW STARTED ===
 Installing .NET Aspire Workload...
 
+Workload(s) 'aspire' are already installed.
 Skipping NuGet package signature verification.
 Skipping NuGet package signature verification.
-Installing workload manifest microsoft.net.workload.mono.toolchain.current version 8.0.17...
-Installing workload manifest microsoft.net.workload.emscripten.current version 8.0.17...
-Installing workload manifest microsoft.net.workload.emscripten.net6 version 8.0.17...
-Installing workload manifest microsoft.net.workload.emscripten.net7 version 8.0.17...
-Installing workload manifest microsoft.net.workload.mono.toolchain.net6 version 8.0.17...
-Installing workload manifest microsoft.net.workload.mono.toolchain.net7 version 8.0.17...
-Installing workload manifest microsoft.net.sdk.aspire version 8.2.2...
-Installing pack Aspire.Hosting.Sdk version 8.0.0-preview.1.23557.2...
-Pack Aspire.Hosting.Sdk version 8.0.0-preview.1.23557.2 is already installed.
-Writing workload pack installation record for Aspire.Hosting.Sdk version 8.0.0-preview.1.23557.2...
-Installing pack Aspire.ProjectTemplates version 8.0.0-preview.1.23557.2...
-Writing workload pack installation record for Aspire.ProjectTemplates version 8.0.0-preview.1.23557.2...
-Installing pack Aspire.Hosting.Orchestration.linux-x64 version 8.0.0-preview.1.23557.2...
-Writing workload pack installation record for Aspire.Hosting.Orchestration version 8.0.0-preview.1.23557.2...
-Installing pack Aspire.Hosting version 8.0.0-preview.1.23557.2...
-Writing workload pack installation record for Aspire.Hosting version 8.0.0-preview.1.23557.2...
+Skipping NuGet package signature verification.
+Installing pack Aspire.Hosting.Sdk version 8.2.2...
+Pack Aspire.Hosting.Sdk version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.Hosting.Sdk version 8.2.2...
+Installing pack Aspire.ProjectTemplates version 8.2.2...
+Pack Aspire.ProjectTemplates version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.ProjectTemplates version 8.2.2...
 Garbage collecting for SDK feature band(s) 8.0.100...
-Uninstalling workload pack Aspire.Hosting version 8.0.0-preview.1.23557.2...
-Uninstalling workload pack Aspire.Hosting.Orchestration version 8.0.0-preview.1.23557.2...
 
 Successfully installed workload(s) aspire.
 
 Restoring workloads for FlinkDotNet.sln...
+Installing workloads: 
+
+Skipping NuGet package signature verification.
+Skipping NuGet package signature verification.
+Installing pack Aspire.Hosting.Sdk version 8.2.2...
+Pack Aspire.Hosting.Sdk version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.Hosting.Sdk version 8.2.2...
+Installing pack Aspire.ProjectTemplates version 8.2.2...
+Pack Aspire.ProjectTemplates version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.ProjectTemplates version 8.2.2...
+Garbage collecting for SDK feature band(s) 8.0.100...
+
+Successfully installed workload(s) aspire.
+
+Restoring workloads for FlinkDotNetAspire.sln...
 Installing workloads: 
 
 Skipping NuGet package signature verification.
@@ -39,22 +44,279 @@ Garbage collecting for SDK feature band(s) 8.0.100...
 
 Successfully installed workload(s) aspire.
 
-Restoring workloads for FlinkDotNetAspire.sln...
-Unhandled exception: Microsoft.Build.Exceptions.InvalidProjectFileException: The SDK 'Aspire.AppHost.Sdk/9.3.1' specified could not be found.  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj
-   at Microsoft.Build.Shared.ProjectErrorUtilities.ThrowInvalidProject(String errorSubCategoryResourceName, IElementLocation elementLocation, String resourceName, Object[] args)
-   at Microsoft.Build.Shared.ProjectErrorUtilities.ThrowInvalidProject[T1](IElementLocation elementLocation, String resourceName, T1 arg0)
-   at Microsoft.Build.Evaluation.Evaluator`4.ExpandAndLoadImportsFromUnescapedImportExpressionConditioned(String directoryOfImportingFile, ProjectImportElement importElement, List`1& projects, SdkResult& sdkResult)
-   at Microsoft.Build.Evaluation.Evaluator`4.ExpandAndLoadImports(String directoryOfImportingFile, ProjectImportElement importElement, SdkResult& sdkResult)
-   at Microsoft.Build.Evaluation.Evaluator`4.EvaluateImportElement(String directoryOfImportingFile, ProjectImportElement importElement)
-   at Microsoft.Build.Evaluation.Evaluator`4.PerformDepthFirstPass(ProjectRootElement currentProjectOrImport)
-   at Microsoft.Build.Evaluation.Evaluator`4.Evaluate()
-   at Microsoft.Build.Evaluation.Evaluator`4.Evaluate(IEvaluatorData`4 data, Project project, ProjectRootElement root, ProjectLoadSettings loadSettings, Int32 maxNodeCount, PropertyDictionary`1 environmentProperties, ILoggingService loggingService, IItemFactory`2 itemFactory, IToolsetProvider toolsetProvider, IDirectoryCacheFactory directoryCacheFactory, ProjectRootElementCacheBase projectRootElementCache, BuildEventContext buildEventContext, ISdkResolverService sdkResolverService, Int32 submissionId, EvaluationContext evaluationContext, Boolean interactive)
-   at Microsoft.Build.Execution.ProjectInstance.Initialize(ProjectRootElement xml, IDictionary`2 globalProperties, String explicitToolsVersion, String explicitSubToolsetVersion, Int32 visualStudioVersionFromSolution, BuildParameters buildParameters, ILoggingService loggingService, BuildEventContext buildEventContext, ISdkResolverService sdkResolverService, Int32 submissionId, Nullable`1 projectLoadSettings, EvaluationContext evaluationContext, IDirectoryCacheFactory directoryCacheFactory)
-   at Microsoft.Build.Execution.ProjectInstance..ctor(String projectFile, IDictionary`2 globalProperties, String toolsVersion, String subToolsetVersion, ProjectCollection projectCollection, Nullable`1 projectLoadSettings, EvaluationContext evaluationContext, IDirectoryCacheFactory directoryCacheFactory, Boolean interactive)
-   at Microsoft.Build.Execution.ProjectInstance..ctor(String projectFile, IDictionary`2 globalProperties, String toolsVersion)
-   at Microsoft.DotNet.Workloads.Workload.Restore.WorkloadRestoreCommand.RunTargetToGetWorkloadIds(IEnumerable`1 allProjects)
-   at Microsoft.DotNet.Workloads.Workload.Restore.WorkloadRestoreCommand.Execute()
-   at System.CommandLine.Invocation.InvocationPipeline.Invoke(ParseResult parseResult)
-   at Microsoft.DotNet.Cli.Program.ProcessArgs(String[] args, TimeSpan startupTime, ITelemetry telemetryClient)
-❌ Unit Tests Workflow Failed: Failed to restore FlinkDotNetAspire workloads
-=== UNIT TESTS WORKFLOW FAILED after 0.3 minutes ===
+Restoring workloads for FlinkDotNet.WebUI.sln...
+Installing workloads: 
+
+Skipping NuGet package signature verification.
+Skipping NuGet package signature verification.
+Installing pack Aspire.Hosting.Sdk version 8.2.2...
+Pack Aspire.Hosting.Sdk version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.Hosting.Sdk version 8.2.2...
+Installing pack Aspire.ProjectTemplates version 8.2.2...
+Pack Aspire.ProjectTemplates version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.ProjectTemplates version 8.2.2...
+Garbage collecting for SDK feature band(s) 8.0.100...
+
+Successfully installed workload(s) aspire.
+
+Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection...
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Release/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Connectors.Sinks.Console.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_47.trx
+
+Passed!  - Failed:     0, Passed:    14, Skipped:     0, Total:    14, Duration: 435 ms - FlinkDotNet.Connectors.Sinks.Console.Tests.dll (net8.0)
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Release/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNet.Connectors.Sources.File.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll (.NETCoreApp,Version=v8.0)
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Release/net8.0/FlinkDotNet.Core.dll
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_57.trx
+
+Passed!  - Failed:     0, Passed:    16, Skipped:     0, Total:    16, Duration: 428 ms - FlinkDotNet.Connectors.Sources.File.Tests.dll (net8.0)
+  FlinkDotNet.Storage.FileSystem.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/directory. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_8d418402-6927-4ee6-bf87-00c910dd1578/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] DisposeAsync: Ending active keyed states: keyedState1.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_f1a6b69a-f183-4b3f-9693-1aac2e99d0c2/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_e702bdaa-20ff-40b1-a57f-a58fa4f1ae47/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_895b1d36-98e2-4e18-9f16-bae330006aa1/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotWriterSession] WARNING: Commit called but these keyed states were not ended: keyedState1. Disposing them now.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_2817f27e-bb59-4b04-9dff-769332796bf5/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_73ec4b85-482d-4976-aa56-e955e295b8f0/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_1a0c2bcf-fc1d-4436-b042-31917d4f2c1f/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_1d5b2f52-0359-418e-abc2-4d995fc537f3/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_2156caac-dd66-483c-a7c0-f615f90d6e07/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_e3d44370-14c1-4c6d-83d9-78b10d9a2e16/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: . Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_f246ad72-3c6e-483f-96b6-651fb6acf27f/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_45fcff55-348f-44f1-aebc-67c6d0700d13/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_55387f33-ebfd-42db-8bd2-bd077ba5cdb9/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_9584b877-9410-4281-8834-8e4705047a9c/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_9c8ffa56-d130-4490-8f81-8d96068956de/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_a6e93ccc-2959-41ee-b42d-660308865aaa/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_9885ff1b-def7-44ed-b3f1-2954f401935e/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_865f0928-d8ff-4519-ba6c-9c2845491098/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_0c33dbd7-e384-4c22-9822-53bfd1d49edc/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_082d2140-3769-4968-afd6-fbb5bbf1bb40/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: . Returning empty reader.
+[FileSystemSnapshotWriterSession] DisposeAsync: Ending active keyed states: keyedState1.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_06.trx
+
+Passed!  - Failed:     0, Passed:    61, Skipped:     0, Total:    61, Duration: 719 ms - FlinkDotNet.Storage.FileSystem.Tests.dll (net8.0)
+  FlinkDotNet.Core.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Release/net8.0/FlinkDotNet.Core.Tests.dll
+  FlinkDotNet.Common.Constants.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Release/net8.0/FlinkDotNet.Common.Constants.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Release/net8.0/FlinkDotNet.Common.Constants.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_23.trx
+
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 83 ms - FlinkDotNet.Common.Constants.Tests.dll (net8.0)
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Release/net8.0/FlinkDotNet.Core.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_31.trx
+
+Passed!  - Failed:     0, Passed:    68, Skipped:     0, Total:    68, Duration: 501 ms - FlinkDotNet.Core.Tests.dll (net8.0)
+  FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Release/net8.0/FlinkDotNet.Core.Api.dll
+  FlinkDotNet.JobManager.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/bin/Release/net8.0/FlinkDotNet.JobManager.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/bin/Release/net8.0/FlinkDotNet.JobManager.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_47.trx
+
+Passed!  - Failed:     0, Passed:   120, Skipped:     0, Total:   120, Duration: 621 ms - FlinkDotNet.JobManager.Tests.dll (net8.0)
+  FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Release/net8.0/FlinkDotNet.TaskManager.dll
+  FlinkDotNet.Architecture.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/bin/Release/net8.0/FlinkDotNet.Architecture.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/bin/Release/net8.0/FlinkDotNet.Architecture.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Data collection : Unable to find a datacollector with friendly name 'XPlat code coverage'.
+Data collection : Could not find data collector 'XPlat code coverage'
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_56.trx
+
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 186 ms - FlinkDotNet.Architecture.Tests.dll (net8.0)
+
+Attachments:
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9cd016c6-4fb7-4c66-8019-480c0e5b6538/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9cd016c6-4fb7-4c66-8019-480c0e5b6538/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/27de81c3-e6dd-495b-a8d0-b1b55c80bced/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/27de81c3-e6dd-495b-a8d0-b1b55c80bced/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/45b72a82-aa27-4f4e-8dde-e2aec1db3cdb/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/45b72a82-aa27-4f4e-8dde-e2aec1db3cdb/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a074c5e9-0408-42b9-afa2-6ef8caea5475/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a074c5e9-0408-42b9-afa2-6ef8caea5475/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/ce7c60d8-0dfb-4241-9fad-b0d91f757863/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/ce7c60d8-0dfb-4241-9fad-b0d91f757863/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a7d76a2c-e62b-4d60-87a9-1e02680734b1/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a7d76a2c-e62b-4d60-87a9-1e02680734b1/coverage.opencover.xml
+Installing ReportGenerator...
+Skipping NuGet package signature verification.
+You can invoke the tool using the following command: reportgenerator
+Tool 'dotnet-reportgenerator-globaltool' (version '5.2.0') was successfully installed.
+Converting coverage files to multiple formats...
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/27de81c3-e6dd-495b-a8d0-b1b55c80bced/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/27de81c3-e6dd-495b-a8d0-b1b55c80bced/coverage.opencover.xml
+2025-06-13T12:11:00: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:00: Report generation took 0.3 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/27de81c3-e6dd-495b-a8d0-b1b55c80bced/coverage-html
+2025-06-13T12:11:00: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/27de81c3-e6dd-495b-a8d0-b1b55c80bced/coverage-html/index.html'
+2025-06-13T12:11:00: Report generation took 0.3 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/45b72a82-aa27-4f4e-8dde-e2aec1db3cdb/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/45b72a82-aa27-4f4e-8dde-e2aec1db3cdb/coverage.opencover.xml
+2025-06-13T12:11:02: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:02: Report generation took 1.4 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/45b72a82-aa27-4f4e-8dde-e2aec1db3cdb/coverage-html
+2025-06-13T12:11:04: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/45b72a82-aa27-4f4e-8dde-e2aec1db3cdb/coverage-html/index.html'
+2025-06-13T12:11:05: Report generation took 2.4 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/ce7c60d8-0dfb-4241-9fad-b0d91f757863/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/ce7c60d8-0dfb-4241-9fad-b0d91f757863/coverage.opencover.xml
+2025-06-13T12:11:05: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:05: Report generation took 0.1 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/ce7c60d8-0dfb-4241-9fad-b0d91f757863/coverage-html
+2025-06-13T12:11:06: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/ce7c60d8-0dfb-4241-9fad-b0d91f757863/coverage-html/index.html'
+2025-06-13T12:11:06: Report generation took 0.4 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_57/In/fv-az1719-266/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_57/In/fv-az1719-266/coverage.opencover.xml
+2025-06-13T12:11:06: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:06: Report generation took 0.4 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_57/In/fv-az1719-266/coverage-html
+2025-06-13T12:11:08: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_57/In/fv-az1719-266/coverage-html/index.html'
+2025-06-13T12:11:08: Report generation took 0.7 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9cd016c6-4fb7-4c66-8019-480c0e5b6538/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9cd016c6-4fb7-4c66-8019-480c0e5b6538/coverage.opencover.xml
+2025-06-13T12:11:09: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:09: Report generation took 0.2 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9cd016c6-4fb7-4c66-8019-480c0e5b6538/coverage-html
+2025-06-13T12:11:09: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9cd016c6-4fb7-4c66-8019-480c0e5b6538/coverage-html/index.html'
+2025-06-13T12:11:09: Report generation took 0.4 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_06/In/fv-az1719-266/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_06/In/fv-az1719-266/coverage.opencover.xml
+2025-06-13T12:11:10: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:10: Report generation took 0.3 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_06/In/fv-az1719-266/coverage-html
+2025-06-13T12:11:11: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_06/In/fv-az1719-266/coverage-html/index.html'
+2025-06-13T12:11:11: Report generation took 0.8 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a7d76a2c-e62b-4d60-87a9-1e02680734b1/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a7d76a2c-e62b-4d60-87a9-1e02680734b1/coverage.opencover.xml
+2025-06-13T12:11:12: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:12: Report generation took 0.6 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a7d76a2c-e62b-4d60-87a9-1e02680734b1/coverage-html
+2025-06-13T12:11:14: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a7d76a2c-e62b-4d60-87a9-1e02680734b1/coverage-html/index.html'
+2025-06-13T12:11:14: Report generation took 0.8 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_47/In/fv-az1719-266/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_47/In/fv-az1719-266/coverage.opencover.xml
+2025-06-13T12:11:15: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:15: Report generation took 0.2 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_47/In/fv-az1719-266/coverage-html
+2025-06-13T12:11:15: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_09_47/In/fv-az1719-266/coverage-html/index.html'
+2025-06-13T12:11:16: Report generation took 0.5 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_47/In/fv-az1719-266/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_47/In/fv-az1719-266/coverage.opencover.xml
+2025-06-13T12:11:19: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_47/In/fv-az1719-266/coverage-html
+2025-06-13T12:11:25: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_47/In/fv-az1719-266/coverage-html/index.html'
+2025-06-13T12:11:26: Report generation took 6.3 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_31/In/fv-az1719-266/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_31/In/fv-az1719-266/coverage.opencover.xml
+2025-06-13T12:11:26: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:26: Report generation took 0.2 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_31/In/fv-az1719-266/coverage-html
+2025-06-13T12:11:27: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_31/In/fv-az1719-266/coverage-html/index.html'
+2025-06-13T12:11:27: Report generation took 0.4 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_23/In/fv-az1719-266/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_23/In/fv-az1719-266/coverage.opencover.xml
+2025-06-13T12:11:27: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:27: Report generation took 0.2 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_23/In/fv-az1719-266/coverage-html
+2025-06-13T12:11:28: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az1719-266_2025-06-13_12_10_23/In/fv-az1719-266/coverage-html/index.html'
+2025-06-13T12:11:28: Report generation took 0.4 seconds
+Processing coverage file: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a074c5e9-0408-42b9-afa2-6ef8caea5475/coverage.cobertura.xml
+Converting to OpenCover format: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a074c5e9-0408-42b9-afa2-6ef8caea5475/coverage.opencover.xml
+2025-06-13T12:11:28: OpenCover output format is only available for sponsors. Get your license here: https://reportgenerator.io/pro
+2025-06-13T12:11:28: Report generation took 0.3 seconds
+Generating HTML coverage report: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a074c5e9-0408-42b9-afa2-6ef8caea5475/coverage-html
+2025-06-13T12:11:29: Writing report file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/a074c5e9-0408-42b9-afa2-6ef8caea5475/coverage-html/index.html'
+2025-06-13T12:11:29: Report generation took 0.4 seconds
+Building FlinkDotNetAspire/FlinkDotNetAspire.sln...
+MSBuild version 17.8.27+3ab07f0cf for .NET
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlinkDotNetAspire.AppHost.ServiceDefaults -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.ServiceDefaults/bin/Release/net8.0/FlinkDotNetAspire.AppHost.ServiceDefaults.dll
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Debug/net8.0/FlinkDotNet.Common.Constants.dll
+  IntegrationTestVerifier -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Debug/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
+  FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Debug/net8.0/FlinkDotNet.Core.Api.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Debug/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Debug/net8.0/FlinkDotNet.Core.dll
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/RedisIncrementSinkFunction.cs(94,21): warning S3626: Remove this redundant jump. (https://rules.sonarsource.com/csharp/RSPEC-3626) [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/FlinkJobSimulator.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/Program.cs(228,17): warning S3626: Remove this redundant jump. (https://rules.sonarsource.com/csharp/RSPEC-3626) [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/FlinkJobSimulator.csproj]
+  FlinkJobSimulator -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll
+  FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Release/net8.0/FlinkDotNet.TaskManager.dll
+  FlinkDotNetAspire.AppHost.AppHost -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/bin/Release/net8.0/FlinkDotNetAspire.AppHost.AppHost.dll
+  FlinkDotNetAspire.IntegrationTests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/bin/Release/net8.0/FlinkDotNetAspire.IntegrationTests.dll
+
+Build succeeded.
+
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/RedisIncrementSinkFunction.cs(94,21): warning S3626: Remove this redundant jump. (https://rules.sonarsource.com/csharp/RSPEC-3626) [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/FlinkJobSimulator.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/Program.cs(228,17): warning S3626: Remove this redundant jump. (https://rules.sonarsource.com/csharp/RSPEC-3626) [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/FlinkJobSimulator.csproj]
+    2 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:01:22.72
+Building FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln...
+MSBuild version 17.8.27+3ab07f0cf for .NET
+  Determining projects to restore...
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet.WebUI/FlinkDotNet.WebUI/FlinkDotNet.WebUI.csproj (in 3.14 sec).
+  FlinkDotNet.WebUI -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet.WebUI/FlinkDotNet.WebUI/bin/Release/net8.0/FlinkDotNet.WebUI.dll
+  FlinkDotNet.WebUI (Blazor output) -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet.WebUI/FlinkDotNet.WebUI/bin/Release/net8.0/wwwroot
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:18.64
+Unit tests completed successfully.
+=== UNIT TESTS WORKFLOW COMPLETED in 4.3 minutes ===
