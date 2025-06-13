@@ -74,37 +74,34 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      # Run tests with coverage collection for SonarCloud
-      - name: Run tests with coverage collection
-        shell: pwsh
-        run: |
-          echo "Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection..."
-          Push-Location FlinkDotNet
-          dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
-          Pop-Location
+      # Download test results and coverage from unit-tests workflow
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: ./FlinkDotNet/TestResults
 
-      - name: Convert coverage to OpenCover format for SonarCloud
+      - name: Verify downloaded coverage files
         shell: pwsh
         run: |
-          # Install ReportGenerator if not already installed
-          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
-          
-          Write-Host "Converting coverage files to OpenCover format for SonarCloud..."
-          Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
-            $coberturaFile = $_.FullName
-            $targetDir = $_.DirectoryName
-            Write-Host "Processing coverage file: $coberturaFile"
+          Write-Host "Verifying downloaded test artifacts..."
+          if (Test-Path "./FlinkDotNet/TestResults") {
+            Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse | ForEach-Object {
+              Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+            }
             
-            # Convert to OpenCover format for SonarCloud
-            $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
-            Write-Host "Converting to OpenCover format: $openCoverFile"
-            reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
-          }
-          
-          # List all coverage files for debugging
-          Write-Host "Coverage files generated for SonarCloud:"
-          Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" | ForEach-Object {
-            Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+            # Check for OpenCover format files needed by SonarCloud
+            $openCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml"
+            if ($openCoverFiles.Count -gt 0) {
+              Write-Host "Found OpenCover files for SonarCloud:"
+              $openCoverFiles | ForEach-Object {
+                Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+              }
+            } else {
+              Write-Host "No OpenCover files found - SonarCloud will run without coverage data"
+            }
+          } else {
+            Write-Host "No test results directory found"
           }
 
 
