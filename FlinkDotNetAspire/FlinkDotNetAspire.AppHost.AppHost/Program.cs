@@ -31,7 +31,7 @@ public static class Program
             builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("TASKMANAGER_GRPC_PORT", ServiceUris.GetTaskManagerAspirePort(i).ToString())
-                .WithEnvironment("services__jobmanager__grpc__0", ServiceUris.JobManagerGrpc)
+                .WithEnvironment("services__jobmanager__grpc__0", ServiceUris.Insecure.JobManagerGrpcHttp)
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
         }
 

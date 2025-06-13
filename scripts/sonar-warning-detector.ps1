@@ -277,12 +277,15 @@ function Update-EnforcementRules {
         Write-Log "❌ ENFORCEMENT UPDATE: Found $($DetectedWarnings.Count) warnings that must be fixed" "ERROR"
         Write-Log "📋 Adding detected warning patterns to enforcement framework" "INFO"
         
-        # Update the actual warning count in enforcement rules
-        $currentContent = Get-Content $enforcementFile -Raw
-        $updatedContent = $currentContent -replace "CURRENTLY \d+ WARNINGS", "CURRENTLY $($DetectedWarnings.Count) WARNINGS"
-        Set-Content $enforcementFile -Value $updatedContent
-        
-        Write-Log "✅ Enforcement rules updated with current warning state" "INFO"
+        # Update the actual warning count in enforcement rules if file exists
+        if (Test-Path $enforcementFile) {
+            $currentContent = Get-Content $enforcementFile -Raw
+            $updatedContent = $currentContent -replace "CURRENTLY \d+ WARNINGS", "CURRENTLY $($DetectedWarnings.Count) WARNINGS"
+            Set-Content $enforcementFile -Value $updatedContent
+            Write-Log "✅ Enforcement rules updated with current warning state" "INFO"
+        } else {
+            Write-Log "⚠️  Enforcement file not found: $enforcementFile" "WARN"
+        }
     } else {
         Write-Log "✅ No warnings detected - enforcement rules are accurate" "INFO"
     }

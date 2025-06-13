@@ -131,7 +131,7 @@ public class AspireIntegrationTests
                 {
                     // Reproduce the exact DI configuration from TaskManager Program.cs
                     string taskManagerId = "TM-Test";
-                    string jobManagerAddress = ServiceUris.JobManagerGrpc;
+                    string jobManagerAddress = ServiceUris.Insecure.JobManagerGrpcHttp;
                     
                     services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
                     services.AddHostedService<FlinkDotNet.TaskManager.TaskManagerCoreService>();
@@ -167,7 +167,7 @@ public class AspireIntegrationTests
             .ConfigureServices((hostContext, services) =>
             {
                 string taskManagerId = "TM-Integration-Test";
-                string jobManagerAddress = ServiceUris.JobManagerGrpc;
+                string jobManagerAddress = ServiceUris.Insecure.JobManagerGrpcHttp;
                 
                 // Register all required dependencies for TaskExecutor
                 services.AddSingleton<FlinkDotNet.TaskManager.ActiveTaskRegistry>();
@@ -250,7 +250,7 @@ public class AspireIntegrationTests
                 .ConfigureServices((hostContext, services) =>
                 {
                     string taskManagerId = "TM-Integration-Test";
-                    string jobManagerAddress = ServiceUris.JobManagerGrpc;
+                    string jobManagerAddress = ServiceUris.Insecure.JobManagerGrpcHttp;
                     
                     // Reproduce the FIXED DI configuration from TaskManager Program.cs
                     services.AddSingleton(new FlinkDotNet.TaskManager.TaskManagerCoreService.Config(taskManagerId, jobManagerAddress));
