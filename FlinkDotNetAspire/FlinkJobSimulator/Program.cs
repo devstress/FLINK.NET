@@ -16,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using FlinkDotNet.JobManager.Models.JobGraph;
 using FlinkDotNet.Common.Constants;
+using System.Collections; // For DictionaryEntry
 
 namespace FlinkJobSimulator
 {
@@ -393,11 +394,8 @@ public static class Program
         }
     }
 
-    public static async Task Main(string[] args)
+    private static async Task<IHost> ConfigureAndStartHost(string[] args)
     {
-        Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
-
-        // Set up host builder with dependency injection
         var builder = Host.CreateApplicationBuilder(args);
         
         // Add Redis client using Aspire pattern
@@ -410,32 +408,40 @@ public static class Program
             return connectionMultiplexer.GetDatabase();
         });
         
+        // For stress test compatibility: If DOTNET_REDIS_URL is set (by port discovery script),
+        // override the Aspire redis connection with the discovered connection
+        var envRedisUrl = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL");
+        if (!string.IsNullOrEmpty(envRedisUrl))
+        {
+            Console.WriteLine($"Found DOTNET_REDIS_URL environment variable: {envRedisUrl}");
+            Console.WriteLine("Overriding Aspire Redis connection with discovered Redis connection for stress test compatibility...");
+            
+            builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
+            {
+                return ConnectionMultiplexer.Connect(envRedisUrl);
+            });
+        }
+        
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
-        using var host = builder.Build();
+        var host = builder.Build();
         await host.StartAsync();
+        return host;
+    }
 
-        // Get Redis database from DI container
-        var redisDatabase = host.Services.GetRequiredService<IDatabase>();
-        var configuration = host.Services.GetRequiredService<IConfiguration>();
-
-        // --- Configuration ---
+    private static (long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl) GetConfiguration()
+    {
         long numMessages = 10000; // Default, can be overridden by env var set in AppHost
         string? envNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES");
         if (!string.IsNullOrEmpty(envNumMessages) && long.TryParse(envNumMessages, out long parsedNumMessages))
         {
             numMessages = parsedNumMessages;
         }
-        Console.WriteLine($"Number of messages to generate: {numMessages}");
 
         string redisSinkCounterKey = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_SINK_COUNTER") ?? "flinkdotnet:sample:processed_message_counter";
         string kafkaTopic = Environment.GetEnvironmentVariable("SIMULATOR_KAFKA_TOPIC") ?? "flinkdotnet.sample.topic";
-        Console.WriteLine($"Redis Sink Counter Key: {redisSinkCounterKey}");
-        Console.WriteLine($"Kafka Topic: {kafkaTopic}");
-        // Global sequence key for source is handled internally by HighVolumeSourceFunction
 
-        // --- Service Discovery for JobManager gRPC endpoint ---
         var jobManagerGrpcUrl = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
         if (string.IsNullOrEmpty(jobManagerGrpcUrl))
         {
@@ -448,79 +454,110 @@ public static class Program
             Console.WriteLine($"JobManager gRPC URL from environment: {jobManagerGrpcUrl}");
         }
 
+        Console.WriteLine($"Number of messages to generate: {numMessages}");
+        Console.WriteLine($"Redis Sink Counter Key: {redisSinkCounterKey}");
+        Console.WriteLine($"Kafka Topic: {kafkaTopic}");
+
+        return (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl);
+    }
+
+    private static StreamExecutionEnvironment SetupFlinkEnvironment(long numMessages, string redisSinkCounterKey, string kafkaTopic, 
+        IDatabase redisDatabase, IConfiguration configuration)
+    {
+        var env = StreamExecutionEnvironment.GetExecutionEnvironment();
+        env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
+
+        var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
+        DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
+
+        var mapOperator = new SimpleToUpperMapOperator();
+        DataStream<string> mappedStream = stream.Map(mapOperator);
+
+        // Fork the mapped stream to two sinks:
+        mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisDatabase, redisSinkCounterKey), "redis-processed-counter-sink");
+        mappedStream.AddSink(new FlinkJobSimulator.KafkaSinkFunction<string>(kafkaTopic), "kafka-output-sink");
+
+        return env;
+    }
+
+    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string jobManagerGrpcUrl)
+    {
+        Console.WriteLine("Building JobGraph...");
+        JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
+        Console.WriteLine($"JobGraph created with name: {jobGraph.JobName}");
+        Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
+
+        // Verify infrastructure
+        Console.WriteLine("Verifying JobManager and TaskManager infrastructure...");
+        try 
+        {
+            await VerifyInfrastructure(jobManagerGrpcUrl);
+        }
+        catch (Exception infraEx)
+        {
+            Console.WriteLine($"Infrastructure verification failed: {infraEx.Message}");
+            Console.WriteLine("Proceeding with local execution for integration testing...");
+        }
+
+        // Execute the job
+        Console.WriteLine("Executing job using LocalStreamExecutor for Apache Flink 2.0 compatibility...");
+        try 
+        {
+            await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
+            Console.WriteLine("Job execution completed successfully using LocalStreamExecutor.");
+        }
+        catch (Exception jobEx)
+        {
+            Console.WriteLine($"Job execution failed: {jobEx.Message}");
+            Console.WriteLine(jobEx.StackTrace);
+            Console.WriteLine("Continuing despite job execution error - integration verifier will check results.");
+        }
+    }
+
+    public static async Task Main(string[] args)
+    {
+        Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
+
+        // Debug: Log all environment variables to understand what Aspire provides
+        Console.WriteLine("=== DEBUG: Environment Variables ===");
+        foreach (DictionaryEntry env in Environment.GetEnvironmentVariables())
+        {
+            var key = env.Key.ToString();
+            var value = env.Value?.ToString();
+            if (key.Contains("redis", StringComparison.OrdinalIgnoreCase) || 
+                key.Contains("kafka", StringComparison.OrdinalIgnoreCase) ||
+                key.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) ||
+                key.Contains("DOTNET", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"  {key}={value}");
+            }
+        }
+        Console.WriteLine("=== END DEBUG ===");
+
+        using var host = await ConfigureAndStartHost(args);
+        var redisDatabase = host.Services.GetRequiredService<IDatabase>();
+        var configuration = host.Services.GetRequiredService<IConfiguration>();
+
+        var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
+
         try
         {
-            // --- 1. Set up StreamExecutionEnvironment ---
-            var env = StreamExecutionEnvironment.GetExecutionEnvironment();
-            env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
-
-            // --- 2. Define the job with dependency-injected Redis ---
-            var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
-            DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
-
-            var mapOperator = new SimpleToUpperMapOperator();
-            DataStream<string> mappedStream = stream.Map(mapOperator);
-
-            // Fork the mapped stream to two sinks:
-            mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisDatabase, redisSinkCounterKey), "redis-processed-counter-sink");
-            mappedStream.AddSink(new FlinkJobSimulator.KafkaSinkFunction<string>(kafkaTopic), "kafka-output-sink");
-
-            // --- 3. Build the JobGraph ---
-            Console.WriteLine("Building JobGraph...");
-            JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
-            Console.WriteLine($"JobGraph created with name: {jobGraph.JobName}");
-            Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
-
-            // --- 4. Verify JobManager and TaskManager infrastructure is running ---
-            Console.WriteLine("Verifying JobManager and TaskManager infrastructure...");
-            try 
-            {
-                await VerifyInfrastructure(jobManagerGrpcUrl);
-            }
-            catch (Exception infraEx)
-            {
-                Console.WriteLine($"Infrastructure verification failed: {infraEx.Message}");
-                Console.WriteLine("Proceeding with local execution for integration testing...");
-            }
-
-            // --- 5. Execute the job using the new LocalStreamExecutor ---
-            Console.WriteLine("Executing job using LocalStreamExecutor for Apache Flink 2.0 compatibility...");
-            try 
-            {
-                // Use the new local execution engine
-                await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
-                Console.WriteLine("Job execution completed successfully using LocalStreamExecutor.");
-            }
-            catch (Exception jobEx)
-            {
-                Console.WriteLine($"Job execution failed: {jobEx.Message}");
-                Console.WriteLine(jobEx.StackTrace);
-                
-                // Don't re-throw in integration tests - let the verifier check the actual results
-                Console.WriteLine("Continuing despite job execution error - integration verifier will check results.");
-            }
+            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
+            await ExecuteJob(env, numMessages, jobManagerGrpcUrl);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"An unexpected error occurred in the simulator: {ex.Message}");
             Console.WriteLine(ex.StackTrace);
-            
-            // For integration tests, continue running so verifier can check what was accomplished
             Console.WriteLine("Continuing despite error for integration test verification.");
         }
 
         Console.WriteLine("Flink Job Simulator finished executing the job.");
         Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
-
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         
-        // Give more time for any async operations (like Kafka message production) to complete
-        await Task.Delay(TimeSpan.FromSeconds(5)); // Increased delay to ensure all Kafka messages are flushed
-        
+        await Task.Delay(TimeSpan.FromSeconds(5));
         Console.WriteLine("Keeping process alive for Aspire orchestration...");
-        
-        // Keep the process alive so the Aspire AppHost can manage it and integration tests can run
-        // This is important for the integration test workflow which expects services to stay running
         await Task.Delay(Timeout.Infinite);
     }
 }

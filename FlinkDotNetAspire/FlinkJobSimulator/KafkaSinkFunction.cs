@@ -30,24 +30,28 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+            // Priority order for Kafka bootstrap servers:
+            // 1. DOTNET_KAFKA_BOOTSTRAP_SERVERS (set by port discovery script for stress tests)
+            // 2. ConnectionStrings__kafka (Aspire service reference)
+            // 3. ServiceUris.KafkaBootstrapServers (default fallback)
             
-            // If Aspire connection string not found, try the alternative format used by IntegrationTestVerifier
-            if (string.IsNullOrEmpty(bootstrapServers))
+            string? bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+            if (!string.IsNullOrEmpty(bootstrapServers))
             {
-                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
-            }
-            
-            if (string.IsNullOrEmpty(bootstrapServers))
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Kafka bootstrap servers not found in 'ConnectionStrings__kafka' or 'DOTNET_KAFKA_BOOTSTRAP_SERVERS' environment variables.");
-                // Attempt a local default if not found (useful for non-Aspire testing)
-                bootstrapServers = ServiceUris.KafkaBootstrapServers;
-                Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from DOTNET_KAFKA_BOOTSTRAP_SERVERS: {bootstrapServers}");
             }
             else
             {
-                Console.WriteLine($"[{_taskName}] Found Kafka bootstrap servers from environment: {bootstrapServers}");
+                bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+                if (!string.IsNullOrEmpty(bootstrapServers))
+                {
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
+                }
+                else
+                {
+                    bootstrapServers = ServiceUris.KafkaBootstrapServers;
+                    Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                }
             }
 
             var config = new ProducerConfig
