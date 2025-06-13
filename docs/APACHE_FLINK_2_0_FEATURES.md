@@ -31,12 +31,15 @@ var stateBackendId = await stateCoordinator.CreateStateBackendAsync(
 ### 2. Dynamic Scaling with Back Pressure Management  
 **Location**: `FlinkDotNet.JobManager/Services/BackPressure/BackPressureCoordinator.cs`
 
-Advanced back pressure monitoring and automatic TaskManager scaling:
+**✨ ENHANCED**: Complete Apache Flink 2.0 style back pressure system with real-time data processing integration:
 
 - **Multi-Dimensional Pressure Detection**: Monitors state backend, network, CPU, and memory pressure
-- **Automatic Scaling Decisions**: Triggers scale up/down based on configurable thresholds
-- **Apache Flink 2.0 Heuristics**: Uses proven algorithms for pressure calculation
+- **Credit-Based Flow Control**: Implements Apache Flink 2.0 credit system for preventing system overload
+- **Real-Time Throttling**: Dynamic throttling in LocalStreamExecutor based on queue pressure
+- **Automatic Scaling Decisions**: Triggers scale up/down based on configurable thresholds with cooldown periods
+- **Apache Flink 2.0 Heuristics**: Uses proven algorithms for pressure calculation and throttling
 - **Deployment Flexibility**: Supports Process, Container, and Kubernetes deployment modes
+- **Local and Distributed Integration**: Works both in single-process and distributed scenarios
 
 ```csharp
 // Configure automatic scaling based on system pressure
@@ -47,8 +50,41 @@ var backPressureCoordinator = new BackPressureCoordinator(
         ScaleUpThreshold = 0.8,   // 80% pressure triggers scale up
         ScaleDownThreshold = 0.3, // 30% pressure triggers scale down
         MinTaskManagers = 1,
-        MaxTaskManagers = 10
+        MaxTaskManagers = 10,
+        MaxBufferSize = 1000      // Credit-based flow control buffer size
     });
+
+// Request processing credits for back pressure control
+var credits = backPressureCoordinator.RequestProcessingCredits("operatorId", 100);
+if (backPressureCoordinator.ShouldThrottleDataIntake()) {
+    // Apply throttling logic
+}
+    });
+```
+
+### 2.1. Local Back Pressure Detection for Single-Process Execution
+**Location**: `FlinkDotNet.Core.Api/BackPressure/LocalBackPressureDetector.cs`
+
+**NEW**: Local back pressure system integrated with LocalStreamExecutor for development and testing scenarios:
+
+- **Real-Time Queue Monitoring**: Tracks queue sizes across all operators and sinks
+- **Exponential Backoff Throttling**: Applies increasing delays when pressure is detected
+- **Operator-Specific Control**: Per-operator pressure monitoring and throttling
+- **Apache Flink 2.0 Compatible Thresholds**: Uses same pressure calculation algorithms
+- **Integration with LocalStreamExecutor**: Seamless integration with single-process execution
+
+```csharp
+// LocalStreamExecutor automatically includes back pressure detection
+var executor = new LocalStreamExecutor(environment);
+// Back pressure detection and throttling happens automatically during execution
+
+// Manual configuration (optional)
+var detector = new LocalBackPressureDetector(new LocalBackPressureConfiguration
+{
+    BackPressureThreshold = 0.8,  // 80% queue utilization triggers throttling
+    BaseThrottleDelayMs = 10,     // Base delay in milliseconds
+    DefaultMaxQueueSize = 1000    // Default queue capacity per operator
+});
 ```
 
 ### 3. TaskManager Orchestration for Kubernetes
@@ -373,10 +409,27 @@ spec:
 ## 🏗️ Architecture Benefits
 
 ### Performance Improvements
-1. **Dynamic Scaling**: Automatic TaskManager scaling based on real-time pressure metrics
-2. **State Backend Optimization**: RocksDB tuned for high-throughput streaming workloads  
+1. **Dynamic Scaling**: Automatic TaskManager scaling based on real-time pressure metrics with cooldown periods
+2. **State Backend Optimization**: RocksDB tuned for high-throughput streaming workloads with real performance monitoring
 3. **Memory Management**: Off-heap memory allocation reduces GC pressure
-4. **Credit-Based Backpressure**: Prevents system overload and improves stability
+4. **Credit-Based Backpressure**: Prevents system overload and improves stability through Apache Flink 2.0 style flow control
+5. **Real-Time Throttling**: Queue-based back pressure detection with exponential backoff in LocalStreamExecutor
+6. **Enhanced Metrics Collection**: Real TaskManager process metrics and RocksDB performance statistics
+
+### Recent Enhancements (December 2024)
+🚀 **Complete Back Pressure System Implementation**:
+- Added `CreditBasedFlowController` for Apache Flink 2.0 style credit management
+- Integrated `LocalBackPressureDetector` with real-time throttling in data processing loops
+- Enhanced RocksDB metrics collection with actual latency and throughput measurements
+- Improved TaskManager metrics with real process CPU, memory, and network utilization
+- Added cooldown mechanisms to prevent scaling oscillations
+- Implemented `BackPressureHostedService` for automatic system startup
+
+🔧 **Architectural Improvements**:
+- Enhanced `BackPressureCoordinator` with credit-based flow control integration
+- Added queue monitoring and throttling to sink and operator processing
+- Improved error handling and resilience in back pressure detection
+- Added proper disposal patterns for all back pressure components
 
 ### Apache Flink 2.0 Compatibility
 1. **Centralized State Management**: JobManager coordinates all state backends
