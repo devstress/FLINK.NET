@@ -101,8 +101,8 @@ jobs:
               return $warnings.Count
             }
 
-            # Begin SonarCloud analysis (without coverage paths yet)
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            # Begin SonarCloud analysis (with coverage paths configured)
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" /d:sonar.cs.opencover.reportsPaths="FlinkDotNet/TestResults/**/*.opencover.xml" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
@@ -233,7 +233,7 @@ jobs:
             }
 
             # Add coverage paths now that tests have been run
-            Write-Host "Adding coverage paths and finalizing SonarCloud analysis..."
+            Write-Host "Finalizing SonarCloud analysis..."
             
             # Check for coverage files
             $finalOpenCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
@@ -242,13 +242,12 @@ jobs:
               $finalOpenCoverFiles | ForEach-Object {
                 Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
               }
-              
-              # Set coverage paths and finalize SonarCloud analysis
-              $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.cs.opencover.reportsPaths="FlinkDotNet/TestResults/**/*.opencover.xml" }
             } else {
-              Write-Host "Warning: No coverage files found - submitting analysis without coverage"
-              $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
+              Write-Host "Warning: No coverage files found - analysis will proceed without coverage"
             }
+            
+            # Finalize SonarCloud analysis (coverage paths already configured in begin phase)
+            $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
             
             $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end with coverage"
 
