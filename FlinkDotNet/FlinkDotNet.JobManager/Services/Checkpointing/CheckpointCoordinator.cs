@@ -137,7 +137,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             {
                 try
                 {
-                    var channelAddress = $"http://{tmInfo.Address}:{tmInfo.Port}";
+                    var channelAddress = $"https://{tmInfo.Address}:{tmInfo.Port}";
                     _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: Attempting to connect to TM {TaskManagerId} at {ChannelAddress} for TriggerTaskCheckpoint.", _jobId, checkpointId, tmInfo.TaskManagerId, channelAddress);
 
                     using var channel = GrpcChannel.ForAddress(channelAddress);
@@ -176,7 +176,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             });
 
             await Task.WhenAll(triggerTasks);
-            _logger.LogInformation("Job {JobId}: All TriggerTaskCheckpoint messages sent for checkpoint {CheckpointId}.", _jobId, checkpointId);
+            _logger.LogDebug("Job {JobId}: All TriggerTaskCheckpoint messages sent for checkpoint {CheckpointId}.", _jobId, checkpointId);
             // Start a timer here for 'checkpointId'. If it fires before the checkpoint is fully acknowledged,
             // call 'RecordFailedCheckpointAsync(checkpointId, "Timeout")' and potentially cancel ongoing efforts for this CP.
             Console.WriteLine($"[CheckpointCoordinator] Placeholder for starting timeout timer for checkpoint {checkpointId}.");

@@ -13,6 +13,7 @@ namespace FlinkDotNet.Core.Api.Windowing
     /// <typeparam name="TOut">Type of the output elements.</typeparam>
     /// <typeparam name="TKey">Type of the key.</typeparam>
     /// <typeparam name="TWindow">Type of the window.</typeparam>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2436", Justification = "Generic parameters required for key and window type")]
     public interface IProcessWindowFunction<in TIn, TOut, TKey, TWindow>
         where TWindow : Window
     {
