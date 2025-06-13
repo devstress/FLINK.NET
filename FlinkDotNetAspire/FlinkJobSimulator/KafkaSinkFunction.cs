@@ -110,37 +110,51 @@ namespace FlinkJobSimulator
             if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Kafka Sink: {recordString}");
-                // In a real scenario, sink would perform checkpointing actions here (e.g., flush, commit transaction).
-                // For this PoC, we just log and don't send the barrier marker itself to Kafka as a data message.
-                // If we wanted to see barriers in Kafka for debugging, we could send them to a separate topic or with a special key.
                 return;
             }
 
-            try
-            {
-                var message = new Message<Null, T> { Value = record };
-                // Use synchronous produce to ensure message is sent before continuing
-                _producer.Produce(_topic, message, (deliveryReport) =>
-                {
-                    if (deliveryReport.Error.Code != ErrorCode.NoError)
-                    {
-                        Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
-                    }
-                });
+            ProduceWithRetry(record);
+        }
 
-                long currentCount = Interlocked.Increment(ref _processedCount);
-                if (currentCount % LogFrequency == 0)
+        private void ProduceWithRetry(T record)
+        {
+            const int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
                 {
-                    Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}'.");
+                    if (_producer == null) throw new InvalidOperationException("Kafka producer not initialized");
+                    var message = new Message<Null, T> { Value = record };
+                    _producer.Produce(_topic, message, (deliveryReport) =>
+                    {
+                        if (deliveryReport.Error.Code != ErrorCode.NoError)
+                        {
+                            Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
+                        }
+                    });
+
+                    long currentCount = Interlocked.Increment(ref _processedCount);
+                    if (currentCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}'.");
+                    }
+                    return; // Success, exit retry loop
                 }
-            }
-            catch (ProduceException<Null, T> e)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
-            }
-            catch (Exception ex)
-            {
-                 Console.WriteLine($"[{_taskName}] ERROR: Unexpected error producing to Kafka topic '{_topic}': {ex.Message}");
+                catch (ProduceException<Null, T> e) when (attempt < maxRetries)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
+                    Thread.Sleep(100 * attempt);
+                }
+                catch (Exception ex) when (attempt < maxRetries)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                    Thread.Sleep(100 * attempt);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                    return;
+                }
             }
         }
 

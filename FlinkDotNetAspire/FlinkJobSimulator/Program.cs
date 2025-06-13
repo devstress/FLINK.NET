@@ -211,27 +211,38 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
 
     private async Task<bool> ProcessSingleMessage(ISourceContext<string> ctx, long messageIndex, long emittedCount)
     {
-        try
+        const int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
-            long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
-            await EmitMessageAsync(ctx, currentSequenceId, emittedCount + 1);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[{_taskName}] ERROR during message emission or Redis INCR at iteration {messageIndex} (emitted count: {emittedCount}):");
-            Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
-            Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
-            Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
-            if (ex.InnerException != null)
+            try
             {
-                Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
+                if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
+                long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
+                await EmitMessageAsync(ctx, currentSequenceId, emittedCount + 1);
+                return true;
             }
-            Console.WriteLine($"[{_taskName}] Stopping source due to error at message {messageIndex+1}.");
-            _isRunning = false;
-            return false;
+            catch (Exception ex) when (attempt < maxRetries)
+            {
+                Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} for message {messageIndex+1} failed: {ex.GetType().Name} - {ex.Message}");
+                await Task.Delay(100 * attempt); // Progressive backoff: 100ms, 200ms, 300ms
+                continue;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for message {messageIndex+1} (emitted count: {emittedCount}):");
+                Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
+                Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
+                Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
+                }
+                Console.WriteLine($"[{_taskName}] Stopping source due to persistent error at message {messageIndex+1}.");
+                _isRunning = false;
+                return false;
+            }
         }
+        return false;
     }
 
     private async Task EmitFinalBarrierIfNeeded(ISourceContext<string> ctx, long emittedCount)

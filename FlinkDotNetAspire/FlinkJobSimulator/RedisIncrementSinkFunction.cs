@@ -72,20 +72,32 @@ namespace FlinkJobSimulator
                 return;
             }
 
-            try
+            const int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
-                _redisDb.StringIncrement(_redisKey);
-                long currentCount = Interlocked.Increment(ref _processedCount);
-
-                if (currentCount % LogFrequency == 0)
+                try
                 {
-                    Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {currentCount} records.");
+                    if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
+                    _redisDb.StringIncrement(_redisKey);
+                    long currentCount = Interlocked.Increment(ref _processedCount);
+
+                    if (currentCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {currentCount} records.");
+                    }
+                    return; // Success, exit retry loop
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Failed to increment Redis key '{_redisKey}'. Error: {ex.Message}");
+                catch (Exception ex) when (attempt < maxRetries)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
+                    Thread.Sleep(50 * attempt); // Progressive backoff: 50ms, 100ms, 150ms
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
+                    // Don't throw - just log the failure and continue with next record
+                }
             }
         }
 
