@@ -1,0 +1,154 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Release/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Release/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Release/net8.0/FlinkDotNet.Core.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.Storage.FileSystem.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll (.NETCoreApp,Version=v8.0)
+  FlinkDotNet.Common.Constants.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Release/net8.0/FlinkDotNet.Common.Constants.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Release/net8.0/FlinkDotNet.Common.Constants.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+
+Starting test execution, please wait...
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.46]     FlinkDotNet.Common.Constants.Tests.ServiceConstantsTests.ServiceUris_TaskManagerGrpc_Should_Support_Custom_Port [FAIL]
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_864cf20a-499f-4718-b115-3c58a9eda312/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] DisposeAsync: Ending active keyed states: keyedState1.
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/directory. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_4dcabde5-91ec-43be-986a-43ce9e2ca1c0/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[xUnit.net 00:00:00.51]     FlinkDotNet.Common.Constants.Tests.ServiceConstantsTests.ServiceUris_Should_Generate_Correct_URIs [FAIL]
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_c5629012-54c4-49c4-a20b-65b2235612bd/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] WARNING: Commit called but these keyed states were not ended: keyedState1. Disposing them now.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_5b35b666-8d49-4d9d-8f7b-add892ec0cc8/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_b752fde7-3f12-4394-a525-4b3219cc5dda/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_ff241108-6f64-48a4-986f-5e549286102c/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_f53c437f-f4de-4340-bdde-6d253874d546/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: . Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_e69f281b-f91d-4c1c-98eb-a5d251a9d2ba/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_a4c0e816-79c3-4d60-bd30-8a0aa3128ea1/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_08aa2796-9100-4a1d-88e8-744b0e573b15/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_52d19819-e631-4353-8cfd-8fb2cfa02f92/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_ad253ca9-1ec0-45dc-abc4-0049f7752c8f/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: /non/existent/path. Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_d5832ab3-d60b-4130-a844-b1fd54915070/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_892acc52-7c43-4626-a882-ab14378507ce/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_18de70b5-2472-4925-a398-3df39a9fbeb0/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_a718410b-6f58-4735-b746-2e14a2741a6f/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_ff04e344-6932-4347-9e47-d3c2749e53cd/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_ddd9b156-49f5-474d-82a3-9b7cd84c0065/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_4eac6254-69ea-4e64-a758-453d6be57f4c/job1/cp_100/op1_task1
+[FileSystemSnapshotStore] WARNING: Snapshot directory not found or handle invalid: . Returning empty reader.
+[FileSystemSnapshotWriterSession] Committed snapshot to directory: /tmp/FlinkDotNetTest_2f1c806d-de5f-48df-9a2a-d404dbd56a19/job1/cp_100/op1_task1
+[FileSystemSnapshotWriterSession] DisposeAsync: Ending active keyed states: keyedState1.
+  Failed FlinkDotNet.Common.Constants.Tests.ServiceConstantsTests.ServiceUris_TaskManagerGrpc_Should_Support_Custom_Port [17 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+               ↓ (pos 4)
+Expected: "http://localhost:51001"
+Actual:   "https://localhost:51001"
+               ↑ (pos 4)
+  Stack Trace:
+     at FlinkDotNet.Common.Constants.Tests.ServiceConstantsTests.ServiceUris_TaskManagerGrpc_Should_Support_Custom_Port() in /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/ServiceConstantsTests.cs:line 44
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed FlinkDotNet.Common.Constants.Tests.ServiceConstantsTests.ServiceUris_Should_Generate_Correct_URIs [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+               ↓ (pos 4)
+Expected: "http://localhost:50051"
+Actual:   "https://localhost:50051"
+               ↑ (pos 4)
+  Stack Trace:
+     at FlinkDotNet.Common.Constants.Tests.ServiceConstantsTests.ServiceUris_Should_Generate_Correct_URIs() in /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/ServiceConstantsTests.cs:line 33
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_06_57.trx
+
+Failed!  - Failed:     2, Passed:     3, Skipped:     0, Total:     5, Duration: 77 ms - FlinkDotNet.Common.Constants.Tests.dll (net8.0)
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_06_56.trx
+
+Passed!  - Failed:     0, Passed:    61, Skipped:     0, Total:    61, Duration: 315 ms - FlinkDotNet.Storage.FileSystem.Tests.dll (net8.0)
+  FlinkDotNet.Connectors.Sources.File.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll
+  FlinkDotNet.Core.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Release/net8.0/FlinkDotNet.Core.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Release/net8.0/FlinkDotNet.Core.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_07_02.trx
+
+Passed!  - Failed:     0, Passed:    16, Skipped:     0, Total:    16, Duration: 435 ms - FlinkDotNet.Connectors.Sources.File.Tests.dll (net8.0)
+  FlinkDotNet.Connectors.Sinks.Console.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_07_02[1].trx
+
+Passed!  - Failed:     0, Passed:    68, Skipped:     0, Total:    68, Duration: 167 ms - FlinkDotNet.Core.Tests.dll (net8.0)
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22): warning S3776: Refactor this method to reduce its Cognitive Complexity from 40 to the 15 allowed. (https://rules.sonarsource.com/csharp/RSPEC-3776) [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/FlinkDotNet.Core.Api.csproj]
+/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22): warning S138: This method 'BuildGraphNodeRecursive' has 144 lines, which is greater than the 80 lines authorized. Split it into smaller methods. (https://rules.sonarsource.com/csharp/RSPEC-138) [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/FlinkDotNet.Core.Api.csproj]
+  FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Release/net8.0/FlinkDotNet.Core.Api.dll
+  FlinkDotNet.JobManager.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/bin/Release/net8.0/FlinkDotNet.JobManager.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/bin/Release/net8.0/FlinkDotNet.JobManager.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_07_05.trx
+
+Passed!  - Failed:     0, Passed:    14, Skipped:     0, Total:    14, Duration: 224 ms - FlinkDotNet.Connectors.Sinks.Console.Tests.dll (net8.0)
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_07_08.trx
+
+Passed!  - Failed:     0, Passed:   120, Skipped:     0, Total:   120, Duration: 316 ms - FlinkDotNet.JobManager.Tests.dll (net8.0)
+  FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Release/net8.0/FlinkDotNet.TaskManager.dll
+  FlinkDotNet.Architecture.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/bin/Release/net8.0/FlinkDotNet.Architecture.Tests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/bin/Release/net8.0/FlinkDotNet.Architecture.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Data collection : Unable to find a datacollector with friendly name 'XPlat code coverage'.
+Data collection : Could not find data collector 'XPlat code coverage'
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/_fv-az2234-38_2025-06-13_07_07_10.trx
+
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 60 ms - FlinkDotNet.Architecture.Tests.dll (net8.0)
+
+Attachments:
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9f9d0d60-4ea5-4f3a-80a3-cf176949e8bb/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9f9d0d60-4ea5-4f3a-80a3-cf176949e8bb/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/84d86f39-5382-4f0b-8320-dd045b1efc54/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/84d86f39-5382-4f0b-8320-dd045b1efc54/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/59759dc1-2153-4ccb-a7a3-d765368499b9/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/59759dc1-2153-4ccb-a7a3-d765368499b9/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9e41a0a4-ef75-4049-825e-c87c81193093/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/9e41a0a4-ef75-4049-825e-c87c81193093/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/130df60c-8abe-4af9-96ac-c908751459a9/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/130df60c-8abe-4af9-96ac-c908751459a9/coverage.opencover.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/bd068ca5-3c02-469d-b5e2-f451c8a5f98c/coverage.cobertura.xml
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/TestResults/bd068ca5-3c02-469d-b5e2-f451c8a5f98c/coverage.opencover.xml

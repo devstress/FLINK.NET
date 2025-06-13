@@ -289,16 +289,48 @@ function Update-EnforcementRules {
 }
 
 # Main execution
+function Test-UnitTests {
+    param($SolutionPath)
+    
+    Write-Log "🧪 Running unit tests for: $SolutionPath" "INFO"
+    
+    $testOutput = dotnet test $SolutionPath --configuration Release --verbosity normal 2>&1
+    $testFailed = $LASTEXITCODE -ne 0
+    
+    if ($testFailed) {
+        Write-Log "❌ Unit tests FAILED for $SolutionPath" "ERROR"
+        Write-Log "📋 Test output:" "DEBUG"
+        foreach ($line in $testOutput) {
+            if ($line -match "Failed|Error Message|Stack Trace") {
+                Write-Log "  $line" "ERROR"
+            }
+        }
+        return $false
+    } else {
+        Write-Log "✅ Unit tests PASSED for $SolutionPath" "INFO"
+        return $true
+    }
+}
+
 function Main {
     try {
         Initialize-WarningDetection
         
         $allWarnings = @()
+        $allTestsPassed = $true
         
         foreach ($solution in $Solutions) {
             if (Test-Path $solution) {
                 Write-Log "🔍 Analyzing solution: $solution" "INFO"
                 
+                # First run unit tests to catch test failures
+                $testsPassed = Test-UnitTests $solution
+                if (-not $testsPassed) {
+                    $allTestsPassed = $false
+                    Write-Log "⚠️  Unit tests failed in $solution" "ERROR"
+                }
+                
+                # Then run build analysis for warnings
                 $buildOutput = Invoke-CleanBuild $solution
                 if ($buildOutput) {
                     $warnings = Parse-SonarWarnings $buildOutput
@@ -326,13 +358,18 @@ function Main {
         Update-EnforcementRules $allWarnings
         
         # Final summary
-        if ($allWarnings.Count -eq 0) {
-            Write-Log "🎉 SUCCESS: No SonarCloud warnings detected!" "INFO"
+        if ($allWarnings.Count -eq 0 -and $allTestsPassed) {
+            Write-Log "🎉 SUCCESS: No SonarCloud warnings detected and all unit tests passed!" "INFO"
             Write-Log "✅ Local environment fully aligned with CI requirements" "INFO"
             exit 0
         } else {
-            Write-Log "❌ FAILURE: $($allWarnings.Count) SonarCloud warnings must be fixed" "ERROR"
-            Write-Log "🔧 Use -FixWarnings flag to attempt automatic resolution" "ERROR"
+            if ($allWarnings.Count -gt 0) {
+                Write-Log "❌ FAILURE: $($allWarnings.Count) SonarCloud warnings must be fixed" "ERROR"
+            }
+            if (-not $allTestsPassed) {
+                Write-Log "❌ FAILURE: Unit tests are failing and must be fixed" "ERROR"
+            }
+            Write-Log "🔧 Use -FixWarnings flag to attempt automatic resolution of warnings" "ERROR"
             exit 1
         }
         

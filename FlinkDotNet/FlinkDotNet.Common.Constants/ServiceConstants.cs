@@ -60,12 +60,12 @@ public static class ServiceUris
     /// <summary>
     /// Default JobManager gRPC address
     /// </summary>
-    public static string JobManagerGrpc => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
+    public static string JobManagerGrpc => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
 
     /// <summary>
     /// Default JobManager HTTP API address
     /// </summary>
-    public static string JobManagerHttp => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
+    public static string JobManagerHttp => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
 
     /// <summary>
     /// Default Kafka bootstrap servers
@@ -82,7 +82,7 @@ public static class ServiceUris
     /// </summary>
     /// <param name="port">Custom port number</param>
     /// <returns>TaskManager gRPC URI</returns>
-    public static string TaskManagerGrpc(int port = ServicePorts.TaskManagerGrpc) => $"https://{ServiceHosts.Localhost}:{port}";
+    public static string TaskManagerGrpc(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
 
     /// <summary>
     /// Gets TaskManager port for Aspire deployment based on instance number
