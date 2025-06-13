@@ -518,6 +518,24 @@ namespace IntegrationTestVerifier
             
             bool timingPassed = verificationStopwatch.ElapsedMilliseconds <= maxAllowedTimeMs;
             
+            // 🎯 CRITICAL PERFORMANCE ASSERTION: < 1 second for 1 million messages
+            Console.WriteLine($"\n🎯 CRITICAL PERFORMANCE ASSERTION:");
+            Console.WriteLine($"   📋 REQUIREMENT: Process {expectedMessages:N0} messages in less than {maxAllowedTimeMs:N0}ms (1 second)");
+            Console.WriteLine($"   📊 ACTUAL TIME: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
+            Console.WriteLine($"   📈 PERFORMANCE: {(timingPassed ? "✅ ASSERTION PASSED" : "❌ ASSERTION FAILED")}");
+            if (!timingPassed)
+            {
+                var exceededBy = verificationStopwatch.ElapsedMilliseconds - maxAllowedTimeMs;
+                var exceededPercent = (double)exceededBy / maxAllowedTimeMs * 100;
+                Console.WriteLine($"   ⚠️  EXCEEDED BY: {exceededBy:N0}ms ({exceededPercent:F1}% over limit)");
+            }
+            else
+            {
+                var underBy = maxAllowedTimeMs - verificationStopwatch.ElapsedMilliseconds;
+                var underPercent = (double)underBy / maxAllowedTimeMs * 100;
+                Console.WriteLine($"   ✅ UNDER LIMIT BY: {underBy:N0}ms ({underPercent:F1}% under limit)");
+            }
+            
             // Redis performance analysis
             if (s_lastRedisPerformance != null)
             {
@@ -857,10 +875,41 @@ namespace IntegrationTestVerifier
                 {
                     Console.WriteLine($"           ... and {allKeys.Count - 10} more keys");
                 }
+                
+                // 🔍 ROOT CAUSE ANALYSIS
+                Console.WriteLine($"\n         🔍 ROOT CAUSE ANALYSIS:");
+                if (allKeys.Count == 0)
+                {
+                    Console.WriteLine($"           🚨 CRITICAL: No FlinkDotNet keys found - Job never started or Redis connection failed");
+                    Console.WriteLine($"           💡 SUGGESTION: Check AppHost startup logs, verify Redis container is running");
+                }
+                else if (allKeys.Any(k => k.Contains("global_sequence_id")))
+                {
+                    var seqKey = allKeys.First(k => k.Contains("global_sequence_id"));
+                    var seqVal = await db.StringGetAsync(seqKey);
+                    Console.WriteLine($"           📊 Source function generated {seqVal} messages but stopped early");
+                    Console.WriteLine($"           💡 SUGGESTION: Check for LocalStreamExecutor timeout, source function errors, or resource exhaustion");
+                }
+                else
+                {
+                    Console.WriteLine($"           🚨 CRITICAL: Source function never initialized - sequence generation failed");
+                    Console.WriteLine($"           💡 SUGGESTION: Check source function startup, Redis connectivity in source");
+                }
+                
+                // Check for sink processing indicators
+                if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!allKeys.Any(k => k.Contains("processed_message_counter")))
+                    {
+                        Console.WriteLine($"           🚨 SINK ISSUE: No sink counter key found - RedisIncrementSinkFunction never executed");
+                        Console.WriteLine($"           💡 SUGGESTION: Check sink function registration, Redis sink connectivity");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"         ⚠️  Could not enumerate keys: {ex.Message}");
+                Console.WriteLine($"         💡 This may indicate Redis connectivity issues during diagnostics");
             }
         }
 
@@ -875,6 +924,29 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"            - Source stopped at {actualValue:N0}/{expectedMessages:N0} messages");
                 Console.WriteLine($"            - This suggests LocalStreamExecutor timeout or error in source execution");
                 Console.WriteLine($"            - Check AppHost logs for source function error messages");
+                
+                // 🔍 SOURCE-SPECIFIC DIAGNOSTICS
+                Console.WriteLine($"\n         🔍 SOURCE-SPECIFIC DIAGNOSTICS:");
+                if (actualValue == 0)
+                {
+                    Console.WriteLine($"            🚨 CRITICAL: Source never generated any messages");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection failure, source function not registered, job execution error");
+                }
+                else if (actualValue < expectedMessages * 0.1)
+                {
+                    Console.WriteLine($"            ⚠️  Source failed very early (<10% completion)");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Source initialization error, immediate timeout, resource exhaustion");
+                }
+                else if (actualValue < expectedMessages * 0.5)
+                {
+                    Console.WriteLine($"            ⚠️  Source failed mid-execution (<50% completion)");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection timeout, memory issues, LocalStreamExecutor timeout");
+                }
+                else
+                {
+                    Console.WriteLine($"            ✅ Source made good progress (>{actualValue * 100.0 / expectedMessages:F1}% completion)");
+                    Console.WriteLine($"            💡 LIKELY CAUSES: Controlled shutdown, late-stage timeout, resource constraints");
+                }
             }
             else if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase))
             {
@@ -887,11 +959,42 @@ namespace IntegrationTestVerifier
                 var sourceValue = await db.StringGetAsync(sourceKey);
                 if (sourceValue.HasValue)
                 {
+                    var sourceCount = (long)sourceValue;
                     Console.WriteLine($"            - Source generated {sourceValue} messages vs sink processed {actualValue}");
-                    if ((long)sourceValue > actualValue)
+                    if (sourceCount > actualValue)
                     {
-                        Console.WriteLine($"            - ⚠️  Data loss: Sink missed {(long)sourceValue - actualValue} messages");
+                        var dataLoss = sourceCount - actualValue;
+                        var dataLossPercent = (double)dataLoss / sourceCount * 100;
+                        Console.WriteLine($"            - ⚠️  Data loss: Sink missed {dataLoss} messages ({dataLossPercent:F1}% loss rate)");
+                        
+                        // 🔍 SINK-SPECIFIC DIAGNOSTICS
+                        Console.WriteLine($"\n         🔍 SINK-SPECIFIC DIAGNOSTICS:");
+                        if (actualValue == 0)
+                        {
+                            Console.WriteLine($"            🚨 CRITICAL: Sink never processed any messages despite source generating {sourceCount}");
+                            Console.WriteLine($"            💡 LIKELY CAUSES: Sink function not registered, sink Redis connection failure, sink execution error");
+                        }
+                        else if (dataLossPercent > 50)
+                        {
+                            Console.WriteLine($"            ⚠️  High data loss rate (>{dataLossPercent:F1}%)");
+                            Console.WriteLine($"            💡 LIKELY CAUSES: Sink connection instability, processing exceptions, sink timeout");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"            ⚠️  Moderate data loss ({dataLossPercent:F1}%)");
+                            Console.WriteLine($"            💡 LIKELY CAUSES: Processing backpressure, occasional failures, late shutdown");
+                        }
                     }
+                    else if (sourceCount == actualValue)
+                    {
+                        Console.WriteLine($"            ✅ Perfect source-to-sink ratio - data flow is working correctly");
+                        Console.WriteLine($"            💡 Issue is likely in source generation capacity, not sink processing");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"            🚨 CRITICAL: Cannot compare with source - source key not found");
+                    Console.WriteLine($"            💡 Both source and sink may have failed completely");
                 }
             }
         }
@@ -968,6 +1071,39 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"   ❌ THEN: Kafka subscription FAILED");
                 Console.WriteLine($"      🔌 Could not subscribe to topic '{topic}': {ex.Message}");
                 Console.WriteLine($"      💡 This indicates Kafka container is not accessible or topic doesn't exist");
+                
+                // 🔍 KAFKA-SPECIFIC DIAGNOSTICS
+                Console.WriteLine($"\n      🔍 KAFKA SUBSCRIPTION DIAGNOSTICS:");
+                Console.WriteLine($"         📊 Bootstrap servers: {cleanBootstrapServers}");
+                Console.WriteLine($"         📊 Topic name: {topic}");
+                Console.WriteLine($"         📊 Exception type: {ex.GetType().Name}");
+                
+                if (ex.Message.Contains("UnknownTopicOrPart"))
+                {
+                    Console.WriteLine($"         🚨 ROOT CAUSE: Topic '{topic}' does not exist on Kafka broker");
+                    Console.WriteLine($"         💡 LIKELY CAUSES:");
+                    Console.WriteLine($"            - KafkaSinkFunction failed to create topic during job execution");
+                    Console.WriteLine($"            - Kafka auto-topic creation is disabled");
+                    Console.WriteLine($"            - Topic name mismatch between producer and consumer");
+                    Console.WriteLine($"         💡 SUGGESTIONS:");
+                    Console.WriteLine($"            - Check AppHost logs for KafkaSinkFunction errors");
+                    Console.WriteLine($"            - Verify Kafka container is running and topic creation succeeded");
+                    Console.WriteLine($"            - Check if job execution completed successfully");
+                }
+                else if (ex.Message.Contains("timeout") || ex.Message.Contains("connect"))
+                {
+                    Console.WriteLine($"         🚨 ROOT CAUSE: Cannot connect to Kafka broker at {cleanBootstrapServers}");
+                    Console.WriteLine($"         💡 SUGGESTIONS:");
+                    Console.WriteLine($"            - Verify Kafka container is running on the expected port");
+                    Console.WriteLine($"            - Check docker port mapping for Kafka service");
+                    Console.WriteLine($"            - Ensure no firewall blocking localhost connections");
+                }
+                else
+                {
+                    Console.WriteLine($"         🚨 ROOT CAUSE: Unexpected Kafka subscription error");
+                    Console.WriteLine($"         💡 SUGGESTION: Check Kafka broker logs and consumer configuration");
+                }
+                
                 return false;
             }
 
@@ -1032,6 +1168,27 @@ namespace IntegrationTestVerifier
             {
                 Console.WriteLine($"❌ Kafka consume error: {e.Error.Reason}");
                 Console.WriteLine($"  Error code: {e.Error.Code}");
+                
+                // 🔍 CONSUMPTION ERROR DIAGNOSTICS
+                Console.WriteLine($"\n🔍 KAFKA CONSUMPTION ERROR DIAGNOSTICS:");
+                if (e.Error.Code == ErrorCode.UnknownTopicOrPart)
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: Topic does not exist or partition not available");
+                    Console.WriteLine($"   💡 LIKELY CAUSES:");
+                    Console.WriteLine($"      - KafkaSinkFunction failed to create topic during job execution");
+                    Console.WriteLine($"      - Topic was created but not yet available for consumption");
+                    Console.WriteLine($"      - Producer hasn't written any messages to topic yet");
+                }
+                else if (e.Error.Code == ErrorCode.BrokerNotAvailable)
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: Kafka broker is not available or unreachable");
+                    Console.WriteLine($"   💡 SUGGESTION: Check Kafka container status and network connectivity");
+                }
+                else
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: Unexpected Kafka consumption error ({e.Error.Code})");
+                    Console.WriteLine($"   💡 SUGGESTION: Check Kafka broker logs and consumer permissions");
+                }
             }
             finally
             {
@@ -1058,6 +1215,42 @@ namespace IntegrationTestVerifier
             if (messagesConsumed.Count < expectedMessages && stopwatch.Elapsed >= consumeTimeout)
             {
                 Console.WriteLine($"❌ TIMEOUT: Expected {expectedMessages:N0}, got {messagesConsumed.Count:N0} messages.");
+                
+                // 🔍 TIMEOUT DIAGNOSTICS
+                Console.WriteLine($"\n🔍 KAFKA TIMEOUT DIAGNOSTICS:");
+                if (messagesConsumed.Count == 0)
+                {
+                    Console.WriteLine($"   🚨 ROOT CAUSE: No messages received at all within {consumeTimeout.TotalSeconds}s timeout");
+                    Console.WriteLine($"   💡 LIKELY CAUSES:");
+                    Console.WriteLine($"      - KafkaSinkFunction never produced messages to topic");
+                    Console.WriteLine($"      - Topic exists but is empty (producer failed)");
+                    Console.WriteLine($"      - Wrong topic name between producer and consumer");
+                    Console.WriteLine($"      - Kafka consumer offset configuration issue");
+                }
+                else
+                {
+                    var receivedPercent = messagesConsumed.Count * 100.0 / expectedMessages;
+                    Console.WriteLine($"   ⚠️  PARTIAL SUCCESS: Received {messagesConsumed.Count:N0}/{expectedMessages:N0} messages ({receivedPercent:F1}%)");
+                    Console.WriteLine($"   💡 LIKELY CAUSES:");
+                    if (receivedPercent < 10)
+                    {
+                        Console.WriteLine($"      - Producer failed early in message generation");
+                        Console.WriteLine($"      - Source function stopped generating messages");
+                    }
+                    else if (receivedPercent < 50)
+                    {
+                        Console.WriteLine($"      - Producer stopped mid-execution (timeout, error, resource limit)");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"      - Producer nearly completed but stopped short");
+                        Console.WriteLine($"      - May just need longer consumption timeout");
+                    }
+                }
+                Console.WriteLine($"   💡 SUGGESTIONS:");
+                Console.WriteLine($"      - Check FlinkJobSimulator execution logs for errors");
+                Console.WriteLine($"      - Verify Redis sequence generation completed");
+                Console.WriteLine($"      - Check AppHost for KafkaSinkFunction error messages");
             }
         }
 
