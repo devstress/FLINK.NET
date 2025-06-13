@@ -74,6 +74,39 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
+      # Run tests with coverage collection for SonarCloud
+      - name: Run tests with coverage collection
+        shell: pwsh
+        run: |
+          echo "Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection..."
+          Push-Location FlinkDotNet
+          dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
+          Pop-Location
+
+      - name: Convert coverage to OpenCover format for SonarCloud
+        shell: pwsh
+        run: |
+          # Install ReportGenerator if not already installed
+          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
+          
+          Write-Host "Converting coverage files to OpenCover format for SonarCloud..."
+          Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
+            $coberturaFile = $_.FullName
+            $targetDir = $_.DirectoryName
+            Write-Host "Processing coverage file: $coberturaFile"
+            
+            # Convert to OpenCover format for SonarCloud
+            $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
+            Write-Host "Converting to OpenCover format: $openCoverFile"
+            reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
+          }
+          
+          # List all coverage files for debugging
+          Write-Host "Coverage files generated for SonarCloud:"
+          Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" | ForEach-Object {
+            Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+          }
+
 
       - name: Build and analyze
         env:
@@ -102,7 +135,7 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.cs.opencover.reportsPaths="FlinkDotNet/TestResults/**/*.opencover.xml" /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
