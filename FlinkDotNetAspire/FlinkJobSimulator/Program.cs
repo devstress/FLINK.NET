@@ -238,63 +238,83 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             }
             catch (Exception ex) when (attempt < maxRetries)
             {
-                Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} for message {messageIndex+1} failed: {ex.GetType().Name} - {ex.Message}");
-                
-                // Progressive backoff with longer delays for stress tests
-                int delayMs = 200 * attempt; // 200ms, 400ms, 600ms, 800ms
-                await Task.Delay(delayMs);
-                
-                // Additional diagnostics for persistent failures
-                if (attempt >= 3)
-                {
-                    Console.WriteLine($"[{_taskName}] WARNING: Message {messageIndex+1} experiencing persistent issues (attempt {attempt}/{maxRetries})");
-                    if (ex.Message.Contains("Redis") || ex.Message.Contains("timeout"))
-                    {
-                        Console.WriteLine($"[{_taskName}] Redis connection issue detected - checking connection health");
-                        try
-                        {
-                            // Simple ping to check Redis health
-                            if (_redisDb != null)
-                            {
-                                await _redisDb.PingAsync();
-                                Console.WriteLine($"[{_taskName}] Redis ping successful - connection is healthy");
-                            }
-                        }
-                        catch (Exception pingEx)
-                        {
-                            Console.WriteLine($"[{_taskName}] Redis ping failed: {pingEx.Message}");
-                        }
-                    }
-                }
+                await HandleRetryableException(ex, messageIndex, attempt, maxRetries);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for message {messageIndex+1} (emitted count: {emittedCount}):");
-                Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
-                Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
-                Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
-                }
-                
-                // Enhanced resilience: Don't stop completely, just skip this message for stress tests
-                Console.WriteLine($"[{_taskName}] ENHANCED RESILIENCE: Skipping message {messageIndex+1} and continuing (for stress test compatibility)");
-                Console.WriteLine($"[{_taskName}] Source will continue processing remaining messages to maximize throughput");
-                
-                // Only stop if we're in the first 1% of messages (indicating fundamental issues)
-                if (messageIndex < _numberOfMessagesToGenerate * 0.01)
-                {
-                    Console.WriteLine($"[{_taskName}] CRITICAL: Early failure in first 1% of messages - stopping source");
-                    _isRunning = false;
-                    return false;
-                }
-                
-                // For stress tests, log and continue with degraded performance rather than stopping
-                return false; // Skip this message but don't stop the source
+                return HandleFinalException(ex, messageIndex, emittedCount);
             }
         }
         return false;
+    }
+
+    private async Task HandleRetryableException(Exception ex, long messageIndex, int attempt, int maxRetries)
+    {
+        Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} for message {messageIndex+1} failed: {ex.GetType().Name} - {ex.Message}");
+        
+        // Progressive backoff with longer delays for stress tests
+        int delayMs = 200 * attempt; // 200ms, 400ms, 600ms, 800ms
+        await Task.Delay(delayMs);
+        
+        // Additional diagnostics for persistent failures
+        if (attempt >= 3)
+        {
+            await CheckRedisHealthOnPersistentFailure(ex, messageIndex, attempt, maxRetries);
+        }
+    }
+
+    private async Task CheckRedisHealthOnPersistentFailure(Exception ex, long messageIndex, int attempt, int maxRetries)
+    {
+        Console.WriteLine($"[{_taskName}] WARNING: Message {messageIndex+1} experiencing persistent issues (attempt {attempt}/{maxRetries})");
+        if (ex.Message.Contains("Redis") || ex.Message.Contains("timeout"))
+        {
+            Console.WriteLine($"[{_taskName}] Redis connection issue detected - checking connection health");
+            try
+            {
+                // Simple ping to check Redis health
+                if (_redisDb != null)
+                {
+                    await _redisDb.PingAsync();
+                    Console.WriteLine($"[{_taskName}] Redis ping successful - connection is healthy");
+                }
+            }
+            catch (Exception pingEx)
+            {
+                Console.WriteLine($"[{_taskName}] Redis ping failed: {pingEx.Message}");
+            }
+        }
+    }
+
+    private bool HandleFinalException(Exception ex, long messageIndex, long emittedCount)
+    {
+        Console.WriteLine($"[{_taskName}] ERROR: All 5 attempts failed for message {messageIndex+1} (emitted count: {emittedCount}):");
+        Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
+        Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
+        Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
+        if (ex.InnerException != null)
+        {
+            Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
+        }
+        
+        return ApplyEnhancedResilienceLogic(messageIndex);
+    }
+
+    private bool ApplyEnhancedResilienceLogic(long messageIndex)
+    {
+        // Enhanced resilience: Don't stop completely, just skip this message for stress tests
+        Console.WriteLine($"[{_taskName}] ENHANCED RESILIENCE: Skipping message {messageIndex+1} and continuing (for stress test compatibility)");
+        Console.WriteLine($"[{_taskName}] Source will continue processing remaining messages to maximize throughput");
+        
+        // Only stop if we're in the first 1% of messages (indicating fundamental issues)
+        if (messageIndex < _numberOfMessagesToGenerate * 0.01)
+        {
+            Console.WriteLine($"[{_taskName}] CRITICAL: Early failure in first 1% of messages - stopping source");
+            _isRunning = false;
+            return false;
+        }
+        
+        // For stress tests, log and continue with degraded performance rather than stopping
+        return false; // Skip this message but don't stop the source
     }
 
     private async Task EmitFinalBarrierIfNeeded(ISourceContext<string> ctx, long emittedCount)

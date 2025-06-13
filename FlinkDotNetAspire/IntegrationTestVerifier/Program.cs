@@ -491,38 +491,60 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"\n🚀 SCENARIO 3: Performance & Resource Validation");
             Console.WriteLine($"   📋 Testing: Processing time and resource utilization within acceptable limits");
             
-            // Performance timing validation
+            PrintTimingAnalysis(verificationStopwatch, expectedMessages, analysis);
+            
+            long maxAllowedTimeMs = GetMaxAllowedTimeMs(config);
+            bool timingPassed = ValidateAndPrintCriticalAssertion(verificationStopwatch, expectedMessages, maxAllowedTimeMs);
+            
+            PrintRedisPerformanceAnalysis();
+            
+            bool memoryPassed = ValidateAndPrintMemoryAnalysis(analysis);
+            bool cpuPassed = ValidateAndPrintCpuAnalysis(analysis);
+            bool throughputPassed = ValidateAndPrintThroughputAnalysis(verificationStopwatch, expectedMessages, analysis);
+            
+            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
+            PrintAssessmentResults(timingPassed, memoryPassed, cpuPassed, throughputPassed, allPassed, maxAllowedTimeMs);
+            
+            return allPassed;
+        }
+
+        private static void PrintTimingAnalysis(Stopwatch verificationStopwatch, int expectedMessages, ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n⏰ TIMING ANALYSIS:");
             Console.WriteLine($"   📊 Actual verification time: {verificationStopwatch.ElapsedMilliseconds:N0}ms for {expectedMessages:N0} messages");
             Console.WriteLine($"   🎯 Predicted completion time: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
             Console.WriteLine($"   📈 Prediction accuracy: {(analysis.PredictedRequirements.EstimatedCompletionTimeMs / verificationStopwatch.ElapsedMilliseconds * 100):F1}% of actual");
             
-            // Processing time per message analysis
             var processingTimePerMessageMs = verificationStopwatch.ElapsedMilliseconds / (double)expectedMessages;
             var messagesPerMs = expectedMessages / (double)verificationStopwatch.ElapsedMilliseconds;
             Console.WriteLine($"   🚀 Processing time per message: {processingTimePerMessageMs:F4}ms/msg");
             Console.WriteLine($"   🚀 Processing rate: {messagesPerMs:F2} msg/ms ({messagesPerMs * 1000:F0} msg/sec)");
             
-            // Total processing time breakdown
             Console.WriteLine($"\n📊 TOTAL PROCESSING TIME BREAKDOWN:");
             Console.WriteLine($"   ⏱️  Total verification duration: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
             Console.WriteLine($"   ⏱️  Average per message: {processingTimePerMessageMs:F4}ms");
             Console.WriteLine($"   ⏱️  Monitoring duration: {analysis.PerformanceMetrics.MonitoringDurationSec:F1}s");
-            
-            // Read max allowed time from environment variable, default to 1 second
+        }
+
+        private static long GetMaxAllowedTimeMs(IConfigurationRoot config)
+        {
             long maxAllowedTimeMs = 1000; // 1 second default
             if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
             {
                 maxAllowedTimeMs = configuredTimeMs;
             }
-            
+            return maxAllowedTimeMs;
+        }
+
+        private static bool ValidateAndPrintCriticalAssertion(Stopwatch verificationStopwatch, int expectedMessages, long maxAllowedTimeMs)
+        {
             bool timingPassed = verificationStopwatch.ElapsedMilliseconds <= maxAllowedTimeMs;
             
-            // 🎯 CRITICAL PERFORMANCE ASSERTION: < 1 second for 1 million messages
             Console.WriteLine($"\n🎯 CRITICAL PERFORMANCE ASSERTION:");
             Console.WriteLine($"   📋 REQUIREMENT: Process {expectedMessages:N0} messages in less than {maxAllowedTimeMs:N0}ms (1 second)");
             Console.WriteLine($"   📊 ACTUAL TIME: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
             Console.WriteLine($"   📈 PERFORMANCE: {(timingPassed ? "✅ ASSERTION PASSED" : "❌ ASSERTION FAILED")}");
+            
             if (!timingPassed)
             {
                 var exceededBy = verificationStopwatch.ElapsedMilliseconds - maxAllowedTimeMs;
@@ -536,7 +558,11 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"   ✅ UNDER LIMIT BY: {underBy:N0}ms ({underPercent:F1}% under limit)");
             }
             
-            // Redis performance analysis
+            return timingPassed;
+        }
+
+        private static void PrintRedisPerformanceAnalysis()
+        {
             if (s_lastRedisPerformance != null)
             {
                 Console.WriteLine($"\n🔴 REDIS PERFORMANCE ANALYSIS:");
@@ -546,8 +572,10 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"   📊 Write latency: {s_lastRedisPerformance.WriteLatencyMs:F2}ms avg");
                 Console.WriteLine($"   📊 Performance test duration: {s_lastRedisPerformance.TotalTestDurationMs:F0}ms ({s_lastRedisPerformance.TestOpsCount} ops)");
             }
-            
-            // Resource utilization validation
+        }
+
+        private static bool ValidateAndPrintMemoryAnalysis(ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n💾 MEMORY ANALYSIS:");
             Console.WriteLine($"   📊 Peak process memory: {analysis.PerformanceMetrics.PeakMemoryMB:N0}MB");
             Console.WriteLine($"   📊 Average process memory: {analysis.PerformanceMetrics.AverageMemoryMB:F1}MB");
@@ -555,28 +583,33 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   🛡️  Safety margin: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% ({(analysis.SystemSpec.AvailableRamMB - analysis.PredictedRequirements.RequiredMemoryMB):F0}MB headroom)");
             Console.WriteLine($"   📈 Memory efficiency: {(analysis.PerformanceMetrics.PeakMemoryMB / analysis.PredictedRequirements.RequiredMemoryMB * 100):F1}% of predicted");
             
-            bool memoryPassed = analysis.PredictedRequirements.MemorySafetyMarginPercent > 10; // Require 10% safety margin
-            
+            return analysis.PredictedRequirements.MemorySafetyMarginPercent > 10; // Require 10% safety margin
+        }
+
+        private static bool ValidateAndPrintCpuAnalysis(ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n⚡ CPU ANALYSIS:");
             Console.WriteLine($"   📊 Peak CPU usage: {analysis.PerformanceMetrics.PeakCpuPercent:F1}%");
             Console.WriteLine($"   📊 Average CPU usage: {analysis.PerformanceMetrics.AverageCpuPercent:F1}%");
             Console.WriteLine($"   🎯 Available cores: {analysis.SystemSpec.CpuCores} ({analysis.SystemSpec.TaskManagerInstances} TaskManagers)");
-            Console.WriteLine($"   📈 CPU efficiency: {(analysis.PerformanceMetrics.AverageCpuPercent / (analysis.SystemSpec.CpuCores * 25)):F1}% (target: <25% per core)"); // 25% per core max
+            Console.WriteLine($"   📈 CPU efficiency: {(analysis.PerformanceMetrics.AverageCpuPercent / (analysis.SystemSpec.CpuCores * 25)):F1}% (target: <25% per core)");
             
-            bool cpuPassed = analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80); // Don't exceed 80% per core
-            
-            // Throughput analysis
+            return analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80); // Don't exceed 80% per core
+        }
+
+        private static bool ValidateAndPrintThroughputAnalysis(Stopwatch verificationStopwatch, int expectedMessages, ResourceAnalysis analysis)
+        {
             Console.WriteLine($"\n🚀 THROUGHPUT ANALYSIS:");
             var actualThroughput = expectedMessages / (verificationStopwatch.ElapsedMilliseconds / 1000.0);
             Console.WriteLine($"   📊 Actual throughput: {actualThroughput:N0} messages/second");
             Console.WriteLine($"   🎯 Predicted throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} messages/second");
             Console.WriteLine($"   📈 Throughput achievement: {(actualThroughput / analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 100):F1}% of predicted");
             
-            bool throughputPassed = actualThroughput >= (analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.5); // Achieve at least 50% of predicted
-            
-            // Overall assessment
-            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
-            
+            return actualThroughput >= (analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.5); // Achieve at least 50% of predicted
+        }
+
+        private static void PrintAssessmentResults(bool timingPassed, bool memoryPassed, bool cpuPassed, bool throughputPassed, bool allPassed, long maxAllowedTimeMs)
+        {
             Console.WriteLine($"\n   🎯 ASSESSMENT RESULTS:");
             Console.WriteLine($"      ⏰ Timing: {(timingPassed ? "✅ PASS" : "❌ FAIL")} (≤{maxAllowedTimeMs:N0}ms requirement)");
             Console.WriteLine($"      💾 Memory: {(memoryPassed ? "✅ PASS" : "❌ FAIL")} (≥10% safety margin requirement)");
@@ -602,8 +635,6 @@ namespace IntegrationTestVerifier
                 if (!throughputPassed)
                     Console.WriteLine($"         🚀 Throughput below 50% of predicted performance");
             }
-            
-            return allPassed;
         }
 
         private static void PrintFinalResult(bool allChecksPassed)
@@ -913,13 +944,11 @@ namespace IntegrationTestVerifier
                 }
                 
                 // Check for sink processing indicators
-                if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase))
+                if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase) && 
+                    !allKeys.Any(k => k.Contains("processed_message_counter")))
                 {
-                    if (!allKeys.Any(k => k.Contains("processed_message_counter")))
-                    {
-                        Console.WriteLine($"           🚨 SINK ISSUE: No sink counter key found - RedisIncrementSinkFunction never executed");
-                        Console.WriteLine($"           💡 SUGGESTION: Check sink function registration, Redis sink connectivity");
-                    }
+                    Console.WriteLine($"           🚨 SINK ISSUE: No sink counter key found - RedisIncrementSinkFunction never executed");
+                    Console.WriteLine($"           💡 SUGGESTION: Check sink function registration, Redis sink connectivity");
                 }
             }
             catch (Exception ex)
