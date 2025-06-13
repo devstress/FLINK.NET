@@ -1,49 +1,49 @@
-[2025-06-13 06:15:25] [INFO] 🔍 Analyzing solution: FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 06:15:25] [INFO] 🧹 Performing clean build for: FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 06:15:25] [DEBUG] Cleaning solution...
-[2025-06-13 06:15:27] [DEBUG] Building with Release configuration to match CI...
-[2025-06-13 06:15:35] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
-[2025-06-13 06:15:35] [WARN] ⚠️  Found S138 warning: Method too long
-[2025-06-13 06:15:35] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
-[2025-06-13 06:15:35] [WARN] ⚠️  Found S138 warning: Method too long
-[2025-06-13 06:15:35] [WARN] ⚠️  Found 4 warnings in FlinkDotNet/FlinkDotNet.sln
-[2025-06-13 06:15:35] [INFO] 🔍 Analyzing solution: FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 06:15:35] [INFO] 🧹 Performing clean build for: FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 06:15:35] [DEBUG] Cleaning solution...
-[2025-06-13 06:15:37] [DEBUG] Building with Release configuration to match CI...
-[2025-06-13 06:15:46] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
-[2025-06-13 06:15:46] [WARN] ⚠️  Found S138 warning: Method too long
-[2025-06-13 06:15:46] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
-[2025-06-13 06:15:46] [WARN] ⚠️  Found S138 warning: Method too long
-[2025-06-13 06:15:46] [WARN] ⚠️  Found 4 warnings in FlinkDotNetAspire/FlinkDotNetAspire.sln
-[2025-06-13 06:15:46] [INFO] 🔍 Analyzing solution: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 06:15:46] [INFO] 🧹 Performing clean build for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 06:15:46] [DEBUG] Cleaning solution...
-[2025-06-13 06:15:47] [DEBUG] Building with Release configuration to match CI...
-[2025-06-13 06:15:51] [WARN] ⚠️  Found 0 warnings in FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-[2025-06-13 06:15:51] [INFO] 📊 Generating comprehensive warning report...
-[2025-06-13 06:15:51] [ERROR] 🔥 TOTAL WARNINGS DETECTED: 8
-[2025-06-13 06:15:51] [INFO] 🤖 Auto-fixable warnings: 0
-[2025-06-13 06:15:51] [ERROR] 🚨 Critical warnings: 4
-[2025-06-13 06:15:51] [INFO] 📋 Warning breakdown by rule:
-[2025-06-13 06:15:51] [WARN]   ⚠️  S138 (Major): 4 occurrences - Method too long
-[2025-06-13 06:15:51] [WARN]   ⚠️  S3776 (Critical): 4 occurrences - High cognitive complexity
-[2025-06-13 06:15:51] [INFO] 🛠️  ACTIONABLE FIX SUGGESTIONS:
-[2025-06-13 06:15:51] [INFO] 📝 S138 fixes needed in:
-[2025-06-13 06:15:51] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
-[2025-06-13 06:15:51] [INFO]    -      8>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
-[2025-06-13 06:15:51] [INFO]    -     12>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
-[2025-06-13 06:15:51] [INFO] 📝 S3776 fixes needed in:
-[2025-06-13 06:15:51] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
-[2025-06-13 06:15:51] [INFO]    -      8>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
-[2025-06-13 06:15:51] [INFO]    -     12>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
-[2025-06-13 06:15:51] [INFO] 🔧 Auto-fix disabled. Use -FixWarnings to apply automatic fixes.
-[2025-06-13 06:15:51] [INFO] 🔄 Testing local warning detection vs CI workflow alignment...
-[2025-06-13 06:15:51] [INFO] ✅ Local detection patterns match CI workflow requirements
-[2025-06-13 06:15:51] [INFO] 🎯 Warning detection system is aligned with CI environment
-[2025-06-13 06:15:51] [INFO] 📝 Updating enforcement rules based on detected warnings...
-[2025-06-13 06:15:51] [ERROR] ❌ ENFORCEMENT UPDATE: Found 8 warnings that must be fixed
-[2025-06-13 06:15:51] [INFO] 📋 Adding detected warning patterns to enforcement framework
-[2025-06-13 06:15:51] [INFO] ✅ Enforcement rules updated with current warning state
-[2025-06-13 06:15:51] [ERROR] ❌ FAILURE: 8 SonarCloud warnings must be fixed
-[2025-06-13 06:15:51] [ERROR] 🔧 Use -FixWarnings flag to attempt automatic resolution
+[2025-06-13 06:31:21] [INFO] 🔍 Analyzing solution: FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 06:31:21] [INFO] 🧹 Performing clean build for: FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 06:31:21] [DEBUG] Cleaning solution...
+[2025-06-13 06:31:22] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 06:31:30] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-13 06:31:30] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-13 06:31:31] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-13 06:31:31] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-13 06:31:31] [WARN] ⚠️  Found 4 warnings in FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 06:31:31] [INFO] 🔍 Analyzing solution: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 06:31:31] [INFO] 🧹 Performing clean build for: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 06:31:31] [DEBUG] Cleaning solution...
+[2025-06-13 06:31:32] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 06:31:42] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-13 06:31:42] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-13 06:31:42] [WARN] ⚠️  Found S3776 warning: High cognitive complexity
+[2025-06-13 06:31:42] [WARN] ⚠️  Found S138 warning: Method too long
+[2025-06-13 06:31:42] [WARN] ⚠️  Found 4 warnings in FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 06:31:42] [INFO] 🔍 Analyzing solution: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 06:31:42] [INFO] 🧹 Performing clean build for: FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 06:31:42] [DEBUG] Cleaning solution...
+[2025-06-13 06:31:43] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 06:31:47] [WARN] ⚠️  Found 0 warnings in FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+[2025-06-13 06:31:47] [INFO] 📊 Generating comprehensive warning report...
+[2025-06-13 06:31:47] [ERROR] 🔥 TOTAL WARNINGS DETECTED: 8
+[2025-06-13 06:31:47] [INFO] 🤖 Auto-fixable warnings: 0
+[2025-06-13 06:31:47] [ERROR] 🚨 Critical warnings: 4
+[2025-06-13 06:31:47] [INFO] 📋 Warning breakdown by rule:
+[2025-06-13 06:31:47] [WARN]   ⚠️  S138 (Major): 4 occurrences - Method too long
+[2025-06-13 06:31:47] [WARN]   ⚠️  S3776 (Critical): 4 occurrences - High cognitive complexity
+[2025-06-13 06:31:47] [INFO] 🛠️  ACTIONABLE FIX SUGGESTIONS:
+[2025-06-13 06:31:47] [INFO] 📝 S138 fixes needed in:
+[2025-06-13 06:31:47] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-13 06:31:47] [INFO]    -      8>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-13 06:31:47] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-13 06:31:47] [INFO] 📝 S3776 fixes needed in:
+[2025-06-13 06:31:47] [INFO]    -          /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-13 06:31:47] [INFO]    -      8>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-13 06:31:47] [INFO]    -     10>/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/StreamExecutionEnvironment.cs(72,22)
+[2025-06-13 06:31:47] [INFO] 🔧 Auto-fix disabled. Use -FixWarnings to apply automatic fixes.
+[2025-06-13 06:31:47] [INFO] 🔄 Testing local warning detection vs CI workflow alignment...
+[2025-06-13 06:31:47] [INFO] ✅ Local detection patterns match CI workflow requirements
+[2025-06-13 06:31:47] [INFO] 🎯 Warning detection system is aligned with CI environment
+[2025-06-13 06:31:47] [INFO] 📝 Updating enforcement rules based on detected warnings...
+[2025-06-13 06:31:47] [ERROR] ❌ ENFORCEMENT UPDATE: Found 8 warnings that must be fixed
+[2025-06-13 06:31:47] [INFO] 📋 Adding detected warning patterns to enforcement framework
+[2025-06-13 06:31:47] [INFO] ✅ Enforcement rules updated with current warning state
+[2025-06-13 06:31:47] [ERROR] ❌ FAILURE: 8 SonarCloud warnings must be fixed
+[2025-06-13 06:31:47] [ERROR] 🔧 Use -FixWarnings flag to attempt automatic resolution
