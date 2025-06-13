@@ -73,6 +73,7 @@ dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --verbosity normal 2>&1 | g
   - Local stress test verification MUST match CI workflow exactly
   - Keep `scripts/run-local-stress-tests.ps1` in sync with `.github/workflows/stress-tests.yml`
   - Verify alignment with `./scripts/test-local-stress-workflow-alignment.ps1`
+  - **Before committing** any code, run the local stress test and alignment script and ensure they succeed
   - Performance criteria must be met
 - **NO test failures are acceptable** in any category
 - **NO build errors in test projects** - All test projects must compile successfully
@@ -141,6 +142,7 @@ Before using `report_progress`, copilot agents **MUST** complete:
 - [ ] ✅ **Confirm 100% test pass rate** for ALL test categories (unit, integration, stress)
 - [ ] ✅ Check git status: `git status --porcelain`
 - [ ] ✅ Verify no unwanted files staged
+- [ ] ✅ **Commit only after** `./scripts/run-local-stress-tests.ps1` and `./scripts/test-local-stress-workflow-alignment.ps1` succeed
 
 ⚠️ **CRITICAL**: The new warning detection system prevents ALL CI workflow failures by ensuring 100% local/CI warning detection alignment!
 
@@ -323,9 +325,9 @@ public static string FormatValue(string input) {
 ### Definition of Complete
 A submission is **COMPLETE** only when:
 
-❌ **FlinkDotNet.sln**: 0 warnings, 0 errors, ALL unit tests pass (100% rate) - **CURRENTLY 72 WARNINGS**
+❌ **FlinkDotNet.sln**: 0 warnings, 0 errors, ALL unit tests pass (100% rate) - **CURRENTLY 28 WARNINGS**
 ✅ **WebUI.sln**: 0 warnings, 0 errors, builds successfully  
-❌ **Aspire.sln**: 0 warnings, 0 errors, ALL integration tests pass (100% rate) - **CURRENTLY 72 WARNINGS**
+❌ **Aspire.sln**: 0 warnings, 0 errors, ALL integration tests pass (100% rate) - **CURRENTLY 28 WARNINGS**
 ✅ **Unit Tests**: ALL 7 test projects pass (JobManager, Core, Architecture, Connectors, Storage, Constants)
 ✅ **Integration Tests**: FlinkDotNetAspire.IntegrationTests builds and runs successfully (no CS0400 errors)
 ❌ **Stress tests**: Local verification matches CI workflow exactly, performance criteria met - **WORKFLOW FAILING**
@@ -395,3 +397,4 @@ The enforcement rules now accurately reflect:
 - **Required actions**: Systematic warning resolution across both failing solutions
 
 **These rules are NON-NEGOTIABLE. Quality is not a suggestion - it's a requirement.**
+
