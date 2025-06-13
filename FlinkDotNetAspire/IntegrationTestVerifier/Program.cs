@@ -85,7 +85,7 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                Console.WriteLine($"✓ Redis connection string found in env: {redisConnectionString}");
+                Console.WriteLine($"✅ Redis connection string found in env: {redisConnectionString}");
             }
 
             if (!string.IsNullOrEmpty(redisConnectionString) && redisConnectionString.Contains(':'))
@@ -94,7 +94,7 @@ namespace IntegrationTestVerifier
                 if (int.TryParse(portPart, out var port))
                 {
                     Console.WriteLine($"Checking localhost:{port} reachable...");
-                    Console.WriteLine(CheckPort("localhost", port) ? "✓ Port reachable" : "✗ Port unreachable");
+                    Console.WriteLine(CheckPort("localhost", port) ? "✅ Port reachable" : "✗ Port unreachable");
                 }
             }
             
@@ -105,7 +105,7 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                Console.WriteLine($"✓ Kafka bootstrap servers found in env: {kafkaBootstrapServers}");
+                Console.WriteLine($"✅ Kafka bootstrap servers found in env: {kafkaBootstrapServers}");
             }
 
             if (!string.IsNullOrEmpty(kafkaBootstrapServers) && kafkaBootstrapServers.Contains(':'))
@@ -114,7 +114,7 @@ namespace IntegrationTestVerifier
                 if (int.TryParse(portPart, out var port))
                 {
                     Console.WriteLine($"Checking localhost:{port} reachable...");
-                    Console.WriteLine(CheckPort("localhost", port) ? "✓ Port reachable" : "✗ Port unreachable");
+                    Console.WriteLine(CheckPort("localhost", port) ? "✅ Port reachable" : "✗ Port unreachable");
                 }
             }
 
@@ -124,7 +124,7 @@ namespace IntegrationTestVerifier
             var redisStopwatch = System.Diagnostics.Stopwatch.StartNew();
             redisOk = await WaitForRedisAsync(redisConnectionString);
             redisStopwatch.Stop();
-            Console.WriteLine($"Redis result: {(redisOk ? "✓ SUCCESS" : "✗ FAILED")} (took {redisStopwatch.ElapsedMilliseconds}ms)");
+            Console.WriteLine($"Redis result: {(redisOk ? "✅ SUCCESS" : "✗ FAILED")} (took {redisStopwatch.ElapsedMilliseconds}ms)");
 
             // Kafka Health Check
             Console.WriteLine($"\n--- Kafka Health Check ---");
@@ -132,12 +132,12 @@ namespace IntegrationTestVerifier
             var kafkaStopwatch = System.Diagnostics.Stopwatch.StartNew();
             kafkaOk = WaitForKafka(kafkaBootstrapServers);
             kafkaStopwatch.Stop();
-            Console.WriteLine($"Kafka result: {(kafkaOk ? "✓ SUCCESS" : "✗ FAILED")} (took {kafkaStopwatch.ElapsedMilliseconds}ms)");
+            Console.WriteLine($"Kafka result: {(kafkaOk ? "✅ SUCCESS" : "✗ FAILED")} (took {kafkaStopwatch.ElapsedMilliseconds}ms)");
 
             var overall = redisOk && kafkaOk;
             Console.WriteLine($"\n=== Health Check Complete ===");
-            Console.WriteLine($"Overall result: {(overall ? "✓ PASSED" : "✗ FAILED")}");
-            Console.WriteLine($"Redis: {(redisOk ? "✓" : "✗")}, Kafka: {(kafkaOk ? "✓" : "✗")}");
+            Console.WriteLine($"Overall result: {(overall ? "✅ PASSED" : "✗ FAILED")}");
+            Console.WriteLine($"Redis: {(redisOk ? "✅" : "✗")}, Kafka: {(kafkaOk ? "✅" : "✗")}");
             
             return overall ? 0 : 1;
         }
@@ -171,7 +171,7 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                Console.WriteLine($"✓ Redis connection string: {redisConnectionStringFull}");
+                Console.WriteLine($"✅ Redis connection string: {redisConnectionStringFull}");
             }
 
             if (string.IsNullOrEmpty(kafkaBootstrapServersFull))
@@ -181,7 +181,7 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                Console.WriteLine($"✓ Kafka bootstrap servers: {kafkaBootstrapServersFull}");
+                Console.WriteLine($"✅ Kafka bootstrap servers: {kafkaBootstrapServersFull}");
             }
 
             var verificationStopwatch = Stopwatch.StartNew();
@@ -213,11 +213,11 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                Console.WriteLine($"✓ PERFORMANCE PASS: Processing time {verificationStopwatch.ElapsedMilliseconds:N0}ms is within {maxAllowedTimeMs:N0}ms limit.");
+                Console.WriteLine($"✅ PERFORMANCE PASS: Processing time {verificationStopwatch.ElapsedMilliseconds:N0}ms is within {maxAllowedTimeMs:N0}ms limit.");
             }
 
             Console.WriteLine($"\n=== Final Result ===");
-            Console.WriteLine($"Integration tests {(allChecksPassed ? "✓ PASSED" : "✗ FAILED")}");
+            Console.WriteLine($"Integration tests {(allChecksPassed ? "✅ PASSED" : "✗ FAILED")}");
             Console.WriteLine($"Completed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
             
             return allChecksPassed ? 0 : 1;
@@ -235,7 +235,7 @@ namespace IntegrationTestVerifier
                 {
                     throw new InvalidOperationException("Failed to connect to Redis.");
                 }
-                Console.WriteLine("✓ Successfully connected to Redis.");
+                Console.WriteLine("✅ Successfully connected to Redis.");
                 IDatabase db = redis.GetDatabase();
 
                 async Task<bool> CheckRedisKey(string keyName, string description) {
@@ -251,14 +251,14 @@ namespace IntegrationTestVerifier
                         Console.WriteLine($"  Difference: {Math.Abs(actualValue - expectedMessages):N0} messages");
                         return false;
                     }
-                    Console.WriteLine($"✓ SUCCESS: Redis key '{keyName}' has correct value: {actualValue:N0}");
+                    Console.WriteLine($"✅ SUCCESS: Redis key '{keyName}' has correct value: {actualValue:N0}");
                     return true;
                 }
 
                 redisVerified &= await CheckRedisKey(globalSeqKey, "Global Sequence");
                 redisVerified &= await CheckRedisKey(sinkCounterKey, "Sink Counter");
                 
-                Console.WriteLine($"Redis verification result: {(redisVerified ? "✓ PASSED" : "✗ FAILED")}");
+                Console.WriteLine($"Redis verification result: {(redisVerified ? "✅ PASSED" : "✗ FAILED")}");
             }
             catch (Exception ex)
             {
@@ -287,12 +287,12 @@ namespace IntegrationTestVerifier
             using var consumer = new ConsumerBuilder<Ignore, string>(consumerConfig).Build();
             
             consumer.Subscribe(topic);
-            Console.WriteLine($"✓ Subscribed to Kafka topic: {topic}");
+            Console.WriteLine($"✅ Subscribed to Kafka topic: {topic}");
 
             var messagesConsumed = ConsumeKafkaMessages(consumer, expectedMessages);
             bool kafkaVerified = ValidateKafkaResults(messagesConsumed, expectedMessages, topic);
             
-            Console.WriteLine($"Kafka verification result: {(kafkaVerified ? "✓ PASSED" : "✗ FAILED")}");
+            Console.WriteLine($"Kafka verification result: {(kafkaVerified ? "✅ PASSED" : "✗ FAILED")}");
             return kafkaVerified;
         }
 
@@ -385,13 +385,13 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                Console.WriteLine($"✓ SUCCESS: Received {messagesConsumed.Count:N0} messages from Kafka topic '{topic}'.");
+                Console.WriteLine($"✅ SUCCESS: Received {messagesConsumed.Count:N0} messages from Kafka topic '{topic}'.");
                 
                 Console.WriteLine("Verifying message ordering...");
                 bool fifoOrderingPassed = VerifyFIFOOrdering(messagesConsumed);
                 if (fifoOrderingPassed)
                 {
-                    Console.WriteLine("✓ FIFO ordering verification PASSED");
+                    Console.WriteLine("✅ FIFO ordering verification PASSED");
                     PrintTopAndBottomMessages(messagesConsumed, 10);
                 }
                 else
@@ -463,7 +463,7 @@ namespace IntegrationTestVerifier
                 }
             }
             
-            Console.WriteLine($"✓ FIFO ordering verification passed!");
+            Console.WriteLine($"✅ FIFO ordering verification passed!");
             Console.WriteLine($"  Total messages: {messages.Count:N0} (Data: {nonBarrierCount:N0}, Barriers: {barrierCount:N0})");
             Console.WriteLine($"  Sequence range: 1 to {previousRedisOrderedId:N0}");
             return true;
@@ -517,12 +517,12 @@ namespace IntegrationTestVerifier
                     
                     if (redis.IsConnected)
                     {
-                        Console.WriteLine($"✓ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
+                        Console.WriteLine($"✅ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
                         
                         // Test basic operation
                         var db = redis.GetDatabase();
                         await db.PingAsync();
-                        Console.WriteLine("✓ Redis ping successful");
+                        Console.WriteLine("✅ Redis ping successful");
                         return true;
                     }
                     else
@@ -575,8 +575,8 @@ namespace IntegrationTestVerifier
                     
                     if (metadata.Topics != null)
                     {
-                        Console.WriteLine($"✓ Kafka connection successful in {stopwatch.ElapsedMilliseconds}ms");
-                        Console.WriteLine($"✓ Found {metadata.Topics.Count} topics, {metadata.Brokers.Count} brokers");
+                        Console.WriteLine($"✅ Kafka connection successful in {stopwatch.ElapsedMilliseconds}ms");
+                        Console.WriteLine($"✅ Found {metadata.Topics.Count} topics, {metadata.Brokers.Count} brokers");
                         return true;
                     }
                     else

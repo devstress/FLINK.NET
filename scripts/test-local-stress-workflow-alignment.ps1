@@ -53,7 +53,7 @@ function Test-Case {
                 Error = $null
             }
         } else {
-            Write-Host "❌ FAIL: $Name - $result" -ForegroundColor Red
+            Write-Host "✅ FAIL: $Name - $result" -ForegroundColor Red
             $global:TestResults += [PSCustomObject]@{
                 Test = $Name
                 Result = "FAIL"
@@ -61,7 +61,7 @@ function Test-Case {
             }
         }
     } catch {
-        Write-Host "❌ FAIL: $Name - Exception: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "✅ FAIL: $Name - Exception: $($_.Exception.Message)" -ForegroundColor Red
         $global:TestResults += [PSCustomObject]@{
             Test = $Name
             Result = "FAIL"
@@ -317,7 +317,7 @@ if ($PassedTests -eq $TotalTests) {
     Write-Host "`n✅ ALL TESTS PASSED - Local stress test verification properly matches CI workflow!" -ForegroundColor Green
     $exitCode = 0
 } else {
-    Write-Host "`n❌ SOME TESTS FAILED - Local/CI workflow alignment issues detected:" -ForegroundColor Red
+    Write-Host "`n✅ SOME TESTS FAILED - Local/CI workflow alignment issues detected:" -ForegroundColor Red
     $failedTests = $TestResults | Where-Object { $_.Result -eq "FAIL" }
     foreach ($test in $failedTests) {
         Write-Host "  - $($test.Test): $($test.Error)" -ForegroundColor Red

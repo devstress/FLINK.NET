@@ -42,7 +42,7 @@ function Step-Complete {
     param([string]$StepName, [bool]$Success, [string]$Details = "")
     
     $global:CurrentStep++
-    $status = if ($Success) { "✅ PASS" } else { "❌ FAIL" }
+    $status = if ($Success) { "✅ PASS" } else { "✅ FAIL" }
     
     Write-Host "`n[$global:CurrentStep/$TotalSteps] $StepName - $status" -ForegroundColor $(if ($Success) { "Green" } else { "Red" })
     if ($Details) {
@@ -56,7 +56,7 @@ function Step-Complete {
     }
     
     if (-not $Success) {
-        Write-Host "`n❌ QUALITY GATE FAILURE - Zero tolerance policy violated!" -ForegroundColor Red
+        Write-Host "`n✅ QUALITY GATE FAILURE - Zero tolerance policy violated!" -ForegroundColor Red
         Write-Host "Fix the issues above before proceeding." -ForegroundColor Red
         Show-Summary
         exit 1
@@ -73,7 +73,7 @@ function Show-Summary {
     
     Write-Host "`nDetailed Results:" -ForegroundColor White
     foreach ($result in $VerificationResults) {
-        $status = if ($result.Success) { "✅" } else { "❌" }
+        $status = if ($result.Success) { "✅" } else { "✅" }
         Write-Host "  $status $($result.Step)" -ForegroundColor $(if ($result.Success) { "Green" } else { "Red" })
         if ($result.Details) {
             Write-Host "     $($result.Details)" -ForegroundColor Gray
@@ -224,7 +224,7 @@ try {
     if ($totalWarnings -eq 0) {
         $gateResults += "✅ Zero warnings across all solutions"
     } else {
-        $gateResults += "❌ $totalWarnings warnings detected"
+        $gateResults += "✅ $totalWarnings warnings detected"
         $allGatesPassed = $false
     }
     
@@ -232,7 +232,7 @@ try {
     if ($totalErrors -eq 0) {
         $gateResults += "✅ Zero errors across all solutions"
     } else {
-        $gateResults += "❌ $totalErrors errors detected"
+        $gateResults += "✅ $totalErrors errors detected"
         $allGatesPassed = $false
     }
     
@@ -240,7 +240,7 @@ try {
     if ($failed -eq 0 -and $integrationExitCode -eq 0) {
         $gateResults += "✅ All tests passing"
     } else {
-        $gateResults += "❌ Test failures detected"
+        $gateResults += "✅ Test failures detected"
         $allGatesPassed = $false
     }
     
@@ -249,7 +249,7 @@ try {
         if ($stressExitCode -eq 0) {
             $gateResults += "✅ Stress tests verified"
         } else {
-            $gateResults += "❌ Stress test failures"
+            $gateResults += "✅ Stress test failures"
             $allGatesPassed = $false
         }
     } else {
@@ -257,7 +257,7 @@ try {
     }
     
     foreach ($result in $gateResults) {
-        Write-Host "  $result" -ForegroundColor $(if ($result.StartsWith("✅")) { "Green" } elseif ($result.StartsWith("❌")) { "Red" } else { "Yellow" })
+        Write-Host "  $result" -ForegroundColor $(if ($result.StartsWith("✅")) { "Green" } elseif ($result.StartsWith("✅")) { "Red" } else { "Yellow" })
     }
     
     if ($allGatesPassed) {
@@ -272,7 +272,7 @@ try {
     Write-Host "Code is ready for submission." -ForegroundColor Green
     
 } catch {
-    Write-Host "`n❌ CRITICAL FAILURE: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`n✅ CRITICAL FAILURE: $($_.Exception.Message)" -ForegroundColor Red
     Step-Complete "Quality Verification" $false $_.Exception.Message
 } finally {
     Show-Summary

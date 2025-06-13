@@ -136,7 +136,7 @@ function Invoke-CleanBuild {
     Write-Log "Cleaning solution..." "DEBUG"
     $cleanOutput = dotnet clean $SolutionPath 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Log "❌ Clean failed for $SolutionPath" "ERROR"
+        Write-Log "✅ Clean failed for $SolutionPath" "ERROR"
         return $null
     }
     
@@ -274,7 +274,7 @@ function Update-EnforcementRules {
     $enforcementFile = ".copilot/quality-rules.md"
     
     if ($DetectedWarnings.Count -gt 0) {
-        Write-Log "❌ ENFORCEMENT UPDATE: Found $($DetectedWarnings.Count) warnings that must be fixed" "ERROR"
+        Write-Log "✅ ENFORCEMENT UPDATE: Found $($DetectedWarnings.Count) warnings that must be fixed" "ERROR"
         Write-Log "📋 Adding detected warning patterns to enforcement framework" "INFO"
         
         # Update the actual warning count in enforcement rules
@@ -306,7 +306,7 @@ function Main {
                     
                     Write-Log "⚠️  Found $($warnings.Count) warnings in $solution" "WARN"
                 } else {
-                    Write-Log "❌ Failed to build $solution" "ERROR"
+                    Write-Log "✅ Failed to build $solution" "ERROR"
                 }
             } else {
                 Write-Log "⚠️  Solution not found: $solution" "WARN"
@@ -331,7 +331,7 @@ function Main {
             Write-Log "✅ Local environment fully aligned with CI requirements" "INFO"
             exit 0
         } else {
-            Write-Log "❌ FAILURE: $($allWarnings.Count) SonarCloud warnings must be fixed" "ERROR"
+            Write-Log "✅ FAILURE: $($allWarnings.Count) SonarCloud warnings must be fixed" "ERROR"
             Write-Log "🔧 Use -FixWarnings flag to attempt automatic resolution" "ERROR"
             exit 1
         }

@@ -241,7 +241,7 @@ For Aspire integration tests, use proper dependency injection:
 // ✅ Correct approach
 builder.AddRedisClient("redis");
 
-// ❌ Avoid manual connection strings
+// ✅ Avoid manual connection strings
 ConnectionMultiplexer.Connect("localhost:6379")
 ```
 

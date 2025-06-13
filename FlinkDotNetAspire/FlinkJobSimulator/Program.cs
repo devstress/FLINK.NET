@@ -370,7 +370,7 @@ public static class Program
                     
                     if (tmCount >= 10)
                     {
-                        Console.WriteLine("✓ Infrastructure verification PASSED: JobManager and 10+ TaskManagers are running.");
+                        Console.WriteLine("✅ Infrastructure verification PASSED: JobManager and 10+ TaskManagers are running.");
                     }
                     else
                     {

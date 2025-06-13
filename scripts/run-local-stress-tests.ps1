@@ -90,7 +90,7 @@ function Cleanup-Resources {
 
 # Set up cleanup trap
 trap {
-    Write-Host "`n❌ Script failed with error: $_" -ForegroundColor Red
+    Write-Host "`n✅ Script failed with error: $_" -ForegroundColor Red
     Cleanup-Resources -Force $true
     exit 1
 }
@@ -231,7 +231,7 @@ try {
             break
         }
         
-        Write-Host "❌ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
+        Write-Host "✅ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
         
         if ($attempt -lt $maxAttempts) {
             Write-Host "Waiting $delaySeconds seconds before retry..." -ForegroundColor Yellow
