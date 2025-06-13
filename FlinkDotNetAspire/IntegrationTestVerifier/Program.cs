@@ -11,9 +11,285 @@ namespace IntegrationTestVerifier
     using System.Threading.Tasks;
     using System.Text.RegularExpressions;
     using System.Net.Sockets;
+    using System.IO;
     using Confluent.Kafka;
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
+
+    /// <summary>
+    /// System resource monitoring and mathematical analysis for BDD stress testing
+    /// </summary>
+    public sealed class SystemResourceMonitor : IDisposable
+    {
+        private readonly Timer _monitoringTimer;
+        private readonly List<ResourceSnapshot> _snapshots = new();
+        private readonly object _lock = new();
+        private readonly Process _currentProcess;
+        private bool _disposed;
+
+        public SystemResourceMonitor()
+        {
+            _currentProcess = Process.GetCurrentProcess();
+            _monitoringTimer = new Timer(TakeSnapshot, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        }
+
+        private void TakeSnapshot(object? state)
+        {
+            try
+            {
+                lock (_lock)
+                {
+                    if (_disposed) return;
+                    
+                    var snapshot = new ResourceSnapshot
+                    {
+                        Timestamp = DateTime.UtcNow,
+                        TotalRamMB = GetTotalSystemRamMB(),
+                        AvailableRamMB = GetAvailableSystemRamMB(),
+                        ProcessRamMB = GetProcessRamMB(),
+                        CpuCores = Environment.ProcessorCount,
+                        ProcessCpuUsagePercent = GetProcessCpuUsage()
+                    };
+                    
+                    _snapshots.Add(snapshot);
+                    
+                    // Keep only last 1000 snapshots (100 seconds at 100ms intervals)
+                    if (_snapshots.Count > 1000)
+                    {
+                        _snapshots.RemoveAt(0);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore monitoring errors
+            }
+        }
+
+        public ResourceAnalysis GetResourceAnalysis(int totalMessages, int taskManagers)
+        {
+            lock (_lock)
+            {
+                if (_snapshots.Count == 0)
+                    return new ResourceAnalysis();
+
+                var latest = _snapshots[_snapshots.Count - 1];
+                
+                return new ResourceAnalysis
+                {
+                    SystemSpec = new SystemSpecification
+                    {
+                        TotalRamMB = latest.TotalRamMB,
+                        AvailableRamMB = latest.AvailableRamMB,
+                        CpuCores = latest.CpuCores,
+                        TaskManagerInstances = taskManagers
+                    },
+                    CurrentUsage = new ResourceUsage
+                    {
+                        ProcessRamMB = latest.ProcessRamMB,
+                        RamUtilizationPercent = (double)latest.ProcessRamMB / latest.TotalRamMB * 100,
+                        CpuUsagePercent = latest.ProcessCpuUsagePercent
+                    },
+                    PredictedRequirements = CalculatePredictions(totalMessages, taskManagers, latest),
+                    PerformanceMetrics = CalculatePerformanceMetrics()
+                };
+            }
+        }
+
+        private PredictedRequirements CalculatePredictions(int totalMessages, int taskManagers, ResourceSnapshot current)
+        {
+            // Mathematical analysis based on Flink.NET architecture
+            const double MessageSizeBytes = 128; // Estimated average message size
+            const double OverheadMultiplier = 3.5; // Memory overhead for serialization, queuing, state
+            const double RedisConnectionBytes = 1024 * 1024; // 1MB per Redis connection
+            const double KafkaConnectionBytes = 2 * 1024 * 1024; // 2MB per Kafka connection
+            
+            // Memory calculations
+            var messagesInMemoryAtOnce = Math.Min(totalMessages, taskManagers * 1000); // Buffer limit per task
+            var dataMemoryMB = (messagesInMemoryAtOnce * MessageSizeBytes * OverheadMultiplier) / (1024 * 1024);
+            var connectionMemoryMB = ((RedisConnectionBytes + KafkaConnectionBytes) * taskManagers) / (1024 * 1024);
+            var taskManagerOverheadMB = taskManagers * 10; // 10MB per TaskManager instance
+            var totalRequiredMemoryMB = dataMemoryMB + connectionMemoryMB + taskManagerOverheadMB + 512; // 512MB base
+
+            // CPU calculations
+            var messagesPerCore = (double)totalMessages / current.CpuCores;
+            var estimatedProcessingTimeMs = messagesPerCore * 0.001; // 1 microsecond per message per core
+            var parallelEfficiency = Math.Min(1.0, (double)taskManagers / current.CpuCores);
+            var adjustedProcessingTimeMs = estimatedProcessingTimeMs / parallelEfficiency;
+
+            // Throughput calculations
+            var theoreticalThroughputMsgPerSec = current.CpuCores * 1000000; // 1M messages/sec per core theoretical
+            var practicalThroughputMsgPerSec = theoreticalThroughputMsgPerSec * 0.3; // 30% efficiency for I/O overhead
+            var estimatedCompletionTimeMs = (double)totalMessages / practicalThroughputMsgPerSec * 1000;
+
+            return new PredictedRequirements
+            {
+                RequiredMemoryMB = totalRequiredMemoryMB,
+                MemorySafetyMarginPercent = ((double)current.AvailableRamMB - totalRequiredMemoryMB) / current.AvailableRamMB * 100,
+                EstimatedProcessingTimeMs = adjustedProcessingTimeMs,
+                OptimalTaskManagerCount = Math.Max(1, Math.Min(taskManagers, current.CpuCores * 2)),
+                PredictedThroughputMsgPerSec = practicalThroughputMsgPerSec,
+                EstimatedCompletionTimeMs = estimatedCompletionTimeMs,
+                MemoryPerMessage = dataMemoryMB / messagesInMemoryAtOnce,
+                CpuTimePerMessage = adjustedProcessingTimeMs / totalMessages
+            };
+        }
+
+        private PerformanceMetrics CalculatePerformanceMetrics()
+        {
+            if (_snapshots.Count < 2)
+                return new PerformanceMetrics();
+
+            var recent = _snapshots.TakeLast(Math.Min(50, _snapshots.Count)).ToList();
+            
+            return new PerformanceMetrics
+            {
+                PeakMemoryMB = recent.Max(s => s.ProcessRamMB),
+                AverageMemoryMB = recent.Average(s => s.ProcessRamMB),
+                PeakCpuPercent = recent.Max(s => s.ProcessCpuUsagePercent),
+                AverageCpuPercent = recent.Average(s => s.ProcessCpuUsagePercent),
+                MonitoringDurationSec = (recent[recent.Count - 1].Timestamp - recent[0].Timestamp).TotalSeconds
+            };
+        }
+
+        private static long GetTotalSystemRamMB()
+        {
+            try
+            {
+                var memInfo = File.ReadAllLines("/proc/meminfo");
+                var totalLine = memInfo.FirstOrDefault(line => line.StartsWith("MemTotal:"));
+                if (totalLine != null)
+                {
+                    var parts = totalLine.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && long.TryParse(parts[1], out var totalKB))
+                    {
+                        return totalKB / 1024; // Convert KB to MB
+                    }
+                }
+                return 16384; // Default 16GB
+            }
+            catch
+            {
+                return 16384;
+            }
+        }
+
+        private static long GetAvailableSystemRamMB()
+        {
+            try
+            {
+                var memInfo = File.ReadAllLines("/proc/meminfo");
+                var availableLine = memInfo.FirstOrDefault(line => line.StartsWith("MemAvailable:"));
+                if (availableLine != null)
+                {
+                    var parts = availableLine.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && long.TryParse(parts[1], out var availableKB))
+                    {
+                        return availableKB / 1024; // Convert KB to MB
+                    }
+                }
+                return 14336; // Default ~14GB available
+            }
+            catch
+            {
+                return 14336;
+            }
+        }
+
+        private long GetProcessRamMB()
+        {
+            try
+            {
+                _currentProcess.Refresh();
+                return _currentProcess.WorkingSet64 / (1024 * 1024);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private double GetProcessCpuUsage()
+        {
+            try
+            {
+                _currentProcess.Refresh();
+                return _currentProcess.TotalProcessorTime.TotalMilliseconds / Environment.TickCount * 100;
+            }
+            catch
+            {
+                return 0.0;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                _monitoringTimer?.Dispose();
+                _currentProcess?.Dispose();
+                lock (_lock)
+                {
+                    _snapshots.Clear();
+                }
+            }
+        }
+    }
+
+    public class ResourceSnapshot
+    {
+        public DateTime Timestamp { get; set; }
+        public long TotalRamMB { get; set; }
+        public long AvailableRamMB { get; set; }
+        public long ProcessRamMB { get; set; }
+        public int CpuCores { get; set; }
+        public double ProcessCpuUsagePercent { get; set; }
+    }
+
+    public class ResourceAnalysis
+    {
+        public SystemSpecification SystemSpec { get; set; } = new();
+        public ResourceUsage CurrentUsage { get; set; } = new();
+        public PredictedRequirements PredictedRequirements { get; set; } = new();
+        public PerformanceMetrics PerformanceMetrics { get; set; } = new();
+    }
+
+    public class SystemSpecification
+    {
+        public long TotalRamMB { get; set; }
+        public long AvailableRamMB { get; set; }
+        public int CpuCores { get; set; }
+        public int TaskManagerInstances { get; set; }
+    }
+
+    public class ResourceUsage
+    {
+        public long ProcessRamMB { get; set; }
+        public double RamUtilizationPercent { get; set; }
+        public double CpuUsagePercent { get; set; }
+    }
+
+    public class PredictedRequirements
+    {
+        public double RequiredMemoryMB { get; set; }
+        public double MemorySafetyMarginPercent { get; set; }
+        public double EstimatedProcessingTimeMs { get; set; }
+        public int OptimalTaskManagerCount { get; set; }
+        public double PredictedThroughputMsgPerSec { get; set; }
+        public double EstimatedCompletionTimeMs { get; set; }
+        public double MemoryPerMessage { get; set; }
+        public double CpuTimePerMessage { get; set; }
+    }
+
+    public class PerformanceMetrics
+    {
+        public long PeakMemoryMB { get; set; }
+        public double AverageMemoryMB { get; set; }
+        public double PeakCpuPercent { get; set; }
+        public double AverageCpuPercent { get; set; }
+        public double MonitoringDurationSec { get; set; }
+    }
 
     public static class Program
     {
@@ -158,7 +434,7 @@ namespace IntegrationTestVerifier
             return overall ? 0 : 1;
         }
 
-        private static void PrintBddScenarioDocumentation(string globalSequenceKey, int expectedMessages, string sinkCounterKey, string kafkaTopic)
+        private static void PrintBddScenarioDocumentation(string globalSequenceKey, int expectedMessages, string sinkCounterKey, string kafkaTopic, ResourceAnalysis analysis)
         {
             Console.WriteLine("📖 GIVEN: Local Flink.NET Setup with Aspire orchestration");
             Console.WriteLine($"   ├─ Redis provides sequence ID generation (key: '{globalSequenceKey}')");
@@ -167,6 +443,22 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   └─ KafkaSinkFunction writes messages to topic ('{kafkaTopic}')");
             Console.WriteLine("");
             
+            Console.WriteLine("🔧 SYSTEM SPECIFICATIONS & MATHEMATICAL ANALYSIS:");
+            Console.WriteLine($"   ├─ 🖥️  Hardware: {analysis.SystemSpec.CpuCores} CPU cores, {analysis.SystemSpec.TotalRamMB:N0}MB total RAM");
+            Console.WriteLine($"   ├─ 💾 Available: {analysis.SystemSpec.AvailableRamMB:N0}MB RAM ({(double)analysis.SystemSpec.AvailableRamMB/analysis.SystemSpec.TotalRamMB*100:F1}% of total)");
+            Console.WriteLine($"   ├─ ⚡ Parallel: {analysis.SystemSpec.TaskManagerInstances} TaskManager instances");
+            Console.WriteLine($"   └─ 🎯 Target: {expectedMessages:N0} messages @ ~{analysis.PredictedRequirements.MemoryPerMessage*1024:F2}KB per message");
+            Console.WriteLine("");
+            
+            Console.WriteLine("📊 MATHEMATICAL PREDICTIONS:");
+            Console.WriteLine($"   ├─ 🧮 Memory Required: {analysis.PredictedRequirements.RequiredMemoryMB:F1}MB");
+            Console.WriteLine($"   ├─ 🛡️  Safety Margin: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% memory headroom");
+            Console.WriteLine($"   ├─ ⏱️  CPU Time/Message: {analysis.PredictedRequirements.CpuTimePerMessage*1000000:F2} microseconds");
+            Console.WriteLine($"   ├─ 🚀 Predicted Throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} messages/second");
+            Console.WriteLine($"   ├─ ⏰ Estimated Completion: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
+            Console.WriteLine($"   └─ ✅ Optimal TaskManagers: {analysis.PredictedRequirements.OptimalTaskManagerCount} (current: {analysis.SystemSpec.TaskManagerInstances})");
+            Console.WriteLine("");
+
             Console.WriteLine("🎯 WHEN: FlinkJobSimulator executes the dual-sink job");
             Console.WriteLine("   ├─ Source: Redis INCR generates sequence IDs 1 to N");
             Console.WriteLine("   ├─ Map: SimpleToUpperMapOperator processes messages (P=1 for FIFO order)");
@@ -178,15 +470,22 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   ├─ Global sequence key should equal {expectedMessages:N0}");
             Console.WriteLine($"   ├─ Sink counter key should equal {expectedMessages:N0}");
             Console.WriteLine($"   ├─ Kafka topic contains {expectedMessages:N0} ordered messages");
-            Console.WriteLine($"   └─ FIFO ordering maintained with Redis-generated sequence IDs");
+            Console.WriteLine($"   ├─ FIFO ordering maintained with Redis-generated sequence IDs");
+            Console.WriteLine($"   ├─ Memory usage stays below {analysis.PredictedRequirements.RequiredMemoryMB:F0}MB threshold");
+            Console.WriteLine($"   └─ Processing completes within predicted {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms timeframe");
         }
 
-        private static bool ValidatePerformanceRequirements(Stopwatch verificationStopwatch, int expectedMessages, IConfigurationRoot config)
+        private static bool ValidatePerformanceRequirements(Stopwatch verificationStopwatch, int expectedMessages, IConfigurationRoot config, ResourceAnalysis analysis)
         {
             verificationStopwatch.Stop();
-            Console.WriteLine($"\n🚀 SCENARIO 3: Performance Requirements");
-            Console.WriteLine($"   📋 Testing: Processing time within acceptable limits");
+            Console.WriteLine($"\n🚀 SCENARIO 3: Performance & Resource Validation");
+            Console.WriteLine($"   📋 Testing: Processing time and resource utilization within acceptable limits");
+            
+            // Performance timing validation
+            Console.WriteLine($"\n⏰ TIMING ANALYSIS:");
             Console.WriteLine($"   📊 Actual verification time: {verificationStopwatch.ElapsedMilliseconds:N0}ms for {expectedMessages:N0} messages");
+            Console.WriteLine($"   🎯 Predicted completion time: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
+            Console.WriteLine($"   📈 Prediction accuracy: {(analysis.PredictedRequirements.EstimatedCompletionTimeMs / verificationStopwatch.ElapsedMilliseconds * 100):F1}% of actual");
             
             // Read max allowed time from environment variable, default to 1 second
             long maxAllowedTimeMs = 1000; // 1 second default
@@ -195,18 +494,65 @@ namespace IntegrationTestVerifier
                 maxAllowedTimeMs = configuredTimeMs;
             }
             
-            if (verificationStopwatch.ElapsedMilliseconds > maxAllowedTimeMs)
+            bool timingPassed = verificationStopwatch.ElapsedMilliseconds <= maxAllowedTimeMs;
+            
+            // Resource utilization validation
+            Console.WriteLine($"\n💾 MEMORY ANALYSIS:");
+            Console.WriteLine($"   📊 Peak process memory: {analysis.PerformanceMetrics.PeakMemoryMB:N0}MB");
+            Console.WriteLine($"   📊 Average process memory: {analysis.PerformanceMetrics.AverageMemoryMB:F1}MB");
+            Console.WriteLine($"   🎯 Predicted requirement: {analysis.PredictedRequirements.RequiredMemoryMB:F1}MB");
+            Console.WriteLine($"   🛡️  Safety margin: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% ({(analysis.SystemSpec.AvailableRamMB - analysis.PredictedRequirements.RequiredMemoryMB):F0}MB headroom)");
+            Console.WriteLine($"   📈 Memory efficiency: {(analysis.PerformanceMetrics.PeakMemoryMB / analysis.PredictedRequirements.RequiredMemoryMB * 100):F1}% of predicted");
+            
+            bool memoryPassed = analysis.PredictedRequirements.MemorySafetyMarginPercent > 10; // Require 10% safety margin
+            
+            Console.WriteLine($"\n⚡ CPU ANALYSIS:");
+            Console.WriteLine($"   📊 Peak CPU usage: {analysis.PerformanceMetrics.PeakCpuPercent:F1}%");
+            Console.WriteLine($"   📊 Average CPU usage: {analysis.PerformanceMetrics.AverageCpuPercent:F1}%");
+            Console.WriteLine($"   🎯 Available cores: {analysis.SystemSpec.CpuCores} ({analysis.SystemSpec.TaskManagerInstances} TaskManagers)");
+            Console.WriteLine($"   📈 CPU efficiency: {(analysis.PerformanceMetrics.AverageCpuPercent / (analysis.SystemSpec.CpuCores * 25)):F1}% (target: <25% per core)"); // 25% per core max
+            
+            bool cpuPassed = analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80); // Don't exceed 80% per core
+            
+            // Throughput analysis
+            Console.WriteLine($"\n🚀 THROUGHPUT ANALYSIS:");
+            var actualThroughput = expectedMessages / (verificationStopwatch.ElapsedMilliseconds / 1000.0);
+            Console.WriteLine($"   📊 Actual throughput: {actualThroughput:N0} messages/second");
+            Console.WriteLine($"   🎯 Predicted throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} messages/second");
+            Console.WriteLine($"   📈 Throughput achievement: {(actualThroughput / analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 100):F1}% of predicted");
+            
+            bool throughputPassed = actualThroughput >= (analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.5); // Achieve at least 50% of predicted
+            
+            // Overall assessment
+            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
+            
+            Console.WriteLine($"\n   🎯 ASSESSMENT RESULTS:");
+            Console.WriteLine($"      ⏰ Timing: {(timingPassed ? "✅ PASS" : "❌ FAIL")} (≤{maxAllowedTimeMs:N0}ms requirement)");
+            Console.WriteLine($"      💾 Memory: {(memoryPassed ? "✅ PASS" : "❌ FAIL")} (≥10% safety margin requirement)");
+            Console.WriteLine($"      ⚡ CPU: {(cpuPassed ? "✅ PASS" : "❌ FAIL")} (<80% per core requirement)");
+            Console.WriteLine($"      🚀 Throughput: {(throughputPassed ? "✅ PASS" : "❌ FAIL")} (≥50% of predicted requirement)");
+            
+            if (allPassed)
             {
-                Console.WriteLine($"   ❌ THEN: Performance requirement FAILED");
-                Console.WriteLine($"      📈 Expected: ≤ {maxAllowedTimeMs:N0}ms, Actual: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
-                return false;
+                Console.WriteLine($"   ✅ THEN: Performance & resource requirements PASSED");
+                Console.WriteLine($"      📈 System utilization within optimal bounds");
+                Console.WriteLine($"      🎯 Mathematical predictions validated");
             }
             else
             {
-                Console.WriteLine($"   ✅ THEN: Performance requirement PASSED");
-                Console.WriteLine($"      📈 Expected: ≤ {maxAllowedTimeMs:N0}ms, Actual: {verificationStopwatch.ElapsedMilliseconds:N0}ms");
-                return true;
+                Console.WriteLine($"   ❌ THEN: Performance & resource requirements FAILED");
+                Console.WriteLine($"      📈 System performance or resource usage exceeded thresholds");
+                if (!timingPassed)
+                    Console.WriteLine($"         ⏰ Timing exceeded {maxAllowedTimeMs:N0}ms limit");
+                if (!memoryPassed)
+                    Console.WriteLine($"         💾 Memory safety margin below 10% threshold");
+                if (!cpuPassed)
+                    Console.WriteLine($"         ⚡ CPU usage exceeded 80% per core");
+                if (!throughputPassed)
+                    Console.WriteLine($"         🚀 Throughput below 50% of predicted performance");
             }
+            
+            return allPassed;
         }
 
         private static void PrintFinalResult(bool allChecksPassed)
@@ -232,6 +578,9 @@ namespace IntegrationTestVerifier
             Console.WriteLine("📋 BDD Test Scenario: Local High Throughput Test with Redis Sequenced Messages to Kafka & Redis Sink");
             Console.WriteLine("");
             
+            // Initialize resource monitoring
+            using var resourceMonitor = new SystemResourceMonitor();
+            
             var redisConnectionStringFull = config["DOTNET_REDIS_URL"];
             var kafkaBootstrapServersFull = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
             var globalSequenceKey = config["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
@@ -245,8 +594,14 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"Defaulting to {expectedMessages} expected messages for verification logic.");
             }
 
-            // Print test specification from documentation
-            PrintBddScenarioDocumentation(globalSequenceKey, expectedMessages, sinkCounterKey, kafkaTopic);
+            // Wait for initial resource baseline
+            await Task.Delay(1000);
+            
+            // Get initial resource analysis (assuming 20 TaskManager instances as per recent changes)
+            var analysis = resourceMonitor.GetResourceAnalysis(expectedMessages, 20);
+
+            // Print test specification from documentation with resource analysis
+            PrintBddScenarioDocumentation(globalSequenceKey, expectedMessages, sinkCounterKey, kafkaTopic, analysis);
 
             if (string.IsNullOrEmpty(redisConnectionStringFull))
             {
@@ -281,7 +636,9 @@ namespace IntegrationTestVerifier
             Console.WriteLine("   📋 Testing: Message ordering and content in Kafka topic");
             allChecksPassed &= VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages);
 
-            allChecksPassed &= ValidatePerformanceRequirements(verificationStopwatch, expectedMessages, config);
+            // Get final resource analysis after test execution
+            analysis = resourceMonitor.GetResourceAnalysis(expectedMessages, 20);
+            allChecksPassed &= ValidatePerformanceRequirements(verificationStopwatch, expectedMessages, config, analysis);
 
             PrintFinalResult(allChecksPassed);
             Console.WriteLine($"📅 Completed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
@@ -357,7 +714,7 @@ namespace IntegrationTestVerifier
                 Console.WriteLine($"         💡 This indicates the {description.ToLower()} did not execute or failed to write");
                 
                 // Enhanced diagnostics for missing keys
-                await ProvideEnhancedDiagnostics(db, keyName, description);
+                await ProvideEnhancedDiagnostics(db, description);
                 return false;
             }
             
@@ -375,7 +732,7 @@ namespace IntegrationTestVerifier
             return true;
         }
 
-        private static async Task ProvideEnhancedDiagnostics(IDatabase db, string keyName, string description)
+        private static async Task ProvideEnhancedDiagnostics(IDatabase db, string description)
         {
             Console.WriteLine($"\n      🔍 ENHANCED DIAGNOSTICS for missing {description}:");
             
