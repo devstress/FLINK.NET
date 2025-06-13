@@ -106,6 +106,20 @@ $SonarWarningPatterns = @{
         Severity = "Info"
         AutoFix = $true
     }
+    "CS8602" = @{
+        Pattern = "Dereference of a possibly null reference"
+        Description = "Nullable reference warning"
+        Category = "Compiler Warning"
+        Severity = "Major"
+        AutoFix = $true
+    }
+    "S2933" = @{
+        Pattern = "Make '.*?' 'readonly'"
+        Description = "Make field readonly"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
 }
 
 function Write-Log {
@@ -142,7 +156,7 @@ function Invoke-CleanBuild {
     
     # Build with Release configuration to match CI exactly
     Write-Log "Building with Release configuration to match CI..." "DEBUG"
-    $buildOutput = dotnet build $SolutionPath --no-incremental --verbosity normal --configuration Release 2>&1
+    $buildOutput = dotnet build $SolutionPath --no-incremental --verbosity normal --configuration Release --no-restore 2>&1
     
     return $buildOutput
 }

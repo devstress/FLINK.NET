@@ -8,7 +8,7 @@ namespace FlinkJobSimulator
     public class RedisIncrementSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle
     {
         private IDatabase? _redisDb;
-        private string _redisKey = "flinkdotnet:sample:counter"; // Default key, make configurable if needed
+        private readonly string _redisKey;
         private string _taskName = nameof(RedisIncrementSinkFunction<T>);
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
@@ -21,10 +21,7 @@ namespace FlinkJobSimulator
         public RedisIncrementSinkFunction(IDatabase redisDatabase, string? redisKey = null)
         {
             _redisDb = redisDatabase ?? throw new ArgumentNullException(nameof(redisDatabase));
-            if (!string.IsNullOrEmpty(redisKey))
-            {
-                _redisKey = redisKey;
-            }
+            _redisKey = redisKey ?? "flinkdotnet:sample:counter";
             Console.WriteLine($"RedisIncrementSinkFunction will use Redis key: '{_redisKey}'");
         }
 

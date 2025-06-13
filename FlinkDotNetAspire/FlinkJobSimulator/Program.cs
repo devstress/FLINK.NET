@@ -54,13 +54,13 @@ public class CountingSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle
 // Modified Source Function for High Volume with Redis Sequence ID and Barrier Injection
 public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecycle
 {
-    private long _numberOfMessagesToGenerate;
-    private ITypeSerializer<string> _serializer;
+    private readonly long _numberOfMessagesToGenerate;
+    private readonly ITypeSerializer<string> _serializer;
     private IDatabase? _redisDb;
     private volatile bool _isRunning = true;
     private string _taskName = nameof(HighVolumeSourceFunction);
 
-    private string _globalSequenceRedisKey = "flinkdotnet:global_sequence_id";
+    private readonly string _globalSequenceRedisKey;
 
     // --- Checkpoint Barrier Injection Fields ---
     private long _messagesSentSinceLastBarrier = 0;
@@ -540,14 +540,20 @@ public static class Program
 
     public static async Task Main(string[] args)
     {
+        var totalStartTime = DateTime.UtcNow;
         Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
+        Console.WriteLine($"=== STARTUP DIAGNOSTICS ===");
+        Console.WriteLine($"Start Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"Process ID: {Environment.ProcessId}");
+        Console.WriteLine($"Working Directory: {Environment.CurrentDirectory}");
+        Console.WriteLine($"Arguments: {string.Join(" ", args)}");
 
         // Debug: Log all environment variables to understand what Aspire provides
         Console.WriteLine("=== DEBUG: Environment Variables ===");
         foreach (DictionaryEntry env in Environment.GetEnvironmentVariables())
         {
-            var key = env.Key.ToString();
-            var value = env.Value?.ToString();
+            var key = env.Key?.ToString() ?? "<null>";
+            var value = env.Value?.ToString() ?? "<null>";
             if (key.Contains("redis", StringComparison.OrdinalIgnoreCase) || 
                 key.Contains("kafka", StringComparison.OrdinalIgnoreCase) ||
                 key.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) ||
@@ -558,21 +564,49 @@ public static class Program
         }
         Console.WriteLine("=== END DEBUG ===");
 
+        Console.WriteLine("Starting host configuration...");
+        var hostStartTime = DateTime.UtcNow;
         using var host = await ConfigureAndStartHost(args);
+        var hostStartupDuration = DateTime.UtcNow - hostStartTime;
+        Console.WriteLine($"Host configured and started in {hostStartupDuration.TotalMilliseconds:F0}ms");
+
+        Console.WriteLine("Retrieving services from DI container...");
         var redisDatabase = host.Services.GetRequiredService<IDatabase>();
         var configuration = host.Services.GetRequiredService<IConfiguration>();
+        Console.WriteLine("Services retrieved successfully");
 
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
+        Console.WriteLine($"Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
 
         try
         {
+            Console.WriteLine("Setting up Flink environment...");
+            var envSetupStartTime = DateTime.UtcNow;
             var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
+            var envSetupDuration = DateTime.UtcNow - envSetupStartTime;
+            Console.WriteLine($"Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
+            
+            Console.WriteLine("Starting job execution...");
+            var jobStartTime = DateTime.UtcNow;
             await ExecuteJob(env, numMessages, jobManagerGrpcUrl);
+            var jobDuration = DateTime.UtcNow - jobStartTime;
+            Console.WriteLine($"Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"An unexpected error occurred in the simulator: {ex.Message}");
+            Console.WriteLine($"=== SIMULATOR ERROR ===");
+            Console.WriteLine($"Error Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+            Console.WriteLine($"Error Type: {ex.GetType().Name}");
+            Console.WriteLine($"Error Message: {ex.Message}");
+            Console.WriteLine($"Stack Trace:");
             Console.WriteLine(ex.StackTrace);
+            
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner Exception: {ex.InnerException.GetType().Name}");
+                Console.WriteLine($"Inner Message: {ex.InnerException.Message}");
+            }
+            
             Console.WriteLine("Continuing despite error for integration test verification.");
         }
 
@@ -581,6 +615,10 @@ public static class Program
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         
         await Task.Delay(TimeSpan.FromSeconds(5));
+        var totalDuration = DateTime.UtcNow - totalStartTime;
+        Console.WriteLine($"=== COMPLETION SUMMARY ===");
+        Console.WriteLine($"Completion Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"Total Execution Time: {totalDuration.TotalMilliseconds:F0}ms");
         Console.WriteLine("Keeping process alive for Aspire orchestration...");
         await Task.Delay(Timeout.Infinite);
     }
