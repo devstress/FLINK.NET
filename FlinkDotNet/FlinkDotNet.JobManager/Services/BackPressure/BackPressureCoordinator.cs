@@ -12,6 +12,7 @@ public class BackPressureCoordinator : IDisposable
     private readonly ILogger<BackPressureCoordinator> _logger;
     private readonly StateCoordinator _stateCoordinator;
     private readonly TaskManagerOrchestrator _taskManagerOrchestrator;
+    private readonly CreditBasedFlowController _flowController;
     private readonly ConcurrentDictionary<string, BackPressureMetrics> _pressureMetrics;
     private readonly Timer _monitoringTimer;
     private readonly BackPressureConfiguration _config;
@@ -21,7 +22,8 @@ public class BackPressureCoordinator : IDisposable
         ILogger<BackPressureCoordinator> logger,
         StateCoordinator stateCoordinator,
         TaskManagerOrchestrator taskManagerOrchestrator,
-        BackPressureConfiguration? config = null)
+        BackPressureConfiguration? config = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _stateCoordinator = stateCoordinator ?? throw new ArgumentNullException(nameof(stateCoordinator));
@@ -29,10 +31,21 @@ public class BackPressureCoordinator : IDisposable
         _config = config ?? new BackPressureConfiguration();
         _pressureMetrics = new ConcurrentDictionary<string, BackPressureMetrics>();
 
+        // Initialize credit-based flow controller
+        var flowControllerLogger = loggerFactory?.CreateLogger<CreditBasedFlowController>() ?? 
+                                  Microsoft.Extensions.Logging.Abstractions.NullLogger<CreditBasedFlowController>.Instance;
+        _flowController = new CreditBasedFlowController(
+            flowControllerLogger,
+            new CreditFlowConfiguration
+            {
+                MaxBufferSize = _config.MaxBufferSize,
+                BackPressureThreshold = _config.ScaleUpThreshold
+            });
+
         // Apache Flink 2.0 style monitoring every 5 seconds
         _monitoringTimer = new Timer(MonitorBackPressure, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
         
-        _logger.LogInformation("BackPressureCoordinator initialized with monitoring interval: {Interval}s", 5);
+        _logger.LogInformation("BackPressureCoordinator initialized with monitoring interval: {Interval}s, flow control enabled", 5);
     }
 
     /// <summary>
@@ -64,7 +77,7 @@ public class BackPressureCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Calculates back pressure level using Apache Flink 2.0 heuristics
+    /// Calculates back pressure level using Apache Flink 2.0 heuristics including flow control
     /// </summary>
     private BackPressureMetrics CalculateBackPressure(StateMetrics stateMetrics, Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
     {
@@ -77,9 +90,14 @@ public class BackPressureCoordinator : IDisposable
             Timestamp = DateTime.UtcNow
         };
 
-        // Calculate overall pressure level (0.0 to 1.0)
-        metrics.OverallPressure = Math.Max(Math.Max(metrics.StateBackendPressure, metrics.NetworkPressure),
-                                          Math.Max(metrics.CpuPressure, metrics.MemoryPressure));
+        // Include flow control pressure in overall calculation
+        var flowControlPressure = _flowController.GetSystemBackPressureLevel();
+        
+        // Calculate overall pressure level (0.0 to 1.0) including flow control
+        metrics.OverallPressure = Math.Max(
+            Math.Max(Math.Max(metrics.StateBackendPressure, metrics.NetworkPressure),
+                     Math.Max(metrics.CpuPressure, metrics.MemoryPressure)),
+            flowControlPressure);
 
         return metrics;
     }
@@ -194,6 +212,38 @@ public class BackPressureCoordinator : IDisposable
         return _pressureMetrics.IsEmpty ? 0.0 : _pressureMetrics.Values.Average(p => p.OverallPressure);
     }
 
+    /// <summary>
+    /// Requests credits for an operator to process data (credit-based flow control).
+    /// </summary>
+    public int RequestProcessingCredits(string operatorId, int requestedCredits)
+    {
+        return _flowController.RequestCredits(operatorId, requestedCredits);
+    }
+
+    /// <summary>
+    /// Replenishes credits when operator completes processing records.
+    /// </summary>
+    public void ReplenishProcessingCredits(string operatorId, int processedRecords)
+    {
+        _flowController.ReplenishCredits(operatorId, processedRecords);
+    }
+
+    /// <summary>
+    /// Determines if the system should throttle new data intake due to back pressure.
+    /// </summary>
+    public bool ShouldThrottleDataIntake()
+    {
+        return _flowController.ShouldThrottle() || GetOverallSystemPressure() > _config.ScaleUpThreshold;
+    }
+
+    /// <summary>
+    /// Gets flow control information for all operators.
+    /// </summary>
+    public IReadOnlyDictionary<string, OperatorCreditInfo> GetFlowControlInfo()
+    {
+        return _flowController.GetAllOperatorCredits();
+    }
+
     public void Dispose()
     {
         Dispose(true);
@@ -205,6 +255,7 @@ public class BackPressureCoordinator : IDisposable
         if (!_disposed && disposing)
         {
             _monitoringTimer?.Dispose();
+            _flowController?.Dispose();
             _pressureMetrics.Clear();
             _disposed = true;
             
@@ -223,6 +274,7 @@ public class BackPressureConfiguration
     public int MinTaskManagers { get; set; } = 1;
     public int MaxTaskManagers { get; set; } = 10;
     public TimeSpan CooldownPeriod { get; set; } = TimeSpan.FromMinutes(2); // Prevent rapid scaling
+    public int MaxBufferSize { get; set; } = 1000; // Credit-based flow control buffer size
 }
 
 /// <summary>

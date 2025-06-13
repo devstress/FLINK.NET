@@ -92,6 +92,7 @@ public static class Program
         builder.Services.AddSingleton<BackPressureCoordinator>(provider =>
         {
             var logger = provider.GetRequiredService<ILogger<BackPressureCoordinator>>();
+            var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
             var stateCoordinator = provider.GetRequiredService<StateCoordinator>();
             var taskManagerOrchestrator = provider.GetRequiredService<TaskManagerOrchestrator>();
             var config = new BackPressureConfiguration
@@ -101,8 +102,11 @@ public static class Program
                 MinTaskManagers = int.TryParse(Environment.GetEnvironmentVariable("BACKPRESSURE_MIN_TASKMANAGERS"), out var minTm) ? minTm : 1,
                 MaxTaskManagers = int.TryParse(Environment.GetEnvironmentVariable("BACKPRESSURE_MAX_TASKMANAGERS"), out var maxTm) ? maxTm : 10
             };
-            return new BackPressureCoordinator(logger, stateCoordinator, taskManagerOrchestrator, config);
+            return new BackPressureCoordinator(logger, stateCoordinator, taskManagerOrchestrator, config, loggerFactory);
         });
+
+        // Register hosted service to ensure BackPressureCoordinator is started
+        builder.Services.AddHostedService<BackPressureHostedService>();
 
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole();
