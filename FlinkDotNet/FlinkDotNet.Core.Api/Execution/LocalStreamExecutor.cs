@@ -429,9 +429,6 @@ namespace FlinkDotNet.Core.Api.Execution
                 Console.WriteLine($"[LocalStreamExecutor] 🔍 SINK DEBUG: No data iteration {noDataCount}, processed: {processed}, input queue size: {totalQueueSize}");
             }
         }
-            
-            Console.WriteLine($"[LocalStreamExecutor] ✅ SINK COMPLETED: Sink completed processing {processed} total records");
-        }
 
         private static bool ProcessSinkChannels(List<ConcurrentQueue<object>> inputChannels, object sinkInstance, ISinkContext sinkContext, MethodInfo invokeMethod, ref int processed)
         {
