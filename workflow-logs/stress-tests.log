@@ -72,3 +72,17 @@ Successfully installed workload(s) aspire.
 Building FlinkDotNet solution...
 MSBuild version 17.8.27+3ab07f0cf for .NET
   Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Release/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Release/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Common.Constants.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Release/net8.0/FlinkDotNet.Common.Constants.Tests.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Release/net8.0/FlinkDotNet.Core.dll
+  FlinkDotNet.Connectors.Sources.Kafka -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.Kafka.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Connectors.Sinks.Console.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll
+  FlinkDotNet.Connectors.Sources.File.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll
+  FlinkDotNet.Core.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Release/net8.0/FlinkDotNet.Core.Tests.dll
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
