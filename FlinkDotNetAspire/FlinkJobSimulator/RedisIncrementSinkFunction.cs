@@ -7,26 +7,46 @@ namespace FlinkJobSimulator
 {
     public class RedisIncrementSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle
     {
-        private readonly IDatabase _redisDb;
-        private readonly string _redisKey = "flinkdotnet:sample:counter"; // Default key, make configurable if needed
+        private IDatabase? _redisDb;
+        private readonly string _redisKey;
         private string _taskName = nameof(RedisIncrementSinkFunction<T>);
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
 
+        // Static configuration for LocalStreamExecutor compatibility
+        public static IDatabase? GlobalRedisDatabase { get; set; }
+        public static string? GlobalRedisKey { get; set; }
+
+        // Constructor with dependencies (for manual instantiation)
         public RedisIncrementSinkFunction(IDatabase redisDatabase, string? redisKey = null)
         {
             _redisDb = redisDatabase ?? throw new ArgumentNullException(nameof(redisDatabase));
-            if (!string.IsNullOrEmpty(redisKey))
-            {
-                _redisKey = redisKey;
-            }
+            _redisKey = redisKey ?? "flinkdotnet:sample:counter";
             Console.WriteLine($"RedisIncrementSinkFunction will use Redis key: '{_redisKey}'");
+        }
+
+        // Parameterless constructor (for LocalStreamExecutor reflection)
+        public RedisIncrementSinkFunction()
+        {
+            _redisKey = GlobalRedisKey ?? "flinkdotnet:sample:counter";
+            Console.WriteLine($"RedisIncrementSinkFunction parameterless constructor: key '{_redisKey}'");
         }
 
         public void Open(IRuntimeContext context)
         {
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening RedisIncrementSinkFunction for key '{_redisKey}'.");
+
+            // If using parameterless constructor, get Redis database from static configuration
+            if (_redisDb == null)
+            {
+                _redisDb = GlobalRedisDatabase;
+                if (_redisDb == null)
+                {
+                    throw new InvalidOperationException("Redis database not available. Ensure GlobalRedisDatabase is set before job execution.");
+                }
+                Console.WriteLine($"[{_taskName}] Using global Redis database from static configuration.");
+            }
 
             try
             {
@@ -52,19 +72,31 @@ namespace FlinkJobSimulator
                 return;
             }
 
-            try
+            const int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                _redisDb.StringIncrement(_redisKey);
-                long currentCount = Interlocked.Increment(ref _processedCount);
-
-                if (currentCount % LogFrequency == 0)
+                try
                 {
-                    Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {currentCount} records.");
+                    if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
+                    _redisDb.StringIncrement(_redisKey);
+                    long currentCount = Interlocked.Increment(ref _processedCount);
+
+                    if (currentCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {currentCount} records.");
+                    }
+                    return; // Success, exit retry loop
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Failed to increment Redis key '{_redisKey}'. Error: {ex.Message}");
+                catch (Exception ex) when (attempt < maxRetries)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
+                    Thread.Sleep(50 * attempt); // Progressive backoff: 50ms, 100ms, 150ms
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
+                    // Don't throw - just log the failure and continue with next record
+                }
             }
         }
 
@@ -73,8 +105,15 @@ namespace FlinkJobSimulator
             Console.WriteLine($"[{_taskName}] Closing RedisIncrementSinkFunction. Processed {_processedCount} records for key '{_redisKey}'.");
             try
             {
-                long finalValue = (long)_redisDb.StringGet(_redisKey);
-                Console.WriteLine($"[{_taskName}] Final value of Redis key '{_redisKey}': {finalValue}");
+                if (_redisDb != null)
+                {
+                    long finalValue = (long)_redisDb.StringGet(_redisKey);
+                    Console.WriteLine($"[{_taskName}] Final value of Redis key '{_redisKey}': {finalValue}");
+                }
+                else
+                {
+                    Console.WriteLine($"[{_taskName}] Redis database was null, could not get final value.");
+                }
             }
             catch(Exception ex)
             {

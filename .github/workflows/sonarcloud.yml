@@ -5,7 +5,7 @@ on:
     branches:
       - main # Or your primary branch name
   pull_request:
-    types: [synchronize]
+    types: [opened, synchronize]
     branches:
       - main # Or your primary branch name
 
@@ -74,7 +74,6 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For PR decoration and SonarCloud <-> GitHub integration
@@ -102,16 +101,13 @@ jobs:
               return $warnings.Count
             }
 
-            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" }
+            # Begin SonarCloud analysis (with coverage paths configured)
+            $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" /d:sonar.cs.opencover.reportsPaths="FlinkDotNet/TestResults/**/*.opencover.xml" }
             $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
 
             $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
             $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
             $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
-
-
-            $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
-            $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end"
 
             $totalWarnings = 0
             $buildFailed = $false
@@ -121,8 +117,7 @@ jobs:
               @{Name="Sonar begin"; Exit=$exitBegin},
               @{Name="Build FlinkDotNet"; Exit=$exit1},
               @{Name="Build FlinkDotNetAspire"; Exit=$exit2},
-              @{Name="Build FlinkDotNet.WebUI"; Exit=$exit3},
-              @{Name="Sonar end"; Exit=$exitEnd}
+              @{Name="Build FlinkDotNet.WebUI"; Exit=$exit3}
             )
             
             foreach ($result in $results) {
@@ -134,7 +129,7 @@ jobs:
               }
             }
 
-            if ($buildFailed -or $exitEnd -ne 0) {
+            if ($buildFailed) {
               if ($failedProcesses.Count -gt 0) {
                 Write-Error "[ERROR] CI failed due to build errors in: $($failedProcesses -join ', ')"
               } else {
@@ -146,4 +141,118 @@ jobs:
               Write-Error "[ERROR] Should be no warning, found warning(s)"
             } else {
               Write-Host "[OK] All builds passed with no warnings."
+            }
+
+      # Try to download test results and coverage from unit-tests workflow (if available)
+      - name: Download test artifacts (if available)
+        uses: actions/download-artifact@v4
+        continue-on-error: true # Don't fail if artifacts aren't available yet
+        with:
+          name: dotnet-test-results
+          path: ./FlinkDotNet/TestResults
+
+      - name: Check for existing test artifacts and run tests if needed
+        shell: pwsh
+        run: |
+          $artifactsAvailable = $false
+          
+          # Check if we have test artifacts from unit-tests workflow
+          if (Test-Path "./FlinkDotNet/TestResults") {
+            $openCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
+            if ($openCoverFiles.Count -gt 0) {
+              Write-Host "Found existing test artifacts from unit-tests workflow:"
+              $openCoverFiles | ForEach-Object {
+                Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+              }
+              $artifactsAvailable = $true
+            }
+          }
+          
+          if (-not $artifactsAvailable) {
+            Write-Host "No test artifacts available from unit-tests workflow - running tests locally for coverage..."
+            
+            # Run tests with coverage collection for SonarCloud
+            Push-Location FlinkDotNet
+            dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
+            Pop-Location
+            
+            # Convert coverage to OpenCover format for SonarCloud
+            dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
+            
+            Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
+              $coberturaFile = $_.FullName
+              $targetDir = $_.DirectoryName
+              Write-Host "Converting coverage file: $coberturaFile"
+              
+              # Convert to OpenCover format for SonarCloud
+              $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
+              Write-Host "Converting to OpenCover format: $openCoverFile"
+              reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
+            }
+            
+            Write-Host "Local test execution completed with coverage collection."
+          }
+          
+          # Final verification of coverage files
+          Write-Host "Final coverage files verification:"
+          $finalOpenCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
+          if ($finalOpenCoverFiles.Count -gt 0) {
+            Write-Host "Coverage files ready for SonarCloud:"
+            $finalOpenCoverFiles | ForEach-Object {
+              Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+            }
+          } else {
+            Write-Host "Warning: No OpenCover files found - SonarCloud will run without coverage data"
+          }
+
+      - name: Submit test coverage to SonarCloud
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For PR decoration and SonarCloud <-> GitHub integration
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Your generated SonarCloud token
+        shell: pwsh # Using PowerShell
+        run: |
+            function RunCommandWithWarningCheck($command, $description) {
+              Write-Host "Running $description"
+              $output = & $command 2>&1
+
+              $output | ForEach-Object { Write-Host $_ }
+
+              if ($LASTEXITCODE -ne 0) {
+                Write-Host "[FAIL] $description failed with exit code $LASTEXITCODE"
+                return -1
+              }
+              $warnings = $output | Where-Object { $_ -match "(?i)warning " }
+              if ($warnings.Count -gt 0) {
+                Write-Host "[WARN] Found warning(s) in ${description}:"
+                $warnings | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "[OK] $description completed successfully with no warnings."
+              }
+
+              return $warnings.Count
+            }
+
+            # Add coverage paths now that tests have been run
+            Write-Host "Finalizing SonarCloud analysis..."
+            
+            # Check for coverage files
+            $finalOpenCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
+            if ($finalOpenCoverFiles.Count -gt 0) {
+              Write-Host "Coverage files found for SonarCloud submission:"
+              $finalOpenCoverFiles | ForEach-Object {
+                Write-Host "  $($_.FullName) (Size: $($_.Length) bytes)"
+              }
+            } else {
+              Write-Host "Warning: No coverage files found - analysis will proceed without coverage"
+            }
+            
+            # Finalize SonarCloud analysis (coverage paths already configured in begin phase)
+            $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}" }
+            
+            $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end with coverage"
+
+            if ($exitEnd -ne 0) {
+              Write-Error "[ERROR] SonarCloud submission failed with exit code $exitEnd"
+            } else {
+              Write-Host "[OK] SonarCloud analysis and coverage submitted successfully."
             }

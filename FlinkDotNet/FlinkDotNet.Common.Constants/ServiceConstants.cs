@@ -58,12 +58,12 @@ public static class ServiceHosts
 public static class ServiceUris
 {
     /// <summary>
-    /// Default JobManager gRPC address
+    /// Default JobManager gRPC address (secure HTTPS)
     /// </summary>
     public static string JobManagerGrpc => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
 
     /// <summary>
-    /// Default JobManager HTTP API address
+    /// Default JobManager HTTP API address (secure HTTPS)
     /// </summary>
     public static string JobManagerHttp => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
 
@@ -78,11 +78,40 @@ public static class ServiceUris
     public static string RedisConnectionString => $"{ServiceHosts.Localhost}:{ServicePorts.Redis}";
 
     /// <summary>
-    /// Default TaskManager gRPC address with specified port
+    /// Default TaskManager gRPC address with specified port (secure HTTPS)
     /// </summary>
     /// <param name="port">Custom port number</param>
     /// <returns>TaskManager gRPC URI</returns>
     public static string TaskManagerGrpc(int port = ServicePorts.TaskManagerGrpc) => $"https://{ServiceHosts.Localhost}:{port}";
+
+    /// <summary>
+    /// Insecure service URIs for local development only
+    /// </summary>
+    public static class Insecure
+    {
+        /// <summary>
+        /// JobManager gRPC address (insecure HTTP - use only for local development)
+        /// </summary>
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
+        public static string JobManagerGrpcHttp => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
+#pragma warning restore S5332
+
+        /// <summary>
+        /// JobManager HTTP API address (insecure HTTP - use only for local development)
+        /// </summary>
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
+        public static string JobManagerHttpApi => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
+#pragma warning restore S5332
+
+        /// <summary>
+        /// TaskManager gRPC address with specified port (insecure HTTP - use only for local development)
+        /// </summary>
+        /// <param name="port">Custom port number</param>
+        /// <returns>TaskManager gRPC URI</returns>
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
+        public static string TaskManagerGrpcHttp(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
+#pragma warning restore S5332
+    }
 
     /// <summary>
     /// Gets TaskManager port for Aspire deployment based on instance number

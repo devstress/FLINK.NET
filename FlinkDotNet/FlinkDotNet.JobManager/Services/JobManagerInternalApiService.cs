@@ -150,101 +150,118 @@ namespace FlinkDotNet.JobManager.Services
 
             if (request.JobGraph == null)
             {
-                _logger.LogWarning("Received global::FlinkDotNet.Proto.Internal.SubmitJobRequest with null JobGraph.");
-                return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
-                {
-                    Success = false,
-                    Message = "JobGraph cannot be null.",
-                    JobId = ""
-                });
+                return Task.FromResult(CreateErrorReply("JobGraph cannot be null.", ""));
             }
 
             try
             {
-                // Convert global::FlinkDotNet.Proto.Internal.Internal.JobGraph to C# model JobGraph
-                // This exercises the FromProto methods.
-                var jobGraphModel = Models.JobGraph.JobGraph.FromProto(request.JobGraph);
-
-                _logger.LogInformation(
-                    "Converted JobGraph '{JobName}' (ID: {JobId}) with {VertexCount} vertices and {EdgeCount} edges.",
-                    jobGraphModel.JobName,
-                    jobGraphModel.JobId,
-                    jobGraphModel.Vertices.Count,
-                    jobGraphModel.Edges.Count);
-                LogGraphDetails(jobGraphModel);
-                bool stored = JobManagerController.JobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
-                if (stored)
-                {
-                    _logger.LogInformation(
-                        "JobGraph for '{JobName}' (ID: {JobId}) stored in static dictionary.",
-                        jobGraphModel.JobName,
-                        jobGraphModel.JobId);
-                }
-                else
-                {
-                    _logger.LogWarning("Failed to store JobGraph for '{JobName}' (ID: {JobId}) in static dictionary. It might already exist.", jobGraphModel.JobName, jobGraphModel.JobId);
-                    // Potentially return error if this is unexpected
-                }
-                // --- Replicated Task Deployment Logic ---
-                _logger.LogDebug(
-                    "Job '{JobName}' (ID: {JobId}): Preparing for task deployment...",
-                    jobGraphModel.JobName,
-                    jobGraphModel.JobId);
-
-                var coordinatorConfig = new JobManagerConfig { /* Populate as needed, e.g., from request or global config */ };
-                var coordinatorLogger = _loggerFactory.CreateLogger<CheckpointCoordinator>();
-                var checkpointCoordinator = new CheckpointCoordinator(jobGraphModel.JobId.ToString(), _jobRepository, coordinatorLogger, coordinatorConfig);
-
-                // Using TaskManagerRegistrationServiceImpl.JobCoordinators as per existing pattern in JobManagerController
-                if (TaskManagerRegistrationServiceImpl.JobCoordinators.TryAdd(jobGraphModel.JobId.ToString(), checkpointCoordinator))
-                {
-                    checkpointCoordinator.Start();
-                    _logger.LogInformation("CheckpointCoordinator for job {JobId} created, added to static list, and started.", jobGraphModel.JobId);
-                }
-                else
-                {
-                    _logger.LogWarning("Could not add/start CheckpointCoordinator for job {JobId}. It might already exist.", jobGraphModel.JobId);
-                }
-
-                var availableTaskManagers = TaskManagerTracker.RegisteredTaskManagers.Values.ToList();
-
-                if (!availableTaskManagers.Any())
-                {
-                    _logger.LogWarning("No TaskManagers available to deploy job {JobName}. Job submitted but not deployed.", jobGraphModel.JobName);
-                    // Decide on reply: success true but with warning, or success false?
-                    // For now, let's consider it a partial success as the job is "submitted" but not deployed.
-                    return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
-                    {
-                        Success = true, // Or false, depending on desired strictness
-                        Message = "Job submitted but no TaskManagers available for deployment.",
-                        JobId = jobGraphModel.JobId.ToString()
-                    });
-                }
-
-                var taskAssignments = AssignTasks(jobGraphModel, availableTaskManagers);
-                _logger.LogInformation(
-                    "Pre-assigned all task instances to TaskManagers for job {JobId}.",
-                    jobGraphModel.JobId);
-                DeployTasks(jobGraphModel, taskAssignments);
-                // --- End of Replicated Task Deployment Logic ---
-
-                return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
-                {
-                    Success = true,
-                    Message = $"Job '{jobGraphModel.JobName}' submitted and deployment initiated.",
-                    JobId = jobGraphModel.JobId.ToString()
-                });
+                var jobGraphModel = ConvertAndStoreJobGraph(request.JobGraph);
+                var checkpointCoordinator = CreateAndStartCheckpointCoordinator(jobGraphModel);
+                _logger.LogDebug("CheckpointCoordinator created for job {JobId}: {CoordinatorId}", 
+                    jobGraphModel.JobId, checkpointCoordinator.GetHashCode());
+                var deploymentResult = AttemptJobDeployment(jobGraphModel);
+                
+                return Task.FromResult(deploymentResult);
             }
             catch (System.Exception ex)
             {
                 _logger.LogError(ex, "Error processing global::FlinkDotNet.Proto.Internal.SubmitJobRequest.");
-                return Task.FromResult(new global::FlinkDotNet.Proto.Internal.SubmitJobReply
-                {
-                    Success = false,
-                    Message = $"Error processing job: {ex.Message}",
-                    JobId = ""
-                });
+                return Task.FromResult(CreateErrorReply($"Error processing job: {ex.Message}", ""));
             }
+        }
+
+        private global::FlinkDotNet.Proto.Internal.SubmitJobReply CreateErrorReply(string message, string jobId)
+        {
+            _logger.LogWarning("Creating error reply: {Message}", message);
+            return new global::FlinkDotNet.Proto.Internal.SubmitJobReply
+            {
+                Success = false,
+                Message = message,
+                JobId = jobId
+            };
+        }
+
+        private Models.JobGraph.JobGraph ConvertAndStoreJobGraph(global::FlinkDotNet.Proto.Internal.JobGraph protoJobGraph)
+        {
+            var jobGraphModel = Models.JobGraph.JobGraph.FromProto(protoJobGraph);
+
+            _logger.LogInformation(
+                "Converted JobGraph '{JobName}' (ID: {JobId}) with {VertexCount} vertices and {EdgeCount} edges.",
+                jobGraphModel.JobName,
+                jobGraphModel.JobId,
+                jobGraphModel.Vertices.Count,
+                jobGraphModel.Edges.Count);
+            
+            LogGraphDetails(jobGraphModel);
+            
+            bool stored = JobManagerController.JobGraphs.TryAdd(jobGraphModel.JobId, jobGraphModel);
+            if (stored)
+            {
+                _logger.LogInformation(
+                    "JobGraph for '{JobName}' (ID: {JobId}) stored in static dictionary.",
+                    jobGraphModel.JobName,
+                    jobGraphModel.JobId);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to store JobGraph for '{JobName}' (ID: {JobId}) in static dictionary. It might already exist.", jobGraphModel.JobName, jobGraphModel.JobId);
+            }
+
+            return jobGraphModel;
+        }
+
+        private CheckpointCoordinator CreateAndStartCheckpointCoordinator(Models.JobGraph.JobGraph jobGraphModel)
+        {
+            _logger.LogDebug(
+                "Job '{JobName}' (ID: {JobId}): Preparing for task deployment...",
+                jobGraphModel.JobName,
+                jobGraphModel.JobId);
+
+            var coordinatorConfig = new JobManagerConfig { /* Populate as needed, e.g., from request or global config */ };
+            var coordinatorLogger = _loggerFactory.CreateLogger<CheckpointCoordinator>();
+            var checkpointCoordinator = new CheckpointCoordinator(jobGraphModel.JobId.ToString(), _jobRepository, coordinatorLogger, coordinatorConfig);
+
+            if (TaskManagerRegistrationServiceImpl.JobCoordinators.TryAdd(jobGraphModel.JobId.ToString(), checkpointCoordinator))
+            {
+                checkpointCoordinator.Start();
+                _logger.LogInformation("CheckpointCoordinator for job {JobId} created, added to static list, and started.", jobGraphModel.JobId);
+            }
+            else
+            {
+                _logger.LogWarning("Could not add/start CheckpointCoordinator for job {JobId}. It might already exist.", jobGraphModel.JobId);
+            }
+
+            return checkpointCoordinator;
+        }
+
+        private global::FlinkDotNet.Proto.Internal.SubmitJobReply AttemptJobDeployment(Models.JobGraph.JobGraph jobGraphModel)
+        {
+            var availableTaskManagers = TaskManagerTracker.RegisteredTaskManagers.Values.ToList();
+
+            if (!availableTaskManagers.Any())
+            {
+                _logger.LogWarning("No TaskManagers available to deploy job {JobName}. Job submitted but not deployed.", jobGraphModel.JobName);
+                return new global::FlinkDotNet.Proto.Internal.SubmitJobReply
+                {
+                    Success = true,
+                    Message = "Job submitted but no TaskManagers available for deployment.",
+                    JobId = jobGraphModel.JobId.ToString()
+                };
+            }
+
+            var taskAssignments = AssignTasks(jobGraphModel, availableTaskManagers);
+            _logger.LogInformation(
+                "Pre-assigned all task instances to TaskManagers for job {JobId}.",
+                jobGraphModel.JobId);
+            
+            DeployTasks(jobGraphModel, taskAssignments);
+
+            return new global::FlinkDotNet.Proto.Internal.SubmitJobReply
+            {
+                Success = true,
+                Message = $"Job '{jobGraphModel.JobName}' submitted and deployment initiated.",
+                JobId = jobGraphModel.JobId.ToString()
+            };
         }
 
 

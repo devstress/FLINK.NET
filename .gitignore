@@ -58,3 +58,4 @@ TestResult.xml
 nunit-*.xml
 /scripts/apphost.err.log
 /scripts/apphost.out.log
+apphost_test.log

@@ -114,22 +114,8 @@ try {
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray
     Write-Host "  DOTNET_ENVIRONMENT: $env:DOTNET_ENVIRONMENT" -ForegroundColor Gray
 
-    # Step 2: Port Discovery (matches workflow)
-    Write-Host "`n=== Step 2: Port Discovery ===" -ForegroundColor Yellow
-    Write-Host "Discovering available ports for Redis and Kafka services..." -ForegroundColor White
-    
-    & ./scripts/find-available-ports.ps1
-    # Check if port discovery was successful by verifying environment variables are set
-    if (-not $env:DOTNET_REDIS_URL -or -not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
-        throw "Port discovery failed - required environment variables not set"
-    }
-    
-    Write-Host "Port discovery results:" -ForegroundColor Gray
-    Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
-    Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
-
-    # Step 3: Build Solutions (matches workflow) 
-    Write-Host "`n=== Step 3: Build Solutions ===" -ForegroundColor Yellow
+    # Step 2: Build Solutions (matches workflow) 
+    Write-Host "`n=== Step 2: Build Solutions ===" -ForegroundColor Yellow
     
     Write-Host "Building FlinkDotNet solution (dependency)..." -ForegroundColor White
     dotnet build FlinkDotNet/FlinkDotNet.sln --configuration Release --verbosity minimal
@@ -145,8 +131,8 @@ try {
     
     Write-Host "✅ All solutions built successfully" -ForegroundColor Green
 
-    # Step 4: Start Aspire AppHost (matches workflow exactly)
-    Write-Host "`n=== Step 4: Start Aspire AppHost ===" -ForegroundColor Yellow
+    # Step 3: Start Aspire AppHost (matches workflow exactly)
+    Write-Host "`n=== Step 3: Start Aspire AppHost ===" -ForegroundColor Yellow
     
     # Create log files
     $outLogPath = "apphost.out.log"
@@ -206,6 +192,27 @@ try {
     
     Write-Host "AppHost started, waiting 45 seconds for initialization..." -ForegroundColor White
     Start-Sleep -Seconds 45  # Increased for consistency with CI improvements
+
+    # Step 4: Discover Aspire Container Ports
+    Write-Host "`n=== Step 4: Discover Aspire Container Ports ===" -ForegroundColor Yellow
+    Write-Host "Discovering actual ports used by Aspire Docker containers..." -ForegroundColor White
+    
+    # Wait a moment for containers to be ready
+    Start-Sleep -Seconds 10
+    
+    & ./scripts/discover-aspire-ports.ps1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to discover Aspire container ports"
+    }
+    
+    # Verify discovery was successful
+    if (-not $env:DOTNET_REDIS_URL -or -not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
+        throw "Port discovery failed - required environment variables not set"
+    }
+    
+    Write-Host "Port discovery results:" -ForegroundColor Gray
+    Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
+    Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
 
     # Step 5: Health Check (matches workflow)
     Write-Host "`n=== Step 5: Health Check ===" -ForegroundColor Yellow

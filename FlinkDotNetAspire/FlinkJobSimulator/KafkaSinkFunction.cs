@@ -15,14 +15,25 @@ namespace FlinkJobSimulator
         private long _processedCount = 0;
         private const long LogFrequency = 10000;
 
+        // Static configuration for LocalStreamExecutor compatibility
+        public static string? GlobalKafkaTopic { get; set; }
+
         private static readonly IConfiguration Configuration = new ConfigurationBuilder()
             .AddEnvironmentVariables()
             .Build();
 
-        public KafkaSinkFunction(string? topic = null) // Constructor allows overriding topic
+        // Constructor with dependencies (for manual instantiation)
+        public KafkaSinkFunction(string topic) // Constructor requires topic
         {
-            _topic = topic ?? Configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.default.topic";
+            _topic = topic ?? throw new ArgumentNullException(nameof(topic));
             Console.WriteLine($"KafkaSinkFunction will use Kafka topic: '{_topic}'");
+        }
+
+        // Parameterless constructor (for LocalStreamExecutor reflection)
+        public KafkaSinkFunction()
+        {
+            _topic = GlobalKafkaTopic ?? Configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.default.topic";
+            Console.WriteLine($"KafkaSinkFunction parameterless constructor: topic '{_topic}'");
         }
 
         public void Open(IRuntimeContext context)
@@ -30,30 +41,43 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
+            // Priority order for Kafka bootstrap servers (Aspire integration first):
+            // 1. ConnectionStrings__kafka (Aspire service reference)
+            // 2. DOTNET_KAFKA_BOOTSTRAP_SERVERS (for external integration tests)
+            // 3. ServiceUris.KafkaBootstrapServers (default fallback)
+            
             string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
-            
-            // If Aspire connection string not found, try the alternative format used by IntegrationTestVerifier
-            if (string.IsNullOrEmpty(bootstrapServers))
+            if (!string.IsNullOrEmpty(bootstrapServers))
             {
-                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
-            }
-            
-            if (string.IsNullOrEmpty(bootstrapServers))
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Kafka bootstrap servers not found in 'ConnectionStrings__kafka' or 'DOTNET_KAFKA_BOOTSTRAP_SERVERS' environment variables.");
-                // Attempt a local default if not found (useful for non-Aspire testing)
-                bootstrapServers = ServiceUris.KafkaBootstrapServers;
-                Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
             }
             else
             {
-                Console.WriteLine($"[{_taskName}] Found Kafka bootstrap servers from environment: {bootstrapServers}");
+                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+                if (!string.IsNullOrEmpty(bootstrapServers))
+                {
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from external integration test: {bootstrapServers}");
+                }
+                else
+                {
+                    bootstrapServers = ServiceUris.KafkaBootstrapServers;
+                    Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                }
+            }
+
+            // Fix IPv6 issue by forcing IPv4 localhost resolution
+            var cleanBootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+            if (cleanBootstrapServers != bootstrapServers)
+            {
+                Console.WriteLine($"[{_taskName}] Fixed IPv6 issue: Using {cleanBootstrapServers} instead of {bootstrapServers}");
+                bootstrapServers = cleanBootstrapServers;
             }
 
             var config = new ProducerConfig
             {
                 BootstrapServers = bootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
+                SocketTimeoutMs = 10000 // 10 seconds timeout
                 // Add other producer configurations if needed, e.g., Acks, Retries, etc.
                 // For high throughput, consider:
                 // LingerMs = 5, // Time to wait for more messages before sending a batch
@@ -86,37 +110,51 @@ namespace FlinkJobSimulator
             if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Kafka Sink: {recordString}");
-                // In a real scenario, sink would perform checkpointing actions here (e.g., flush, commit transaction).
-                // For this PoC, we just log and don't send the barrier marker itself to Kafka as a data message.
-                // If we wanted to see barriers in Kafka for debugging, we could send them to a separate topic or with a special key.
                 return;
             }
 
-            try
-            {
-                var message = new Message<Null, T> { Value = record };
-                // Use synchronous produce to ensure message is sent before continuing
-                _producer.Produce(_topic, message, (deliveryReport) =>
-                {
-                    if (deliveryReport.Error.Code != ErrorCode.NoError)
-                    {
-                        Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
-                    }
-                });
+            ProduceWithRetry(record);
+        }
 
-                long currentCount = Interlocked.Increment(ref _processedCount);
-                if (currentCount % LogFrequency == 0)
+        private void ProduceWithRetry(T record)
+        {
+            const int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
                 {
-                    Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}'.");
+                    if (_producer == null) throw new InvalidOperationException("Kafka producer not initialized");
+                    var message = new Message<Null, T> { Value = record };
+                    _producer.Produce(_topic, message, (deliveryReport) =>
+                    {
+                        if (deliveryReport.Error.Code != ErrorCode.NoError)
+                        {
+                            Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
+                        }
+                    });
+
+                    long currentCount = Interlocked.Increment(ref _processedCount);
+                    if (currentCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}'.");
+                    }
+                    return; // Success, exit retry loop
                 }
-            }
-            catch (ProduceException<Null, T> e)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
-            }
-            catch (Exception ex)
-            {
-                 Console.WriteLine($"[{_taskName}] ERROR: Unexpected error producing to Kafka topic '{_topic}': {ex.Message}");
+                catch (ProduceException<Null, T> e) when (attempt < maxRetries)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
+                    Thread.Sleep(100 * attempt);
+                }
+                catch (Exception ex) when (attempt < maxRetries)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                    Thread.Sleep(100 * attempt);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                    return;
+                }
             }
         }
 
@@ -126,8 +164,9 @@ namespace FlinkJobSimulator
             {
                 var adminConfig = new AdminClientConfig 
                 { 
-                    BootstrapServers = bootstrapServers,
-                    SecurityProtocol = SecurityProtocol.Plaintext // Explicitly set to plaintext for local testing
+                    BootstrapServers = bootstrapServers, // Already cleaned to use IPv4 in calling method
+                    SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
+                    SocketTimeoutMs = 10000 // 10 seconds timeout
                 };
                 using var admin = new AdminClientBuilder(adminConfig).Build();
                 

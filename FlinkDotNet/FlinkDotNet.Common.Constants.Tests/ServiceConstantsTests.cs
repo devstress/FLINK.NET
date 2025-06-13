@@ -27,22 +27,39 @@ public class ServiceConstantsTests
     }
 
     [Fact]
-    public void ServiceUris_Should_Generate_Correct_URIs()
+    public void ServiceUris_Should_Generate_Correct_Secure_URIs()
     {
-        // Verify that the URI generation works correctly
-        Assert.Equal("http://localhost:50051", ServiceUris.JobManagerGrpc);
-        Assert.Equal("http://localhost:8088", ServiceUris.JobManagerHttp);
+        // Verify that the secure URI generation works correctly (default)
+        Assert.Equal("https://localhost:50051", ServiceUris.JobManagerGrpc);
+        Assert.Equal("https://localhost:8088", ServiceUris.JobManagerHttp);
         Assert.Equal("localhost:9092", ServiceUris.KafkaBootstrapServers);
         Assert.Equal("localhost:6379", ServiceUris.RedisConnectionString);
-        Assert.Equal("http://localhost:40051", ServiceUris.TaskManagerGrpc());
+        Assert.Equal("https://localhost:40051", ServiceUris.TaskManagerGrpc());
+    }
+
+    [Fact]
+    public void ServiceUris_Should_Generate_Correct_Insecure_URIs_For_Development()
+    {
+        // Verify that the insecure URI generation works correctly for local development
+        Assert.Equal("http://localhost:50051", ServiceUris.Insecure.JobManagerGrpcHttp);
+        Assert.Equal("http://localhost:8088", ServiceUris.Insecure.JobManagerHttpApi);
+        Assert.Equal("http://localhost:40051", ServiceUris.Insecure.TaskManagerGrpcHttp());
     }
 
     [Fact]
     public void ServiceUris_TaskManagerGrpc_Should_Support_Custom_Port()
     {
-        // Verify that custom ports work for TaskManager
-        Assert.Equal("http://localhost:51001", ServiceUris.TaskManagerGrpc(51001));
-        Assert.Equal("http://localhost:51002", ServiceUris.TaskManagerGrpc(51002));
+        // Verify that custom ports work for TaskManager (secure version)
+        Assert.Equal("https://localhost:51001", ServiceUris.TaskManagerGrpc(51001));
+        Assert.Equal("https://localhost:51002", ServiceUris.TaskManagerGrpc(51002));
+    }
+
+    [Fact]
+    public void ServiceUris_Insecure_TaskManagerGrpc_Should_Support_Custom_Port()
+    {
+        // Verify that custom ports work for TaskManager (insecure version for development)
+        Assert.Equal("http://localhost:51001", ServiceUris.Insecure.TaskManagerGrpcHttp(51001));
+        Assert.Equal("http://localhost:51002", ServiceUris.Insecure.TaskManagerGrpcHttp(51002));
     }
 
     [Fact]

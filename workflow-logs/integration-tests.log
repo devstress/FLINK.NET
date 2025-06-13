@@ -1,0 +1,161 @@
+=== INTEGRATION TESTS WORKFLOW STARTED ===
+Installing .NET Aspire Workload...
+
+Skipping NuGet package signature verification.
+Skipping NuGet package signature verification.
+Installing workload manifest microsoft.net.workload.mono.toolchain.current version 8.0.17...
+Installing workload manifest microsoft.net.workload.emscripten.current version 8.0.17...
+Installing workload manifest microsoft.net.workload.emscripten.net6 version 8.0.17...
+Installing workload manifest microsoft.net.workload.emscripten.net7 version 8.0.17...
+Installing workload manifest microsoft.net.workload.mono.toolchain.net6 version 8.0.17...
+Installing workload manifest microsoft.net.workload.mono.toolchain.net7 version 8.0.17...
+Installing workload manifest microsoft.net.sdk.aspire version 8.2.2...
+Installing pack Aspire.Hosting.Sdk version 8.0.0-preview.1.23557.2...
+Writing workload pack installation record for Aspire.Hosting.Sdk version 8.0.0-preview.1.23557.2...
+Installing pack Aspire.ProjectTemplates version 8.0.0-preview.1.23557.2...
+Writing workload pack installation record for Aspire.ProjectTemplates version 8.0.0-preview.1.23557.2...
+Installing pack Aspire.Hosting.Orchestration.linux-x64 version 8.0.0-preview.1.23557.2...
+Writing workload pack installation record for Aspire.Hosting.Orchestration version 8.0.0-preview.1.23557.2...
+Installing pack Aspire.Hosting version 8.0.0-preview.1.23557.2...
+Writing workload pack installation record for Aspire.Hosting version 8.0.0-preview.1.23557.2...
+Garbage collecting for SDK feature band(s) 8.0.100...
+Uninstalling workload pack Aspire.Hosting version 8.0.0-preview.1.23557.2...
+Uninstalling workload pack Aspire.Hosting.Orchestration version 8.0.0-preview.1.23557.2...
+
+Successfully installed workload(s) aspire.
+
+Installing workloads: 
+
+Skipping NuGet package signature verification.
+Installing pack Aspire.Hosting.Sdk version 8.2.2...
+Writing workload pack installation record for Aspire.Hosting.Sdk version 8.2.2...
+Installing pack Aspire.ProjectTemplates version 8.2.2...
+Writing workload pack installation record for Aspire.ProjectTemplates version 8.2.2...
+Garbage collecting for SDK feature band(s) 8.0.100...
+
+Successfully installed workload(s) aspire.
+
+Installing workloads: 
+
+Skipping NuGet package signature verification.
+Installing pack Aspire.Hosting.Sdk version 8.2.2...
+Pack Aspire.Hosting.Sdk version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.Hosting.Sdk version 8.2.2...
+Installing pack Aspire.ProjectTemplates version 8.2.2...
+Pack Aspire.ProjectTemplates version 8.2.2 is already installed.
+Writing workload pack installation record for Aspire.ProjectTemplates version 8.2.2...
+Garbage collecting for SDK feature band(s) 8.0.100...
+
+Successfully installed workload(s) aspire.
+
+Building FlinkDotNet solution...
+MSBuild version 17.8.27+3ab07f0cf for .NET
+  Determining projects to restore...
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/FlinkDotNet.Storage.FileSystem.csproj (in 1.38 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/FlinkDotNet.Storage.FileSystem.Tests.csproj (in 2.07 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/FlinkDotNet.Connectors.Sinks.Console.Tests.csproj (in 674 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/FlinkDotNet.Common.Constants.csproj (in 2 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/FlinkDotNet.Common.Constants.Tests.csproj (in 3 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj (in 4.53 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/FlinkDotNet.Architecture.Tests.csproj (in 2.44 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/FlinkDotNet.JobManager.Tests.csproj (in 4.53 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/FlinkDotNet.TaskManager.csproj (in 2.44 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/FlinkDotNet.Core.csproj (in 3 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/FlinkDotNet.Connectors.Sources.File.csproj (in 8 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/FlinkDotNet.Storage.RocksDB.csproj (in 23 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/FlinkDotNet.Connectors.Sources.File.Tests.csproj (in 4 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/FlinkDotNet.Connectors.Sinks.Console.csproj (in 1 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/FlinkDotNet.Core.Tests.csproj (in 4 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/FlinkDotNet.Core.Abstractions.csproj (in 2 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/FlinkDotNet.Core.Api.csproj (in 21 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Table.Api/FlinkDotNet.Table.Api.csproj (in 135 ms).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/FlinkDotNet.Connectors.Sources.Kafka.csproj (in 816 ms).
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Release/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Release/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Connectors.Sources.Kafka -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.Kafka.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Common.Constants.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Release/net8.0/FlinkDotNet.Common.Constants.Tests.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Release/net8.0/FlinkDotNet.Core.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Storage.FileSystem.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll
+  FlinkDotNet.Connectors.Sources.File.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll
+  FlinkDotNet.Connectors.Sinks.Console.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll
+  FlinkDotNet.Core.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Release/net8.0/FlinkDotNet.Core.Tests.dll
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
+  FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Release/net8.0/FlinkDotNet.Core.Api.dll
+  FlinkDotNet.JobManager.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/bin/Release/net8.0/FlinkDotNet.JobManager.Tests.dll
+  FlinkDotNet.Table.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Table.Api/bin/Release/net8.0/FlinkDotNet.Table.Api.dll
+  FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Release/net8.0/FlinkDotNet.TaskManager.dll
+  FlinkDotNet.Architecture.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/bin/Release/net8.0/FlinkDotNet.Architecture.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:57.00
+Building FlinkDotNetAspire solution...
+MSBuild version 17.8.27+3ab07f0cf for .NET
+  Determining projects to restore...
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/IntegrationTestVerifier/IntegrationTestVerifier.csproj (in 3.71 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.ServiceDefaults/FlinkDotNetAspire.AppHost.ServiceDefaults.csproj (in 3.96 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/FlinkJobSimulator.csproj (in 4.33 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj (in 1.18 sec).
+  Restored /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj (in 4.95 sec).
+  10 of 15 projects are up-to-date for restore.
+  Unable to use package assets cache due to I/O error. This can occur when the same project is built more than once in parallel. Performance may be degraded, but the build result will not be impacted.
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Debug/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNetAspire.AppHost.ServiceDefaults -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.ServiceDefaults/bin/Release/net8.0/FlinkDotNetAspire.AppHost.ServiceDefaults.dll
+  IntegrationTestVerifier -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Debug/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Debug/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Debug/net8.0/FlinkDotNet.Core.Api.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Debug/net8.0/FlinkDotNet.Core.dll
+  FlinkJobSimulator -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll
+  FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Release/net8.0/FlinkDotNet.TaskManager.dll
+/usr/lib/dotnet/sdk/8.0.116/Microsoft.Common.CurrentVersion.targets(4911,5): warning MSB3026: Could not copy "/home/runner/.nuget/packages/librdkafka.redist/2.10.0/runtimes/linux-arm64/native/librdkafka.so" to "bin/Release/net8.0/runtimes/linux-arm64/native/librdkafka.so". Beginning retry 1 in 1000ms. The process cannot access the file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/bin/Release/net8.0/runtimes/linux-arm64/native/librdkafka.so' because it is being used by another process.  [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj]
+  FlinkDotNetAspire.AppHost.AppHost -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/bin/Release/net8.0/FlinkDotNetAspire.AppHost.AppHost.dll
+  FlinkDotNetAspire.IntegrationTests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/bin/Release/net8.0/FlinkDotNetAspire.IntegrationTests.dll
+
+Build succeeded.
+
+/usr/lib/dotnet/sdk/8.0.116/Microsoft.Common.CurrentVersion.targets(4911,5): warning MSB3026: Could not copy "/home/runner/.nuget/packages/librdkafka.redist/2.10.0/runtimes/linux-arm64/native/librdkafka.so" to "bin/Release/net8.0/runtimes/linux-arm64/native/librdkafka.so". Beginning retry 1 in 1000ms. The process cannot access the file '/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/bin/Release/net8.0/runtimes/linux-arm64/native/librdkafka.so' because it is being used by another process.  [/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:38.96
+Running Aspire integration tests...
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Release/net8.0/FlinkDotNet.Core.Abstractions.dll
+  FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Release/net8.0/FlinkDotNet.Common.Constants.dll
+  FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Release/net8.0/FlinkDotNet.Storage.RocksDB.dll
+  FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Release/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+  FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Release/net8.0/FlinkDotNet.Core.dll
+  FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Release/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+  FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Release/net8.0/FlinkDotNet.Storage.FileSystem.dll
+  FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Release/net8.0/FlinkDotNet.JobManager.dll
+  FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Release/net8.0/FlinkDotNet.Core.Api.dll
+  FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Release/net8.0/FlinkDotNet.TaskManager.dll
+  FlinkJobSimulator -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll
+  FlinkDotNetAspire.AppHost.AppHost -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/bin/Release/net8.0/FlinkDotNetAspire.AppHost.AppHost.dll
+  FlinkDotNetAspire.IntegrationTests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/bin/Release/net8.0/FlinkDotNetAspire.IntegrationTests.dll
+Test run for /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/bin/Release/net8.0/FlinkDotNetAspire.IntegrationTests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+Copyright (c) Microsoft Corporation.  All rights reserved.
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/TestResults/_fv-az1118-349_2025-06-13_20_52_26.trx
+
+Passed!  - Failed:     0, Passed:    10, Skipped:     0, Total:    10, Duration: 5 s - FlinkDotNetAspire.IntegrationTests.dll (net8.0)
+
+Attachments:
+  /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/TestResults/9f318c61-a36f-40af-bd04-f156532cfc3b/coverage.cobertura.xml
+Integration tests completed successfully.
+=== INTEGRATION TESTS WORKFLOW COMPLETED in 2.8 minutes ===

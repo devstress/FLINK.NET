@@ -1,0 +1,23 @@
+================================================================
+   Local GitHub Workflows Runner - Parallel Execution
+================================================================
+Repository: /home/runner/work/FLINK.NET/FLINK.NET
+Timestamp: Fri Jun 13 20:49:40 UTC 2025
+
+=== Checking Prerequisites ===
+✅ .NET SDK: 8.0.116
+✅ PowerShell Core: 7.4.10
+Prerequisites check completed.
+
+=== Starting Workflows in Parallel ===
+Unit Tests: workflow-logs/unit-tests.log
+SonarCloud: workflow-logs/sonarcloud.log
+Stress Tests: SKIPPED (--skip-stress or Docker unavailable)
+Integration Tests: workflow-logs/integration-tests.log
+
+Starting Unit Tests workflow...
+Starting Integration Tests workflow...
+
+All workflows started in parallel. Monitoring progress...
+Use 'tail -f workflow-logs/*.log' to follow progress in real-time.
+

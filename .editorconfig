@@ -316,4 +316,10 @@ dotnet_diagnostic.S1144.severity = warning
 # Unused method parameters should be removed (supports SRP)
 dotnet_diagnostic.S1066.severity = warning
 
+# HTTP protocol security rule - use HTTPS instead of HTTP
+dotnet_diagnostic.S5332.severity = warning
+
+# Fields should be readonly where possible
+dotnet_diagnostic.S2933.severity = warning
+
 # End of SonarAnalyzer.CSharp metric rules

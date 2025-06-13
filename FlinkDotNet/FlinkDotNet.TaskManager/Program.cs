@@ -14,7 +14,7 @@ namespace FlinkDotNet.TaskManager
         public static string TaskManagerId { get; private set; } = $"TM-{Guid.NewGuid()}";
         // Default gRPC port for TaskManager services (JobManager will call this)
         public static int GrpcPort { get; private set; } = ServicePorts.TaskManagerGrpc;
-        public static string JobManagerAddress { get; private set; } = ServiceUris.JobManagerGrpc;
+        public static string JobManagerAddress { get; private set; } = ServiceUris.Insecure.JobManagerGrpcHttp;
         public static TaskManagerCoreService? CoreServiceInstance { get; private set; }
 
 
@@ -48,7 +48,9 @@ namespace FlinkDotNet.TaskManager
 
             Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
             Console.WriteLine($"JobManager Address: {JobManagerAddress}");
+#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
             Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
+#pragma warning restore S5332
 
             var host = CreateHostBuilder(args).Build();
 

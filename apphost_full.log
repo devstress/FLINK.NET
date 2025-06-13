@@ -1,0 +1,19 @@
+warn: Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServer[8]
+      The ASP.NET Core developer certificate is not trusted. For information about trusting the ASP.NET Core developer certificate, see https://aka.ms/aspnet/https-trust-dev-cert.
+info: Aspire.Hosting.DistributedApplication[0]
+      Aspire version: 9.3.1+5bc26c78ff8c7be825d0ae33633a1ae9f1d64a67
+info: Aspire.Hosting.DistributedApplication[0]
+      Distributed application starting.
+info: Aspire.Hosting.DistributedApplication[0]
+      Application host directory is: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+info: Aspire.Hosting.DistributedApplication[0]
+      Now listening on: https://localhost:17184
+info: Aspire.Hosting.DistributedApplication[0]
+      Login to the dashboard at https://localhost:17184/login?t=519e6508fda289d26467dbdee0269251
+info: Aspire.Hosting.DistributedApplication[0]
+      Distributed application started. Press Ctrl+C to shut down.
+%6|1749808250.121|FAIL|rdkafka#producer-1| [thrd:localhost:46225/bootstrap]: localhost:46225/bootstrap: Disconnected while requesting ApiVersion: might be caused by incorrect security.protocol configuration (connecting to a SSL listener?) or broker version is < 0.10 (see api.version.request) (after 33ms in state APIVERSION_QUERY)
+%3|1749808250.121|ERROR|rdkafka#producer-1| [thrd:localhost:46225/bootstrap]: 1/1 brokers are down
+%3|1749808250.134|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: localhost:46225/bootstrap: Disconnected while requesting ApiVersion: might be caused by incorrect security.protocol configuration (connecting to a SSL listener?) or broker version is < 0.10 (see api.version.request) (after 33ms in state APIVERSION_QUERY)
+%6|1749808250.326|FAIL|rdkafka#producer-1| [thrd:localhost:46225/bootstrap]: localhost:46225/bootstrap: Disconnected while requesting ApiVersion: might be caused by incorrect security.protocol configuration (connecting to a SSL listener?) or broker version is < 0.10 (see api.version.request) (after 0ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)
+%3|1749808250.327|ERROR|rdkafka#producer-1| [thrd:app]: rdkafka#producer-1: localhost:46225/bootstrap: Disconnected while requesting ApiVersion: might be caused by incorrect security.protocol configuration (connecting to a SSL listener?) or broker version is < 0.10 (see api.version.request) (after 0ms in state APIVERSION_QUERY, 1 identical error(s) suppressed)

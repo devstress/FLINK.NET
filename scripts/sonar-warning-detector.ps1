@@ -106,6 +106,55 @@ $SonarWarningPatterns = @{
         Severity = "Info"
         AutoFix = $true
     }
+    "CS8602" = @{
+        Pattern = "Dereference of a possibly null reference"
+        Description = "Nullable reference warning"
+        Category = "Compiler Warning"
+        Severity = "Major"
+        AutoFix = $true
+    }
+    "S2933" = @{
+        Pattern = "Make '.*?' 'readonly'"
+        Description = "Make field readonly"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
+    "S1172" = @{
+        Pattern = "Remove this unused method parameter '.*?'"
+        Description = "Unused method parameter"
+        Category = "Code Smells"
+        Severity = "Major"
+        AutoFix = $true
+    }
+    "CS1998" = @{
+        Pattern = "This async method lacks 'await' operators and will run synchronously"
+        Description = "Async method lacks await operators"
+        Category = "Compiler Warning"
+        Severity = "Major"
+        AutoFix = $true
+    }
+    "S3260" = @{
+        Pattern = "Private classes which are not derived in the current assembly should be marked as 'sealed'"
+        Description = "Private classes should be sealed"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
+    "S2325" = @{
+        Pattern = "Make '.*?' a static property"
+        Description = "Property should be static"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
+    "S3626" = @{
+        Pattern = "Remove this redundant jump"
+        Description = "Redundant jump statement"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
 }
 
 function Write-Log {
@@ -140,9 +189,9 @@ function Invoke-CleanBuild {
         return $null
     }
     
-    # Build with full verbosity to catch all warnings
-    Write-Log "Building with full verbosity..." "DEBUG"
-    $buildOutput = dotnet build $SolutionPath --no-incremental --verbosity normal 2>&1
+    # Build with Release configuration to match CI exactly
+    Write-Log "Building with Release configuration to match CI..." "DEBUG"
+    $buildOutput = dotnet build $SolutionPath --no-incremental --verbosity normal --configuration Release --no-restore 2>&1
     
     return $buildOutput
 }
@@ -277,28 +326,63 @@ function Update-EnforcementRules {
         Write-Log "❌ ENFORCEMENT UPDATE: Found $($DetectedWarnings.Count) warnings that must be fixed" "ERROR"
         Write-Log "📋 Adding detected warning patterns to enforcement framework" "INFO"
         
-        # Update the actual warning count in enforcement rules
-        $currentContent = Get-Content $enforcementFile -Raw
-        $updatedContent = $currentContent -replace "CURRENTLY \d+ WARNINGS", "CURRENTLY $($DetectedWarnings.Count) WARNINGS"
-        Set-Content $enforcementFile -Value $updatedContent
-        
-        Write-Log "✅ Enforcement rules updated with current warning state" "INFO"
+        # Update the actual warning count in enforcement rules if file exists
+        if (Test-Path $enforcementFile) {
+            $currentContent = Get-Content $enforcementFile -Raw
+            $updatedContent = $currentContent -replace "CURRENTLY \d+ WARNINGS", "CURRENTLY $($DetectedWarnings.Count) WARNINGS"
+            Set-Content $enforcementFile -Value $updatedContent
+            Write-Log "✅ Enforcement rules updated with current warning state" "INFO"
+        } else {
+            Write-Log "⚠️  Enforcement file not found: $enforcementFile" "WARN"
+        }
     } else {
         Write-Log "✅ No warnings detected - enforcement rules are accurate" "INFO"
     }
 }
 
 # Main execution
+function Test-UnitTests {
+    param($SolutionPath)
+    
+    Write-Log "🧪 Running unit tests for: $SolutionPath" "INFO"
+    
+    $testOutput = dotnet test $SolutionPath --configuration Release --verbosity normal 2>&1
+    $testFailed = $LASTEXITCODE -ne 0
+    
+    if ($testFailed) {
+        Write-Log "❌ Unit tests FAILED for $SolutionPath" "ERROR"
+        Write-Log "📋 Test output:" "DEBUG"
+        foreach ($line in $testOutput) {
+            if ($line -match "Failed|Error Message|Stack Trace") {
+                Write-Log "  $line" "ERROR"
+            }
+        }
+        return $false
+    } else {
+        Write-Log "✅ Unit tests PASSED for $SolutionPath" "INFO"
+        return $true
+    }
+}
+
 function Main {
     try {
         Initialize-WarningDetection
         
         $allWarnings = @()
+        $allTestsPassed = $true
         
         foreach ($solution in $Solutions) {
             if (Test-Path $solution) {
                 Write-Log "🔍 Analyzing solution: $solution" "INFO"
                 
+                # First run unit tests to catch test failures
+                $testsPassed = Test-UnitTests $solution
+                if (-not $testsPassed) {
+                    $allTestsPassed = $false
+                    Write-Log "⚠️  Unit tests failed in $solution" "ERROR"
+                }
+                
+                # Then run build analysis for warnings
                 $buildOutput = Invoke-CleanBuild $solution
                 if ($buildOutput) {
                     $warnings = Parse-SonarWarnings $buildOutput
@@ -326,13 +410,18 @@ function Main {
         Update-EnforcementRules $allWarnings
         
         # Final summary
-        if ($allWarnings.Count -eq 0) {
-            Write-Log "🎉 SUCCESS: No SonarCloud warnings detected!" "INFO"
+        if ($allWarnings.Count -eq 0 -and $allTestsPassed) {
+            Write-Log "🎉 SUCCESS: No SonarCloud warnings detected and all unit tests passed!" "INFO"
             Write-Log "✅ Local environment fully aligned with CI requirements" "INFO"
             exit 0
         } else {
-            Write-Log "❌ FAILURE: $($allWarnings.Count) SonarCloud warnings must be fixed" "ERROR"
-            Write-Log "🔧 Use -FixWarnings flag to attempt automatic resolution" "ERROR"
+            if ($allWarnings.Count -gt 0) {
+                Write-Log "❌ FAILURE: $($allWarnings.Count) SonarCloud warnings must be fixed" "ERROR"
+            }
+            if (-not $allTestsPassed) {
+                Write-Log "❌ FAILURE: Unit tests are failing and must be fixed" "ERROR"
+            }
+            Write-Log "🔧 Use -FixWarnings flag to attempt automatic resolution of warnings" "ERROR"
             exit 1
         }
         
