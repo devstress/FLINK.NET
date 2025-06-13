@@ -130,17 +130,26 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
     {
         if (_messagesSentSinceLastBarrier >= MessagesPerBarrier)
         {
-            long checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
-            if (checkpointIdToInject == 0)
+            try
             {
-                checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
-            }
+                long checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
+                if (checkpointIdToInject == 0)
+                {
+                    checkpointIdToInject = Interlocked.Increment(ref _nextCheckpointId) - 1;
+                }
 
-            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            string barrierMessage = $"BARRIER_{checkpointIdToInject}_{timestamp}";
-            Console.WriteLine($"[{_taskName}] Injecting Barrier: {barrierMessage}");
-            ctx.Collect(barrierMessage);
-            _messagesSentSinceLastBarrier = 0;
+                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                string barrierMessage = $"BARRIER_{checkpointIdToInject}_{timestamp}";
+                Console.WriteLine($"[{_taskName}] Injecting Barrier: {barrierMessage}");
+                ctx.Collect(barrierMessage);
+                _messagesSentSinceLastBarrier = 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] ERROR during barrier injection: {ex.GetType().Name} - {ex.Message}");
+                Console.WriteLine($"[{_taskName}] Barrier injection stack trace: {ex.StackTrace}");
+                // Don't rethrow - continue with message processing
+            }
         }
     }
 
@@ -166,8 +175,14 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
         {
             if (!_isRunning || cancellationToken.IsCancellationRequested)
             {
-                Console.WriteLine($"[{_taskName}] Emission cancelled after {emittedCount} messages.");
+                Console.WriteLine($"[{_taskName}] Emission cancelled after {emittedCount} messages. Loop index: {i}, _isRunning: {_isRunning}, cancellationRequested: {cancellationToken.IsCancellationRequested}");
                 break;
+            }
+
+            // Add progress tracking for the final messages
+            if (i >= _numberOfMessagesToGenerate - 10)
+            {
+                Console.WriteLine($"[{_taskName}] Processing message {i+1}/{_numberOfMessagesToGenerate} (emitted so far: {emittedCount})");
             }
 
             InjectBarrierIfNeeded(ctx);
@@ -181,11 +196,22 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[{_taskName}] ERROR during message emission or Redis INCR: {ex.Message}. Stopping source.");
+                Console.WriteLine($"[{_taskName}] ERROR during message emission or Redis INCR at iteration {i} (emitted count: {emittedCount}):");
+                Console.WriteLine($"[{_taskName}] Exception Type: {ex.GetType().Name}");
+                Console.WriteLine($"[{_taskName}] Exception Message: {ex.Message}");
+                Console.WriteLine($"[{_taskName}] Stack Trace: {ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"[{_taskName}] Inner Exception: {ex.InnerException.GetType().Name} - {ex.InnerException.Message}");
+                }
+                Console.WriteLine($"[{_taskName}] Stopping source due to error.");
                 _isRunning = false;
                 break;
             }
         }
+        
+        Console.WriteLine($"[{_taskName}] Main emission loop completed. Final emittedCount: {emittedCount}, target: {_numberOfMessagesToGenerate}");
+        
         // Send one final barrier after all data messages (optional, but good for some checkpointing models)
         if (_isRunning && emittedCount > 0)
         {
