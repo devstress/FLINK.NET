@@ -68,7 +68,6 @@ jobs:
           Pop-Location
 
       - name: Start Aspire AppHost
-      - name: Start Aspire AppHost
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
