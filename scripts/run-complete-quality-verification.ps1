@@ -1,41 +1,36 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Complete quality verification script that enforces all code quality requirements.
+    Simplified quality verification script using run-all-workflows as the single source of truth.
 
 .DESCRIPTION
-    This script demonstrates the complete quality verification process that must be 
-    followed before any code submission. It includes:
+    This script provides a simplified quality verification process that delegates to
+    the run-all-workflows scripts. This ensures 100% alignment with CI workflows
+    and eliminates duplicate enforcement logic.
     
-    1. Clean build verification with warning detection
-    2. All test suite execution (unit, integration, architecture)
-    3. Stress test verification with local/CI alignment
-    4. Final quality gates with zero-tolerance enforcement
+    The verification process includes:
+    1. Workflow synchronization validation  
+    2. Run all workflows execution (unit tests, SonarCloud, stress tests, integration tests)
+    3. Git status verification
     
-    This serves as the reference implementation for the quality rules established
-    in INSTRUCTIONS.md and .copilot/quality-rules.md
-
-.PARAMETER SkipStressTests
-    Skip stress test execution (not recommended for final verification)
+    This serves as the reference implementation for the simplified quality rules.
 
 .EXAMPLE
     ./scripts/run-complete-quality-verification.ps1
-    Runs complete quality verification process.
+    Runs simplified quality verification process.
 #>
 
-param(
-    [switch]$SkipStressTests
-)
+param()
 
 $ErrorActionPreference = 'Stop'
 $StartTime = Get-Date
 
-Write-Host "=== FlinkDotNet Complete Quality Verification ===" -ForegroundColor Cyan
+Write-Host "=== FlinkDotNet Simplified Quality Verification ===" -ForegroundColor Cyan
 Write-Host "Started at: $($StartTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -ForegroundColor White
-Write-Host "Zero-tolerance quality enforcement in effect!" -ForegroundColor Yellow
+Write-Host "Using run-all-workflows as single source of truth!" -ForegroundColor Yellow
 
 $VerificationResults = @()
-$TotalSteps = 6
+$TotalSteps = 3
 $CurrentStep = 0
 
 function Step-Complete {
@@ -56,7 +51,7 @@ function Step-Complete {
     }
     
     if (-not $Success) {
-        Write-Host "`n❌ QUALITY GATE FAILURE - Zero tolerance policy violated!" -ForegroundColor Red
+        Write-Host "`n❌ QUALITY GATE FAILURE - Simplified enforcement violated!" -ForegroundColor Red
         Write-Host "Fix the issues above before proceeding." -ForegroundColor Red
         Show-Summary
         exit 1
@@ -82,127 +77,49 @@ function Show-Summary {
 }
 
 try {
-    # Step 1: Clean Build Verification (CRITICAL)
-    Write-Host "`n=== Step 1: Clean Build Verification ===" -ForegroundColor Yellow
-    Write-Host "CRITICAL: Using clean builds to avoid caching issues..." -ForegroundColor Yellow
+    # Step 1: Workflow Synchronization Validation
+    Write-Host "`n=== Step 1: Workflow Synchronization Validation ===" -ForegroundColor Yellow
+    Write-Host "Ensuring run-all-workflows files are synchronized with GitHub workflows..." -ForegroundColor White
     
-    $solutions = @(
-        "FlinkDotNet/FlinkDotNet.sln",
-        "FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln",
-        "FlinkDotNetAspire/FlinkDotNetAspire.sln"
-    )
+    $syncOutput = & ./scripts/validate-workflow-sync.ps1 2>&1
+    $syncExitCode = $LASTEXITCODE
     
-    $totalWarnings = 0
-    $totalErrors = 0
-    
-    foreach ($solution in $solutions) {
-        Write-Host "Cleaning and building $solution..." -ForegroundColor White
-        
-        # Clean
-        dotnet clean $solution | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Step-Complete "Clean Build Verification" $false "Failed to clean $solution"
-        }
-        
-        # Build with warning detection
-        $buildOutput = dotnet build $solution --verbosity normal 2>&1
-        $exitCode = $LASTEXITCODE
-        
-        if ($exitCode -ne 0) {
-            Step-Complete "Clean Build Verification" $false "Build failed for $solution with exit code $exitCode"
-        }
-        
-        # Extract warning and error counts
-        $warningMatch = $buildOutput | Select-String "(\d+) Warning\(s\)" | Select-Object -Last 1
-        $errorMatch = $buildOutput | Select-String "(\d+) Error\(s\)" | Select-Object -Last 1
-        
-        if ($warningMatch) {
-            $warnings = [int]$warningMatch.Matches[0].Groups[1].Value
-            $totalWarnings += $warnings
-            Write-Host "  $solution: $warnings warnings" -ForegroundColor $(if ($warnings -eq 0) { "Green" } else { "Red" })
-        }
-        
-        if ($errorMatch) {
-            $errors = [int]$errorMatch.Matches[0].Groups[1].Value
-            $totalErrors += $errors
-            Write-Host "  $solution: $errors errors" -ForegroundColor $(if ($errors -eq 0) { "Green" } else { "Red" })
-        }
-    }
-    
-    if ($totalWarnings -gt 0 -or $totalErrors -gt 0) {
-        Step-Complete "Clean Build Verification" $false "Total: $totalWarnings warnings, $totalErrors errors (MUST be 0)"
+    if ($syncExitCode -eq 0) {
+        Step-Complete "Workflow Synchronization" $true "run-all-workflows files are synchronized with GitHub workflows"
     } else {
-        Step-Complete "Clean Build Verification" $true "All solutions: 0 warnings, 0 errors"
+        Step-Complete "Workflow Synchronization" $false "Synchronization validation failed - check ./scripts/validate-workflow-sync.ps1 output"
     }
 
-    # Step 2: Unit Tests
-    Write-Host "`n=== Step 2: Unit Test Execution ===" -ForegroundColor Yellow
+    # Step 2: Run All Workflows Execution
+    Write-Host "`n=== Step 2: Run All Workflows Execution ===" -ForegroundColor Yellow
+    Write-Host "Executing complete workflow suite (Unit Tests + SonarCloud + Stress Tests + Integration Tests)..." -ForegroundColor White
     
-    $testOutput = dotnet test FlinkDotNet/FlinkDotNet.sln --verbosity minimal --logger "console;verbosity=minimal" 2>&1
-    $testExitCode = $LASTEXITCODE
-    
-    if ($testExitCode -ne 0) {
-        Step-Complete "Unit Tests" $false "Unit tests failed with exit code $testExitCode"
+    # Detect platform and run appropriate script
+    if ($IsWindows -or $env:OS -eq "Windows_NT") {
+        Write-Host "Running Windows version: run-all-workflows.cmd" -ForegroundColor Gray
+        $workflowOutput = & cmd /c "run-all-workflows.cmd" 2>&1
+        $workflowExitCode = $LASTEXITCODE
+    } else {
+        Write-Host "Running Linux version: ./run-all-workflows.sh" -ForegroundColor Gray
+        $workflowOutput = & ./run-all-workflows.sh 2>&1
+        $workflowExitCode = $LASTEXITCODE
     }
     
-    # Parse test results
-    $passedMatch = $testOutput | Select-String "Passed:\s*(\d+)" | Select-Object -Last 1
-    $failedMatch = $testOutput | Select-String "Failed:\s*(\d+)" | Select-Object -Last 1
-    $skippedMatch = $testOutput | Select-String "Skipped:\s*(\d+)" | Select-Object -Last 1
-    
-    $passed = if ($passedMatch) { [int]$passedMatch.Matches[0].Groups[1].Value } else { 0 }
-    $failed = if ($failedMatch) { [int]$failedMatch.Matches[0].Groups[1].Value } else { 0 }
-    $skipped = if ($skippedMatch) { [int]$skippedMatch.Matches[0].Groups[1].Value } else { 0 }
-    
-    if ($failed -gt 0) {
-        Step-Complete "Unit Tests" $false "Failed: $failed, Passed: $passed, Skipped: $skipped"
+    if ($workflowExitCode -eq 0) {
+        Step-Complete "Run All Workflows" $true "All 4 workflows completed successfully"
     } else {
-        Step-Complete "Unit Tests" $true "Passed: $passed, Failed: $failed, Skipped: $skipped"
-    }
-
-    # Step 3: Integration Tests
-    Write-Host "`n=== Step 3: Integration Test Execution ===" -ForegroundColor Yellow
-    
-    $integrationTestOutput = dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --verbosity minimal --logger "console;verbosity=minimal" 2>&1
-    $integrationExitCode = $LASTEXITCODE
-    
-    if ($integrationExitCode -ne 0) {
-        Step-Complete "Integration Tests" $false "Integration tests failed with exit code $integrationExitCode"
-    } else {
-        Step-Complete "Integration Tests" $true "All integration tests passed"
-    }
-
-    # Step 4: Stress Test Verification (if not skipped)
-    if ($SkipStressTests) {
-        Write-Host "`n=== Step 4: Stress Test Verification (SKIPPED) ===" -ForegroundColor Yellow
-        Write-Host "⚠️ Stress tests skipped - not recommended for final verification" -ForegroundColor Yellow
-        Step-Complete "Stress Test Verification" $true "Skipped by request"
-    } else {
-        Write-Host "`n=== Step 4: Stress Test Verification ===" -ForegroundColor Yellow
-        Write-Host "Verifying local stress tests match CI workflow..." -ForegroundColor White
-        
-        # First verify alignment
-        $alignmentOutput = pwsh ./scripts/test-local-stress-workflow-alignment.ps1 2>&1
-        $alignmentExitCode = $LASTEXITCODE
-        
-        if ($alignmentExitCode -ne 0) {
-            Step-Complete "Stress Test Verification" $false "Local/CI workflow alignment failed"
-        }
-        
-        # Then run actual stress tests
-        Write-Host "Running local stress test verification..." -ForegroundColor White
-        $stressOutput = pwsh ./scripts/run-local-stress-tests.ps1 2>&1
-        $stressExitCode = $LASTEXITCODE
-        
-        if ($stressExitCode -ne 0) {
-            Step-Complete "Stress Test Verification" $false "Local stress tests failed"
+        # Show some output for debugging
+        if ($workflowOutput) {
+            $lastLines = $workflowOutput | Select-Object -Last 10
+            $outputSummary = $lastLines -join "; "
+            Step-Complete "Run All Workflows" $false "Workflow execution failed (exit code: $workflowExitCode) - Last output: $outputSummary"
         } else {
-            Step-Complete "Stress Test Verification" $true "Local verification matches CI workflow"
+            Step-Complete "Run All Workflows" $false "Workflow execution failed (exit code: $workflowExitCode)"
         }
     }
 
-    # Step 5: Git Status Verification
-    Write-Host "`n=== Step 5: Git Status Verification ===" -ForegroundColor Yellow
+    # Step 3: Git Status Verification
+    Write-Host "`n=== Step 3: Git Status Verification ===" -ForegroundColor Yellow
     
     $gitStatus = git status --porcelain
     if ($gitStatus) {
@@ -214,61 +131,9 @@ try {
         Step-Complete "Git Status Verification" $true "Working directory clean"
     }
 
-    # Step 6: Final Quality Gates
-    Write-Host "`n=== Step 6: Final Quality Gates ===" -ForegroundColor Yellow
-    
-    $allGatesPassed = $true
-    $gateResults = @()
-    
-    # Gate 1: Zero Warnings
-    if ($totalWarnings -eq 0) {
-        $gateResults += "✅ Zero warnings across all solutions"
-    } else {
-        $gateResults += "❌ $totalWarnings warnings detected"
-        $allGatesPassed = $false
-    }
-    
-    # Gate 2: Zero Errors  
-    if ($totalErrors -eq 0) {
-        $gateResults += "✅ Zero errors across all solutions"
-    } else {
-        $gateResults += "❌ $totalErrors errors detected"
-        $allGatesPassed = $false
-    }
-    
-    # Gate 3: All Tests Pass
-    if ($failed -eq 0 -and $integrationExitCode -eq 0) {
-        $gateResults += "✅ All tests passing"
-    } else {
-        $gateResults += "❌ Test failures detected"
-        $allGatesPassed = $false
-    }
-    
-    # Gate 4: Stress Tests (if not skipped)
-    if (-not $SkipStressTests) {
-        if ($stressExitCode -eq 0) {
-            $gateResults += "✅ Stress tests verified"
-        } else {
-            $gateResults += "❌ Stress test failures"
-            $allGatesPassed = $false
-        }
-    } else {
-        $gateResults += "⚠️  Stress tests skipped"
-    }
-    
-    foreach ($result in $gateResults) {
-        Write-Host "  $result" -ForegroundColor $(if ($result.StartsWith("✅")) { "Green" } elseif ($result.StartsWith("❌")) { "Red" } else { "Yellow" })
-    }
-    
-    if ($allGatesPassed) {
-        Step-Complete "Final Quality Gates" $true "All quality gates passed"
-    } else {
-        Step-Complete "Final Quality Gates" $false "Quality gate violations detected"
-    }
-
     # Success!
-    Write-Host "`n🎉 COMPLETE QUALITY VERIFICATION PASSED! 🎉" -ForegroundColor Green
-    Write-Host "All zero-tolerance quality requirements met." -ForegroundColor Green
+    Write-Host "`n🎉 SIMPLIFIED QUALITY VERIFICATION PASSED! 🎉" -ForegroundColor Green
+    Write-Host "All quality requirements met via run-all-workflows execution." -ForegroundColor Green
     Write-Host "Code is ready for submission." -ForegroundColor Green
     
 } catch {
@@ -281,3 +146,9 @@ try {
 $EndTime = Get-Date
 Write-Host "`nCompleted at: $($EndTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -ForegroundColor White
 Write-Host "Total Duration: $(($EndTime - $StartTime).ToString('mm\:ss'))" -ForegroundColor White
+Write-Host ""
+Write-Host "=== Quality Verification Approach ===" -ForegroundColor Cyan
+Write-Host "✅ Simplified enforcement using run-all-workflows as single source of truth" -ForegroundColor Green
+Write-Host "✅ 100% alignment with CI workflows via direct replication" -ForegroundColor Green  
+Write-Host "✅ No duplicate enforcement logic - workflows handle all validation" -ForegroundColor Green
+Write-Host "✅ Automatic synchronization validation prevents drift" -ForegroundColor Green
