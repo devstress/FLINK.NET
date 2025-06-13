@@ -4,3 +4,6 @@
 [2025-06-13 21:17:36] [INFO] 🧹 Performing clean build for: FlinkDotNet/FlinkDotNet.sln
 [2025-06-13 21:17:36] [DEBUG] Cleaning solution...
 [2025-06-13 21:17:39] [DEBUG] Building with Release configuration to match CI...
+[2025-06-13 21:17:57] [WARN] ⚠️  Found 0 warnings in FlinkDotNet/FlinkDotNet.sln
+[2025-06-13 21:17:57] [INFO] 🔍 Analyzing solution: FlinkDotNetAspire/FlinkDotNetAspire.sln
+[2025-06-13 21:17:57] [INFO] 🧪 Running unit tests for: FlinkDotNetAspire/FlinkDotNetAspire.sln
