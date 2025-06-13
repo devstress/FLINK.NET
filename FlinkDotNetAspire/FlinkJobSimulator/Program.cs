@@ -569,7 +569,7 @@ public static class Program
         return env;
     }
 
-    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string jobManagerGrpcUrl)
+    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string jobManagerGrpcUrl, IDatabase redisDatabase)
     {
         Console.WriteLine("Building JobGraph...");
         JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
@@ -590,16 +590,41 @@ public static class Program
 
         // Execute the job
         Console.WriteLine("Executing job using LocalStreamExecutor for Apache Flink 2.0 compatibility...");
+        var jobExecutionSuccess = false;
         try 
         {
             await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
             Console.WriteLine("Job execution completed successfully using LocalStreamExecutor.");
+            jobExecutionSuccess = true;
         }
         catch (Exception jobEx)
         {
+            Console.WriteLine($"=== JOB EXECUTION ERROR DETECTED ===");
             Console.WriteLine($"Job execution failed: {jobEx.Message}");
-            Console.WriteLine(jobEx.StackTrace);
-            Console.WriteLine("Continuing despite job execution error - integration verifier will check results.");
+            Console.WriteLine($"Exception Type: {jobEx.GetType().Name}");
+            Console.WriteLine($"Stack Trace: {jobEx.StackTrace}");
+            if (jobEx.InnerException != null)
+            {
+                Console.WriteLine($"Inner Exception: {jobEx.InnerException.GetType().Name} - {jobEx.InnerException.Message}");
+                Console.WriteLine($"Inner Stack Trace: {jobEx.InnerException.StackTrace}");
+            }
+            Console.WriteLine("=== CRITICAL: Job execution failed - this explains why sinks are not processing ===");
+            
+            // Instead of crashing, mark Redis with a special error indicator
+            try
+            {
+                await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"{jobEx.GetType().Name}: {jobEx.Message}");
+                Console.WriteLine("Marked Redis with job execution error indicator");
+            }
+            catch (Exception redisEx)
+            {
+                Console.WriteLine($"Failed to mark Redis with error: {redisEx.Message}");
+            }
+        }
+        
+        if (!jobExecutionSuccess)
+        {
+            Console.WriteLine("Job execution failed - integration verification will show no sink processing");
         }
     }
 
@@ -653,7 +678,7 @@ public static class Program
             
             Console.WriteLine("Starting job execution...");
             var jobStartTime = DateTime.UtcNow;
-            await ExecuteJob(env, numMessages, jobManagerGrpcUrl);
+            await ExecuteJob(env, numMessages, jobManagerGrpcUrl, redisDatabase);
             var jobDuration = DateTime.UtcNow - jobStartTime;
             Console.WriteLine($"Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
         }

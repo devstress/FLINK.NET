@@ -304,6 +304,18 @@ namespace IntegrationTestVerifier
                 Console.WriteLine("   ✅ Successfully connected to Redis.");
                 IDatabase db = redis.GetDatabase();
 
+                // Check for job execution error indicator first
+                var jobErrorKey = "flinkdotnet:job_execution_error";
+                RedisValue jobError = await db.StringGetAsync(jobErrorKey);
+                if (jobError.HasValue)
+                {
+                    Console.WriteLine($"\n   🚨 JOB EXECUTION ERROR DETECTED:");
+                    Console.WriteLine($"      Error: {jobError}");
+                    Console.WriteLine($"      This explains why sinks are not processing messages.");
+                    Console.WriteLine($"      Clearing error indicator for next test...");
+                    await db.KeyDeleteAsync(jobErrorKey);
+                }
+
                 async Task<bool> CheckRedisKey(string keyName, string description, string testStep) {
                     Console.WriteLine($"\n   🔍 {testStep}: Checking {description}");
                     Console.WriteLine($"      📌 GIVEN: Redis key '{keyName}' should exist");

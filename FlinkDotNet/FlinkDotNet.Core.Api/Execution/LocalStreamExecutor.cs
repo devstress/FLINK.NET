@@ -370,7 +370,7 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            const int maxNoDataIterations = 30000; // Exit after 5 minutes of no data (30000 * 10ms)
+            const int maxNoDataIterations = 300000; // Exit after ~30 minutes of no data (300000 * 5ms)
             
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -381,14 +381,20 @@ namespace FlinkDotNet.Core.Api.Execution
                     noDataCount++;
                     if (noDataCount >= maxNoDataIterations)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available after 5 minutes)");
+                        Console.WriteLine($"[LocalStreamExecutor] Sink stopping after processing {processed} records (no more data available after 30 minutes)");
                         break;
                     }
-                    await Task.Delay(10, cancellationToken); // Small delay when no data
+                    await Task.Delay(5, cancellationToken); // Reduced delay for better responsiveness
                 }
                 else
                 {
                     noDataCount = 0; // Reset counter when data is found
+                    
+                    // Log progress more frequently for debugging
+                    if (processed % 1000 == 0 && processed > 0)
+                    {
+                        Console.WriteLine($"[LocalStreamExecutor] Sink processed {processed} records so far");
+                    }
                 }
             }
             
@@ -431,7 +437,7 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            const int maxNoDataIterations = 30000; // Exit after 5 minutes of no data (30000 * 10ms)
+            const int maxNoDataIterations = 300000; // Exit after ~30 minutes of no data (300000 * 5ms)
             
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -442,14 +448,20 @@ namespace FlinkDotNet.Core.Api.Execution
                     noDataCount++;
                     if (noDataCount >= maxNoDataIterations)
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 5 minutes)");
+                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 30 minutes)");
                         break;
                     }
-                    await Task.Delay(10, cancellationToken); // Small delay when no data
+                    await Task.Delay(5, cancellationToken); // Reduced delay for better responsiveness
                 }
                 else
                 {
                     noDataCount = 0; // Reset counter when data is found
+                    
+                    // Log progress more frequently for debugging
+                    if (processed % 1000 == 0 && processed > 0)
+                    {
+                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records so far");
+                    }
                 }
             }
             
