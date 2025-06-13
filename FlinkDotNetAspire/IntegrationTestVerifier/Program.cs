@@ -10,6 +10,7 @@ namespace IntegrationTestVerifier
     using System.Threading;
     using System.Threading.Tasks;
     using System.Text.RegularExpressions;
+    using System.Net.Sockets;
     using Confluent.Kafka;
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
@@ -62,6 +63,21 @@ namespace IntegrationTestVerifier
             var redisConnectionString = config["DOTNET_REDIS_URL"];
             var kafkaBootstrapServers = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
 
+            // Basic port connectivity check similar to workflow logic
+            static bool CheckPort(string host, int port)
+            {
+                try
+                {
+                    using var client = new TcpClient();
+                    var task = client.ConnectAsync(host, port);
+                    return task.Wait(TimeSpan.FromSeconds(3)) && client.Connected;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
             if (string.IsNullOrEmpty(redisConnectionString))
             {
                 redisConnectionString = ServiceUris.RedisConnectionString;
@@ -70,6 +86,16 @@ namespace IntegrationTestVerifier
             else
             {
                 Console.WriteLine($"✓ Redis connection string found in env: {redisConnectionString}");
+            }
+
+            if (!string.IsNullOrEmpty(redisConnectionString) && redisConnectionString.Contains(':'))
+            {
+                var portPart = redisConnectionString.Split(':')[1];
+                if (int.TryParse(portPart, out var port))
+                {
+                    Console.WriteLine($"Checking localhost:{port} reachable...");
+                    Console.WriteLine(CheckPort("localhost", port) ? "✓ Port reachable" : "✗ Port unreachable");
+                }
             }
             
             if (string.IsNullOrEmpty(kafkaBootstrapServers))
@@ -80,6 +106,16 @@ namespace IntegrationTestVerifier
             else
             {
                 Console.WriteLine($"✓ Kafka bootstrap servers found in env: {kafkaBootstrapServers}");
+            }
+
+            if (!string.IsNullOrEmpty(kafkaBootstrapServers) && kafkaBootstrapServers.Contains(':'))
+            {
+                var portPart = kafkaBootstrapServers.Split(':')[1];
+                if (int.TryParse(portPart, out var port))
+                {
+                    Console.WriteLine($"Checking localhost:{port} reachable...");
+                    Console.WriteLine(CheckPort("localhost", port) ? "✓ Port reachable" : "✗ Port unreachable");
+                }
             }
 
             // Redis Health Check

@@ -1,5 +1,5 @@
 using FlinkDotNet.Core.Abstractions.Serializers; // For ITypeSerializer
-using FlinkDotNet.Core.Api.Streaming; // For StreamExecutionEnvironment 
+
 using FlinkDotNet.Core.Abstractions.Windowing; // For Window, Trigger
 
 namespace FlinkDotNet.Core.Api.Windowing
@@ -49,7 +49,7 @@ namespace FlinkDotNet.Core.Api.Windowing
         /// This trigger is used if no custom trigger is specified on the <see cref="WindowedStream{TElement, TKey, TWindow}"/>.
         /// </summary>
         /// <param name="environment">The stream execution environment.</param>
-        Trigger<TElement, TWindow> GetDefaultTrigger(StreamExecutionEnvironment environment);
+        Trigger<TElement, TWindow> GetDefaultTrigger(FlinkDotNet.Core.Api.StreamExecutionEnvironment environment);
 
         /// <summary>
         /// Returns an <see cref="ITypeSerializer{TWindow}"/> for serializing windows of type <c>TWindow</c>.
