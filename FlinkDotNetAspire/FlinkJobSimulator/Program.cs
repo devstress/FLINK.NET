@@ -629,7 +629,7 @@ public static class Program
             
             try
             {
-                await ExecuteJobDirectly(numMessages, redisDatabase);
+                ExecuteJobDirectly(numMessages, redisDatabase);
                 Console.WriteLine("Direct execution completed successfully");
             }
             catch (Exception directEx)
@@ -640,7 +640,7 @@ public static class Program
         }
     }
 
-    private static async Task ExecuteJobDirectly(long numMessages, IDatabase redisDatabase)
+    private static void ExecuteJobDirectly(long numMessages, IDatabase redisDatabase)
     {
         Console.WriteLine($"=== DIRECT EXECUTION: Processing {numMessages} messages ===");
         
@@ -696,7 +696,7 @@ public static class Program
     }
 
     // Simple implementations for direct execution
-    private class DirectSourceContext : ISourceContext<string>
+    private sealed class DirectSourceContext : ISourceContext<string>
     {
         private readonly List<string> _messages;
         
@@ -727,25 +727,13 @@ public static class Program
             return Task.CompletedTask;
         }
         
-        public void EmitWatermark(Watermark mark) { }
-        
-        public void MarkAsTemporarilyIdle() { }
-        
-        public object GetCheckpointLock() => new object();
-        
-        public void Close() { }
+        public void EmitWatermark(Watermark watermark) { }
         
         public long ProcessingTime => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
     
-    private class DirectSinkContext : ISinkContext
+    private sealed class DirectSinkContext : ISinkContext
     {
-        public long ProcessingTime => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        
-        public long CurrentWatermark => long.MinValue;
-        
-        public long Timestamp => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        
         public long CurrentProcessingTimeMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 

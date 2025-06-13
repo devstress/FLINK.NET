@@ -293,7 +293,6 @@ namespace IntegrationTestVerifier
         {
             Console.WriteLine($"🔗 Connecting to Redis ({connectionString})...");
             ConnectionMultiplexer? redis = null;
-            bool redisVerified = true;
             try
             {
                 redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
@@ -304,81 +303,16 @@ namespace IntegrationTestVerifier
                 Console.WriteLine("   ✅ Successfully connected to Redis.");
                 IDatabase db = redis.GetDatabase();
 
-                // Check for job execution error indicator first
-                var jobErrorKey = "flinkdotnet:job_execution_error";
-                RedisValue jobError = await db.StringGetAsync(jobErrorKey);
-                if (jobError.HasValue)
-                {
-                    Console.WriteLine($"\n   🚨 JOB EXECUTION ERROR DETECTED:");
-                    Console.WriteLine($"      Error: {jobError}");
-                    Console.WriteLine($"      This explains why sinks are not processing messages.");
-                    Console.WriteLine($"      Clearing error indicator for next test...");
-                    await db.KeyDeleteAsync(jobErrorKey);
-                }
-
-                async Task<bool> CheckRedisKey(string keyName, string description, string testStep) {
-                    Console.WriteLine($"\n   🔍 {testStep}: Checking {description}");
-                    Console.WriteLine($"      📌 GIVEN: Redis key '{keyName}' should exist");
-                    Console.WriteLine($"      🎯 WHEN: FlinkJobSimulator completed execution");
-                    
-                    RedisValue value = await db.StringGetAsync(keyName);
-                    if (!value.HasValue) {
-                        Console.WriteLine($"      ❌ THEN: Key validation FAILED - Redis key '{keyName}' not found");
-                        Console.WriteLine($"         💡 This indicates the {description.ToLower()} did not execute or failed to write");
-                        return false;
-                    }
-                    
-                    var actualValue = (long)value;
-                    Console.WriteLine($"         📊 Key exists with value: {actualValue:N0}");
-                    
-                    if (actualValue != expectedMessages) {
-                        Console.WriteLine($"      ❌ THEN: Value validation FAILED");
-                        Console.WriteLine($"         📊 Expected: {expectedMessages:N0} messages");
-                        Console.WriteLine($"         📊 Actual: {actualValue:N0} messages");
-                        Console.WriteLine($"         📊 Difference: {Math.Abs(actualValue - expectedMessages):N0} messages ({Math.Abs(actualValue - expectedMessages) * 100.0 / expectedMessages:F1}% gap)");
-                        
-                        if (keyName == globalSeqKey)
-                        {
-                            Console.WriteLine($"         💡 This indicates HighVolumeSourceFunction stopped early or encountered errors");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"         💡 This indicates RedisIncrementSinkFunction processed fewer messages than source generated");
-                        }
-                        return false;
-                    }
-                    Console.WriteLine($"      ✅ THEN: Value validation PASSED - Correct value: {actualValue:N0}");
-                    return true;
-                }
-
-                Console.WriteLine($"\n   📋 Verifying Redis data according to stress test documentation:");
-                redisVerified &= await CheckRedisKey(globalSeqKey, "Source Sequence Generation", "TEST 1.1");
-                redisVerified &= await CheckRedisKey(sinkCounterKey, "Redis Sink Processing", "TEST 1.2");
+                await CheckJobExecutionError(db);
+                bool redisVerified = await PerformRedisValidation(db, expectedMessages, globalSeqKey, sinkCounterKey);
+                LogRedisVerificationResults(redisVerified, expectedMessages);
                 
-                if (redisVerified)
-                {
-                    Console.WriteLine($"\n   🎉 Redis verification result: ✅ **PASSED**");
-                    Console.WriteLine($"      ✓ Source generated {expectedMessages:N0} sequential IDs");
-                    Console.WriteLine($"      ✓ Redis sink processed {expectedMessages:N0} messages");
-                    Console.WriteLine($"      ✓ Perfect 1:1 message flow from source to Redis sink");
-                }
-                else
-                {
-                    Console.WriteLine($"\n   💥 Redis verification result: ❌ **FAILED**");
-                    Console.WriteLine($"      ❌ Message count mismatch indicates processing pipeline issues");
-                }
+                return redisVerified;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n   💥 Redis verification result: ❌ **FAILED** (Connection Error)");
-                Console.WriteLine($"      🔌 Connection attempt {attemptNumber} failed: {ex.Message}");
-                Console.WriteLine($"      🔍 Exception type: {ex.GetType().Name}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"      🔍 Inner exception: {ex.InnerException.Message}");
-                }
-                Console.WriteLine($"      💡 This indicates Redis container is not accessible or misconfigured");
-                redisVerified = false;
+                LogRedisConnectionError(ex, attemptNumber);
+                return false;
             }
             finally
             {
@@ -386,7 +320,98 @@ namespace IntegrationTestVerifier
                     await redis.DisposeAsync();
                 }
             }
+        }
+
+        private static async Task CheckJobExecutionError(IDatabase db)
+        {
+            var jobErrorKey = "flinkdotnet:job_execution_error";
+            RedisValue jobError = await db.StringGetAsync(jobErrorKey);
+            if (jobError.HasValue)
+            {
+                Console.WriteLine($"\n   🚨 JOB EXECUTION ERROR DETECTED:");
+                Console.WriteLine($"      Error: {jobError}");
+                Console.WriteLine($"      This explains why sinks are not processing messages.");
+                Console.WriteLine($"      Clearing error indicator for next test...");
+                await db.KeyDeleteAsync(jobErrorKey);
+            }
+        }
+
+        private static async Task<bool> PerformRedisValidation(IDatabase db, int expectedMessages, string globalSeqKey, string sinkCounterKey)
+        {
+            Console.WriteLine($"\n   📋 Verifying Redis data according to stress test documentation:");
+            bool redisVerified = true;
+            redisVerified &= await CheckRedisKey(db, globalSeqKey, "Source Sequence Generation", "TEST 1.1", expectedMessages);
+            redisVerified &= await CheckRedisKey(db, sinkCounterKey, "Redis Sink Processing", "TEST 1.2", expectedMessages);
             return redisVerified;
+        }
+
+        private static async Task<bool> CheckRedisKey(IDatabase db, string keyName, string description, string testStep, int expectedMessages)
+        {
+            Console.WriteLine($"\n   🔍 {testStep}: Checking {description}");
+            Console.WriteLine($"      📌 GIVEN: Redis key '{keyName}' should exist");
+            Console.WriteLine($"      🎯 WHEN: FlinkJobSimulator completed execution");
+            
+            RedisValue value = await db.StringGetAsync(keyName);
+            if (!value.HasValue) {
+                Console.WriteLine($"      ❌ THEN: Key validation FAILED - Redis key '{keyName}' not found");
+                Console.WriteLine($"         💡 This indicates the {description.ToLower()} did not execute or failed to write");
+                return false;
+            }
+            
+            var actualValue = (long)value;
+            Console.WriteLine($"         📊 Key exists with value: {actualValue:N0}");
+            
+            if (actualValue != expectedMessages) {
+                LogValueValidationFailure(actualValue, expectedMessages, keyName);
+                return false;
+            }
+            Console.WriteLine($"      ✅ THEN: Value validation PASSED - Correct value: {actualValue:N0}");
+            return true;
+        }
+
+        private static void LogValueValidationFailure(long actualValue, int expectedMessages, string keyName)
+        {
+            Console.WriteLine($"      ❌ THEN: Value validation FAILED");
+            Console.WriteLine($"         📊 Expected: {expectedMessages:N0} messages");
+            Console.WriteLine($"         📊 Actual: {actualValue:N0} messages");
+            Console.WriteLine($"         📊 Difference: {Math.Abs(actualValue - expectedMessages):N0} messages ({Math.Abs(actualValue - expectedMessages) * 100.0 / expectedMessages:F1}% gap)");
+            
+            if (keyName.Contains("global_sequence"))
+            {
+                Console.WriteLine($"         💡 This indicates HighVolumeSourceFunction stopped early or encountered errors");
+            }
+            else
+            {
+                Console.WriteLine($"         💡 This indicates RedisIncrementSinkFunction processed fewer messages than source generated");
+            }
+        }
+
+        private static void LogRedisVerificationResults(bool redisVerified, int expectedMessages)
+        {
+            if (redisVerified)
+            {
+                Console.WriteLine($"\n   🎉 Redis verification result: ✅ **PASSED**");
+                Console.WriteLine($"      ✓ Source generated {expectedMessages:N0} sequential IDs");
+                Console.WriteLine($"      ✓ Redis sink processed {expectedMessages:N0} messages");
+                Console.WriteLine($"      ✓ Perfect 1:1 message flow from source to Redis sink");
+            }
+            else
+            {
+                Console.WriteLine($"\n   💥 Redis verification result: ❌ **FAILED**");
+                Console.WriteLine($"      ❌ Message count mismatch indicates processing pipeline issues");
+            }
+        }
+
+        private static void LogRedisConnectionError(Exception ex, int attemptNumber)
+        {
+            Console.WriteLine($"\n   💥 Redis verification result: ❌ **FAILED** (Connection Error)");
+            Console.WriteLine($"      🔌 Connection attempt {attemptNumber} failed: {ex.Message}");
+            Console.WriteLine($"      🔍 Exception type: {ex.GetType().Name}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"      🔍 Inner exception: {ex.InnerException.Message}");
+            }
+            Console.WriteLine($"      💡 This indicates Redis container is not accessible or misconfigured");
         }
 
         private static bool VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages)

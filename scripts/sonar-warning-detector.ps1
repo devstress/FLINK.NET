@@ -127,6 +127,34 @@ $SonarWarningPatterns = @{
         Severity = "Major"
         AutoFix = $true
     }
+    "CS1998" = @{
+        Pattern = "This async method lacks 'await' operators and will run synchronously"
+        Description = "Async method lacks await operators"
+        Category = "Compiler Warning"
+        Severity = "Major"
+        AutoFix = $true
+    }
+    "S3260" = @{
+        Pattern = "Private classes which are not derived in the current assembly should be marked as 'sealed'"
+        Description = "Private classes should be sealed"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
+    "S2325" = @{
+        Pattern = "Make '.*?' a static property"
+        Description = "Property should be static"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
+    "S3626" = @{
+        Pattern = "Remove this redundant jump"
+        Description = "Redundant jump statement"
+        Category = "Code Smells"
+        Severity = "Minor"
+        AutoFix = $true
+    }
 }
 
 function Write-Log {
