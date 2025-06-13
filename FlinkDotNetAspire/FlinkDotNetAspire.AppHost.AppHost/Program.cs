@@ -47,7 +47,7 @@ public static class Program
         Console.WriteLine($"Using Redis port: {redisPort}, Kafka port: {kafkaPort}");
         
         var redis = builder.AddRedis("redis", port: redisPort);
-        var kafka = builder.AddKafka("kafka", port: kafkaPort); // Add Kafka resource
+        var kafka = builder.AddKafka("kafka", port: kafkaPort);
 
         // Set up for 1 million message high throughput test
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";

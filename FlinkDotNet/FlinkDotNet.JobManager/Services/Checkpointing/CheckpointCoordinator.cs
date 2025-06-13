@@ -85,7 +85,22 @@ namespace FlinkDotNet.JobManager.Checkpointing
             _logger.LogInformation("Job {JobId}: Triggering Apache Flink 2.0 style checkpoint {CheckpointId} with {StateBackendCount} state backends", 
                 _jobId, checkpointId, _registeredStateBackends.Count);
 
-            // First, trigger checkpoints on all registered state backends
+            var successfulStateBackends = await TriggerStateBackendCheckpoints(checkpointId);
+            _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: {SuccessfulCount} state backends completed successfully", 
+                _jobId, checkpointId, successfulStateBackends);
+                
+            var participatingTaskManagers = await GetParticipatingTaskManagers(checkpointId);
+            
+            if (participatingTaskManagers == null) return;
+            
+            var checkpoint = await CreateCheckpointMetadata(checkpointId, timestamp, participatingTaskManagers);
+            if (checkpoint == null) return;
+            
+            await TriggerTaskManagerCheckpoints(checkpointId, timestamp, participatingTaskManagers, checkpoint);
+        }
+
+        private async Task<int> TriggerStateBackendCheckpoints(long checkpointId)
+        {
             var stateBackendCheckpointTasks = _registeredStateBackends.Select(async kvp =>
             {
                 var (stateBackendId, stateBackend) = kvp;
@@ -113,57 +128,42 @@ namespace FlinkDotNet.JobManager.Checkpointing
                     _jobId, checkpointId, successfulStateBackends, _registeredStateBackends.Count);
             }
 
-            // Get list of *expected* TaskManagers for this job.
-            // For now, assume all registered TMs are part of this job. This needs refinement with actual job-to-TM assignment.
-            // Ensure TaskManagerTracker is accessible here. It's in FlinkDotNet.JobManager.Services namespace.
+            return successfulStateBackends;
+        }
+
+        private Task<List<TaskManagerInfo>?> GetParticipatingTaskManagers(long checkpointId)
+        {
             var participatingTaskManagers = TaskManagerTracker.RegisteredTaskManagers.Values.ToList();
             if (!participatingTaskManagers.Any())
             {
                 _logger.LogWarning("Job {JobId}: No TaskManagers registered. Skipping checkpoint trigger for ID {CheckpointId}.", _jobId, checkpointId);
-                return;
+                return Task.FromResult<List<TaskManagerInfo>?>(null);
             }
+            return Task.FromResult<List<TaskManagerInfo>?>(participatingTaskManagers);
+        }
 
+        private Task<CheckpointMetadata?> CreateCheckpointMetadata(long checkpointId, long timestamp, List<TaskManagerInfo> participatingTaskManagers)
+        {
             var expectedTmIds = participatingTaskManagers.Select(tm => tm.TaskManagerId).ToList();
             var checkpoint = new CheckpointMetadata(_jobId, checkpointId, timestamp, expectedTmIds);
+            
             if (!_checkpoints.TryAdd(checkpointId, checkpoint))
             {
                 _logger.LogError("Job {JobId}: Failed to add checkpoint {CheckpointId} to internal tracking. This should not happen.", _jobId, checkpointId);
-                return; // Skip this attempt
+                return Task.FromResult<CheckpointMetadata?>(null);
             }
 
             _logger.LogInformation("Job {JobId}: Triggering checkpoint {CheckpointId} for {NumTaskManagers} TaskManagers.", _jobId, checkpointId, participatingTaskManagers.Count);
+            return Task.FromResult<CheckpointMetadata?>(checkpoint);
+        }
 
+        private async Task TriggerTaskManagerCheckpoints(long checkpointId, long timestamp, List<TaskManagerInfo> participatingTaskManagers, CheckpointMetadata checkpoint)
+        {
             var triggerTasks = participatingTaskManagers.Select(async tmInfo =>
             {
                 try
                 {
-                    var channelAddress = $"https://{tmInfo.Address}:{tmInfo.Port}";
-                    _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: Attempting to connect to TM {TaskManagerId} at {ChannelAddress} for TriggerTaskCheckpoint.", _jobId, checkpointId, tmInfo.TaskManagerId, channelAddress);
-
-                    using var channel = GrpcChannel.ForAddress(channelAddress);
-                    var client = new TaskManagerCheckpointing.TaskManagerCheckpointingClient(channel);
-                    var request = new TriggerCheckpointRequest
-                    {
-                        JobManagerId = _config.JobManagerId, // Use JobManagerId from config
-                        JobId = _jobId,
-                        CheckpointId = checkpointId,
-                        CheckpointTimestamp = timestamp
-                    };
-
-                    var response = await client.TriggerTaskCheckpointAsync(request, deadline: DateTime.UtcNow.AddSeconds(10));
-
-                    if (!response.Acknowledged)
-                    {
-                        _logger.LogWarning("Job {JobId}, Checkpoint {CheckpointId}: TM {TaskManagerId} did not acknowledge trigger immediately (response.Acknowledged = false).", _jobId, checkpointId, tmInfo.TaskManagerId);
-                        if (checkpoint.TaskSnapshots.TryGetValue(tmInfo.TaskManagerId, out var taskCpInfo))
-                        {
-                             taskCpInfo.Fail(); // Assuming this method updates internal status
-                        }
-                    }
-                    else
-                    {
-                         _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: TM {TaskManagerId} acknowledged trigger.", _jobId, checkpointId, tmInfo.TaskManagerId);
-                    }
+                    await TriggerSingleTaskManagerCheckpoint(checkpointId, timestamp, tmInfo, checkpoint);
                 }
                 catch (Exception ex)
                 {
@@ -177,9 +177,38 @@ namespace FlinkDotNet.JobManager.Checkpointing
 
             await Task.WhenAll(triggerTasks);
             _logger.LogDebug("Job {JobId}: All TriggerTaskCheckpoint messages sent for checkpoint {CheckpointId}.", _jobId, checkpointId);
-            // Start a timer here for 'checkpointId'. If it fires before the checkpoint is fully acknowledged,
-            // call 'RecordFailedCheckpointAsync(checkpointId, "Timeout")' and potentially cancel ongoing efforts for this CP.
             Console.WriteLine($"[CheckpointCoordinator] Placeholder for starting timeout timer for checkpoint {checkpointId}.");
+        }
+
+        private async Task TriggerSingleTaskManagerCheckpoint(long checkpointId, long timestamp, TaskManagerInfo tmInfo, CheckpointMetadata checkpoint)
+        {
+            var channelAddress = $"https://{tmInfo.Address}:{tmInfo.Port}";
+            _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: Attempting to connect to TM {TaskManagerId} at {ChannelAddress} for TriggerTaskCheckpoint.", _jobId, checkpointId, tmInfo.TaskManagerId, channelAddress);
+
+            using var channel = GrpcChannel.ForAddress(channelAddress);
+            var client = new TaskManagerCheckpointing.TaskManagerCheckpointingClient(channel);
+            var request = new TriggerCheckpointRequest
+            {
+                JobManagerId = _config.JobManagerId, // Use JobManagerId from config
+                JobId = _jobId,
+                CheckpointId = checkpointId,
+                CheckpointTimestamp = timestamp
+            };
+
+            var response = await client.TriggerTaskCheckpointAsync(request, deadline: DateTime.UtcNow.AddSeconds(10));
+
+            if (!response.Acknowledged)
+            {
+                _logger.LogWarning("Job {JobId}, Checkpoint {CheckpointId}: TM {TaskManagerId} did not acknowledge trigger immediately (response.Acknowledged = false).", _jobId, checkpointId, tmInfo.TaskManagerId);
+                if (checkpoint.TaskSnapshots.TryGetValue(tmInfo.TaskManagerId, out var taskCpInfo))
+                {
+                     taskCpInfo.Fail(); // Assuming this method updates internal status
+                }
+            }
+            else
+            {
+                 _logger.LogDebug("Job {JobId}, Checkpoint {CheckpointId}: TM {TaskManagerId} acknowledged trigger.", _jobId, checkpointId, tmInfo.TaskManagerId);
+            }
         }
 
         public void AcknowledgeCheckpoint(string jobId, long checkpointId, string taskManagerId, string snapshotHandle, long size = 0, long duration = 0)

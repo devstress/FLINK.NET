@@ -140,9 +140,9 @@ function Invoke-CleanBuild {
         return $null
     }
     
-    # Build with full verbosity to catch all warnings
-    Write-Log "Building with full verbosity..." "DEBUG"
-    $buildOutput = dotnet build $SolutionPath --no-incremental --verbosity normal 2>&1
+    # Build with Release configuration to match CI exactly
+    Write-Log "Building with Release configuration to match CI..." "DEBUG"
+    $buildOutput = dotnet build $SolutionPath --no-incremental --verbosity normal --configuration Release 2>&1
     
     return $buildOutput
 }
