@@ -25,8 +25,8 @@ public static class Program
             .WithEnvironment(EnvironmentVariables.JobManagerGrpcPort, ServicePorts.JobManagerGrpc.ToString())
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
 
-        // Add TaskManagers (10 instances as per requirements)
-        for (int i = 1; i <= 10; i++)
+        // Add TaskManagers (20 instances as per requirements)
+        for (int i = 1; i <= 20; i++)
         {
             builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")

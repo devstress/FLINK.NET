@@ -188,8 +188,8 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   📋 Testing: Processing time within acceptable limits");
             Console.WriteLine($"   📊 Actual verification time: {verificationStopwatch.ElapsedMilliseconds:N0}ms for {expectedMessages:N0} messages");
             
-            // Read max allowed time from environment variable, default to 10 seconds
-            long maxAllowedTimeMs = 10000; // 10 seconds default
+            // Read max allowed time from environment variable, default to 1 second
+            long maxAllowedTimeMs = 1000; // 1 second default
             if (long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long configuredTimeMs))
             {
                 maxAllowedTimeMs = configuredTimeMs;

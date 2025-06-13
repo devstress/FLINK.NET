@@ -614,13 +614,13 @@ COMPLETED_WORKFLOWS=()
 
 while [[ ${#PIDS[@]} -gt 0 ]]; do
     for i in "${!PIDS[@]}"; do
-        local pid="${PIDS[$i]}"
-        local name="${WORKFLOW_NAMES[$i]}"
+        pid="${PIDS[$i]}"
+        name="${WORKFLOW_NAMES[$i]}"
         
         if ! kill -0 "$pid" 2>/dev/null; then
             # Process finished
             wait "$pid"
-            local exit_code=$?
+            exit_code=$?
             
             if [[ $exit_code -eq 0 ]]; then
                 echo "[COMPLETED] $name workflow finished successfully"
