@@ -11,15 +11,125 @@ Flink.Net implements sophisticated back pressure mechanisms to prevent system ov
 The back pressure system supports the following pipeline structure:
 
 ```
-Gateway (Ingress Rate Control) 
-    ↓
-KeyGen (Deterministic Partitioning + Load Awareness) 
-    ↓
-IngressProcessing (Validation + Preprocessing with Bounded Buffers) 
-    ↓
-AsyncEgressProcessing (External I/O with Timeout, Retry, DLQ) 
-    ↓
-Final Sink (e.g., Kafka, DB, Callback) with Acknowledgment
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              FLINK.NET BACK PRESSURE FLOW                      │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │   Gateway    │    │    KeyGen    │    │  Ingress     │    │ AsyncEgress  │  │
+│  │ (Rate Ctrl)  │───▶│ (Partition + │───▶│ Processing   │───▶│ Processing   │  │
+│  │              │    │ Load Aware)  │    │ (Validation  │    │ (External    │  │
+│  │ • Rate Limit │    │              │    │ + Bounded    │    │ I/O + Retry  │  │
+│  │ • Throttling │    │ • Hash-based │    │ Buffers)     │    │ + DLQ)       │  │
+│  │ • Credits    │    │ • Load-aware │    │              │    │              │  │
+│  └──────────────┘    │ • Rebalance  │    │ • Semaphore  │    │ • Timeout    │  │
+│         │             └──────────────┘    │ • Validation │    │ • Exp Backoff│  │
+│         │                      │          └──────────────┘    │ • Concurrency│  │
+│    ┌────────────┐               │                   │          └──────────────┘  │
+│    │ Backpress  │◀──────────────┼───────────────────┼─────────────────│        │
+│    │ Controller │               │                   │                 │        │
+│    │            │               │          ┌────────▼─────────┐       │        │
+│    │ • Credits  │               │          │  Final Sink      │       │        │
+│    │ • Monitor  │               │          │ (Kafka/DB/API)   │◀──────┘        │
+│    │ • Throttle │               │          │                  │                │
+│    └────────────┘               │          │ • Acknowledgment │                │
+│         ▲                       │          │ • Pending Limit  │                │
+│         │                       │          │ • Timeout        │                │
+│         │                       │          └──────────────────┘                │
+│         │                       │                   │                          │
+│         └───────────────────────┼───────────────────┴──────────────────────────┘
+│                                 │                                               │
+│ ◀─────── CREDIT FLOW ───────────┼─────────────────────────────────────────────▶ │
+│                                 │                                               │
+│ ◀─────── BACKPRESSURE SIGNAL ───┴─────────────────────────────────────────────▶ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+BACKPRESSURE FLOW DIRECTION:
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  Final Sink  ─back_pressure─▶  AsyncEgress  ─back_pressure─▶  Ingress         │
+│      │                            │                             │              │
+│      │                            │                             │              │
+│      ▼                            ▼                             ▼              │
+│  KeyGen   ◀─back_pressure─  Gateway  ◀─back_pressure─  Controller             │
+│                                                                                 │
+│  When downstream stages detect pressure (queue full, slow processing,          │
+│  timeouts), they signal upstream stages to throttle using credits system      │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+CREDIT-BASED FLOW CONTROL:
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  1. Gateway requests credits from Controller                                   │
+│  2. Controller checks downstream pressure levels                                │
+│  3. If pressure < threshold: grants credits, allows processing                  │
+│  4. If pressure ≥ threshold: denies credits, applies throttling                │
+│  5. Processing completes: credits replenished to Controller                     │
+│  6. Cycle repeats for sustainable flow control                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Flink.Net Backpressure Flow Mechanics
+
+### Backpressure Signal Propagation
+
+In Flink.Net, backpressure signals flow upstream through the pipeline when downstream stages become overwhelmed:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      FLINK.NET BACKPRESSURE SIGNAL FLOW                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─ TRIGGER CONDITIONS ────────────────────────────────────────────────────────┐ │
+│  │                                                                             │ │
+│  │  • Queue Buffer > 80% full                                                 │ │
+│  │  • Processing Latency > SLA threshold                                      │ │
+│  │  • Error Rate > tolerance level                                            │ │
+│  │  • External I/O timeout/failures                                           │ │
+│  │  • Acknowledgment queue overflow                                           │ │
+│  │                                                                             │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+│                                    │                                            │
+│                                    ▼                                            │
+│  ┌─ BACKPRESSURE PROPAGATION ─────────────────────────────────────────────────┐ │
+│  │                                                                             │ │
+│  │  Step 1: Sink detects overload → reduces credit grant rate                 │ │
+│  │           ▲                                                                 │ │
+│  │  Step 2: AsyncEgress gets throttled → propagates signal upstream          │ │
+│  │           ▲                                                                 │ │
+│  │  Step 3: Ingress receives signal → applies bounded buffer limits          │ │
+│  │           ▲                                                                 │ │
+│  │  Step 4: KeyGen gets constrained → rebalances load across partitions      │ │
+│  │           ▲                                                                 │ │
+│  │  Step 5: Gateway receives pressure → applies rate limiting                 │ │
+│  │                                                                             │ │
+│  │  Result: End-to-end flow control without data loss                         │ │
+│  │                                                                             │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+CREDIT REPLENISHMENT FLOW:
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                 │
+│  ┌───────────┐  credits   ┌───────────┐  credits   ┌───────────┐  credits     │
+│  │ Gateway   │◀──────────│ KeyGen    │◀──────────│ Ingress   │◀─────────    │
+│  │           │  request   │           │  request   │           │  request     │
+│  └───────────┘  ────────▶ └───────────┘  ────────▶ └───────────┘  ──────▶    │
+│        ▲                        ▲                        ▲                    │
+│        │                        │                        │                    │
+│   ┌────▼─────┐              ┌───▼────┐              ┌────▼─────┐              │
+│   │Controller│              │        │              │Controller│              │
+│   │          │              │  ...   │              │          │              │
+│   └──────────┘              └────────┘              └──────────┘              │
+│                                                                                 │
+│  When processing completes successfully:                                        │
+│  • Credits are replenished to the controller                                   │
+│  • Controller updates pressure metrics                                         │
+│  • Next credit request uses updated pressure levels                            │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## How Flink.Net Handles Back Pressure
