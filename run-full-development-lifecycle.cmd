@@ -134,7 +134,7 @@ if not defined SIMULATOR_NUM_MESSAGES set SIMULATOR_NUM_MESSAGES=1000000
 if not defined FLINKDOTNET_STANDARD_TEST_MESSAGES set FLINKDOTNET_STANDARD_TEST_MESSAGES=100000
 set ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
-echo Starting parallel test execution...
+echo Starting parallel test execution
 echo Unit Tests: test-logs\unit-tests.log
 echo Integration Tests: test-logs\integration-tests.log
 if %SKIP_STRESS%==0 echo Stress Tests: test-logs\stress-tests.log
@@ -160,7 +160,7 @@ if %SKIP_SONAR%==0 (
 )
 
 REM Wait for all tests to complete
-echo Waiting for all tests to complete...
+echo Waiting for all tests to complete
 :wait_loop
 set ALL_DONE=1
 
@@ -219,7 +219,7 @@ where java >NUL 2>&1
 if errorlevel 1 exit /b 1
 for /f "tokens=3" %%i in ('java -version 2^>^&1 ^| findstr "version"') do (
     set JAVA_VERSION=%%i
-    set JAVA_VERSION=!JAVA_VERSION:"=!
+    set JAVA_VERSION=!JAVA_VERSION:~1,-1!
 )
 echo [OK] Java: !JAVA_VERSION!
 exit /b 0
@@ -227,12 +227,12 @@ exit /b 0
 :check_docker
 REM First check if Docker Desktop is installed
 if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-    echo [INFO] Docker Desktop found. Checking if running...
+    echo [INFO] Docker Desktop found. Checking if running
     docker info >NUL 2>&1
     if errorlevel 1 (
-        echo [INFO] Docker Desktop not running. Attempting to start...
+        echo [INFO] Docker Desktop not running. Attempting to start
         start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
-        echo [INFO] Waiting for Docker Desktop to start (timeout: 60 seconds)...
+        echo [INFO] Waiting for Docker Desktop to start (timeout: 60 seconds)
         set /a TIMEOUT_COUNT=0
         :docker_wait_loop
         timeout /t 2 /nobreak >nul
