@@ -129,8 +129,8 @@ public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedR
         catch (Exception ex)
         {
             Interlocked.Increment(ref _processingFailures);
-            _logger.LogWarning(ex, "IngressProcessing failed for record with key {Key}", value.Key);
-            throw;
+            _logger.LogError(ex, "IngressProcessing failed for record with key {Key}", value.Key);
+            throw new InvalidOperationException($"IngressProcessing failed for record with key {value.Key}", ex);
         }
     }
 
@@ -147,7 +147,7 @@ public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedR
             }
             
             // Default validation - check for null values
-            if (record.Value == null)
+            if (EqualityComparer<T>.Default.Equals(record.Value, default(T)))
             {
                 return new ValidationResult { IsValid = false, ErrorMessage = "Record value is null" };
             }
@@ -186,7 +186,7 @@ public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedR
     /// <summary>
     /// Create processing metadata for the record
     /// </summary>
-    private Dictionary<string, object> CreateProcessingMetadata(KeyedRecord<T> record)
+    private static Dictionary<string, object> CreateProcessingMetadata(KeyedRecord<T> record)
     {
         return new Dictionary<string, object>
         {
@@ -428,7 +428,7 @@ public class AsyncEgressProcessingStage<T> : IMapOperator<ProcessedRecord<T>, Eg
             {
                 lastException = ex;
                 await ApplyExponentialBackoff(attempt);
-                _logger.LogWarning("External operation failed on attempt {Attempt}: {Error}", attempt, ex.Message);
+                _logger.LogWarning(ex, "External operation failed on attempt {Attempt}", attempt);
             }
         }
         
@@ -462,12 +462,9 @@ public class AsyncEgressProcessingStage<T> : IMapOperator<ProcessedRecord<T>, Eg
         _logger.LogWarning("Sent record to Dead Letter Queue. DLQ size: {DlqSize}", _deadLetterQueue.Count);
         
         // Prevent DLQ from growing too large
-        if (_deadLetterQueue.Count > _config.MaxDeadLetterQueueSize)
+        if (_deadLetterQueue.Count > _config.MaxDeadLetterQueueSize && _deadLetterQueue.TryDequeue(out _))
         {
-            if (_deadLetterQueue.TryDequeue(out _))
-            {
-                _logger.LogWarning("DLQ full, dropped oldest record");
-            }
+            _logger.LogWarning("DLQ full, dropped oldest record");
         }
     }
 

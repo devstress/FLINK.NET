@@ -553,7 +553,7 @@ namespace FlinkDotNet.Core.Api.Execution
                 
                 if (!hasData)
                 {
-                    if (await HandleNoDataScenario(inputChannels, outputChannels, operatorId, processed, noDataCount, maxNoDataIterations, cancellationToken))
+                    if (await HandleNoDataScenario(inputChannels, outputChannels, processed, noDataCount, maxNoDataIterations, cancellationToken))
                     {
                         break;
                     }
@@ -590,7 +590,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private async Task<bool> HandleNoDataScenario(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, string operatorId, int processed, int noDataCount, int maxNoDataIterations, CancellationToken cancellationToken)
+        private async Task<bool> HandleNoDataScenario(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, int processed, int noDataCount, int maxNoDataIterations, CancellationToken cancellationToken)
         {
             if (noDataCount % 60000 == 0) // Every 5 minutes
             {
@@ -651,7 +651,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return hasData;
         }
 
-        private async Task ReportJobExecutionError(Exception ex)
+        private static async Task ReportJobExecutionError(Exception ex)
         {
             try
             {
@@ -729,8 +729,9 @@ namespace FlinkDotNet.Core.Api.Execution
                     
                     if (currentMemory > 500)
                     {
-                        Console.WriteLine($"[Monitor] ⚠️ HIGH MEMORY USAGE: {currentMemory}MB - consider garbage collection");
-                        GC.Collect(); // Suggest garbage collection for high memory usage
+                        Console.WriteLine($"[Monitor] ⚠️ HIGH MEMORY USAGE: {currentMemory}MB - manual memory cleanup recommended");
+                        // Note: Manual GC collection is not recommended in production
+                        // Instead, rely on .NET's automatic garbage collection
                     }
                     
                     lastLogTime = currentTime;

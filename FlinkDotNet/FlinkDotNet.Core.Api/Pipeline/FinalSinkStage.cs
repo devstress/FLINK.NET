@@ -115,7 +115,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
         {
             Interlocked.Increment(ref _failedCount);
             _logger.LogError(ex, "FinalSink processing failed for record");
-            throw;
+            throw new InvalidOperationException("FinalSink processing failed", ex);
         }
     }
 
@@ -149,7 +149,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send record to destination {DestinationType}", _config.DestinationType);
-            throw;
+            throw new InvalidOperationException($"Failed to send record to destination {_config.DestinationType}", ex);
         }
     }
 
@@ -258,6 +258,13 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
         _backPressureController.ReplenishCredits(PipelineStage.FinalSink, 1);
         
         Interlocked.Increment(ref _processedCount);
+        
+        // Log success if result indicates success
+        if (result.IsSuccess)
+        {
+            var successProcessingTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogDebug("FinalSink processed record successfully in {ProcessingTime}ms", successProcessingTime);
+        }
         
         var processingTime = (DateTime.UtcNow - startTime).TotalMilliseconds;
         UpdateStageMetrics(processingTime);

@@ -50,7 +50,7 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
         _logger.LogInformation("GatewayStage opened for task {TaskName}", context.TaskName);
     }
 
-    public T Map(T value)
+    public T Map(T element)
     {
         var startTime = DateTime.UtcNow;
         
@@ -85,7 +85,7 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
             }
 
             // Process the record
-            var result = ProcessRecord(value);
+            var result = ProcessRecord(element);
             
             // Replenish credits after processing
             _backPressureController.ReplenishCredits(PipelineStage.Gateway, 1);
@@ -99,8 +99,8 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Gateway processing failed for record");
-            throw;
+            _logger.LogError(ex, "Gateway processing failed for record");
+            throw new InvalidOperationException("Gateway processing failed", ex);
         }
     }
 
@@ -125,7 +125,7 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
     /// <summary>
     /// Process individual record with gateway-specific logic
     /// </summary>
-    private T ProcessRecord(T value)
+    private static T ProcessRecord(T value)
     {
         // Gateway can perform initial validation, enrichment, etc.
         // For now, pass through the value
@@ -145,8 +145,11 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
             var timeDelta = (now - _lastMetricsUpdate).TotalMilliseconds;
             
             // Calculate processing latency (simplified)
-            var avgProcessingLatency = timeDelta > 0 ? 
-                (_processedCount > 0 ? timeDelta / _processedCount : 0) : 0;
+            var avgProcessingLatency = 0.0;
+            if (timeDelta > 0)
+            {
+                avgProcessingLatency = _processedCount > 0 ? timeDelta / _processedCount : 0;
+            }
             
             // Calculate error rate
             var totalRequests = _processedCount + _throttledCount;
@@ -245,7 +248,7 @@ public class KeyGenStage<T> : IMapOperator<T, KeyedRecord<T>>, IOperatorLifecycl
         _logger.LogInformation("KeyGenStage opened for task {TaskName}", context.TaskName);
     }
 
-    public KeyedRecord<T> Map(T value)
+    public KeyedRecord<T> Map(T element)
     {
         var startTime = DateTime.UtcNow;
         
@@ -269,14 +272,14 @@ public class KeyGenStage<T> : IMapOperator<T, KeyedRecord<T>>, IOperatorLifecycl
             }
 
             // Extract key and determine partition with load awareness
-            var key = _keyExtractor(value);
+            var key = _keyExtractor(element);
             var partition = DetermineOptimalPartition(key);
             
             var keyedRecord = new KeyedRecord<T>
             {
                 Key = key,
                 Partition = partition,
-                Value = value,
+                Value = element,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
 
@@ -295,8 +298,8 @@ public class KeyGenStage<T> : IMapOperator<T, KeyedRecord<T>>, IOperatorLifecycl
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "KeyGen processing failed for record");
-            throw;
+            _logger.LogError(ex, "KeyGen processing failed for record");
+            throw new InvalidOperationException("KeyGen processing failed", ex);
         }
     }
 
@@ -405,8 +408,8 @@ public class KeyGenStage<T> : IMapOperator<T, KeyedRecord<T>>, IOperatorLifecycl
 
             if (partitionLoads.Count > 1)
             {
-                var maxLoad = partitionLoads.First().Load;
-                var minLoad = partitionLoads.Last().Load;
+                var maxLoad = partitionLoads[0].Load;
+                var minLoad = partitionLoads[partitionLoads.Count - 1].Load;
                 var imbalance = maxLoad - minLoad;
 
                 if (imbalance > 0.2) // 20% imbalance threshold
