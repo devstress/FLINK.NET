@@ -16,8 +16,6 @@ using FlinkDotNet.Core.Abstractions.Windowing;
 using StackExchange.Redis;
 using System.Diagnostics;
 using System.Collections.Concurrent;
-using Testcontainers.Redis;
-using Testcontainers.Kafka;
 using System.Text.Json;
 
 namespace FlinkDotnetStandardReliabilityTest
@@ -25,16 +23,25 @@ namespace FlinkDotnetStandardReliabilityTest
     /// <summary>
     /// Flink.Net Standard Pipeline Reliability Test with BDD Style and Comprehensive Diagnostics
     /// 
-    /// This test implements Flink.Net best practices with worldwide stream processing patterns:
+    /// This test implements Flink.Net best practices with worldwide stream processing patterns
+    /// using the external Kafka environment from docker-compose.kafka.yml:
     /// - BDD Style: Given/When/Then scenarios for clear test documentation
     /// - Flink.Net Pattern: Source → Map/Filter → KeyBy → Process → AsyncFunction → Sink
     /// - Comprehensive Diagnostics: Detailed failure analysis and expected behavior logging
     /// - Worldwide Best Practices: Follows industry standards for stream processing testing
+    /// - Kafka Best Practices: Uses pre-configured topics and external Kafka environment
+    /// - High Volume Testing: Defaults to 10 million messages for comprehensive validation
+    /// 
+    /// PREREQUISITES:
+    /// - Start Kafka environment: ./scripts/kafka-dev.sh start
+    /// - Verify Kafka UI: http://localhost:8080
+    /// - Kafka available at: localhost:9092
+    /// - Redis available at: localhost:6379
     /// 
     /// BDD SCENARIOS COVERED:
-    /// 1. High-Volume Message Processing with Back Pressure
-    /// 2. Exactly-Once Semantics Verification
-    /// 3. Fault Tolerance and Recovery Testing
+    /// 1. High-Volume Message Processing with Back Pressure (10M messages)
+    /// 2. Exactly-Once Semantics Verification with External Kafka
+    /// 3. Fault Tolerance and Recovery Testing with Pre-configured Topics
     /// 4. Performance and Resource Utilization Validation
     /// </summary>
     [SuppressMessage("Design", "S1144:Remove the unused private field", Justification = "Test diagnostic fields are used for monitoring")]
@@ -53,9 +60,9 @@ namespace FlinkDotnetStandardReliabilityTest
         private readonly ITestOutputHelper _output;
         private readonly ILogger<FlinkDotnetStandardReliabilityTest> _logger;
         
-        // Test containers for integration testing
-        private readonly RedisContainer _redisContainer;
-        private readonly KafkaContainer _kafkaContainer;
+        // External Kafka environment connections (using docker-compose.kafka.yml)
+        private readonly string _redisConnectionString = "localhost:6379";
+        private readonly string _kafkaBootstrapServers = "localhost:9092";
         
         // Test configuration and diagnostics
         private readonly ReliabilityTestConfiguration _config;
@@ -79,23 +86,12 @@ namespace FlinkDotnetStandardReliabilityTest
             // Initialize comprehensive diagnostics
             _diagnostics = new TestDiagnostics(_logger, _scenarioLogger);
             
-            // Configure test containers with Flink.Net best practices
-            _redisContainer = new RedisBuilder()
-                .WithImage("redis:7-alpine")
-                .WithPortBinding(6379, true)
-                .Build();
-                
-            _kafkaContainer = new KafkaBuilder()
-                .WithImage("confluentinc/cp-kafka:latest")
-                .WithPortBinding(9092, true)
-                .Build();
-            
-            // Configure test parameters for fast execution
+            // Configure test parameters for high-volume Kafka best practices testing
             _config = new ReliabilityTestConfiguration
             {
                 MessageCount = GetMessageCountFromEnvironment(), // Support CI/local testing
                 ParallelSourceInstances = Environment.ProcessorCount, // Align with CPU cores
-                ExpectedProcessingTimeMs = 290_000, // 4 minutes 50 seconds for comprehensive testing
+                ExpectedProcessingTimeMs = 900_000, // 15 minutes for 10M message comprehensive testing
                 FailureToleranceRate = 0.001, // 0.1% failure tolerance (Flink.Net standard)
                 CheckpointInterval = TimeSpan.FromSeconds(5), // Faster checkpoints
                 EnableExactlyOnceSemantics = true, // Enable for production-like testing
@@ -106,7 +102,7 @@ namespace FlinkDotnetStandardReliabilityTest
             
             // Log test initialization with BDD context
             _scenarioLogger.LogScenarioStart("Test Initialization", 
-                $"Configuring Flink.Net reliability test with {_config.MessageCount:N0} messages");
+                $"Configuring Flink.Net reliability test with {_config.MessageCount:N0} messages using external Kafka environment");
         }
 
         private long GetMessageCountFromEnvironment()
@@ -116,57 +112,56 @@ namespace FlinkDotnetStandardReliabilityTest
             {
                 return count;
             }
-            return 1_000; // Default for fast testing
+            return 10_000_000; // Default for comprehensive testing with Kafka best practices
         }
 
         public async Task InitializeAsync()
         {
-            _scenarioLogger.LogScenarioStart("Container Initialization", 
-                "Starting test infrastructure containers");
+            _scenarioLogger.LogScenarioStart("Infrastructure Initialization", 
+                "Verifying external Kafka environment from docker-compose.kafka.yml");
             
             var stopwatch = Stopwatch.StartNew();
             
             try
             {
-                // Start Redis container with diagnostics
-                _scenarioLogger.LogGiven("Redis container startup", 
-                    "Redis 7 Alpine container should start and be ready for connections");
-                await _redisContainer.StartAsync();
-                var redisPort = _redisContainer.GetMappedPublicPort(6379);
-                _scenarioLogger.LogWhen("Redis container startup", "Container started, testing connectivity");
-                
                 // Verify Redis connectivity
-                await VerifyRedisConnectivity(_redisContainer.GetConnectionString());
-                _scenarioLogger.LogThen("Redis container startup", 
-                    $"Redis container operational on port {redisPort}");
-                
-                // Start Kafka container with diagnostics
-                _scenarioLogger.LogGiven("Kafka container startup", 
-                    "Kafka container should start and be ready for message processing");
-                await _kafkaContainer.StartAsync();
-                _scenarioLogger.LogWhen("Kafka container startup", "Container started, testing connectivity");
+                _scenarioLogger.LogGiven("Redis connectivity check", 
+                    "Redis should be running on localhost:6379 from docker-compose.kafka.yml");
+                await VerifyRedisConnectivity(_redisConnectionString);
+                _scenarioLogger.LogThen("Redis connectivity check", 
+                    "Redis connection verified successfully");
                 
                 // Verify Kafka connectivity
-                await VerifyKafkaConnectivity(_kafkaContainer.GetBootstrapAddress());
-                _scenarioLogger.LogThen("Kafka container startup", 
-                    $"Kafka container operational at {_kafkaContainer.GetBootstrapAddress()}");
+                _scenarioLogger.LogGiven("Kafka connectivity check", 
+                    "Kafka should be running on localhost:9092 from docker-compose.kafka.yml");
+                await VerifyKafkaConnectivity(_kafkaBootstrapServers);
+                _scenarioLogger.LogThen("Kafka connectivity check", 
+                    "Kafka connection verified successfully");
                 
                 // Additional readiness verification
                 _scenarioLogger.LogGiven("Infrastructure readiness", 
-                    "All containers should be fully operational before testing");
-                await Task.Delay(2000); // Fast container initialization
+                    "External Kafka environment should be fully operational");
+                await Task.Delay(1000); // Brief readiness check
                 
                 stopwatch.Stop();
                 _scenarioLogger.LogThen("Infrastructure readiness", 
-                    $"Test infrastructure ready in {stopwatch.ElapsedMilliseconds:N0}ms");
+                    $"External Kafka environment verified in {stopwatch.ElapsedMilliseconds:N0}ms");
                 
-                _logger.LogInformation("✅ Test infrastructure initialization completed successfully");
+                _logger.LogInformation("✅ External Kafka environment verification completed successfully");
+                _logger.LogInformation("💡 To start the environment: ./scripts/kafka-dev.sh start");
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                _diagnostics.LogInfrastructureFailure("Container initialization failed", ex);
-                throw;
+                _logger.LogError("❌ External Kafka environment not available");
+                _logger.LogError("💡 Please start the Kafka environment first:");
+                _logger.LogError("   cd /path/to/FLINK.NET");
+                _logger.LogError("   ./scripts/kafka-dev.sh start");
+                _logger.LogError("   # Wait for services to be ready, then run tests");
+                
+                _diagnostics.LogInfrastructureFailure("External Kafka environment verification failed", ex);
+                throw new InvalidOperationException(
+                    "External Kafka environment not available. Please start with: ./scripts/kafka-dev.sh start", ex);
             }
         }
 
@@ -209,15 +204,15 @@ namespace FlinkDotnetStandardReliabilityTest
 
         public async Task DisposeAsync()
         {
-            _scenarioLogger.LogScenarioStart("Test Cleanup", "Disposing test infrastructure");
+            _scenarioLogger.LogScenarioStart("Test Cleanup", "Cleaning up test resources");
             
             try
             {
-                await _redisContainer.StopAsync();
-                await _kafkaContainer.StopAsync();
+                // No containers to stop - using external environment
+                await Task.Delay(100); // Minimal cleanup delay
                 
-                _scenarioLogger.LogThen("Test Cleanup", "Test containers stopped successfully");
-                _logger.LogInformation("✅ Test infrastructure cleanup completed");
+                _scenarioLogger.LogThen("Test Cleanup", "Test cleanup completed (external environment remains running)");
+                _logger.LogInformation("✅ Test cleanup completed - external Kafka environment remains available");
             }
             catch (Exception ex)
             {
@@ -230,12 +225,12 @@ namespace FlinkDotnetStandardReliabilityTest
         {
             // BDD SCENARIO: High-Volume Message Processing with Flink.Net Standard Pipeline
             _scenarioLogger.LogScenarioStart("High-Volume Processing", 
-                "Testing Flink.Net standard pipeline with comprehensive diagnostics");
+                "Testing Flink.Net standard pipeline with external Kafka environment and 10M message scale");
             
             // GIVEN: Flink.Net environment is configured for high-volume processing
             _scenarioLogger.LogGiven("Pipeline configuration", 
                 $"Flink.Net environment configured for {_config.MessageCount:N0} messages with " +
-                $"{_config.ParallelSourceInstances} parallel sources and exactly-once semantics");
+                $"{_config.ParallelSourceInstances} parallel sources, exactly-once semantics, and external Kafka environment");
             
             var executionStopwatch = Stopwatch.StartNew();
             var testResults = new TestExecutionResults();
@@ -246,9 +241,9 @@ namespace FlinkDotnetStandardReliabilityTest
                 var env = StreamExecutionEnvironment.GetExecutionEnvironment();
                 _diagnostics.LogEnvironmentConfiguration(env, _config);
                 
-                // Get container connection details with diagnostics
-                var redisConnectionString = _redisContainer.GetConnectionString();
-                var kafkaBootstrapServers = _kafkaContainer.GetBootstrapAddress();
+                // Get external environment connection details with diagnostics
+                var redisConnectionString = _redisConnectionString;
+                var kafkaBootstrapServers = _kafkaBootstrapServers;
                 
                 _diagnostics.LogInfrastructureDetails(redisConnectionString, kafkaBootstrapServers);
 
