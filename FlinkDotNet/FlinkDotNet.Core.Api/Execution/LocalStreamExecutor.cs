@@ -51,38 +51,81 @@ namespace FlinkDotNet.Core.Api.Execution
             if (jobGraph == null)
                 throw new ArgumentNullException(nameof(jobGraph));
 
+            Console.WriteLine($"=== LocalStreamExecutor Job Execution Started ===");
             Console.WriteLine($"[LocalStreamExecutor] Starting execution of JobGraph: {jobGraph.JobName}");
             Console.WriteLine($"[LocalStreamExecutor] Job has {jobGraph.Vertices.Count} vertices and {jobGraph.Edges.Count} edges");
+            Console.WriteLine($"[LocalStreamExecutor] Back pressure detector enabled: {_backPressureDetector != null}");
+            Console.WriteLine($"[LocalStreamExecutor] Execution timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+
+            // Enhanced diagnostic information
+            foreach (var vertex in jobGraph.Vertices)
+            {
+                Console.WriteLine($"[LocalStreamExecutor] Vertex: {vertex.Name} - Type: {vertex.Type} - Parallelism: {vertex.Parallelism}");
+            }
 
             // Create a combined cancellation token
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken, _cancellationTokenSource.Token);
 
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 // Step 1: Initialize data channels for communication between operators
+                Console.WriteLine($"[LocalStreamExecutor] Step 1: Initializing data channels...");
                 InitializeDataChannels(jobGraph);
+                Console.WriteLine($"[LocalStreamExecutor] Data channels initialized successfully");
 
-                // Step 2: Create operator instances for each vertex
+                // Step 2: Create operator instances for each vertex  
+                Console.WriteLine($"[LocalStreamExecutor] Step 2: Creating operator instances...");
                 var operatorInstances = CreateOperatorInstances(jobGraph);
+                Console.WriteLine($"[LocalStreamExecutor] Created {operatorInstances.Count} operator instances");
 
                 // Step 3: Start execution tasks for each vertex
+                Console.WriteLine($"[LocalStreamExecutor] Step 3: Starting vertex execution tasks...");
                 var executionTasks = StartVertexExecutionTasks(jobGraph, operatorInstances, combinedCts.Token);
+                Console.WriteLine($"[LocalStreamExecutor] Started {executionTasks.Count} execution tasks");
 
                 // Step 4: Wait for all tasks to complete
-                Console.WriteLine($"[LocalStreamExecutor] Waiting for {executionTasks.Count} execution tasks to complete...");
-                await Task.WhenAll(executionTasks);
+                Console.WriteLine($"[LocalStreamExecutor] Step 4: Waiting for {executionTasks.Count} execution tasks to complete...");
+                
+                // Enhanced monitoring during execution
+                var monitoringTask = MonitorExecutionProgress(combinedCts.Token);
+                var allTasks = executionTasks.Concat(new[] { monitoringTask }).ToArray();
+                
+                await Task.WhenAll(allTasks);
+                stopwatch.Stop();
 
-                Console.WriteLine($"[LocalStreamExecutor] Job execution completed successfully");
+                Console.WriteLine($"[LocalStreamExecutor] ✅ Job execution completed successfully in {stopwatch.ElapsedMilliseconds}ms");
+                Console.WriteLine($"=== LocalStreamExecutor Job Execution Completed ===");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                Console.WriteLine($"[LocalStreamExecutor] Job execution was cancelled");
+                stopwatch.Stop();
+                Console.WriteLine($"[LocalStreamExecutor] ⚠️ Job execution was cancelled after {stopwatch.ElapsedMilliseconds}ms");
                 throw;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[LocalStreamExecutor] Job execution failed: {ex.Message}");
+                stopwatch.Stop();
+                Console.WriteLine($"[LocalStreamExecutor] ❌ Job execution failed after {stopwatch.ElapsedMilliseconds}ms");
+                Console.WriteLine($"[LocalStreamExecutor] Exception: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"[LocalStreamExecutor] Stack trace: {ex.StackTrace}");
+                
+                // Enhanced error diagnostics for stress testing
+                await ReportJobExecutionError(ex);
+                
+                // Additional diagnostic information
+                if (_backPressureDetector != null)
+                {
+                    var pressureLevel = _backPressureDetector.GetOverallPressureLevel();
+                    Console.WriteLine($"[LocalStreamExecutor] Back pressure level at failure: {pressureLevel:F2}");
+                }
+                
+                // Memory diagnostics
+                var memoryUsage = GC.GetTotalMemory(false) / (1024 * 1024);
+                Console.WriteLine($"[LocalStreamExecutor] Memory usage at failure: {memoryUsage}MB");
+                
+                Console.WriteLine($"=== LocalStreamExecutor Job Execution Failed ===");
                 throw;
             }
         }
@@ -606,6 +649,101 @@ namespace FlinkDotNet.Core.Api.Execution
             }
             
             return hasData;
+        }
+
+        private async Task ReportJobExecutionError(Exception ex)
+        {
+            try
+            {
+                // Report error to Redis for diagnostic purposes (similar to Flink's error reporting)
+                // This helps the IntegrationTestVerifier understand why jobs fail
+                Console.WriteLine($"[LocalStreamExecutor] Reporting job execution error for diagnostics...");
+                
+                // Create a simple error report
+                var errorMessage = $"{ex.GetType().Name}: {ex.Message}";
+                var detailedError = $"LocalStreamExecutor Error - {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC\n" +
+                                  $"Exception: {ex.GetType().Name}\n" +
+                                  $"Message: {ex.Message}\n" +
+                                  $"Source: {ex.Source}\n" +
+                                  $"Stack Trace: {ex.StackTrace}";
+                
+                Console.WriteLine($"[LocalStreamExecutor] Error details: {errorMessage}");
+                
+                // If we have access to Redis, store the error for later diagnostics
+                // This mimics Apache Flink's error reporting mechanism
+                // For now, just log it comprehensively for stress test diagnostics
+                Console.WriteLine($"[LocalStreamExecutor] === DETAILED ERROR REPORT ===");
+                Console.WriteLine(detailedError);
+                Console.WriteLine($"[LocalStreamExecutor] === END ERROR REPORT ===");
+            }
+            catch (Exception reportingEx)
+            {
+                Console.WriteLine($"[LocalStreamExecutor] Failed to report error: {reportingEx.Message}");
+            }
+            
+            await Task.CompletedTask;
+        }
+
+        private async Task MonitorExecutionProgress(CancellationToken cancellationToken)
+        {
+            try
+            {
+                var monitoringInterval = TimeSpan.FromSeconds(30); // Monitor every 30 seconds
+                var lastLogTime = DateTime.UtcNow;
+                
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await Task.Delay(monitoringInterval, cancellationToken);
+                    
+                    var currentTime = DateTime.UtcNow;
+                    var elapsed = currentTime - lastLogTime;
+                    
+                    Console.WriteLine($"=== Execution Progress Monitor ({elapsed.TotalSeconds:F0}s) ===");
+                    
+                    // Get overall back pressure information
+                    if (_backPressureDetector != null)
+                    {
+                        var overallPressure = _backPressureDetector.GetOverallPressureLevel();
+                        Console.WriteLine($"[Monitor] Overall Back Pressure Level: {overallPressure:F2}");
+                        
+                        if (overallPressure > 0.7)
+                        {
+                            Console.WriteLine($"[Monitor] ⚠️ HIGH BACK PRESSURE DETECTED: {overallPressure:F2} - System may be throttling");
+                        }
+                    }
+                    
+                    // Monitor data channel health
+                    Console.WriteLine($"[Monitor] Data channels: {_dataChannels.Count} active");
+                    foreach (var kvp in _dataChannels)
+                    {
+                        var queueSize = kvp.Value.Count;
+                        if (queueSize > 500)
+                        {
+                            Console.WriteLine($"[Monitor] ⚠️ Channel {kvp.Key} queue size: {queueSize} (potential bottleneck)");
+                        }
+                    }
+                    
+                    // Memory monitoring 
+                    var currentMemory = GC.GetTotalMemory(false) / (1024 * 1024);
+                    Console.WriteLine($"[Monitor] Current memory usage: {currentMemory}MB");
+                    
+                    if (currentMemory > 500)
+                    {
+                        Console.WriteLine($"[Monitor] ⚠️ HIGH MEMORY USAGE: {currentMemory}MB - consider garbage collection");
+                        GC.Collect(); // Suggest garbage collection for high memory usage
+                    }
+                    
+                    lastLogTime = currentTime;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine($"[Monitor] Execution monitoring stopped");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Monitor] ⚠️ Monitoring error: {ex.Message}");
+            }
         }
 
         public void Cancel()
