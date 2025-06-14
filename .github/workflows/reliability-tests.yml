@@ -23,7 +23,7 @@ env:
 
 jobs:
   run-reliability-tests:
-    name: Run FLINK.NET Flink.Net Reliability Tests
+    name: Run Flink.Net Reliability Tests
     runs-on: ubuntu-latest
 
     defaults:
@@ -53,7 +53,7 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      - name: Build Solutions (including Flink.Net Standard Test)
+      - name: Build Solutions
         run: |
           echo "Building FlinkDotNet solution (dependency)..."
           Push-Location FlinkDotNet
