@@ -113,6 +113,33 @@ Following Flink.Net best practices with comprehensive BDD scenarios
          ✅ THEN: FIFO ordering validation PASSED
             📊 All messages properly ordered by Redis sequence
 
+--- Sample Messages (showing first and last 10 of 1,000,000 data messages) ---
+
+First 10 messages:
+  [1]: {"id":"msg_1","content":"Sample message 1","timestamp":"2024-12-20T10:15:42.123Z","redis_ordered_id":1,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [2]: {"id":"msg_2","content":"Sample message 2","timestamp":"2024-12-20T10:15:42.124Z","redis_ordered_id":2,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [3]: {"id":"msg_3","content":"Sample message 3","timestamp":"2024-12-20T10:15:42.125Z","redis_ordered_id":3,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [4]: {"id":"msg_4","content":"Sample message 4","timestamp":"2024-12-20T10:15:42.126Z","redis_ordered_id":4,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [5]: {"id":"msg_5","content":"Sample message 5","timestamp":"2024-12-20T10:15:42.127Z","redis_ordered_id":5,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [6]: {"id":"msg_6","content":"Sample message 6","timestamp":"2024-12-20T10:15:42.128Z","redis_ordered_id":6,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [7]: {"id":"msg_7","content":"Sample message 7","timestamp":"2024-12-20T10:15:42.129Z","redis_ordered_id":7,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [8]: {"id":"msg_8","content":"Sample message 8","timestamp":"2024-12-20T10:15:42.130Z","redis_ordered_id":8,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [9]: {"id":"msg_9","content":"Sample message 9","timestamp":"2024-12-20T10:15:42.131Z","redis_ordered_id":9,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [10]: {"id":"msg_10","content":"Sample message 10","timestamp":"2024-12-20T10:15:42.132Z","redis_ordered_id":10,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+
+Last 10 messages:
+  [999991]: {"id":"msg_999991","content":"Sample message 999991","timestamp":"2024-12-20T10:15:42.951Z","redis_ordered_id":999991,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999992]: {"id":"msg_999992","content":"Sample message 999992","timestamp":"2024-12-20T10:15:42.952Z","redis_ordered_id":999992,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999993]: {"id":"msg_999993","content":"Sample message 999993","timestamp":"2024-12-20T10:15:42.953Z","redis_ordered_id":999993,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999994]: {"id":"msg_999994","content":"Sample message 999994","timestamp":"2024-12-20T10:15:42.954Z","redis_ordered_id":999994,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999995]: {"id":"msg_999995","content":"Sample message 999995","timestamp":"2024-12-20T10:15:42.955Z","redis_ordered_id":999995,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999996]: {"id":"msg_999996","content":"Sample message 999996","timestamp":"2024-12-20T10:15:42.956Z","redis_ordered_id":999996,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999997]: {"id":"msg_999997","content":"Sample message 999997","timestamp":"2024-12-20T10:15:42.957Z","redis_ordered_id":999997,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999998]: {"id":"msg_999998","content":"Sample message 999998","timestamp":"2024-12-20T10:15:42.958Z","redis_ordered_id":999998,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [999999]: {"id":"msg_999999","content":"Sample message 999999","timestamp":"2024-12-20T10:15:42.959Z","redis_ordered_id":999999,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [1000000]: {"id":"msg_1000000","content":"Sample message 1000000","timestamp":"2024-12-20T10:15:42.960Z","redis_ordered_id":1000000,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+--- End Sample Messages ---
+
    🎉 SCENARIO RESULT: ✅ PASSED - Kafka verification passed - 1,000,000 messages with proper ordering
 
 🎯 BDD SCENARIO: Performance and Resource Validation

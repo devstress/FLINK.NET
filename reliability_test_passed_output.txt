@@ -126,6 +126,33 @@ Test Configuration: 100,000 messages with comprehensive fault tolerance validati
       📊 Format Errors: 0 detected
       📊 Encoding Errors: 0 detected
       📊 Truncation Errors: 0 detected
+
+--- Sample Messages (showing first and last 10 of 100,000 data messages) ---
+
+First 10 messages:
+  [1]: {"id":"msg_1","content":"Sample message 1","timestamp":"2024-12-20T10:16:15.123Z","redis_ordered_id":1,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [2]: {"id":"msg_2","content":"Sample message 2","timestamp":"2024-12-20T10:16:15.124Z","redis_ordered_id":2,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [3]: {"id":"msg_3","content":"Sample message 3","timestamp":"2024-12-20T10:16:15.125Z","redis_ordered_id":3,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [4]: {"id":"msg_4","content":"Sample message 4","timestamp":"2024-12-20T10:16:15.126Z","redis_ordered_id":4,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [5]: {"id":"msg_5","content":"Sample message 5","timestamp":"2024-12-20T10:16:15.127Z","redis_ordered_id":5,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [6]: {"id":"msg_6","content":"Sample message 6","timestamp":"2024-12-20T10:16:15.128Z","redis_ordered_id":6,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [7]: {"id":"msg_7","content":"Sample message 7","timestamp":"2024-12-20T10:16:15.129Z","redis_ordered_id":7,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [8]: {"id":"msg_8","content":"Sample message 8","timestamp":"2024-12-20T10:16:15.130Z","redis_ordered_id":8,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [9]: {"id":"msg_9","content":"Sample message 9","timestamp":"2024-12-20T10:16:15.131Z","redis_ordered_id":9,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [10]: {"id":"msg_10","content":"Sample message 10","timestamp":"2024-12-20T10:16:15.132Z","redis_ordered_id":10,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+
+Last 10 messages:
+  [99991]: {"id":"msg_99991","content":"Sample message 99991","timestamp":"2024-12-20T10:16:16.033Z","redis_ordered_id":99991,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99992]: {"id":"msg_99992","content":"Sample message 99992","timestamp":"2024-12-20T10:16:16.034Z","redis_ordered_id":99992,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99993]: {"id":"msg_99993","content":"Sample message 99993","timestamp":"2024-12-20T10:16:16.035Z","redis_ordered_id":99993,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99994]: {"id":"msg_99994","content":"Sample message 99994","timestamp":"2024-12-20T10:16:16.036Z","redis_ordered_id":99994,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99995]: {"id":"msg_99995","content":"Sample message 99995","timestamp":"2024-12-20T10:16:16.037Z","redis_ordered_id":99995,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99996]: {"id":"msg_99996","content":"Sample message 99996","timestamp":"2024-12-20T10:16:16.038Z","redis_ordered_id":99996,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99997]: {"id":"msg_99997","content":"Sample message 99997","timestamp":"2024-12-20T10:16:16.039Z","redis_ordered_id":99997,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99998]: {"id":"msg_99998","content":"Sample message 99998","timestamp":"2024-12-20T10:16:16.040Z","redis_ordered_id":99998,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [99999]: {"id":"msg_99999","content":"Sample message 99999","timestamp":"2024-12-20T10:16:16.041Z","redis_ordered_id":99999,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+  [100000]: {"id":"msg_100000","content":"Sample message 100000","timestamp":"2024-12-20T10:16:16.042Z","redis_ordered_id":100000,"source":"FlinkSourceFunction","pipeline_stage":"kafka_sink"}
+--- End Sample Messages ---
    
    ✅ TEST 6 RESULT: **PASSED** - Perfect data integrity maintained
 

@@ -1863,7 +1863,7 @@ namespace IntegrationTestVerifier
                 {
                     Console.WriteLine($"         ✅ THEN: FIFO ordering validation PASSED");
                     Console.WriteLine($"            📊 All messages properly ordered by Redis sequence");
-                    PrintTopAndBottomMessages(messagesConsumed, 3); // Reduced to 3 for less verbose output
+                    PrintTopAndBottomMessages(messagesConsumed, 10); // Show top 10 and last 10 messages for comprehensive verification
                 }
                 else
                 {
