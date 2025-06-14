@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Fast reliability test message count for 30-second execution
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Fast reliability test message count for 5-minute execution
 
 jobs:
   run-reliability-tests:

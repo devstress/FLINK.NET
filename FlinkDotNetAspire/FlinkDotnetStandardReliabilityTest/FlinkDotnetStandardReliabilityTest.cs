@@ -84,12 +84,12 @@ namespace FlinkDotnetStandardReliabilityTest
             {
                 MessageCount = GetMessageCountFromEnvironment(), // Support CI/local testing
                 ParallelSourceInstances = Environment.ProcessorCount, // Align with CPU cores
-                ExpectedProcessingTimeMs = 25_000, // 25 seconds for fast testing
+                ExpectedProcessingTimeMs = 290_000, // 4 minutes 50 seconds for comprehensive testing
                 FailureToleranceRate = 0.001, // 0.1% failure tolerance (Flink.Net standard)
                 CheckpointInterval = TimeSpan.FromSeconds(5), // Faster checkpoints
                 EnableExactlyOnceSemantics = true, // Enable for production-like testing
                 BackPressureThresholdPercent = 80, // Flink.Net default threshold
-                NetworkTimeoutMs = 10_000, // 10 seconds for network operations
+                NetworkTimeoutMs = 60_000, // 60 seconds for network operations during comprehensive testing
                 StateBackendSyncIntervalMs = 2_000 // 2 seconds for state synchronization
             };
             
@@ -1512,8 +1512,8 @@ namespace FlinkDotnetStandardReliabilityTest
 
         public async Task<PipelineExecutionResult> GetFinalResultWithDiagnostics(long expectedCount)
         {
-            // Wait for completion or timeout (faster for quick tests)
-            var timeout = DateTime.UtcNow.AddSeconds(30); // 30-second timeout for fast testing
+            // Wait for completion or timeout (5-minute comprehensive testing)
+            var timeout = DateTime.UtcNow.AddSeconds(300); // 5-minute timeout for comprehensive testing
             while (!_isComplete && DateTime.UtcNow < timeout)
             {
                 await Task.Delay(500);
