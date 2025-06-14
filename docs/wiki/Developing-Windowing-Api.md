@@ -1,6 +1,6 @@
 # Windowing API in Flink.NET (Future)
 
-Windowing is a core concept in stream processing that allows you to perform computations on bounded slices of a potentially infinite stream. Flink.NET plans to provide a rich Windowing API, inspired by FlinkDotnet, to support various window types and triggering mechanisms.
+Windowing is a core concept in stream processing that allows you to perform computations on bounded slices of a potentially infinite stream. Flink.NET plans to provide a rich Windowing API, inspired by Apache Flink, to support various window types and triggering mechanisms.
 
 **This documentation page is a placeholder for the detailed Flink.NET Windowing API, which is currently under development or planned for a future release.**
 
@@ -38,7 +38,7 @@ DataStream<ResultType> windowedResult = keyedStream
     .Aggregate(new MyAggregationFunction(), /* optional: new MyProcessWindowFunction() */); // Apply a window function
 ```
 
-Please refer to the FlinkDotnet documentation on [Windowing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/) for general concepts that inspire Flink.NET's design.
+Please refer to the Apache Flink documentation on [Windowing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/) for general concepts that inspire Flink.NET's design.
 
 **This page will be updated with detailed Flink.NET specific examples and API documentation as the Windowing API matures.**
 

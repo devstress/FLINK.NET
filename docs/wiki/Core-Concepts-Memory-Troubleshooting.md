@@ -1,6 +1,6 @@
 # Core Concepts: Memory Troubleshooting in Flink.NET
 
-Despite careful [[Memory Tuning|Core-Concepts-Memory-Tuning]], Flink.NET applications can encounter memory-related issues. This page outlines common problems, how to diagnose them, and general troubleshooting strategies, drawing heavily from FlinkDotnet's established practices.
+Despite careful [[Memory Tuning|Core-Concepts-Memory-Tuning]], Flink.NET applications can encounter memory-related issues. This page outlines common problems, how to diagnose them, and general troubleshooting strategies, drawing heavily from Apache Flink's established practices.
 
 ## Common Memory Problems
 

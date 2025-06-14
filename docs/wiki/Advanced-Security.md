@@ -39,7 +39,7 @@ This page will be updated with:
 *   Best practices for securing Flink.NET deployments in various environments (e.g., Kubernetes).
 *   Guidance on secure connector configuration.
 
-For general concepts, refer to the FlinkDotnet documentation on [Security](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/security/overview/).
+For general concepts, refer to the Apache Flink documentation on [Security](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/security/overview/).
 
 ---
 [Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

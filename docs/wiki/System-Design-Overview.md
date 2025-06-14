@@ -1,6 +1,6 @@
 # System Design Overview
 
-Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from FlinkDotnet's robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
+Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from Apache Flink's robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
 
 ## Key Architectural Components
 

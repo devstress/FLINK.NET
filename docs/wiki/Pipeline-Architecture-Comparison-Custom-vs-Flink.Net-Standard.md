@@ -239,7 +239,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 - **Reliability**: 99.99% uptime vs 99.9% with custom pipeline
 
 ### Risk Reduction
-- **Technical Risk**: Reduced by using battle-tested FlinkDotnet patterns
+- **Technical Risk**: Reduced by using battle-tested Apache Flink patterns
 - **Operational Risk**: Reduced by standard monitoring and alerting
 - **Compliance Risk**: Reduced by built-in exactly-once guarantees
 

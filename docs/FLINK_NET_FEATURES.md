@@ -540,4 +540,4 @@ private void CollectStatistics(object? state)
 3. **Observability**: Structured logging and metrics for debugging
 4. **Documentation**: Complete examples and troubleshooting guides
 
-This implementation provides a production-ready Flink.Net experience in .NET, with enterprise-grade features like dynamic scaling, distributed state management, and Kubernetes orchestration, while maintaining the performance and reliability characteristics of the original FlinkDotnet.
+This implementation provides a production-ready Flink.Net experience in .NET, with enterprise-grade features like dynamic scaling, distributed state management, and Kubernetes orchestration, while maintaining the performance and reliability characteristics of the original Apache Flink.

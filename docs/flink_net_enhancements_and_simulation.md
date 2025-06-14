@@ -2,9 +2,9 @@
 
 This document summarizes the investigations, proof-of-concept enhancements, and the setup of an Aspire simulation environment for Flink.NET.
 
-## 1. FlinkDotnet Learnings (incorporating Flink.Net Insights)
+## 1. Apache Flink Learnings (incorporating Flink.Net Insights)
 
-Based on general knowledge of FlinkDotnet's architecture, including recent insights from Flink.Net:
+Based on general knowledge of Apache Flink's architecture, including recent insights from Flink.Net:
 
 ### 1.1. Flink's Network Stack
 *   **Core Component:** Uses Netty for high-performance, asynchronous network communication.
@@ -53,7 +53,7 @@ It's important to acknowledge that Flink.Net introduced significant breaking cha
 
 *   **API Removals:** Major APIs like DataSet, Scala DataStream/DataSet, SourceFunction, SinkFunction (and Sink V1), TableSource/TableSink were removed, requiring migration to newer APIs (DataStream API, Table API/SQL, Source/Sink V2, DynamicTableSource/Sink).
 *   **Configuration Changes:** The legacy `flink-conf.yaml` is no longer supported (replaced by `config.yaml`), and many old configuration options were removed.
-*   **Implications for Flink.NET:** While Flink.NET draws inspiration from FlinkDotnet, it has its own distinct .NET-native API and will manage its own evolution. However, the types of changes seen in Flink.Net (e.g., modernization of source/sink interfaces) provide context for long-term API design considerations in any stream processing system. Flink.NET's current custom interfaces like `ITwoPhaseCommitSink` are examples of its independent API design.
+*   **Implications for Flink.NET:** While Flink.NET draws inspiration from Apache Flink, it has its own distinct .NET-native API and will manage its own evolution. However, the types of changes seen in Flink.Net (e.g., modernization of source/sink interfaces) provide context for long-term API design considerations in any stream processing system. Flink.NET's current custom interfaces like `ITwoPhaseCommitSink` are examples of its independent API design.
 
 ## 2. Implemented Enhancements (Proof-of-Concept - Step 3)
 
@@ -64,7 +64,7 @@ It's important to acknowledge that Flink.Net introduced significant breaking cha
     *   Added a `SemaphoreSlim` to limit the number of outstanding send operations (i.e., `WriteAsync` calls on the gRPC stream that have not yet "completed" from the client's perspective).
     *   The `MaxOutstandingSends` is currently hardcoded (e.g., to 100).
     *   The semaphore is acquired before attempting to send a record and released after the `WriteAsync` operation is initiated.
-*   **Nature:** This is client-side self-throttling, not a full server-driven credit-based backpressure system like in FlinkDotnet. In this PoC, the permit is released immediately after the write is initiated by the client, rather than waiting for an explicit acknowledgement or credit from the server.
+*   **Nature:** This is client-side self-throttling, not a full server-driven credit-based backpressure system like in Apache Flink. In this PoC, the permit is released immediately after the write is initiated by the client, rather than waiting for an explicit acknowledgement or credit from the server.
 *   **File:** `FlinkDotNet/FlinkDotNet.TaskManager/TaskExecutor.cs`
 
 ### 2.2. Serialization PoC
