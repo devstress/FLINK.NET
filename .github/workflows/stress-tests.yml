@@ -169,10 +169,10 @@ jobs:
           $errorJob.Id | Out-File apphost.error.job -Encoding utf8
           
           Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
-          Write-Host "AppHost started, waiting 10 seconds for Redis/Kafka container initialization..."
+          Write-Host "AppHost started, waiting 30 seconds for Redis/Kafka container initialization..."
           
-          # Faster startup in CI for quick testing  
-          Start-Sleep -Seconds 10
+          # Increased startup time in CI for reliable testing  
+          Start-Sleep -Seconds 30
           
           # Add container diagnostics
           Write-Host "`n=== Container Diagnostics ==="
@@ -196,8 +196,8 @@ jobs:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
         run: |
-          $maxAttempts = 2  # Fast health checks for quick testing
-          $delaySeconds = 5  # Reduced delay for faster execution
+          $maxAttempts = 5  # Increased attempts for CI reliability
+          $delaySeconds = 10  # Increased delay for container startup
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           Write-Host "`n=== Health Check Configuration ==="

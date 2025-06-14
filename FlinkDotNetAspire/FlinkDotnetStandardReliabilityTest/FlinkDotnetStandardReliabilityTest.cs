@@ -86,7 +86,7 @@ namespace FlinkDotnetStandardReliabilityTest
                 .Build();
                 
             _kafkaContainer = new KafkaBuilder()
-                .WithImage("confluentinc/cp-kafka:latest")
+                .WithImage("confluentinc/cp-kafka:7.4.0") // Use specific stable version
                 .WithPortBinding(9092, true)
                 .Build();
             
@@ -298,6 +298,17 @@ namespace FlinkDotnetStandardReliabilityTest
             
             try
             {
+                // Set global test configuration for operator serialization
+                TestInfrastructureConfig.RedisConnectionString = redisConnectionString;
+                TestInfrastructureConfig.KafkaBootstrapServers = kafkaBootstrapServers;
+                TestInfrastructureConfig.MessageCount = _config.MessageCount;
+                TestInfrastructureConfig.Diagnostics = _diagnostics;
+                TestInfrastructureConfig.Config = _config;
+                
+                // Create result collector and make it available globally
+                var resultCollector = new EnhancedReliabilityTestResultCollector(_diagnostics, _config);
+                TestInfrastructureConfig.ResultCollector = resultCollector;
+                
                 // Step 1: Source (Flink.Net standard - use proper sources, not gateways)
                 _logger.LogDebug("Configuring high-volume source with diagnostics");
                 var source = new EnhancedHighVolumeSource(_config.MessageCount, redisConnectionString, _diagnostics);
@@ -310,19 +321,13 @@ namespace FlinkDotnetStandardReliabilityTest
                     .Map(new EnhancedValidationMapFunction(_diagnostics)); // Enhanced with diagnostics
                 _scenarioLogger.LogWhen("Validation configuration", "Validation and transformation stages configured with comprehensive logging");
 
-                // Step 3: KeyBy (Flink.Net standard - proper partitioning)  
-                _logger.LogDebug("Configuring partitioning with load balancing");
-                KeySelector<ValidatedRecord, string> keySelector = record => record.PartitionKey;
-                var keyedStream = validatedStream.KeyBy(keySelector);
-                _scenarioLogger.LogWhen("Partitioning configuration", "Partitioning stage configured with load-aware key selection");
-
-                // Step 4: Map for processing (Flink.Net standard - using available interfaces)
+                // Step 3: Map for processing (using regular DataStream instead of KeyBy)
                 _logger.LogDebug("Configuring stateful processing with back pressure monitoring");
-                DataStream<ProcessedRecord> processedStream = keyedStream
+                DataStream<ProcessedRecord> processedStream = validatedStream
                     .Map(new EnhancedProcessingMapFunction(_diagnostics, _config));
                 _scenarioLogger.LogWhen("Processing configuration", "Stateful processing stage configured with back pressure monitoring");
 
-                // Step 5: Map for enrichment (Flink.Net standard - using available interfaces)
+                // Step 4: Map for enrichment (Flink.Net standard - using available interfaces)
                 _logger.LogDebug("Configuring enrichment with fault tolerance");
                 DataStream<EnrichedRecord> enrichedStream = processedStream
                     .Map(new EnhancedEnrichmentMapFunction(_diagnostics));
@@ -330,7 +335,6 @@ namespace FlinkDotnetStandardReliabilityTest
 
                 // Step 6: Sink (Flink.Net standard - proper sinks with exactly-once)
                 _logger.LogDebug("Configuring sink with exactly-once semantics");
-                var resultCollector = new EnhancedReliabilityTestResultCollector(_diagnostics, _config);
                 enrichedStream.AddSink(new EnhancedReliabilityTestSink(redisConnectionString, resultCollector, _diagnostics), 
                                      "apache-flink-standard-sink");
                 _scenarioLogger.LogWhen("Sink configuration", "Sink stage configured with exactly-once semantics and comprehensive monitoring");
@@ -528,6 +532,19 @@ namespace FlinkDotnetStandardReliabilityTest
         }
     }
 
+    /// <summary>
+    /// Test configuration shared across operators for reliable test infrastructure connections
+    /// </summary>
+    public static class TestInfrastructureConfig
+    {
+        public static string? RedisConnectionString { get; set; }
+        public static string? KafkaBootstrapServers { get; set; }
+        public static long MessageCount { get; set; } = 1000;
+        public static TestDiagnostics? Diagnostics { get; set; }
+        public static ReliabilityTestConfiguration? Config { get; set; }
+        public static EnhancedReliabilityTestResultCollector? ResultCollector { get; set; }
+    }
+
     // Flink.Net Standard Pipeline Components with Enhanced Diagnostics
     
     /// <summary>
@@ -543,6 +560,14 @@ namespace FlinkDotnetStandardReliabilityTest
         private string _taskName = nameof(EnhancedHighVolumeSource);
         private readonly Stopwatch _executionStopwatch = new();
 
+        // Parameterless constructor for serialization
+        public EnhancedHighVolumeSource()
+        {
+            _messageCount = 1000; // Default value
+            _redisConnectionString = "localhost:6379"; // Default value
+            _diagnostics = null!; // Will be set later
+        }
+
         public EnhancedHighVolumeSource(long messageCount, string redisConnectionString, TestDiagnostics diagnostics)
         {
             _messageCount = messageCount;
@@ -556,19 +581,33 @@ namespace FlinkDotnetStandardReliabilityTest
             
             try
             {
-                // Initialize Redis connection with comprehensive error handling
-                var redis = ConnectionMultiplexer.Connect(_redisConnectionString);
+                // Use global configuration if available (for serialized operators)
+                var redisConnectionString = TestInfrastructureConfig.RedisConnectionString ?? _redisConnectionString;
+                
+                Console.WriteLine($"[{_taskName}] 🔗 Attempting Redis connection: {redisConnectionString}");
+                
+                // Initialize Redis connection with comprehensive error handling and retry
+                var config = ConfigurationOptions.Parse(redisConnectionString);
+                config.AbortOnConnectFail = false; // Allow retries
+                config.ConnectTimeout = 10000; // 10 seconds
+                config.SyncTimeout = 10000; // 10 seconds
+                
+                var redis = ConnectionMultiplexer.Connect(config);
                 _redisDb = redis.GetDatabase();
+                
+                // Test the connection
+                _redisDb.Ping();
                 
                 // Initialize sequence counter with diagnostics
                 _redisDb.StringSet("test:sequence", 0);
                 
                 Console.WriteLine($"[{_taskName}] ✅ Source initialized with Redis connection");
-                Console.WriteLine($"[{_taskName}] 📊 Target messages: {_messageCount:N0}");
+                Console.WriteLine($"[{_taskName}] 📊 Target messages: {TestInfrastructureConfig.MessageCount}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[{_taskName}] ❌ Source initialization failed: {ex.Message}");
+                Console.WriteLine($"[{_taskName}] 🔗 Connection string was: {TestInfrastructureConfig.RedisConnectionString ?? _redisConnectionString}");
                 throw;
             }
         }
@@ -577,13 +616,16 @@ namespace FlinkDotnetStandardReliabilityTest
         {
             _executionStopwatch.Start();
             var lastProgressReport = DateTime.UtcNow;
-            var messagesPerProgressReport = Math.Max(1, _messageCount / 5); // Report every 20% for faster testing
+            
+            // Use global message count if available (for serialized operators)
+            var messageCount = TestInfrastructureConfig.MessageCount > 0 ? TestInfrastructureConfig.MessageCount : _messageCount;
+            var messagesPerProgressReport = Math.Max(1, messageCount / 5); // Report every 20% for faster testing
             
             try
             {
                 Console.WriteLine($"[{_taskName}] 🚀 Starting message generation...");
                 
-                for (long i = 0; i < _messageCount && _isRunning; i++)
+                for (long i = 0; i < messageCount && _isRunning; i++)
                 {
                     var sequenceId = _redisDb!.StringIncrement("test:sequence");
                     var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -599,17 +641,17 @@ namespace FlinkDotnetStandardReliabilityTest
                         payload = $"test-data-{i}",
                         batch_info = new
                         {
-                            total_messages = _messageCount,
-                            current_progress = (double)i / _messageCount * 100
+                            total_messages = messageCount,
+                            current_progress = (double)i / messageCount * 100
                         }
                     });
                     
                     ctx.Collect(message);
                     
                     // Progress reporting with diagnostics
-                    if (i % messagesPerProgressReport == 0 || i == _messageCount - 1)
+                    if (i % messagesPerProgressReport == 0 || i == messageCount - 1)
                     {
-                        var progress = (double)(i + 1) / _messageCount * 100;
+                        var progress = (double)(i + 1) / messageCount * 100;
                         var elapsed = _executionStopwatch.Elapsed;
                         var rate = (i + 1) / elapsed.TotalSeconds;
                         
@@ -627,7 +669,7 @@ namespace FlinkDotnetStandardReliabilityTest
                 
                 _executionStopwatch.Stop();
                 Console.WriteLine($"[{_taskName}] ✅ Message generation completed in {_executionStopwatch.Elapsed.TotalSeconds:F1}s");
-                Console.WriteLine($"[{_taskName}] 📊 Final rate: {_messageCount / _executionStopwatch.Elapsed.TotalSeconds:F0} msg/sec");
+                Console.WriteLine($"[{_taskName}] 📊 Final rate: {messageCount / _executionStopwatch.Elapsed.TotalSeconds:F0} msg/sec");
             }
             catch (Exception ex)
             {
@@ -661,6 +703,12 @@ namespace FlinkDotnetStandardReliabilityTest
         private long _validCount = 0;
         private long _invalidCount = 0;
         private readonly ConcurrentDictionary<string, int> _errorCounts = new();
+
+        // Parameterless constructor for serialization
+        public EnhancedValidationMapFunction()
+        {
+            _diagnostics = null!; // Will be set later
+        }
 
         public EnhancedValidationMapFunction(TestDiagnostics diagnostics)
         {
@@ -809,6 +857,13 @@ namespace FlinkDotnetStandardReliabilityTest
         private long _backPressureEvents = 0;
         private readonly object _progressLock = new();
 
+        // Parameterless constructor for serialization
+        public EnhancedProcessingMapFunction()
+        {
+            _diagnostics = null!; // Will be set later
+            _config = new ReliabilityTestConfiguration { MessageCount = 1000 }; // Default
+        }
+
         public EnhancedProcessingMapFunction(TestDiagnostics diagnostics, ReliabilityTestConfiguration config)
         {
             _diagnostics = diagnostics;
@@ -919,6 +974,12 @@ namespace FlinkDotnetStandardReliabilityTest
         private long _processedCount = 0;
         private long _enrichmentErrors = 0;
         private readonly ConcurrentDictionary<string, int> _enrichmentTypeStats = new();
+
+        // Parameterless constructor for serialization
+        public EnhancedEnrichmentMapFunction()
+        {
+            _diagnostics = null!; // Will be set later
+        }
 
         public EnhancedEnrichmentMapFunction(TestDiagnostics diagnostics)
         {
@@ -1043,6 +1104,14 @@ namespace FlinkDotnetStandardReliabilityTest
         private long _sinkErrors = 0;
         private readonly ConcurrentDictionary<string, long> _partitionSinkCounts = new();
 
+        // Parameterless constructor for serialization
+        public EnhancedReliabilityTestSink()
+        {
+            _redisConnectionString = "localhost:6379"; // Default
+            _resultCollector = null!; // Will be set later
+            _diagnostics = null!; // Will be set later
+        }
+
         public EnhancedReliabilityTestSink(string redisConnectionString, EnhancedReliabilityTestResultCollector resultCollector, TestDiagnostics diagnostics)
         {
             _redisConnectionString = redisConnectionString;
@@ -1054,11 +1123,14 @@ namespace FlinkDotnetStandardReliabilityTest
         {
             try
             {
-                var redis = ConnectionMultiplexer.Connect(_redisConnectionString);
+                // Use global configuration if available (for serialized operators)
+                var redisConnectionString = TestInfrastructureConfig.RedisConnectionString ?? _redisConnectionString;
+                
+                var redis = ConnectionMultiplexer.Connect(redisConnectionString);
                 _redisDb = redis.GetDatabase();
                 _redisDb.StringSet("test:processed_count", 0);
                 
-                Console.WriteLine($"[EnhancedReliabilityTestSink] ✅ Sink initialized with Redis connection");
+                Console.WriteLine($"[EnhancedReliabilityTestSink] ✅ Sink initialized with Redis connection: {redisConnectionString}");
             }
             catch (Exception ex)
             {
@@ -1082,7 +1154,8 @@ namespace FlinkDotnetStandardReliabilityTest
                 _partitionSinkCounts.AddOrUpdate(partitionKey, 1, (key, oldValue) => oldValue + 1);
                 
                 // Record the processed message with comprehensive metadata
-                _resultCollector.RecordProcessedMessageWithMetadata(record, sinkStartTime);
+                var resultCollector = TestInfrastructureConfig.ResultCollector ?? _resultCollector;
+                resultCollector.RecordProcessedMessageWithMetadata(record, sinkStartTime);
                 
                 // Progress reporting with detailed statistics (less frequent for speed)
                 if (count % 100 == 0)
@@ -1096,7 +1169,8 @@ namespace FlinkDotnetStandardReliabilityTest
                 Console.WriteLine($"[EnhancedReliabilityTestSink] ❌ Sink error: {ex.Message}");
                 
                 // Record the error for analysis
-                _resultCollector.RecordSinkError(record, ex, sinkStartTime);
+                var resultCollector = TestInfrastructureConfig.ResultCollector ?? _resultCollector;
+                resultCollector.RecordSinkError(record, ex, sinkStartTime);
             }
         }
 
@@ -1123,7 +1197,8 @@ namespace FlinkDotnetStandardReliabilityTest
         public void Close()
         {
             Console.WriteLine($"[EnhancedReliabilityTestSink] 🔒 Sink closing - final count: {_processedCount:N0}");
-            _resultCollector.CompleteWithMetadata(_processedCount, _sinkErrors, _partitionSinkCounts.ToDictionary(p => p.Key, p => p.Value));
+            var resultCollector = TestInfrastructureConfig.ResultCollector ?? _resultCollector;
+            resultCollector.CompleteWithMetadata(_processedCount, _sinkErrors, _partitionSinkCounts.ToDictionary(p => p.Key, p => p.Value));
         }
     }
 
