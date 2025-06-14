@@ -1,61 +1,63 @@
 # Aspire Local Development Setup with Kafka Best Practices
 
-This guide explains how to set up and use Flink.Net Aspire locally with the Kafka best practices environment for high-volume reliability testing.
+This guide explains how to set up and use Flink.Net Aspire locally with integrated Kafka best practices for high-volume reliability testing.
 
 ## Overview
 
-The Flink.Net Aspire setup provides a complete local development environment that integrates with our Kafka best practices setup to run comprehensive reliability tests with up to 10 million messages.
+The Flink.Net Aspire setup provides a complete local development environment with integrated Kafka infrastructure to run comprehensive reliability tests with up to 10 million messages.
 
 ## Prerequisites
 
 - .NET 8 SDK
 - Docker Desktop
 - 8GB+ RAM recommended for high-volume testing
-- Docker Compose support
+- Aspire tooling
 
 ## Setup Steps
 
-### 1. Start Kafka Environment
+### 1. Start Complete Environment with Aspire
 
-First, start the Kafka development environment using our best practices setup:
-
-```bash
-# From the project root directory
-./scripts/kafka-dev.sh start
-```
-
-This will start:
-- **Kafka** (localhost:9092) - Message streaming
-- **Zookeeper** (localhost:2181) - Kafka coordination  
-- **Redis** (localhost:6379) - State management and counters
-- **Kafka UI** (localhost:8080) - Web interface for monitoring
-
-**Verify the environment:**
-```bash
-# Check service status
-./scripts/kafka-dev.sh status
-
-# Open Kafka UI for visual monitoring
-./scripts/kafka-dev.sh ui
-```
-
-### 2. Run Aspire Application
-
-Navigate to the Aspire AppHost directory and run:
+Start the complete development environment using Aspire:
 
 ```bash
+# From the FlinkDotNetAspire AppHost directory
 cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 dotnet run
 ```
+
+This will start:
+- **Kafka** - Message streaming (dynamic port, check Aspire dashboard)
+- **Zookeeper** - Kafka coordination (managed internally)
+- **Kafka UI** - Web interface for monitoring (check Aspire dashboard for port)
+- **Redis** - State management and counters (dynamic port)
+- **Topic Initialization** - Automatically creates all required topics
+- **JobManager** - Flink.Net job coordination
+- **TaskManagers** (20 instances) - Flink.Net parallel processing
+- **FlinkJobSimulator** - Sample application
+
+**Verify the environment:**
+```bash
+# Access the Aspire dashboard (check console output for URL, typically http://localhost:15000)
+# All services, endpoints, and logs are available through the dashboard
+```
+
+### 2. Monitor Services
 
 This starts the complete Flink.Net cluster with:
 - 1 JobManager
 - 20 TaskManagers  
 - FlinkJobSimulator configured for high-volume testing
 
+The Aspire dashboard provides access to all services and their endpoints. Navigate to the Kafka UI through the dashboard to monitor:
+
+- Topic creation and partition distribution
+- Message throughput and consumer lag
+- Producer and consumer metrics
+- Dead letter queue activity
+
 ### 3. Run Reliability Tests
 
-The reliability test now uses the external Kafka environment and defaults to 10 million messages:
+The reliability test uses the Aspire-managed Kafka environment and defaults to 10 million messages:
 
 ```bash
 cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
@@ -76,9 +78,9 @@ FLINKDOTNET_STANDARD_TEST_MESSAGES=1000000 dotnet test
 | Aspire JobSimulator | 1,000,000 | `SIMULATOR_NUM_MESSAGES` | Aspire job simulation |
 | Reliability Test | 10,000,000 | `FLINKDOTNET_STANDARD_TEST_MESSAGES` | Comprehensive testing |
 
-### Kafka Topics (Pre-configured)
+### Kafka Topics (Auto-created)
 
-The Kafka environment includes these optimized topics:
+The Aspire environment automatically creates these optimized topics:
 
 | Topic | Partitions | Purpose |
 |-------|------------|---------|
@@ -88,44 +90,40 @@ The Kafka environment includes these optimized topics:
 | `dead-letter-queue` | 2 | Failed message handling |
 | `test-input` | 4 | Testing and development |
 | `test-output` | 4 | Test result output |
+| `flinkdotnet.sample.topic` | 8 | Default sample topic |
 
 ### Connection Settings
 
 | Service | Connection | Health Check |
 |---------|------------|--------------|
-| Kafka | `localhost:9092` | Metadata API |
-| Redis | `localhost:6379` | PING command |
-| Kafka UI | `http://localhost:8080` | Web interface |
+| Kafka | Dynamic port (check Aspire dashboard) | Metadata API |
+| Redis | Dynamic port (check Aspire dashboard) | PING command |
+| Kafka UI | Dynamic port (check Aspire dashboard) | Web interface |
 
 ## Usage Patterns
 
 ### 1. Local Development Workflow
 
 ```bash
-# 1. Start Kafka environment
-./scripts/kafka-dev.sh start
-
-# 2. Run Aspire application
+# 1. Start complete environment with Aspire
 cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 dotnet run
 
-# 3. In another terminal, run reliability tests
+# 2. In another terminal, run reliability tests
 cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
 dotnet test
 
-# 4. Monitor via Kafka UI
-open http://localhost:8080
+# 3. Monitor via Aspire dashboard (check console for URL)
+# Access Kafka UI through the dashboard
 ```
 
 ### 2. High-Volume Testing
 
-For comprehensive testing with different message volumes:
-
-```bash
-# Start infrastructure
-./scripts/kafka-dev.sh start
+cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+dotnet run
 
 # Test with 1 million messages (faster)
+cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
 FLINKDOTNET_STANDARD_TEST_MESSAGES=1000000 dotnet test
 
 # Test with 10 million messages (comprehensive)
@@ -137,50 +135,46 @@ FLINKDOTNET_STANDARD_TEST_MESSAGES=50000000 dotnet test
 
 ### 3. Performance Monitoring
 
-Monitor your tests using the Kafka UI:
+Monitor your tests using the Aspire dashboard and Kafka UI:
 
-1. **Open Kafka UI**: http://localhost:8080
-2. **View Topics**: Monitor message flow across topics
-3. **Consumer Groups**: Track processing progress
-4. **Broker Metrics**: Monitor throughput and latency
+1. **Access Aspire Dashboard**: Check console output for URL (typically http://localhost:15000)
+2. **Open Kafka UI**: Navigate to Kafka UI through the Aspire dashboard
+3. **View Topics**: Monitor message flow across topics
+4. **Consumer Groups**: Track processing progress
+5. **Broker Metrics**: Monitor throughput and latency
 
 ### 4. Debugging and Troubleshooting
 
 ```bash
-# Check Kafka environment status
-./scripts/kafka-dev.sh status
+# Access Aspire dashboard for comprehensive service monitoring
+# All logs, metrics, and service status available in one place
 
-# View logs from all services
-./scripts/kafka-dev.sh logs
-
-# View logs from specific service
-./scripts/kafka-dev.sh logs kafka
-./scripts/kafka-dev.sh logs redis
-
-# Restart if needed
-./scripts/kafka-dev.sh restart
+# Check individual service logs through the dashboard
+# No need for separate commands - everything is integrated
 ```
 
 ## Integration Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Kafka Setup  │    │  Aspire Cluster │    │ Reliability Test│
+│  Aspire Setup   │    │  Aspire Cluster │    │ Reliability Test│
 │                 │    │                 │    │                 │
-│ • Kafka:9092    │◄──►│ • JobManager    │◄──►│ • 10M Messages  │
-│ • Redis:6379    │    │ • 20 TaskMgrs   │    │ • BDD Testing   │
-│ • Kafka UI:8080 │    │ • JobSimulator  │    │ • Diagnostics   │
+│ • Kafka         │◄──►│ • JobManager    │◄──►│ • 10M Messages  │
+│ • Redis         │    │ • 20 TaskMgrs   │    │ • BDD Testing   │
+│ • Kafka UI      │    │ • JobSimulator  │    │ • Diagnostics   │
+│ • Topic Init    │    │ • Auto Topics   │    │ • Monitoring    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
 ### Message Flow
 
-1. **Reliability Test** generates messages using Redis sequence generation
-2. **Messages flow** through Flink.Net standard pipeline:
+1. **Aspire** starts all infrastructure (Kafka, Redis, UI, topics)
+2. **Reliability Test** generates messages using Redis sequence generation
+3. **Messages flow** through Flink.Net standard pipeline:
    - Source → Map/Filter → KeyBy → Process → AsyncFunction → Sink
-3. **Kafka topics** handle message routing and partitioning
-4. **Aspire cluster** processes messages with back pressure handling
-5. **Monitoring** via Kafka UI provides real-time visibility
+4. **Kafka topics** handle message routing and partitioning
+5. **Aspire cluster** processes messages with back pressure handling
+6. **Monitoring** via Aspire dashboard and Kafka UI provides real-time visibility
 
 ## Best Practices
 
@@ -194,42 +188,30 @@ Monitor your tests using the Kafka UI:
 
 - **Start Small**: Begin with 1M messages to verify setup
 - **Scale Up**: Gradually increase to 10M for comprehensive testing
-- **Monitor**: Use Kafka UI to track progress and identify bottlenecks
-- **Clean Up**: Use `./scripts/kafka-dev.sh stop` to clean up after testing
+- **Monitor**: Use Aspire dashboard and Kafka UI to track progress and identify bottlenecks
+- **Clean Up**: Use Ctrl+C in Aspire to clean up after testing
 
 ### 3. Development Iterations
 
-- **Kafka First**: Always start Kafka environment before Aspire
-- **Verify Connectivity**: Check Redis and Kafka connections before testing
-- **Monitor Progress**: Use logs and Kafka UI for real-time feedback
-- **Resource Cleanup**: Stop services when not in use to free resources
+- **Single Command**: Aspire starts all required infrastructure
+- **Integrated Monitoring**: All services monitored through one dashboard
+- **Resource Cleanup**: Aspire manages container lifecycle automatically
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Kafka Connection Failed:**
+**Services Connection Failed:**
 ```bash
-# Check if Kafka is running
-./scripts/kafka-dev.sh status
-
-# Start if not running
-./scripts/kafka-dev.sh start
-
-# Wait 30 seconds for full startup
-```
-
-**Redis Connection Failed:**
-```bash
-# Check Redis connectivity
-redis-cli -h localhost -p 6379 ping
-
-# Should return: PONG
+# Check Aspire dashboard for service status
+# All service health and connectivity shown in one place
+# Restart individual services through the dashboard if needed
 ```
 
 **Test Timeout:**
 ```bash
-# Check resource usage
+# Check resource usage through Aspire dashboard
+# Or use traditional tools:
 docker stats
 
 # Reduce message count if resources are limited
@@ -237,12 +219,9 @@ FLINKDOTNET_STANDARD_TEST_MESSAGES=100000 dotnet test
 ```
 
 **Port Conflicts:**
-```bash
-# Check if ports are in use
-netstat -an | grep -E ":(6379|9092|8080)"
-
-# Stop conflicting services or change ports in docker-compose.kafka.yml
-```
+- Aspire handles dynamic port allocation to avoid conflicts
+- Check Aspire dashboard for current port assignments
+- No manual port management needed
 
 ### Performance Optimization
 
@@ -254,7 +233,7 @@ netstat -an | grep -E ":(6379|9092|8080)"
 **For Maximum Throughput:**
 - Increase parallelism in Aspire configuration
 - Optimize Kafka partition counts for your workload
-- Monitor resource usage and scale accordingly
+- Monitor resource usage through Aspire dashboard and scale accordingly
 
 ## Next Steps
 

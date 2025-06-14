@@ -412,19 +412,16 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 
 - **[Flink.Net Back Pressure Implementation](FLINK_NET_BACK_PRESSURE.md)** - Detailed backpressure documentation with Kafka-specific best practices
 - **[Aspire Local Development Setup](Aspire-Local-Development-Setup.md)** - Complete guide for local development with Kafka best practices and 10M message reliability testing
-- **[Kafka Development Environment Setup](../docker-compose.kafka.yml)** - Docker Compose configuration for local Kafka development  
-- **[Kafka Development Scripts](../scripts/kafka-dev.sh)** - Helper scripts for managing Kafka development environment
+- **[Kafka Development Environment Setup](../docker-compose.kafka.yml)** - Docker Compose reference (now managed by Aspire)
+- **[KAFKA_SETUP.md](../KAFKA_SETUP.md)** - Comprehensive Kafka setup and configuration guide
 
 ## Local Development and Testing
 
-For comprehensive testing of Flink.Net best practices, we provide an integrated development environment that combines Aspire orchestration with Kafka best practices:
+For comprehensive testing of Flink.Net best practices, we provide an integrated development environment through Aspire that includes Kafka best practices:
 
 ### Quick Start
 ```bash
-# 1. Start Kafka best practices environment
-./scripts/kafka-dev.sh start
-
-# 2. Run Aspire application (in separate terminal)
+# Start complete environment with Aspire (includes Kafka, Redis, UI, etc.)
 cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 dotnet run
 

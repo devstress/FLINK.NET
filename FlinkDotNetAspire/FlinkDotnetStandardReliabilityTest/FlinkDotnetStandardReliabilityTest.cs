@@ -47,10 +47,10 @@ namespace FlinkDotnetStandardReliabilityTest
     /// - Load-Aware Partitioning: Dynamic rebalancing when partitions become overloaded
     /// 
     /// PREREQUISITES:
-    /// - Start Kafka environment: ./scripts/kafka-dev.sh start
-    /// - Verify Kafka UI: http://localhost:8080
-    /// - Kafka available at: localhost:9092
-    /// - Redis available at: localhost:6379
+    /// - Start Aspire environment: cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost && dotnet run
+    /// - Access Aspire Dashboard: Check console output for URL (typically http://localhost:15000)
+    /// - Kafka UI: Available through Aspire dashboard
+    /// - All services (Kafka, Redis) managed by Aspire with dynamic port allocation
     /// 
     /// BDD SCENARIOS COVERED:
     /// 1. High-Volume Message Processing with Back Pressure (10M messages)
@@ -165,20 +165,20 @@ namespace FlinkDotnetStandardReliabilityTest
                     $"External Kafka environment verified in {stopwatch.ElapsedMilliseconds:N0}ms");
                 
                 _logger.LogInformation("✅ External Kafka environment verification completed successfully");
-                _logger.LogInformation("💡 To start the environment: ./scripts/kafka-dev.sh start");
+                _logger.LogInformation("💡 Infrastructure managed by Aspire - check Aspire dashboard for service status");
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                _logger.LogError("❌ External Kafka environment not available");
-                _logger.LogError("💡 Please start the Kafka environment first:");
-                _logger.LogError("   cd /path/to/FLINK.NET");
-                _logger.LogError("   ./scripts/kafka-dev.sh start");
+                _logger.LogError("❌ Kafka environment not available");
+                _logger.LogError("💡 Please start the Aspire environment first:");
+                _logger.LogError("   cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost");
+                _logger.LogError("   dotnet run");
                 _logger.LogError("   # Wait for services to be ready, then run tests");
                 
-                _diagnostics.LogInfrastructureFailure("External Kafka environment verification failed", ex);
+                _diagnostics.LogInfrastructureFailure("Kafka environment verification failed", ex);
                 throw new InvalidOperationException(
-                    "External Kafka environment not available. Please start with: ./scripts/kafka-dev.sh start", ex);
+                    "Kafka environment not available. Please start Aspire: cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost && dotnet run", ex);
             }
         }
 

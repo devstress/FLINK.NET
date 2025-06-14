@@ -1,53 +1,46 @@
 # Kafka Development Environment for Flink.Net
 
-This directory contains Docker Compose configuration and helper scripts for setting up a Kafka development environment optimized for Flink.Net stream processing applications.
+This setup provides a Kafka development environment optimized for Flink.Net stream processing applications, managed through .NET Aspire.
 
 ## Quick Start
 
-1. **Start Kafka Environment:**
+1. **Start the Development Environment with Aspire:**
    ```bash
-   ./scripts/kafka-dev.sh start
+   cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+   dotnet run
    ```
 
 2. **Access Kafka UI:**
-   Open [http://localhost:8080](http://localhost:8080) in your browser
+   Open the Aspire dashboard and navigate to the Kafka UI endpoint (typically [http://localhost:8080](http://localhost:8080))
 
 3. **Kafka Bootstrap Servers:**
-   `localhost:9092`
+   Check the Aspire dashboard for the dynamically allocated Kafka port (typically `localhost:9092`)
 
 ## What's Included
 
-- **Kafka Broker** (localhost:9092) - Main Kafka server
-- **Zookeeper** (localhost:2181) - Kafka coordination service  
-- **Kafka UI** (localhost:8080) - Web interface for managing topics and monitoring
-- **Pre-configured Topics** - Following Flink.Net best practices:
+- **Kafka Broker** - Main Kafka server (managed by Aspire)
+- **Zookeeper** - Kafka coordination service (managed by Aspire)
+- **Kafka UI** - Web interface for managing topics and monitoring
+- **Topic Initialization** - Automatically creates topics following Flink.Net best practices:
   - `business-events` (8 partitions) - Input events
   - `processed-events` (8 partitions) - Processed data  
   - `analytics-events` (4 partitions) - Analytics output
   - `dead-letter-queue` (2 partitions) - Failed message handling
   - `test-input` & `test-output` (4 partitions each) - Testing
+  - `flinkdotnet.sample.topic` (8 partitions) - Default sample topic
 
-## Management Commands
+## Management through Aspire
 
 ```bash
 # Start the environment
-./scripts/kafka-dev.sh start
+cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+dotnet run
 
-# Stop the environment  
-./scripts/kafka-dev.sh stop
+# View all services and endpoints
+# Use the Aspire dashboard at http://localhost:15000 (or dynamically allocated port)
 
-# Restart everything
-./scripts/kafka-dev.sh restart
-
-# View service status
-./scripts/kafka-dev.sh status
-
-# View logs (all services or specific service)
-./scripts/kafka-dev.sh logs
-./scripts/kafka-dev.sh logs kafka
-
-# Open Kafka UI
-./scripts/kafka-dev.sh ui
+# Monitor Kafka through Kafka UI
+# Access via the Aspire dashboard or direct link (check dashboard for exact port)
 
 # List topics and details
 ./scripts/kafka-dev.sh topics
@@ -55,18 +48,18 @@ This directory contains Docker Compose configuration and helper scripts for sett
 # Monitor consumer groups
 ./scripts/kafka-dev.sh monitor
 
-# Test connectivity
-./scripts/kafka-dev.sh test
+# Access services through Aspire Dashboard
+# Visit http://localhost:15000 (or check console for Aspire dashboard URL)
 
-# Clean up (removes all data)
-./scripts/kafka-dev.sh cleanup
+# Monitor Kafka through Kafka UI
+# Check Aspire dashboard for the Kafka UI endpoint
 ```
 
 ## Configuration Details
 
 ### Topic Configuration
 
-Topics are configured following Apache Flink best practices:
+Topics are automatically created following Apache Flink best practices:
 
 | Topic | Partitions | Retention | Use Case |
 |-------|------------|-----------|----------|
@@ -74,6 +67,9 @@ Topics are configured following Apache Flink best practices:
 | processed-events | 8 | 1 day | Validated/transformed events |
 | analytics-events | 4 | 30 days | Aggregated analytics data |
 | dead-letter-queue | 2 | 30 days | Failed message handling |
+| test-input | 4 | 1 hour | Testing input |
+| test-output | 4 | 1 hour | Testing output |
+| flinkdotnet.sample.topic | 8 | 1 day | Default sample topic |
 
 ### Producer Configuration
 
@@ -97,7 +93,7 @@ Optimized for Flink.Net stream processing:
 ```csharp
 // Kafka Source
 var kafkaSource = KafkaSource<BusinessEvent>.Builder()
-    .SetBootstrapServers("localhost:9092")
+    .SetBootstrapServers("localhost:9092") // Check Aspire dashboard for exact port
     .SetTopics("business-events")
     .SetGroupId("flink-business-processor")
     .Build();
@@ -115,7 +111,7 @@ var processedStream = sourceStream
 
 // Kafka Sink
 processedStream.SinkTo(KafkaSink<ProcessedEvent>.Builder()
-    .SetBootstrapServers("localhost:9092")
+    .SetBootstrapServers("localhost:9092") // Check Aspire dashboard for exact port
     .SetRecordSerializer(new JsonSerializationSchema<ProcessedEvent>())
     .SetDeliveryGuarantee(DeliveryGuarantee.ExactlyOnce)
     .Build());
@@ -126,42 +122,49 @@ processedStream.SinkTo(KafkaSink<ProcessedEvent>.Builder()
 ### Common Issues
 
 1. **Port Conflicts:**
-   - Kafka: 9092, Zookeeper: 2181, Kafka UI: 8080
-   - Stop conflicting services or change ports in docker-compose.kafka.yml
+   - Aspire handles dynamic port allocation to avoid conflicts
+   - Check the Aspire dashboard for current port assignments
 
 2. **Memory Issues:**
    - Default JVM settings should work for development
-   - For production, tune KAFKA_HEAP_OPTS in docker-compose.kafka.yml
+   - Aspire manages container resources automatically
 
 3. **Topic Creation Fails:**
-   - Ensure Kafka is fully started before creating topics
-   - Check logs: `./scripts/kafka-dev.sh logs kafka`
+   - Topics are created automatically by the kafka-init container
+   - Check Aspire dashboard logs for the kafka-init container
 
 4. **Consumer Lag:**
-   - Monitor with: `./scripts/kafka-dev.sh monitor`
+   - Monitor through Kafka UI (access via Aspire dashboard)
    - Check partition count and consumer parallelism
 
 ### Monitoring
 
-- **Kafka UI:** http://localhost:8080 - Visual monitoring and management
+- **Aspire Dashboard:** Primary monitoring interface for all services
+- **Kafka UI:** Visual monitoring and management (accessed through Aspire dashboard)
 - **Topic Metrics:** Monitor partition distribution and consumer lag
 - **Consumer Groups:** Track processing progress and lag
 
 ## Aspire Integration
 
-This Kafka environment integrates seamlessly with the Flink.Net Aspire setup for comprehensive development and testing:
+This Kafka environment is fully integrated with the Flink.Net Aspire setup:
 
-### Combined Setup
+### Unified Setup
 
 ```bash
-# 1. Start Kafka best practices environment
-./scripts/kafka-dev.sh start
-
-# 2. Run Aspire application (separate terminal)
+# Start complete development environment
 cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 dotnet run
 
-# 3. Run reliability tests with 10M messages (separate terminal)
+# This starts:
+# - Redis
+# - Kafka with Zookeeper
+# - Kafka UI
+# - Topic initialization
+# - JobManager
+# - 20 TaskManagers  
+# - FlinkJobSimulator
+
+# Run reliability tests with 10M messages (separate terminal)
 cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
 dotnet test
 ```
@@ -169,9 +172,10 @@ dotnet test
 ### Key Benefits
 
 - **10 Million Message Testing**: Comprehensive reliability validation
-- **Production-like Environment**: External Kafka vs embedded containers
-- **Real-time Monitoring**: Kafka UI integration at http://localhost:8080
+- **Production-like Environment**: Managed Kafka infrastructure
+- **Real-time Monitoring**: Kafka UI integration via Aspire dashboard
 - **Best Practices Integration**: Follows Apache Flink recommended patterns
+- **Unified Development**: Single command starts entire environment
 
 For complete Aspire setup instructions, see [Aspire Local Development Setup](docs/wiki/Aspire-Local-Development-Setup.md).
 
@@ -190,4 +194,5 @@ This setup is for development only. For production:
 
 - [Flink.Net Back Pressure Implementation](docs/wiki/FLINK_NET_BACK_PRESSURE.md) - Includes Kafka-specific best practices
 - [Flink.Net Best Practices](docs/wiki/Flink.Net-Best-Practices-Stream-Processing-Patterns.md) - Standard vs custom pipeline patterns
+- [Aspire Local Development Setup](docs/wiki/Aspire-Local-Development-Setup.md) - Complete development environment setup
 - [Apache Kafka Documentation](https://kafka.apache.org/documentation/) - Official Kafka documentation

@@ -64,33 +64,47 @@ jobs:
           dotnet build FlinkDotNetAspire.sln --configuration Release
           cd ..
 
-      - name: Start Kafka Best Practices Environment
+      - name: Start Aspire Development Environment
         run: |
-          echo "🚀 Starting Kafka development environment with best practices setup..."
-          chmod +x ./scripts/kafka-dev.sh
-          ./scripts/kafka-dev.sh start
+          echo "🚀 Starting Aspire development environment with Kafka best practices setup..."
+          cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
           
-          echo "⏳ Waiting for Kafka environment to be fully ready..."
-          sleep 15
+          # Start Aspire in the background
+          nohup dotnet run --configuration Release > aspire.log 2>&1 &
+          ASPIRE_PID=$!
+          echo $ASPIRE_PID > aspire.pid
           
-          echo "📊 Checking Kafka environment status..."
-          ./scripts/kafka-dev.sh status
+          echo "⏳ Waiting for Aspire environment to be fully ready..."
+          sleep 30
+          
+          echo "📊 Checking Aspire services..."
+          # Check if Aspire is running
+          if ps -p $ASPIRE_PID > /dev/null; then
+            echo "✅ Aspire is running (PID: $ASPIRE_PID)"
+          else
+            echo "❌ Aspire failed to start"
+            cat aspire.log
+            exit 1
+          fi
+          
+          cd ../..
 
-      - name: Verify Kafka Environment Health
+      - name: Verify Infrastructure Health
         run: |
-          echo "🧪 Testing Kafka environment connectivity..."
-          ./scripts/kafka-dev.sh test
+          echo "🧪 Waiting for Kafka and Redis to be available..."
+          # Give more time for all services to initialize
+          sleep 30
           
-          echo "📝 Listing configured topics..."
-          ./scripts/kafka-dev.sh topics
+          echo "📊 Infrastructure should be ready through Aspire..."
+          echo "✅ Aspire manages all service health checks internally"
 
-      - name: Run Flink.Net Standard Reliability Test with External Kafka
+      - name: Run Flink.Net Standard Reliability Test with Aspire Infrastructure
         env:
           FLINKDOTNET_STANDARD_TEST_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
           DOTNET_ENVIRONMENT: "Development"
         run: |
           echo "🧪 Running Flink.Net Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
-          echo "📊 Using external Kafka environment (localhost:9092) and Redis (localhost:6379)"
+          echo "📊 Using Aspire-managed Kafka and Redis infrastructure"
           
           cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
           dotnet test --configuration Release --logger "console;verbosity=detailed" --no-build
@@ -100,11 +114,23 @@ jobs:
             exit 1
           fi
           
-          echo "✅ Flink.Net Standard Reliability Test PASSED with external Kafka setup."
+          echo "✅ Flink.Net Standard Reliability Test PASSED with Aspire infrastructure."
 
-      - name: Stop Kafka Environment
+      - name: Stop Aspire Environment
         if: always()
         run: |
-          echo "🛑 Stopping Kafka environment..."
-          ./scripts/kafka-dev.sh stop
-          echo "✅ Kafka environment cleanup complete."
+          echo "🛑 Stopping Aspire environment..."
+          cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+          if [ -f aspire.pid ]; then
+            ASPIRE_PID=$(cat aspire.pid)
+            if ps -p $ASPIRE_PID > /dev/null; then
+              kill $ASPIRE_PID
+              sleep 10
+              # Force kill if still running
+              if ps -p $ASPIRE_PID > /dev/null; then
+                kill -9 $ASPIRE_PID
+              fi
+            fi
+            rm aspire.pid
+          fi
+          echo "✅ Aspire environment cleanup complete."

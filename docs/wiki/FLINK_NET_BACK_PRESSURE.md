@@ -1165,8 +1165,8 @@ public static async Task<JobExecutionResult> CreateSimpleFlinkPipeline(
 ## Related Documentation
 
 - **[Flink.Net Best Practices: Stream Processing Patterns](Flink.Net-Best-Practices-Stream-Processing-Patterns.md)** - Comprehensive guide comparing custom pipeline patterns vs standard Flink.Net approaches
-- **[Kafka Development Environment Setup](../docker-compose.kafka.yml)** - Docker Compose configuration for local Kafka development
-- **[Kafka Development Scripts](../scripts/kafka-dev.sh)** - Helper scripts for managing Kafka development environment
+- **[Kafka Development Environment Setup](../KAFKA_SETUP.md)** - Complete Kafka setup and configuration guide with Aspire integration
+- **[Aspire Local Development Setup](Aspire-Local-Development-Setup.md)** - Unified development environment with Kafka best practices
 
 ## Conclusion
 

@@ -115,10 +115,11 @@ These tests verify:
 
 **Setup for Kafka Best Practices Testing**:
 ```bash
-# 1. Start Kafka environment
-./scripts/kafka-dev.sh start
+# 1. Start development environment with Aspire
+cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+dotnet run
 
-# 2. Run reliability test with 10M messages (default)
+# 2. Run reliability test with 10M messages (default) in separate terminal
 cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
 dotnet test
 
