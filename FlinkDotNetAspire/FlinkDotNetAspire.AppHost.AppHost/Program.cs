@@ -18,22 +18,19 @@ public static class Program
         // Set up for 1 million message high throughput test
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
 
-        // Add JobManager (1 instance) - Using container instead of project
-        builder.AddContainer("jobmanager", "flinkdotnet/jobmanager", "latest")
+        // Add JobManager (1 instance) - Using project for GitHub Actions compatibility
+        var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-            .WithHttpEndpoint(targetPort: 8080, name: "http")
-            .WithEndpoint(targetPort: 8081, scheme: "http", name: "grpc");
+            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
-        // Add TaskManagers (20 instances as per requirements) - Using containers instead of projects
+        // Add TaskManagers (20 instances as per requirements) - Using projects for GitHub Actions compatibility
         for (int i = 1; i <= 20; i++)
         {
-            builder.AddContainer($"taskmanager{i}", "flinkdotnet/taskmanager", "latest")
+            builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", "http://jobmanager:8081")
-                .WithHttpEndpoint(targetPort: 8080, name: "grpc");
+                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", jobManager.GetEndpoint("https"));
         }
 
         // Provide Redis and Kafka connection information to the FlinkJobSimulator
