@@ -134,54 +134,112 @@ if not defined SIMULATOR_NUM_MESSAGES set SIMULATOR_NUM_MESSAGES=1000000
 if not defined FLINKDOTNET_STANDARD_TEST_MESSAGES set FLINKDOTNET_STANDARD_TEST_MESSAGES=100000
 set ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
-echo Starting parallel test execution
-echo Unit Tests: test-logs\unit-tests.log
-echo Integration Tests: test-logs\integration-tests.log
-if %SKIP_STRESS%==0 echo Stress Tests: test-logs\stress-tests.log
-if %SKIP_RELIABILITY%==0 echo Reliability Tests: test-logs\reliability-tests.log
-if %SKIP_SONAR%==0 echo SonarCloud: test-logs\sonarcloud.log
+echo Starting parallel test execution (running silently in background)
 echo.
 
-REM Start all tests in parallel using simple start command
-start "Unit Tests" cmd /c "powershell -File scripts\run-local-unit-tests.ps1 > test-logs\unit-tests.log 2>&1 & echo Unit Tests completed > test-logs\unit-tests.done"
+REM Start all tests in parallel using PowerShell background jobs (silent execution)
+echo [INFO] Starting Unit Tests...
+powershell -WindowStyle Hidden -Command "Start-Job -Name 'UnitTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-unit-tests.ps1' > '%ROOT%\test-logs\unit-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Unit Tests completed successfully' > '%ROOT%\test-logs\unit-tests.status' } else { '[ERROR] Unit Tests failed' > '%ROOT%\test-logs\unit-tests.status' } }" >nul
 
-start "Integration Tests" cmd /c "powershell -File scripts\run-integration-tests-in-windows-os.ps1 > test-logs\integration-tests.log 2>&1 & echo Integration Tests completed > test-logs\integration-tests.done"
+echo [INFO] Starting Integration Tests...
+powershell -WindowStyle Hidden -Command "Start-Job -Name 'IntegrationTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-integration-tests-in-windows-os.ps1' > '%ROOT%\test-logs\integration-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Integration Tests completed successfully' > '%ROOT%\test-logs\integration-tests.status' } else { '[ERROR] Integration Tests failed' > '%ROOT%\test-logs\integration-tests.status' } }" >nul
 
 if %SKIP_STRESS%==0 (
-    start "Stress Tests" cmd /c "powershell -File scripts\run-local-stress-tests.ps1 > test-logs\stress-tests.log 2>&1 & echo Stress Tests completed > test-logs\stress-tests.done"
+    echo [INFO] Starting Stress Tests...
+    powershell -WindowStyle Hidden -Command "Start-Job -Name 'StressTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-stress-tests.ps1' > '%ROOT%\test-logs\stress-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Stress Tests completed successfully' > '%ROOT%\test-logs\stress-tests.status' } else { '[ERROR] Stress Tests failed' > '%ROOT%\test-logs\stress-tests.status' } }" >nul
 )
 
 if %SKIP_RELIABILITY%==0 (
-    start "Reliability Tests" cmd /c "powershell -File scripts\run-local-reliability-tests.ps1 > test-logs\reliability-tests.log 2>&1 & echo Reliability Tests completed > test-logs\reliability-tests.done"
+    echo [INFO] Starting Reliability Tests...
+    powershell -WindowStyle Hidden -Command "Start-Job -Name 'ReliabilityTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-reliability-tests.ps1' > '%ROOT%\test-logs\reliability-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Reliability Tests completed successfully' > '%ROOT%\test-logs\reliability-tests.status' } else { '[ERROR] Reliability Tests failed' > '%ROOT%\test-logs\reliability-tests.status' } }" >nul
 )
 
 if %SKIP_SONAR%==0 (
-    start "SonarCloud" cmd /c "powershell -File scripts\run-local-sonarcloud.ps1 > test-logs\sonarcloud.log 2>&1 & echo SonarCloud completed > test-logs\sonarcloud.done"
+    echo [INFO] Starting SonarCloud Analysis...
+    powershell -WindowStyle Hidden -Command "Start-Job -Name 'SonarCloud' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-sonarcloud.ps1' > '%ROOT%\test-logs\sonarcloud.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] SonarCloud completed successfully' > '%ROOT%\test-logs\sonarcloud.status' } else { '[ERROR] SonarCloud failed' > '%ROOT%\test-logs\sonarcloud.status' } }" >nul
 )
 
-REM Wait for all tests to complete
-echo Waiting for all tests to complete
-:wait_loop
+echo.
+echo [INFO] All tests started in background. Monitoring progress...
+echo.
+
+REM Monitor test progress and show status in console
+:monitor_loop
 set ALL_DONE=1
+set ANY_STATUS_CHANGED=0
 
-if not exist test-logs\unit-tests.done set ALL_DONE=0
-if not exist test-logs\integration-tests.done set ALL_DONE=0
+REM Check Unit Tests
+if not exist test-logs\unit-tests.status (
+    set ALL_DONE=0
+) else (
+    if not defined UNIT_TESTS_REPORTED (
+        set /p UNIT_STATUS=<test-logs\unit-tests.status
+        echo !UNIT_STATUS!
+        set UNIT_TESTS_REPORTED=1
+        set ANY_STATUS_CHANGED=1
+    )
+)
 
+REM Check Integration Tests  
+if not exist test-logs\integration-tests.status (
+    set ALL_DONE=0
+) else (
+    if not defined INTEGRATION_TESTS_REPORTED (
+        set /p INTEGRATION_STATUS=<test-logs\integration-tests.status
+        echo !INTEGRATION_STATUS!
+        set INTEGRATION_TESTS_REPORTED=1
+        set ANY_STATUS_CHANGED=1
+    )
+)
+
+REM Check Stress Tests
 if %SKIP_STRESS%==0 (
-    if not exist test-logs\stress-tests.done set ALL_DONE=0
+    if not exist test-logs\stress-tests.status (
+        set ALL_DONE=0
+    ) else (
+        if not defined STRESS_TESTS_REPORTED (
+            set /p STRESS_STATUS=<test-logs\stress-tests.status
+            echo !STRESS_STATUS!
+            set STRESS_TESTS_REPORTED=1
+            set ANY_STATUS_CHANGED=1
+        )
+    )
 )
 
+REM Check Reliability Tests
 if %SKIP_RELIABILITY%==0 (
-    if not exist test-logs\reliability-tests.done set ALL_DONE=0
+    if not exist test-logs\reliability-tests.status (
+        set ALL_DONE=0
+    ) else (
+        if not defined RELIABILITY_TESTS_REPORTED (
+            set /p RELIABILITY_STATUS=<test-logs\reliability-tests.status
+            echo !RELIABILITY_STATUS!
+            set RELIABILITY_TESTS_REPORTED=1
+            set ANY_STATUS_CHANGED=1
+        )
+    )
 )
 
+REM Check SonarCloud
 if %SKIP_SONAR%==0 (
-    if not exist test-logs\sonarcloud.done set ALL_DONE=0
+    if not exist test-logs\sonarcloud.status (
+        set ALL_DONE=0
+    ) else (
+        if not defined SONARCLOUD_REPORTED (
+            set /p SONAR_STATUS=<test-logs\sonarcloud.status
+            echo !SONAR_STATUS!
+            set SONARCLOUD_REPORTED=1
+            set ANY_STATUS_CHANGED=1
+        )
+    )
 )
 
 if !ALL_DONE!==0 (
-    timeout /t 5 /nobreak >nul
-    goto wait_loop
+    if !ANY_STATUS_CHANGED!==0 (
+        echo [INFO] Tests still running...
+    )
+    timeout /t 3 /nobreak >nul
+    goto monitor_loop
 )
 
 echo.
