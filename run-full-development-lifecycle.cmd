@@ -256,23 +256,47 @@ REM Get the results from PowerShell execution
 for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_SONAR_UPDATED"') do set SKIP_SONAR=%%i
 for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_STRESS_UPDATED"') do set SKIP_STRESS=%%i
 
-REM Handle tool installations if needed - run Java and Docker in parallel when both needed
-call :check_dotnet
-if errorlevel 1 call :install_dotnet
-if errorlevel 1 exit /b 1
+REM Handle tool installations if needed - use PowerShell results instead of redundant checks
+echo.
+echo === Handling Missing Prerequisites ===
 
-REM Start parallel installation jobs for Java and Docker if needed
-set JAVA_INSTALL_NEEDED=0
-set DOCKER_INSTALL_NEEDED=0
-
-if %SKIP_SONAR%==0 (
-    call :check_java
-    if errorlevel 1 set JAVA_INSTALL_NEEDED=1
+REM Check if .NET needs installation (redundant check removed, trusting PowerShell result)
+for /f "tokens=*" %%i in ('powershell -Command "if ((Get-Command dotnet -ErrorAction SilentlyContinue) -eq $null) { 'INSTALL_NEEDED' } else { 'FOUND' }"') do set DOTNET_STATUS=%%i
+if "%DOTNET_STATUS%"=="INSTALL_NEEDED" (
+    call :install_dotnet
+    if errorlevel 1 exit /b 1
+) else (
+    echo ✅ .NET SDK already installed - skipping installation
 )
 
+REM Handle Java installation if needed
+set JAVA_INSTALL_NEEDED=0
+if %SKIP_SONAR%==0 (
+    for /f "tokens=*" %%i in ('powershell -Command "if ((Get-Command java -ErrorAction SilentlyContinue) -eq $null) { 'INSTALL_NEEDED' } else { 'FOUND' }"') do set JAVA_STATUS=%%i
+    if "!JAVA_STATUS!"=="INSTALL_NEEDED" (
+        set JAVA_INSTALL_NEEDED=1
+    ) else (
+        echo ✅ Java already installed - skipping installation
+    )
+) else (
+    echo ⏭️  Java installation skipped (SonarCloud disabled)
+)
+
+REM Handle Docker installation if needed  
+set DOCKER_INSTALL_NEEDED=0
 if %SKIP_STRESS%==0 (
-    call :check_docker
-    if errorlevel 1 set DOCKER_INSTALL_NEEDED=1
+    REM First check if Docker Desktop is installed
+    if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+        echo ✅ Docker Desktop already installed - skipping installation
+    ) else (
+        if exist "%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe" (
+            echo ✅ Docker Desktop already installed - skipping installation
+        ) else (
+            set DOCKER_INSTALL_NEEDED=1
+        )
+    )
+) else (
+    echo ⏭️  Docker installation skipped (stress tests disabled)
 )
 
 REM Run Java and Docker installations in parallel if both are needed
@@ -308,9 +332,14 @@ if %JAVA_INSTALL_NEEDED%==1 (
     )
 )
 
-call :check_pwsh
-if errorlevel 1 call :install_pwsh
-if errorlevel 1 exit /b 1
+REM Handle PowerShell installation if needed
+for /f "tokens=*" %%i in ('powershell -Command "if ((Get-Command pwsh -ErrorAction SilentlyContinue) -eq $null) { 'INSTALL_NEEDED' } else { 'FOUND' }"') do set PWSH_STATUS=%%i
+if "%PWSH_STATUS%"=="INSTALL_NEEDED" (
+    call :install_pwsh
+    if errorlevel 1 exit /b 1
+) else (
+    echo ✅ PowerShell Core already installed - skipping installation
+)
 
 echo Prerequisites check completed.
 echo.

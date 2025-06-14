@@ -5,6 +5,11 @@ Write-Host "=== STRESS TESTS WORKFLOW STARTED ==="
 $startTime = Get-Date
 
 try {
+    # Navigate to repository root (handle both root and scripts folder execution)
+    $rootPath = if (Test-Path "FlinkDotNet") { Get-Location } else { Split-Path -Parent (Get-Location) }
+    Set-Location $rootPath
+    Write-Host "Working directory: $rootPath"
+
     # Set environment variables
     $env:SIMULATOR_NUM_MESSAGES = if ($env:SIMULATOR_NUM_MESSAGES) { $env:SIMULATOR_NUM_MESSAGES } else { "1000000" }
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"

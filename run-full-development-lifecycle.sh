@@ -278,8 +278,11 @@ check_prerequisites_parallel() {
     
     check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell"
     if [[ $? -ne 0 ]]; then
-        rm -rf "$temp_dir"
-        exit 1
+        echo "WARNING: PowerShell Core not found. Please install PowerShell 7+ manually:"
+        echo "   https://github.com/PowerShell/PowerShell/releases"
+        echo "   Some workflows may not function correctly without PowerShell Core."
+        echo ""
+        echo "Continuing without PowerShell Core..."
     fi
     
     # Clean up

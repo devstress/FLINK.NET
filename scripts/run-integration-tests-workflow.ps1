@@ -5,6 +5,11 @@ Write-Host "=== INTEGRATION TESTS WORKFLOW STARTED ==="
 $startTime = Get-Date
 
 try {
+    # Navigate to repository root (handle both root and scripts folder execution)
+    $rootPath = if (Test-Path "FlinkDotNet") { Get-Location } else { Split-Path -Parent (Get-Location) }
+    Set-Location $rootPath
+    Write-Host "Working directory: $rootPath"
+
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
 
     # Install .NET Aspire Workload
