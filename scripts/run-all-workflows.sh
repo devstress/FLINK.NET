@@ -76,8 +76,8 @@ EOF
     exit 0
 fi
 
-# Navigate to repository root
-cd "$(dirname "$0")"
+# Navigate to repository root (parent of scripts folder)
+cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 echo "================================================================"

@@ -9,12 +9,12 @@ The **ONLY** quality requirement is that the local run-all-workflows scripts mus
 
 #### Windows:
 ```cmd
-run-all-workflows.cmd
+scripts/run-all-workflows.cmd
 ```
 
 #### Linux:
 ```bash
-./run-all-workflows.sh
+./scripts/run-all-workflows.sh
 ```
 
 **Success Criteria:**
@@ -27,7 +27,7 @@ run-all-workflows.cmd
 ### Rule #2: Workflow Synchronization Requirement (MANDATORY)
 **VIOLATION = IMMEDIATE REJECTION**
 
-The run-all-workflows files MUST stay synchronized with GitHub workflow files. Any changes to `.github/workflows/*.yml` require corresponding updates to `run-all-workflows.cmd` and `run-all-workflows.sh`.
+The run-all-workflows files MUST stay synchronized with GitHub workflow files. Any changes to `.github/workflows/*.yml` require corresponding updates to `scripts/run-all-workflows.cmd` and `scripts/run-all-workflows.sh`.
 
 **Verification:**
 ```bash
@@ -46,7 +46,7 @@ The run-all-workflows files MUST stay synchronized with GitHub workflow files. A
 ### Pre-Submission Checklist (MANDATORY)
 Before using `report_progress`, copilot agents **MUST** complete:
 
-- [ ] ✅ **RUN ALL WORKFLOWS**: `run-all-workflows.cmd` (Windows) or `./run-all-workflows.sh` (Linux)
+- [ ] ✅ **RUN ALL WORKFLOWS**: `scripts/run-all-workflows.cmd` (Windows) or `./scripts/run-all-workflows.sh` (Linux)
 - [ ] ✅ **VERIFY SUCCESS**: All 4 workflows complete with exit code 0
 - [ ] ✅ **CHECK SYNC**: `./scripts/validate-workflow-sync.ps1` passes
 - [ ] ✅ **GIT STATUS**: `git status --porcelain` shows only intended changes
@@ -62,9 +62,9 @@ Before using `report_progress`, copilot agents **MUST** complete:
 ```bash
 # Single command enforcement
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    run-all-workflows.cmd
+    scripts/run-all-workflows.cmd
 else
-    ./run-all-workflows.sh
+    ./scripts/run-all-workflows.sh
 fi
 
 if [ $? -ne 0 ]; then
@@ -87,7 +87,7 @@ echo "✅ ALL QUALITY GATES PASSED"
 ### Definition of Complete
 A submission is **COMPLETE** only when:
 
-✅ **run-all-workflows.cmd** (Windows) OR **run-all-workflows.sh** (Linux) exits with code 0
+✅ **scripts/run-all-workflows.cmd** (Windows) OR **scripts/run-all-workflows.sh** (Linux) exits with code 0
 ✅ **validate-workflow-sync.ps1** passes (ensures GitHub workflow alignment)
 ✅ **Git status**: Clean, only intended files modified
 

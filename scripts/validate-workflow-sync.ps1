@@ -4,7 +4,7 @@
     Validates that run-all-workflows files stay synchronized with GitHub workflow files.
 
 .DESCRIPTION
-    This script ensures that run-all-workflows.cmd and run-all-workflows.sh remain 
+    This script ensures that scripts/run-all-workflows.cmd and scripts/run-all-workflows.sh remain 
     synchronized with the GitHub Actions workflow files (.github/workflows/*.yml).
     
     Any changes to GitHub workflows require corresponding updates to the run-all-workflows
@@ -234,8 +234,8 @@ try {
         ".github/workflows/integration-tests.yml"
     )
     
-    $RunAllWorkflowsCmd = "run-all-workflows.cmd"
-    $RunAllWorkflowsSh = "run-all-workflows.sh"
+    $RunAllWorkflowsCmd = "scripts/run-all-workflows.cmd"
+    $RunAllWorkflowsSh = "scripts/run-all-workflows.sh"
     
     # Check that all required files exist
     Write-Host "=== File Existence Check ===" -ForegroundColor Yellow
@@ -251,16 +251,16 @@ try {
     }
     
     if (Test-Path $RunAllWorkflowsCmd) {
-        Add-ValidationResult "run-all-workflows.cmd" $true "File exists"
+        Add-ValidationResult "scripts/run-all-workflows.cmd" $true "File exists"
     } else {
-        Add-ValidationResult "run-all-workflows.cmd" $false "File missing"
+        Add-ValidationResult "scripts/run-all-workflows.cmd" $false "File missing"
         $allFilesExist = $false
     }
     
     if (Test-Path $RunAllWorkflowsSh) {
-        Add-ValidationResult "run-all-workflows.sh" $true "File exists"
+        Add-ValidationResult "scripts/run-all-workflows.sh" $true "File exists"
     } else {
-        Add-ValidationResult "run-all-workflows.sh" $false "File missing"
+        Add-ValidationResult "scripts/run-all-workflows.sh" $false "File missing"
         $allFilesExist = $false
     }
     
@@ -283,10 +283,10 @@ try {
     }
     
     if ($cmdCoverage.Count -eq $expectedWorkflows.Count) {
-        Add-ValidationResult "run-all-workflows.cmd Coverage" $true "All 4 workflows covered"
+        Add-ValidationResult "scripts/run-all-workflows.cmd Coverage" $true "All 4 workflows covered"
     } else {
         $missing = $expectedWorkflows | Where-Object { $_ -notin $cmdCoverage }
-        Add-ValidationResult "run-all-workflows.cmd Coverage" $false "Missing: $($missing -join ', ')"
+        Add-ValidationResult "scripts/run-all-workflows.cmd Coverage" $false "Missing: $($missing -join ', ')"
     }
     
     # Check sh file
@@ -297,10 +297,10 @@ try {
     }
     
     if ($shCoverage.Count -eq $expectedWorkflows.Count) {
-        Add-ValidationResult "run-all-workflows.sh Coverage" $true "All 4 workflows covered"
+        Add-ValidationResult "scripts/run-all-workflows.sh Coverage" $true "All 4 workflows covered"
     } else {
         $missing = $expectedWorkflows | Where-Object { $_ -notin $shCoverage }
-        Add-ValidationResult "run-all-workflows.sh Coverage" $false "Missing: $($missing -join ', ')"
+        Add-ValidationResult "scripts/run-all-workflows.sh Coverage" $false "Missing: $($missing -join ', ')"
     }
     
     Write-Host ""
@@ -381,16 +381,16 @@ try {
     
     if ($newestWorkflow.LastWriteTime -gt $cmdMod.LastWriteTime) {
         $timeDiff = ($newestWorkflow.LastWriteTime - $cmdMod.LastWriteTime).TotalHours
-        Add-ValidationResult "Modification Time: CMD" $false "run-all-workflows.cmd is $($timeDiff.ToString('F1')) hours older than newest workflow"
+        Add-ValidationResult "Modification Time: CMD" $false "scripts/run-all-workflows.cmd is $($timeDiff.ToString('F1')) hours older than newest workflow"
     } else {
-        Add-ValidationResult "Modification Time: CMD" $true "run-all-workflows.cmd is up to date"
+        Add-ValidationResult "Modification Time: CMD" $true "scripts/run-all-workflows.cmd is up to date"
     }
     
     if ($newestWorkflow.LastWriteTime -gt $shMod.LastWriteTime) {
         $timeDiff = ($newestWorkflow.LastWriteTime - $shMod.LastWriteTime).TotalHours
-        Add-ValidationResult "Modification Time: SH" $false "run-all-workflows.sh is $($timeDiff.ToString('F1')) hours older than newest workflow"
+        Add-ValidationResult "Modification Time: SH" $false "scripts/run-all-workflows.sh is $($timeDiff.ToString('F1')) hours older than newest workflow"
     } else {
-        Add-ValidationResult "Modification Time: SH" $true "run-all-workflows.sh is up to date"
+        Add-ValidationResult "Modification Time: SH" $true "scripts/run-all-workflows.sh is up to date"
     }
     
     Write-Host ""
@@ -415,7 +415,7 @@ try {
         Write-Host ""
         Write-Host "=== Recommended Actions ===" -ForegroundColor Yellow
         Write-Host "1. Review GitHub workflow changes in .github/workflows/" -ForegroundColor White
-        Write-Host "2. Update run-all-workflows.cmd and run-all-workflows.sh accordingly" -ForegroundColor White
+        Write-Host "2. Update scripts/run-all-workflows.cmd and scripts/run-all-workflows.sh accordingly" -ForegroundColor White
         Write-Host "3. Ensure all environment variables are synchronized" -ForegroundColor White
         Write-Host "4. Verify all dotnet commands match between workflows and scripts" -ForegroundColor White
         Write-Host "5. Re-run this validation script to confirm fixes" -ForegroundColor White

@@ -2,12 +2,12 @@
 # build-all-sln.sh - Restore and build all major solutions in sequence.
 # Usage: ./build-all-sln.sh
 # 
-# For advanced build with warning detection, use: ./local-build-analysis.ps1
+# For advanced build with warning detection, use: ./scripts/local-build-analysis.ps1
 
 set -e  # Exit on first error
 
-# Navigate to repository root
-cd "$(dirname "$0")"
+# Navigate to repository root (parent of scripts folder)
+cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 # Function to build a solution

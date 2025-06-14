@@ -96,12 +96,12 @@ try {
     
     # Detect platform and run appropriate script
     if ($IsWindows -or $env:OS -eq "Windows_NT") {
-        Write-Host "Running Windows version: run-all-workflows.cmd" -ForegroundColor Gray
-        $workflowOutput = & cmd /c "run-all-workflows.cmd" 2>&1
+        Write-Host "Running Windows version: scripts/run-all-workflows.cmd" -ForegroundColor Gray
+        $workflowOutput = & cmd /c "scripts/run-all-workflows.cmd" 2>&1
         $workflowExitCode = $LASTEXITCODE
     } else {
-        Write-Host "Running Linux version: ./run-all-workflows.sh" -ForegroundColor Gray
-        $workflowOutput = & ./run-all-workflows.sh 2>&1
+        Write-Host "Running Linux version: ./scripts/run-all-workflows.sh" -ForegroundColor Gray
+        $workflowOutput = & ./scripts/run-all-workflows.sh 2>&1
         $workflowExitCode = $LASTEXITCODE
     }
     

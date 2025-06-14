@@ -296,7 +296,7 @@ public static class ServiceUris
 ```
 
 ### 2. Local Build and Analysis Infrastructure
-**Location**: `local-build-analysis.ps1`, `build-all-sln.sh`
+**Location**: `scripts/local-build-analysis.ps1`, `scripts/build-all-sln.sh`
 
 Development tooling that mirrors CI/CD pipeline:
 
@@ -307,10 +307,10 @@ Development tooling that mirrors CI/CD pipeline:
 
 ```bash
 # Run comprehensive local analysis
-./local-build-analysis.ps1
+./scripts/local-build-analysis.ps1
 
 # Quick build without SonarCloud
-./local-build-analysis.ps1 -SkipSonar
+./scripts/local-build-analysis.ps1 -SkipSonar
 ```
 
 ## 📊 Performance Characteristics

@@ -12,13 +12,13 @@ This document provides comprehensive guidelines for developing and maintaining F
 
 ```bash
 # For comprehensive local analysis (recommended)
-./local-build-analysis.ps1
+./scripts/local-build-analysis.ps1
 
 # For quick build without SonarCloud analysis  
-./local-build-analysis.ps1 -SkipSonar
+./scripts/local-build-analysis.ps1 -SkipSonar
 
 # Unix/Linux systems
-./build-all-sln.sh
+./scripts/build-all-sln.sh
 ```
 
 **Requirements:**
@@ -273,7 +273,7 @@ public class HealthStatus
 
 Before submitting PRs, ensure:
 
-- [ ] Zero build warnings using `local-build-analysis.ps1`
+- [ ] Zero build warnings using `scripts/local-build-analysis.ps1`
 - [ ] All tests pass (unit, integration, stress)
 - [ ] No magic numbers or hardcoded values
 - [ ] Proper error handling and logging
