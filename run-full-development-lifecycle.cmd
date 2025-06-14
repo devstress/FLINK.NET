@@ -139,131 +139,36 @@ echo.
 
 REM Start all tests in parallel using simple background processes with proper logging
 echo [INFO] Starting Unit Tests (log: %ROOT%\test-logs\unit-tests.log)...
-start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-unit-tests.ps1" > "%ROOT%\test-logs\unit-tests.log" 2>&1 && echo [OK] Unit Tests completed successfully > "%ROOT%\test-logs\unit-tests.status" || echo [ERROR] Unit Tests failed > "%ROOT%\test-logs\unit-tests.status""
+start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-unit-tests.ps1" ^> "%ROOT%\test-logs\unit-tests.log" 2^>^&1 ^&^& echo [OK] Unit Tests completed successfully ^> "%ROOT%\test-logs\unit-tests.status" ^|^| echo [ERROR] Unit Tests failed ^> "%ROOT%\test-logs\unit-tests.status"
 
 echo [INFO] Starting Integration Tests (log: %ROOT%\test-logs\integration-tests.log)...
-start /B cmd /c "powershell -File "%ROOT%\scripts\run-integration-tests-in-windows-os.ps1" > "%ROOT%\test-logs\integration-tests.log" 2>&1 && echo [OK] Integration Tests completed successfully > "%ROOT%\test-logs\integration-tests.status" || echo [ERROR] Integration Tests failed > "%ROOT%\test-logs\integration-tests.status""
+start "" /B cmd /c powershell -File "%ROOT%\scripts\run-integration-tests-in-windows-os.ps1" ^> "%ROOT%\test-logs\integration-tests.log" 2^>^&1
 
 if %SKIP_STRESS%==0 (
     echo [INFO] Starting Stress Tests (log: %ROOT%\test-logs\stress-tests.log)...
-    start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-stress-tests.ps1" > "%ROOT%\test-logs\stress-tests.log" 2>&1 && echo [OK] Stress Tests completed successfully > "%ROOT%\test-logs\stress-tests.status" || echo [ERROR] Stress Tests failed > "%ROOT%\test-logs\stress-tests.status""
+    start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-stress-tests.ps1" ^> "%ROOT%\test-logs\stress-tests.log" 2^>^&1 ^&^& echo [OK] Stress Tests completed successfully ^> "%ROOT%\test-logs\stress-tests.status" ^|^| echo [ERROR] Stress Tests failed ^> "%ROOT%\test-logs\stress-tests.status"
 )
 
 if %SKIP_RELIABILITY%==0 (
     echo [INFO] Starting Reliability Tests (log: %ROOT%\test-logs\reliability-tests.log)...
-    start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-reliability-tests.ps1" > "%ROOT%\test-logs\reliability-tests.log" 2>&1 && echo [OK] Reliability Tests completed successfully > "%ROOT%\test-logs\reliability-tests.status" || echo [ERROR] Reliability Tests failed > "%ROOT%\test-logs\reliability-tests.status""
+    start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-reliability-tests.ps1" ^> "%ROOT%\test-logs\reliability-tests.log" 2^>^&1 ^&^& echo [OK] Reliability Tests completed successfully ^> "%ROOT%\test-logs\reliability-tests.status" ^|^| echo [ERROR] Reliability Tests failed ^> "%ROOT%\test-logs\reliability-tests.status"
 )
 
 if %SKIP_SONAR%==0 (
     echo [INFO] Starting SonarCloud Analysis (log: %ROOT%\test-logs\sonarcloud.log)...
-    start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-sonarcloud.ps1" > "%ROOT%\test-logs\sonarcloud.log" 2>&1 && echo [OK] SonarCloud completed successfully > "%ROOT%\test-logs\sonarcloud.status" || echo [ERROR] SonarCloud failed > "%ROOT%\test-logs\sonarcloud.status""
+    start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-sonarcloud.ps1" ^> "%ROOT%\test-logs\sonarcloud.log" 2^>^&1 ^&^& echo [OK] SonarCloud completed successfully ^> "%ROOT%\test-logs\sonarcloud.status" ^|^| echo [ERROR] SonarCloud failed ^> "%ROOT%\test-logs\sonarcloud.status"
 )
 
 echo.
 echo [INFO] All tests started in background. Monitoring progress...
 echo.
 
-REM Monitor test progress and show status in console
-:monitor_loop
-set ALL_DONE=1
-set ANY_STATUS_CHANGED=0
+set MONITOR_ARGS=-LogDir "%ROOT%\test-logs"
+if %SKIP_SONAR%==1 set MONITOR_ARGS=!MONITOR_ARGS! -SkipSonar
+if %SKIP_STRESS%==1 set MONITOR_ARGS=!MONITOR_ARGS! -SkipStress
+if %SKIP_RELIABILITY%==1 set MONITOR_ARGS=!MONITOR_ARGS! -SkipReliability
 
-echo.
-echo === Test Progress Status ===
-
-REM Check Unit Tests
-if not exist test-logs\unit-tests.status (
-    set ALL_DONE=0
-    call :check_progress "unit-tests" "Unit Tests"
-) else (
-    if not defined UNIT_TESTS_REPORTED (
-        set /p UNIT_STATUS=<test-logs\unit-tests.status
-        echo !UNIT_STATUS!
-        set UNIT_TESTS_REPORTED=1
-        set ANY_STATUS_CHANGED=1
-    ) else (
-        echo [OK] Unit Tests: Completed
-    )
-)
-
-REM Check Integration Tests  
-if not exist test-logs\integration-tests.status (
-    set ALL_DONE=0
-    call :check_progress "integration-tests" "Integration Tests"
-) else (
-    if not defined INTEGRATION_TESTS_REPORTED (
-        set /p INTEGRATION_STATUS=<test-logs\integration-tests.status
-        echo !INTEGRATION_STATUS!
-        set INTEGRATION_TESTS_REPORTED=1
-        set ANY_STATUS_CHANGED=1
-    ) else (
-        echo [OK] Integration Tests: Completed
-    )
-)
-
-REM Check Stress Tests
-if %SKIP_STRESS%==0 (
-    if not exist test-logs\stress-tests.status (
-        set ALL_DONE=0
-        call :check_progress "stress-tests" "Stress Tests"
-    ) else (
-        if not defined STRESS_TESTS_REPORTED (
-            set /p STRESS_STATUS=<test-logs\stress-tests.status
-            echo !STRESS_STATUS!
-            set STRESS_TESTS_REPORTED=1
-            set ANY_STATUS_CHANGED=1
-        ) else (
-            echo [OK] Stress Tests: Completed
-        )
-    )
-)
-
-REM Check Reliability Tests
-if %SKIP_RELIABILITY%==0 (
-    if not exist test-logs\reliability-tests.status (
-        set ALL_DONE=0
-        call :check_progress "reliability-tests" "Reliability Tests"
-    ) else (
-        if not defined RELIABILITY_TESTS_REPORTED (
-            set /p RELIABILITY_STATUS=<test-logs\reliability-tests.status
-            echo !RELIABILITY_STATUS!
-            set RELIABILITY_TESTS_REPORTED=1
-            set ANY_STATUS_CHANGED=1
-        ) else (
-            echo [OK] Reliability Tests: Completed
-        )
-    )
-)
-
-REM Check SonarCloud
-if %SKIP_SONAR%==0 (
-    if not exist test-logs\sonarcloud.status (
-        set ALL_DONE=0
-        call :check_progress "sonarcloud" "SonarCloud Analysis"
-    ) else (
-        if not defined SONARCLOUD_REPORTED (
-            set /p SONAR_STATUS=<test-logs\sonarcloud.status
-            echo !SONAR_STATUS!
-            set SONARCLOUD_REPORTED=1
-            set ANY_STATUS_CHANGED=1
-        ) else (
-            echo [OK] SonarCloud Analysis: Completed
-        )
-    )
-)
-
-if !ALL_DONE!==0 (
-    echo.
-    echo [INFO] Refreshing in 3 seconds...
-    timeout /t 3 /nobreak >nul
-    cls
-    echo ================================================================
-    echo    Complete Development Lifecycle - Build All + Parallel Tests
-    echo ================================================================
-    echo Repository: %ROOT%
-    echo Timestamp: %DATE% %TIME%
-    goto monitor_loop
-)
+powershell -ExecutionPolicy Bypass -File "%ROOT%\scripts\monitor-test-progress.ps1" !MONITOR_ARGS!
 
 echo.
 echo === All Tests Completed ===
@@ -285,59 +190,6 @@ endlocal
 exit /b 0
 
 REM ================ HELPER FUNCTIONS ================
-
-:check_progress
-set "LOG_FILE=%~1"
-set "TEST_NAME=%~2"
-set "PROGRESS=0"
-set "LOG_PATH=test-logs\%LOG_FILE%.log"
-
-if exist "%LOG_PATH%" (
-    REM Get the size of the log file to detect if it's growing
-    for %%F in ("%LOG_PATH%") do set "FILE_SIZE=%%~zF"
-    
-    REM Parse log file for progress indicators using specific PowerShell script patterns
-    findstr /C:"Prerequisites Check" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=10
-    
-    findstr /C:"Building" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=30
-    
-    findstr /C:"Running" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=50
-    
-    findstr /C:"Unit Tests" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=60
-    
-    findstr /C:"tests" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=70
-    
-    findstr /C:"Summary" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=85
-    
-    REM Check for specific completion indicators
-    findstr /C:"PASSED" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=95
-    
-    findstr /C:"completed successfully" "%LOG_PATH%" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=98
-    
-    REM Show current status with file size as activity indicator
-    if !PROGRESS! GEQ 95 (
-        echo [INFO] %TEST_NAME%: 98%% - Finalizing... (log: %FILE_SIZE% bytes)
-    ) else if !PROGRESS! GTR 0 (
-        echo [INFO] %TEST_NAME%: !PROGRESS!%% - In progress... (log: %FILE_SIZE% bytes)
-    ) else (
-        if !FILE_SIZE! GTR 0 (
-            echo [INFO] %TEST_NAME%: 5%% - Starting... (log: %FILE_SIZE% bytes)
-        ) else (
-            echo [INFO] %TEST_NAME%: 0%% - Initializing...
-        )
-    )
-) else (
-    echo [INFO] %TEST_NAME%: 0%% - Waiting to start... (log: %LOG_PATH%)
-)
-exit /b 0
 
 :check_admin
 REM Check if running with administrator privileges
