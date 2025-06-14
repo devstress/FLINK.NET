@@ -23,11 +23,11 @@ setlocal enabledelayedexpansion
 REM Check if running as administrator
 call :check_admin
 if errorlevel 1 (
-    echo ❌ This script requires administrator privileges.
-    echo    Please run as Administrator for Docker operations and installations.
+    echo [ERROR] This script requires administrator privileges.
+    echo         Please run as Administrator for Docker operations and installations.
     exit /b 1
 )
-echo ✅ Administrator privileges confirmed
+echo [OK] Administrator privileges confirmed
 
 REM Parse command line arguments
 set SKIP_SONAR=0
@@ -91,14 +91,14 @@ if errorlevel 1 exit /b 1
 if %SKIP_SONAR%==0 (
     call :check_java
     if errorlevel 1 (
-        echo WARNING: Java not found. SonarCloud analysis will be skipped.
+        echo [WARNING] Java not found. SonarCloud analysis will be skipped.
         set SKIP_SONAR=1
     )
 )
 
 call :check_docker
 if errorlevel 1 (
-    echo WARNING: Docker not available. Stress and reliability tests will be skipped.
+    echo [WARNING] Docker not available. Stress and reliability tests will be skipped.
     set SKIP_STRESS=1
     set SKIP_RELIABILITY=1
 )
@@ -120,7 +120,7 @@ if errorlevel 1 goto :BuildError
 call :BuildSolution "%ROOT%\FlinkDotNet.WebUI\FlinkDotNet.WebUI.sln"
 if errorlevel 1 goto :BuildError
 
-echo ✅ All solutions built successfully!
+echo [OK] All solutions built successfully!
 echo.
 
 REM Step 2: Run All Tests in Parallel
@@ -186,7 +186,7 @@ if %ALL_DONE%==0 (
 
 echo.
 echo === All Tests Completed ===
-echo ✅ Complete development lifecycle finished!
+echo [OK] Complete development lifecycle finished!
 echo.
 echo Check test-logs\ directory for detailed results:
 dir test-logs\*.log
@@ -206,12 +206,12 @@ exit /b 0
 :check_dotnet
 where dotnet >NUL 2>&1
 if errorlevel 1 (
-    echo ❌ .NET SDK not found. Please install .NET 8.0 or later.
-    echo    Download from: https://dotnet.microsoft.com/download
+    echo [ERROR] .NET SDK not found. Please install .NET 8.0 or later.
+    echo          Download from: https://dotnet.microsoft.com/download
     exit /b 1
 )
 for /f "tokens=*" %%i in ('dotnet --version 2^>nul') do set DOTNET_VERSION=%%i
-echo ✅ .NET SDK: %DOTNET_VERSION%
+echo [OK] .NET SDK: %DOTNET_VERSION%
 exit /b 0
 
 :check_java
@@ -221,28 +221,48 @@ for /f "tokens=3" %%i in ('java -version 2^>^&1 ^| findstr "version"') do (
     set JAVA_VERSION=%%i
     set JAVA_VERSION=!JAVA_VERSION:"=!
 )
-echo ✅ Java: %JAVA_VERSION%
+echo [OK] Java: %JAVA_VERSION%
 exit /b 0
 
 :check_docker
-REM Check if Docker is available and running
-docker info >NUL 2>&1
-if errorlevel 1 (
-    echo ❌ Docker not available or not running
+REM First check if Docker Desktop is installed
+if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+    echo [INFO] Docker Desktop found. Checking if running...
+    docker info >NUL 2>&1
+    if errorlevel 1 (
+        echo [INFO] Docker Desktop not running. Attempting to start...
+        start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+        echo [INFO] Waiting for Docker Desktop to start up to 60 seconds...
+        set /a TIMEOUT_COUNT=0
+        :docker_wait_loop
+        timeout /t 2 /nobreak >nul
+        docker info >NUL 2>&1
+        if not errorlevel 1 (
+            echo [OK] Docker Desktop started successfully
+            exit /b 0
+        )
+        set /a TIMEOUT_COUNT+=2
+        if %TIMEOUT_COUNT% LSS 60 goto docker_wait_loop
+        echo [ERROR] Docker Desktop failed to start within 60 seconds
+        exit /b 1
+    ) else (
+        echo [OK] Docker Desktop is already running
+        exit /b 0
+    )
+) else (
+    echo [ERROR] Docker Desktop is not installed
     exit /b 1
 )
-echo ✅ Docker is running
-exit /b 0
 
 :check_pwsh
 where pwsh >NUL 2>&1
 if errorlevel 1 (
-    echo ❌ PowerShell Core (pwsh) not found. 
-    echo    Please install PowerShell 7+ from: https://github.com/PowerShell/PowerShell
+    echo [ERROR] PowerShell Core (pwsh) not found. 
+    echo          Please install PowerShell 7+ from: https://github.com/PowerShell/PowerShell
     exit /b 1
 )
 for /f "tokens=*" %%i in ('pwsh -Command "$PSVersionTable.PSVersion.ToString()" 2^>nul') do set PWSH_VERSION=%%i
-echo ✅ PowerShell Core: %PWSH_VERSION%
+echo [OK] PowerShell Core: %PWSH_VERSION%
 exit /b 0
 
 :BuildSolution
@@ -274,6 +294,6 @@ exit /b 0
 popd
 endlocal
 echo.
-echo ❌ Build failed. Please check the error messages above.
+echo [ERROR] Build failed. Please check the error messages above.
 echo.
 exit /b 1
