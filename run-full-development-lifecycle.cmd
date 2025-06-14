@@ -168,27 +168,36 @@ REM Monitor test progress and show status in console
 set ALL_DONE=1
 set ANY_STATUS_CHANGED=0
 
+echo.
+echo === Test Progress Status ===
+
 REM Check Unit Tests
 if not exist test-logs\unit-tests.status (
     set ALL_DONE=0
+    call :check_progress "unit-tests" "Unit Tests"
 ) else (
     if not defined UNIT_TESTS_REPORTED (
         set /p UNIT_STATUS=<test-logs\unit-tests.status
         echo !UNIT_STATUS!
         set UNIT_TESTS_REPORTED=1
         set ANY_STATUS_CHANGED=1
+    ) else (
+        echo [OK] Unit Tests: Completed
     )
 )
 
 REM Check Integration Tests  
 if not exist test-logs\integration-tests.status (
     set ALL_DONE=0
+    call :check_progress "integration-tests" "Integration Tests"
 ) else (
     if not defined INTEGRATION_TESTS_REPORTED (
         set /p INTEGRATION_STATUS=<test-logs\integration-tests.status
         echo !INTEGRATION_STATUS!
         set INTEGRATION_TESTS_REPORTED=1
         set ANY_STATUS_CHANGED=1
+    ) else (
+        echo [OK] Integration Tests: Completed
     )
 )
 
@@ -196,12 +205,15 @@ REM Check Stress Tests
 if %SKIP_STRESS%==0 (
     if not exist test-logs\stress-tests.status (
         set ALL_DONE=0
+        call :check_progress "stress-tests" "Stress Tests"
     ) else (
         if not defined STRESS_TESTS_REPORTED (
             set /p STRESS_STATUS=<test-logs\stress-tests.status
             echo !STRESS_STATUS!
             set STRESS_TESTS_REPORTED=1
             set ANY_STATUS_CHANGED=1
+        ) else (
+            echo [OK] Stress Tests: Completed
         )
     )
 )
@@ -210,12 +222,15 @@ REM Check Reliability Tests
 if %SKIP_RELIABILITY%==0 (
     if not exist test-logs\reliability-tests.status (
         set ALL_DONE=0
+        call :check_progress "reliability-tests" "Reliability Tests"
     ) else (
         if not defined RELIABILITY_TESTS_REPORTED (
             set /p RELIABILITY_STATUS=<test-logs\reliability-tests.status
             echo !RELIABILITY_STATUS!
             set RELIABILITY_TESTS_REPORTED=1
             set ANY_STATUS_CHANGED=1
+        ) else (
+            echo [OK] Reliability Tests: Completed
         )
     )
 )
@@ -224,21 +239,29 @@ REM Check SonarCloud
 if %SKIP_SONAR%==0 (
     if not exist test-logs\sonarcloud.status (
         set ALL_DONE=0
+        call :check_progress "sonarcloud" "SonarCloud Analysis"
     ) else (
         if not defined SONARCLOUD_REPORTED (
             set /p SONAR_STATUS=<test-logs\sonarcloud.status
             echo !SONAR_STATUS!
             set SONARCLOUD_REPORTED=1
             set ANY_STATUS_CHANGED=1
+        ) else (
+            echo [OK] SonarCloud Analysis: Completed
         )
     )
 )
 
 if !ALL_DONE!==0 (
-    if !ANY_STATUS_CHANGED!==0 (
-        echo [INFO] Tests still running...
-    )
+    echo.
+    echo [INFO] Refreshing in 3 seconds...
     timeout /t 3 /nobreak >nul
+    cls
+    echo ================================================================
+    echo    Complete Development Lifecycle - Build All + Parallel Tests
+    echo ================================================================
+    echo Repository: %ROOT%
+    echo Timestamp: %DATE% %TIME%
     goto monitor_loop
 )
 
@@ -254,6 +277,49 @@ endlocal
 exit /b 0
 
 REM ================ HELPER FUNCTIONS ================
+
+:check_progress
+set "LOG_FILE=%~1"
+set "TEST_NAME=%~2"
+set "PROGRESS=0"
+
+if exist "test-logs\%LOG_FILE%.log" (
+    REM Parse log file for progress indicators using simple pattern matching
+    findstr /C:"Prerequisites Check" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=10
+    
+    findstr /C:"Building" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=30
+    
+    findstr /C:"Running" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=50
+    
+    findstr /C:"tests" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=70
+    
+    findstr /C:"Summary" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=90
+    
+    REM Check if task is near completion by looking for success indicators
+    findstr /C:"SUCCESS" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=99
+    
+    findstr /C:"PASSED" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=99
+    
+    findstr /C:"completed successfully" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=99
+)
+
+REM Show progress information
+if !PROGRESS! GEQ 99 (
+    echo [INFO] %TEST_NAME%: 100%% - Finalizing...
+) else if !PROGRESS! GTR 0 (
+    echo [INFO] %TEST_NAME%: !PROGRESS!%% - In progress...
+) else (
+    echo [INFO] %TEST_NAME%: Starting...
+)
+exit /b 0
 
 :check_admin
 REM Check if running with administrator privileges
