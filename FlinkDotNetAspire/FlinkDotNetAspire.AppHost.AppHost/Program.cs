@@ -18,7 +18,7 @@ public static class Program
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
 
         // Add JobManager (1 instance) - Using container instead of project
-        var jobManager = builder.AddContainer("jobmanager", "flinkdotnet/jobmanager", "latest")
+        builder.AddContainer("jobmanager", "flinkdotnet/jobmanager", "latest")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
             .WithHttpEndpoint(targetPort: 8080, name: "http")

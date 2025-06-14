@@ -33,12 +33,7 @@ public static class ServicePorts
     /// </summary>
     public static int TaskManagerGrpc => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.TaskManagerGrpcPort), out var port) ? port : 40051;
 
-    /// <summary>
-    /// Base port for TaskManager instances in Aspire deployment (dynamically assigned)
-    /// This is deprecated and should not be used for new deployments
-    /// </summary>
-    [Obsolete("Use environment variables for dynamic port assignment instead of calculated ports")]
-    public const int TaskManagerAspireBasePort = 51070;
+
 }
 
 /// <summary>
@@ -171,14 +166,7 @@ public static class ServiceUris
         public static string TaskManagerGrpcHttps(int port) => $"https://{ServiceHosts.Localhost}:{port}";
     }
 
-    /// <summary>
-    /// Gets TaskManager port for Aspire deployment based on instance number
-    /// This method is deprecated - use environment variables for dynamic port assignment
-    /// </summary>
-    /// <param name="instanceNumber">TaskManager instance number (1-based)</param>
-    /// <returns>Port number for the TaskManager instance</returns>
-    [Obsolete("Use environment variables for dynamic port assignment instead of calculated ports")]
-    public static int GetTaskManagerAspirePort(int instanceNumber) => 51070 + instanceNumber;
+
 }
 
 /// <summary>
