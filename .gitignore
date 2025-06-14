@@ -38,10 +38,32 @@ ScaffoldingReadMe.txt
 *.snupkg
 
 # Others
+*.log
+*.pid
 ~$*
 *~
 *.log
 CodeCoverage/
+
+# Build and test output files
+*_warnings.txt
+*build*.txt
+all_warnings.txt
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.swp
+*~
+
+# System files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
 
 # Visual Studio
 *.csproj.user

@@ -1,6 +1,6 @@
 # Flink.NET
 
-**Flink.NET** is an ambitious open-source project aiming to create a powerful, scalable, and fault-tolerant stream processing engine, built entirely within the .NET ecosystem. Inspired by [FlinkDotnet](https://flink.apache.org/), it seeks to provide .NET developers with a native solution for sophisticated real-time data processing.
+**Flink.NET** is an ambitious open-source project aiming to create a powerful, scalable, and fault-tolerant stream processing engine, built entirely within the .NET ecosystem. Inspired by [Apache Flink](https://flink.apache.org/), it seeks to provide .NET developers with a native solution for sophisticated real-time data processing.
 
 The core objective is to implement fundamental stream processing concepts like stateful processing, exactly-once semantics, high throughput, low latency, and rich APIs, all within the .NET framework.
 
@@ -42,6 +42,47 @@ An overview of how Flink.NET aligns with the capabilities introduced in Flink.Ne
 Explore practical examples to understand Flink.NET's capabilities:
 
 *   **[Local High Throughput Test](./docs/wiki/Sample-Local-High-Throughput-Test.md)**: Demonstrates setting up a local environment and running a high-throughput test.
+
+## Building and Development Lifecycle
+
+### Quick Build
+For a simple build of all solutions, use the build scripts in the root directory:
+
+**Windows:**
+```cmd
+build-all.cmd
+```
+
+**Linux/macOS:**
+```bash
+./build-all.sh
+```
+
+These scripts restore dependencies and build all major solutions in sequence:
+- FlinkDotNet/FlinkDotNet.sln
+- FlinkDotNetAspire/FlinkDotNetAspire.sln  
+- FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+
+### Full Development Lifecycle
+For comprehensive development validation that mirrors GitHub Actions workflows locally, use:
+
+**Windows:**
+```cmd
+run-full-development-lifecycle.cmd
+```
+
+**Linux/macOS:**
+```bash
+./run-full-development-lifecycle.sh
+```
+
+These scripts run all GitHub workflows in parallel:
+- **Unit Tests**: .NET unit tests with coverage collection
+- **SonarCloud Analysis**: Code analysis and build validation
+- **Stress Tests**: Aspire stress tests with Redis/Kafka containers
+- **Integration Tests**: Aspire integration tests
+
+The full development lifecycle scripts automatically install missing prerequisites on Windows systems.
 
 ## Testing
 

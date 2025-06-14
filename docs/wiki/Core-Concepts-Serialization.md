@@ -1,6 +1,6 @@
 # Core Concepts: Serialization in Flink.NET
 
-Serialization is a fundamental process in distributed systems like FlinkDotnet, and it's equally crucial for Flink.NET. It involves converting objects into a byte stream for transmission over the network (e.g., between TaskManagers), for storage in state backends, or for persisting in checkpoints. Efficient serialization is key to performance and can also impact memory usage.
+Serialization is a fundamental process in distributed systems like Apache Flink, and it's equally crucial for Flink.NET. It involves converting objects into a byte stream for transmission over the network (e.g., between TaskManagers), for storage in state backends, or for persisting in checkpoints. Efficient serialization is key to performance and can also impact memory usage.
 
 ## Why Serialization Matters in Flink.NET
 
@@ -13,7 +13,7 @@ Serialization is a fundamental process in distributed systems like FlinkDotnet, 
 
 ## Flink's Type System and Serializers
 
-FlinkDotnet has a sophisticated type system that automatically analyzes the data types used in applications and tries to infer efficient serializers.
+Apache Flink has a sophisticated type system that automatically analyzes the data types used in applications and tries to infer efficient serializers.
 
 *   **Basic Types:** For primitives (int, long, string, etc.), Flink has highly optimized built-in serializers.
 *   **Tuples, POJOs (Plain Old Java Objects), Case Classes (Scala):** Flink analyzes these structures and generates efficient serializers. For POJOs, fields must be public or have getters/setters.

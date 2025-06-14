@@ -1,14 +1,13 @@
 @echo off
-REM build-all-sln.cmd - Restore and build all major solutions in sequence.
+REM build-all.cmd - Restore and build all major solutions in sequence.
 REM Usage: double-click or run from command prompt.
 REM 
-REM For advanced build with warning detection, use: local-build-analysis.ps1
+REM For advanced build with warning detection, use: scripts/local-build-analysis.ps1
 
 setlocal
 
-REM Navigate to repository root
+REM Navigate to repository root (script is now in root)
 pushd "%~dp0"
-REM If the script is directly in C:\GitHub\FLINK.NET\, then ROOT is just the current directory
 set "ROOT=%CD%"
 
 REM Ensure dotnet CLI is available

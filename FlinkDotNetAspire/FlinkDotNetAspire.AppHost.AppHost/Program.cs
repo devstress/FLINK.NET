@@ -1,5 +1,4 @@
 // Existing using statements (implicit for DistributedApplication, Projects)
-using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNetAspire.AppHost.AppHost;
 
@@ -19,20 +18,19 @@ public static class Program
         // Set up for 1 million message high throughput test
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
 
-        // Add JobManager (1 instance)
-        builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
-            .WithEnvironment("JOBMANAGER_HTTP_PORT", ServicePorts.JobManagerHttp.ToString())
-            .WithEnvironment(EnvironmentVariables.JobManagerGrpcPort, ServicePorts.JobManagerGrpc.ToString())
-            .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+        // Add JobManager (1 instance) - Using project for GitHub Actions compatibility
+        var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
+            .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
-        // Add TaskManagers (20 instances as per requirements)
+        // Add TaskManagers (20 instances as per requirements) - Using projects for GitHub Actions compatibility
         for (int i = 1; i <= 20; i++)
         {
             builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
-                .WithEnvironment("TASKMANAGER_GRPC_PORT", ServiceUris.GetTaskManagerAspirePort(i).ToString())
-                .WithEnvironment("services__jobmanager__grpc__0", ServiceUris.Insecure.JobManagerGrpcHttp)
-                .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+                .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", jobManager.GetEndpoint("https"));
         }
 
         // Provide Redis and Kafka connection information to the FlinkJobSimulator

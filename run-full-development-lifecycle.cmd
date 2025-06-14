@@ -1,5 +1,5 @@
 @echo off
-REM run-all-workflows.cmd - Run all GitHub workflows locally in parallel
+REM run-full-development-lifecycle.cmd - Run all GitHub workflows locally in parallel
 REM This script mirrors the GitHub Actions workflows to run locally for development validation
 REM 
 REM Workflows executed in parallel:
@@ -8,7 +8,7 @@ REM 2. SonarCloud Analysis - Builds solutions and performs code analysis
 REM 3. Stress Tests        - Runs Aspire stress tests with Redis/Kafka
 REM 4. Integration Tests   - Runs Aspire integration tests
 REM
-REM Usage: run-all-workflows.cmd [options]
+REM Usage: run-full-development-lifecycle.cmd [options]
 REM Options:
 REM   --skip-sonar     Skip SonarCloud analysis (if SONAR_TOKEN not available)
 REM   --skip-stress    Skip stress tests (if Docker not available)
@@ -53,7 +53,7 @@ if %SHOW_HELP%==1 (
     echo   3. Stress Tests        - Aspire stress tests with containers
     echo   4. Integration Tests   - Aspire integration tests
     echo.
-    echo Usage: run-all-workflows.cmd [options]
+    echo Usage: run-full-development-lifecycle.cmd [options]
     echo.
     echo Options:
     echo   --skip-sonar     Skip SonarCloud analysis ^(useful if no SONAR_TOKEN^)
@@ -73,7 +73,7 @@ if %SHOW_HELP%==1 (
     exit /b 0
 )
 
-REM Navigate to repository root
+REM Navigate to repository root (since script is now in root)
 pushd "%~dp0"
 set "ROOT=%CD%"
 
@@ -87,25 +87,33 @@ echo.
 REM Check prerequisites
 echo === Checking Prerequisites ===
 call :check_dotnet
+if errorlevel 1 call :install_dotnet
 if errorlevel 1 exit /b 1
 
 if %SKIP_SONAR%==0 (
     call :check_java
     if errorlevel 1 (
-        echo WARNING: Java not found. SonarCloud analysis will be skipped.
-        set SKIP_SONAR=1
+        call :install_java
+        if errorlevel 1 (
+            echo WARNING: Java installation failed. SonarCloud analysis will be skipped.
+            set SKIP_SONAR=1
+        )
     )
 )
 
 if %SKIP_STRESS%==0 (
     call :check_docker
     if errorlevel 1 (
-        echo WARNING: Docker not available. Stress tests will be skipped.
-        set SKIP_STRESS=1
+        call :install_docker
+        if errorlevel 1 (
+            echo WARNING: Docker installation failed. Stress tests will be skipped.
+            set SKIP_STRESS=1
+        )
     )
 )
 
 call :check_pwsh
+if errorlevel 1 call :install_pwsh
 if errorlevel 1 exit /b 1
 
 echo Prerequisites check completed.
@@ -133,7 +141,7 @@ powershell -Command "& {
     $unitTestsJob = Start-Job -ScriptBlock {
         param($root)
         Set-Location $root
-        & pwsh -File '%ROOT%\run-unit-tests-workflow.ps1' 2>&1
+        & pwsh -File '%ROOT%\scripts\run-unit-tests-workflow.ps1' 2>&1
     } -ArgumentList '%ROOT%'
     
     # Start SonarCloud workflow (conditional)
@@ -142,7 +150,7 @@ powershell -Command "& {
         $sonarJob = Start-Job -ScriptBlock {
             param($root)
             Set-Location $root
-            & pwsh -File '%ROOT%\run-sonarcloud-workflow.ps1' 2>&1
+            & pwsh -File '%ROOT%\scripts\run-sonarcloud-workflow.ps1' 2>&1
         } -ArgumentList '%ROOT%'
     }
     
@@ -152,7 +160,7 @@ powershell -Command "& {
         $stressJob = Start-Job -ScriptBlock {
             param($root)
             Set-Location $root
-            & pwsh -File '%ROOT%\run-stress-tests-workflow.ps1' 2>&1
+            & pwsh -File '%ROOT%\scripts\run-stress-tests-workflow.ps1' 2>&1
         } -ArgumentList '%ROOT%'
     }
     
@@ -160,7 +168,7 @@ powershell -Command "& {
     $integrationJob = Start-Job -ScriptBlock {
         param($root)
         Set-Location $root
-        & pwsh -File '%ROOT%\run-integration-tests-workflow.ps1' 2>&1
+        & pwsh -File '%ROOT%\scripts\run-integration-tests-workflow.ps1' 2>&1
     } -ArgumentList '%ROOT%'
     
     # Collect all jobs
@@ -261,4 +269,84 @@ if errorlevel 1 (
 )
 for /f "tokens=*" %%i in ('pwsh -Command "$PSVersionTable.PSVersion.ToString()" 2^>nul') do set PWSH_VERSION=%%i
 echo ✅ PowerShell Core: %PWSH_VERSION%
+exit /b 0
+
+:install_dotnet
+echo 🔧 Installing .NET SDK...
+echo Downloading .NET 8.0 installer...
+powershell -Command "Invoke-WebRequest -Uri 'https://download.microsoft.com/download/a/b/c/abc6f64a-d78c-4e73-b5fb-ab0c2eaad1f4/dotnet-sdk-8.0.404-win-x64.exe' -OutFile 'dotnet-installer.exe'"
+if errorlevel 1 (
+    echo ❌ Failed to download .NET installer
+    exit /b 1
+)
+echo Running .NET installer (this may take a few minutes)...
+dotnet-installer.exe /quiet /norestart
+set INSTALL_RESULT=%ERRORLEVEL%
+del dotnet-installer.exe 2>nul
+if %INSTALL_RESULT% neq 0 (
+    echo ❌ .NET installation failed
+    exit /b 1
+)
+echo ✅ .NET SDK installed successfully
+echo Please restart your command prompt and run this script again
+exit /b 0
+
+:install_java
+echo 🔧 Installing Java 17...
+echo Downloading Microsoft OpenJDK 17...
+powershell -Command "Invoke-WebRequest -Uri 'https://aka.ms/download-jdk/microsoft-jdk-17.0.7-windows-x64.msi' -OutFile 'openjdk-installer.msi'"
+if errorlevel 1 (
+    echo ❌ Failed to download Java installer
+    exit /b 1
+)
+echo Running Java installer (this may take a few minutes)...
+msiexec /i openjdk-installer.msi /quiet /norestart
+set INSTALL_RESULT=%ERRORLEVEL%
+del openjdk-installer.msi 2>nul
+if %INSTALL_RESULT% neq 0 (
+    echo ❌ Java installation failed
+    exit /b 1
+)
+echo ✅ Java installed successfully
+echo Please restart your command prompt and run this script again
+exit /b 0
+
+:install_docker
+echo 🔧 Installing Docker Desktop...
+echo Downloading Docker Desktop installer...
+powershell -Command "Invoke-WebRequest -Uri 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe' -OutFile 'docker-installer.exe'"
+if errorlevel 1 (
+    echo ❌ Failed to download Docker installer
+    exit /b 1
+)
+echo Running Docker installer (this may take several minutes)...
+docker-installer.exe install --quiet
+set INSTALL_RESULT=%ERRORLEVEL%
+del docker-installer.exe 2>nul
+if %INSTALL_RESULT% neq 0 (
+    echo ❌ Docker installation failed
+    exit /b 1
+)
+echo ✅ Docker Desktop installed successfully
+echo Please restart your computer and run this script again
+exit /b 0
+
+:install_pwsh
+echo 🔧 Installing PowerShell Core...
+echo Downloading PowerShell 7 installer...
+powershell -Command "Invoke-WebRequest -Uri 'https://github.com/PowerShell/PowerShell/releases/download/v7.4.0/PowerShell-7.4.0-win-x64.msi' -OutFile 'pwsh-installer.msi'"
+if errorlevel 1 (
+    echo ❌ Failed to download PowerShell installer
+    exit /b 1
+)
+echo Running PowerShell installer (this may take a few minutes)...
+msiexec /i pwsh-installer.msi /quiet /norestart
+set INSTALL_RESULT=%ERRORLEVEL%
+del pwsh-installer.msi 2>nul
+if %INSTALL_RESULT% neq 0 (
+    echo ❌ PowerShell installation failed
+    exit /b 1
+)
+echo ✅ PowerShell Core installed successfully
+echo Please restart your command prompt and run this script again
 exit /b 0

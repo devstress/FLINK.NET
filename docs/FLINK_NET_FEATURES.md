@@ -296,7 +296,7 @@ public static class ServiceUris
 ```
 
 ### 2. Local Build and Analysis Infrastructure
-**Location**: `local-build-analysis.ps1`, `build-all-sln.sh`
+**Location**: `scripts/local-build-analysis.ps1`, `build-all.sh`
 
 Development tooling that mirrors CI/CD pipeline:
 
@@ -307,10 +307,10 @@ Development tooling that mirrors CI/CD pipeline:
 
 ```bash
 # Run comprehensive local analysis
-./local-build-analysis.ps1
+./scripts/local-build-analysis.ps1
 
 # Quick build without SonarCloud
-./local-build-analysis.ps1 -SkipSonar
+./scripts/local-build-analysis.ps1 -SkipSonar
 ```
 
 ## 📊 Performance Characteristics
@@ -540,4 +540,4 @@ private void CollectStatistics(object? state)
 3. **Observability**: Structured logging and metrics for debugging
 4. **Documentation**: Complete examples and troubleshooting guides
 
-This implementation provides a production-ready Flink.Net experience in .NET, with enterprise-grade features like dynamic scaling, distributed state management, and Kubernetes orchestration, while maintaining the performance and reliability characteristics of the original FlinkDotnet.
+This implementation provides a production-ready Flink.Net experience in .NET, with enterprise-grade features like dynamic scaling, distributed state management, and Kubernetes orchestration, while maintaining the performance and reliability characteristics of the original Apache Flink.

@@ -1,5 +1,5 @@
 #!/bin/bash
-# run-all-workflows.sh - Run all GitHub workflows locally in parallel
+# run-full-development-lifecycle.sh - Run all GitHub workflows locally in parallel
 # This script mirrors the GitHub Actions workflows to run locally for development validation
 # 
 # Workflows executed in parallel:
@@ -8,7 +8,7 @@
 # 3. Stress Tests        - Runs Aspire stress tests with Redis/Kafka
 # 4. Integration Tests   - Runs Aspire integration tests
 #
-# Usage: ./run-all-workflows.sh [options]
+# Usage: ./run-full-development-lifecycle.sh [options]
 # Options:
 #   --skip-sonar     Skip SonarCloud analysis (if SONAR_TOKEN not available)
 #   --skip-stress    Skip stress tests (if Docker not available)
@@ -55,7 +55,7 @@ This script runs all GitHub Actions workflows locally in parallel:
   3. Stress Tests        - Aspire stress tests with containers
   4. Integration Tests   - Aspire integration tests
 
-Usage: ./run-all-workflows.sh [options]
+Usage: ./run-full-development-lifecycle.sh [options]
 
 Options:
   --skip-sonar     Skip SonarCloud analysis (useful if no SONAR_TOKEN)
@@ -76,7 +76,7 @@ EOF
     exit 0
 fi
 
-# Navigate to repository root
+# Navigate to repository root (since script is now in root)
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
 
@@ -184,7 +184,7 @@ echo ""
 
 # Create individual workflow scripts to run
 create_unit_tests_workflow() {
-    cat > "$ROOT/run-unit-tests-workflow.ps1" << 'EOF'
+    cat > "$ROOT/scripts/run-unit-tests-workflow.ps1" << 'EOF'
 #!/usr/bin/env pwsh
 # Unit Tests Workflow - mirrors .github/workflows/unit-tests.yml
 
@@ -277,7 +277,7 @@ EOF
 }
 
 create_sonarcloud_workflow() {
-    cat > "$ROOT/run-sonarcloud-workflow.ps1" << 'EOF'
+    cat > "$ROOT/scripts/run-sonarcloud-workflow.ps1" << 'EOF'
 #!/usr/bin/env pwsh
 # SonarCloud Workflow - mirrors .github/workflows/sonarcloud.yml
 
@@ -394,7 +394,7 @@ EOF
 }
 
 create_stress_tests_workflow() {
-    cat > "$ROOT/run-stress-tests-workflow.ps1" << 'EOF'
+    cat > "$ROOT/scripts/run-stress-tests-workflow.ps1" << 'EOF'
 #!/usr/bin/env pwsh
 # Stress Tests Workflow - mirrors .github/workflows/stress-tests.yml
 
@@ -517,7 +517,7 @@ EOF
 }
 
 create_integration_tests_workflow() {
-    cat > "$ROOT/run-integration-tests-workflow.ps1" << 'EOF'
+    cat > "$ROOT/scripts/run-integration-tests-workflow.ps1" << 'EOF'
 #!/usr/bin/env pwsh
 # Integration Tests Workflow - mirrors .github/workflows/integration-tests.yml
 
@@ -577,14 +577,14 @@ declare -a WORKFLOW_NAMES=()
 
 # Start Unit Tests
 echo "Starting Unit Tests workflow..."
-pwsh -File "$ROOT/run-unit-tests-workflow.ps1" > "$ROOT/workflow-logs/unit-tests.log" 2>&1 &
+pwsh -File "$ROOT/scripts/run-unit-tests-workflow.ps1" > "$ROOT/workflow-logs/unit-tests.log" 2>&1 &
 PIDS+=($!)
 WORKFLOW_NAMES+=("Unit Tests")
 
 # Start SonarCloud (if not skipped)
 if [[ $SKIP_SONAR -eq 0 ]]; then
     echo "Starting SonarCloud workflow..."
-    pwsh -File "$ROOT/run-sonarcloud-workflow.ps1" > "$ROOT/workflow-logs/sonarcloud.log" 2>&1 &
+    pwsh -File "$ROOT/scripts/run-sonarcloud-workflow.ps1" > "$ROOT/workflow-logs/sonarcloud.log" 2>&1 &
     PIDS+=($!)
     WORKFLOW_NAMES+=("SonarCloud")
 fi
@@ -592,14 +592,14 @@ fi
 # Start Stress Tests (if not skipped)
 if [[ $SKIP_STRESS -eq 0 ]]; then
     echo "Starting Stress Tests workflow..."
-    pwsh -File "$ROOT/run-stress-tests-workflow.ps1" > "$ROOT/workflow-logs/stress-tests.log" 2>&1 &
+    pwsh -File "$ROOT/scripts/run-stress-tests-workflow.ps1" > "$ROOT/workflow-logs/stress-tests.log" 2>&1 &
     PIDS+=($!)
     WORKFLOW_NAMES+=("Stress Tests")
 fi
 
 # Start Integration Tests
 echo "Starting Integration Tests workflow..."
-pwsh -File "$ROOT/run-integration-tests-workflow.ps1" > "$ROOT/workflow-logs/integration-tests.log" 2>&1 &
+pwsh -File "$ROOT/scripts/run-integration-tests-workflow.ps1" > "$ROOT/workflow-logs/integration-tests.log" 2>&1 &
 PIDS+=($!)
 WORKFLOW_NAMES+=("Integration Tests")
 
@@ -645,10 +645,10 @@ while [[ ${#PIDS[@]} -gt 0 ]]; do
 done
 
 # Clean up temporary workflow scripts
-rm -f "$ROOT/run-unit-tests-workflow.ps1"
-rm -f "$ROOT/run-sonarcloud-workflow.ps1"
-rm -f "$ROOT/run-stress-tests-workflow.ps1"  
-rm -f "$ROOT/run-integration-tests-workflow.ps1"
+rm -f "$ROOT/scripts/run-unit-tests-workflow.ps1"
+rm -f "$ROOT/scripts/run-sonarcloud-workflow.ps1"
+rm -f "$ROOT/scripts/run-stress-tests-workflow.ps1"  
+rm -f "$ROOT/scripts/run-integration-tests-workflow.ps1"
 
 # Report final results
 echo ""

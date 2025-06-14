@@ -1,6 +1,6 @@
 # Core Concepts: Checkpointing & Fault Tolerance in Flink.NET
 
-Checkpointing is FlinkDotnet's core mechanism for ensuring fault tolerance and exactly-once processing semantics. Flink.NET inherits these powerful capabilities, allowing .NET applications to recover from failures and maintain data consistency.
+Checkpointing is Apache Flink's core mechanism for ensuring fault tolerance and exactly-once processing semantics. Flink.NET inherits these powerful capabilities, allowing .NET applications to recover from failures and maintain data consistency.
 
 ## What is Checkpointing?
 
@@ -13,7 +13,7 @@ If a failure occurs (e.g., a TaskManager crashes), Flink can restore the applica
 
 ## How Checkpointing Works in Flink.NET
 
-The checkpointing process in Flink.NET, mirroring FlinkDotnet, is orchestrated by the JobManager:
+The checkpointing process in Flink.NET, mirroring Apache Flink, is orchestrated by the JobManager:
 
 1.  **Checkpoint Coordinator:** A component within the JobManager, called the CheckpointCoordinator, triggers checkpoints periodically.
 2.  **Stream Barriers:** The JobManager injects special records called "checkpoint barriers" into the input streams. These barriers flow downstream with the data.
@@ -75,9 +75,9 @@ env.GetCheckpointConfig().SetMaxConcurrentCheckpoints(1);
 ```
 *(Disclaimer: The exact API calls are illustrative. Refer to the specific Flink.NET library version for correct usage.)*
 
-## Relationship to FlinkDotnet
+## Relationship to Apache Flink
 
-Flink.NET's checkpointing mechanism is a direct adoption of FlinkDotnet's well-established and robust fault tolerance model. The concepts, guarantees, and even configuration options are designed to be very similar, providing a consistent experience for developers familiar with Flink.
+Flink.NET's checkpointing mechanism is a direct adoption of Apache Flink's well-established and robust fault tolerance model. The concepts, guarantees, and even configuration options are designed to be very similar, providing a consistent experience for developers familiar with Flink.
 
 **External References:**
 

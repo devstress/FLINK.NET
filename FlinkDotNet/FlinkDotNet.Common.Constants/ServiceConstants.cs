@@ -4,38 +4,36 @@ namespace FlinkDotNet.Common.Constants;
 
 /// <summary>
 /// Default port configurations for FlinkDotNet services
+/// These values are used as fallbacks when environment variables are not set
 /// </summary>
 public static class ServicePorts
 {
     /// <summary>
-    /// Default port for JobManager gRPC service
+    /// Default port for JobManager gRPC service (fallback when JOBMANAGER_GRPC_PORT env var not set)
     /// </summary>
-    public const int JobManagerGrpc = 50051;
+    public static int JobManagerGrpc => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.JobManagerGrpcPort), out var port) ? port : 50051;
 
     /// <summary>
-    /// Default port for JobManager HTTP API (calculated as gRPC port + offset)
+    /// Default port for JobManager HTTP API (fallback when JOBMANAGER_HTTP_PORT env var not set)
     /// </summary>
-    public const int JobManagerHttp = 8088;
+    public static int JobManagerHttp => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.JobManagerHttpPort), out var port) ? port : 8088;
 
     /// <summary>
-    /// Default port for Kafka service
+    /// Default port for Kafka service (dynamically assigned by Aspire)
     /// </summary>
-    public const int Kafka = 9092;
+    public static int Kafka => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.KafkaPort), out var port) ? port : 9092;
 
     /// <summary>
-    /// Default port for Redis service
+    /// Default port for Redis service (dynamically assigned by Aspire)
     /// </summary>
-    public const int Redis = 6379;
+    public static int Redis => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.RedisPort), out var port) ? port : 6379;
 
     /// <summary>
-    /// Default port for TaskManager gRPC service
+    /// Default port for TaskManager gRPC service (fallback when TASKMANAGER_GRPC_PORT env var not set)
     /// </summary>
-    public const int TaskManagerGrpc = 40051;
+    public static int TaskManagerGrpc => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.TaskManagerGrpcPort), out var port) ? port : 40051;
 
-    /// <summary>
-    /// Base port for TaskManager instances in Aspire deployment (51070)
-    /// </summary>
-    public const int TaskManagerAspireBasePort = 51070;
+
 }
 
 /// <summary>
@@ -80,11 +78,17 @@ public static class ServiceUris
     public static string RedisConnectionString => $"{ServiceHosts.Localhost}:{ServicePorts.Redis}";
 
     /// <summary>
-    /// Default TaskManager gRPC address with specified port (secure HTTPS)
+    /// Default TaskManager gRPC address (secure HTTPS)
+    /// </summary>
+    /// <returns>TaskManager gRPC URI</returns>
+    public static string TaskManagerGrpc() => $"https://{ServiceHosts.Localhost}:{ServicePorts.TaskManagerGrpc}";
+
+    /// <summary>
+    /// TaskManager gRPC address with specified port (secure HTTPS)
     /// </summary>
     /// <param name="port">Custom port number</param>
     /// <returns>TaskManager gRPC URI</returns>
-    public static string TaskManagerGrpc(int port = ServicePorts.TaskManagerGrpc) => $"https://{ServiceHosts.Localhost}:{port}";
+    public static string TaskManagerGrpc(int port) => $"https://{ServiceHosts.Localhost}:{port}";
 
     /// <summary>
     /// Insecure service URIs for local development only
@@ -113,6 +117,15 @@ public static class ServiceUris
         public static string JobManagerHttpApi => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
 
         /// <summary>
+        /// TaskManager gRPC address (insecure HTTP - use only for local development)
+        /// For production, use Secure.TaskManagerGrpcHttps instead.
+        /// </summary>
+        /// <returns>TaskManager gRPC URI</returns>
+        [SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", 
+            Justification = "Intentionally insecure HTTP for local development - production code should use Secure.TaskManagerGrpcHttps")]
+        public static string TaskManagerGrpcHttp() => $"http://{ServiceHosts.Localhost}:{ServicePorts.TaskManagerGrpc}";
+
+        /// <summary>
         /// TaskManager gRPC address with specified port (insecure HTTP - use only for local development)
         /// For production, use Secure.TaskManagerGrpcHttps instead.
         /// </summary>
@@ -120,7 +133,7 @@ public static class ServiceUris
         /// <returns>TaskManager gRPC URI</returns>
         [SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", 
             Justification = "Intentionally insecure HTTP for local development - production code should use Secure.TaskManagerGrpcHttps")]
-        public static string TaskManagerGrpcHttp(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
+        public static string TaskManagerGrpcHttp(int port) => $"http://{ServiceHosts.Localhost}:{port}";
     }
 
     /// <summary>
@@ -140,19 +153,20 @@ public static class ServiceUris
         public static string JobManagerHttpsApi => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
 
         /// <summary>
+        /// TaskManager gRPC address (secure HTTPS - recommended for production)
+        /// </summary>
+        /// <returns>TaskManager gRPC URI</returns>
+        public static string TaskManagerGrpcHttps() => $"https://{ServiceHosts.Localhost}:{ServicePorts.TaskManagerGrpc}";
+
+        /// <summary>
         /// TaskManager gRPC address with specified port (secure HTTPS - recommended for production)
         /// </summary>
         /// <param name="port">Custom port number</param>
         /// <returns>TaskManager gRPC URI</returns>
-        public static string TaskManagerGrpcHttps(int port = ServicePorts.TaskManagerGrpc) => $"https://{ServiceHosts.Localhost}:{port}";
+        public static string TaskManagerGrpcHttps(int port) => $"https://{ServiceHosts.Localhost}:{port}";
     }
 
-    /// <summary>
-    /// Gets TaskManager port for Aspire deployment based on instance number
-    /// </summary>
-    /// <param name="instanceNumber">TaskManager instance number (1-based)</param>
-    /// <returns>Port number for the TaskManager instance</returns>
-    public static int GetTaskManagerAspirePort(int instanceNumber) => ServicePorts.TaskManagerAspireBasePort + instanceNumber;
+
 }
 
 /// <summary>
@@ -164,6 +178,26 @@ public static class EnvironmentVariables
     /// Environment variable for JobManager gRPC port
     /// </summary>
     public const string JobManagerGrpcPort = "JOBMANAGER_GRPC_PORT";
+
+    /// <summary>
+    /// Environment variable for JobManager HTTP port
+    /// </summary>
+    public const string JobManagerHttpPort = "JOBMANAGER_HTTP_PORT";
+
+    /// <summary>
+    /// Environment variable for TaskManager gRPC port
+    /// </summary>
+    public const string TaskManagerGrpcPort = "TASKMANAGER_GRPC_PORT";
+
+    /// <summary>
+    /// Environment variable for Kafka port (dynamically assigned by Aspire)
+    /// </summary>
+    public const string KafkaPort = "KAFKA_PORT";
+
+    /// <summary>
+    /// Environment variable for Redis port (dynamically assigned by Aspire)
+    /// </summary>
+    public const string RedisPort = "REDIS_PORT";
 
     /// <summary>
     /// Environment variable for Kafka bootstrap servers
