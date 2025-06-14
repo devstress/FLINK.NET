@@ -38,6 +38,8 @@ ScaffoldingReadMe.txt
 *.snupkg
 
 # Others
+*.log
+*.pid
 ~$*
 *~
 CodeCoverage/
