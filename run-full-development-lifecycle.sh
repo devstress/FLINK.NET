@@ -16,6 +16,25 @@
 
 set -e  # Exit on error
 
+# Check if running with appropriate privileges (sudo or root)
+check_admin_privileges() {
+    if [[ $EUID -ne 0 ]] && ! sudo -n true 2>/dev/null; then
+        echo "❌ This script requires administrator privileges."
+        echo "   Please run with 'sudo' or as root user:"
+        echo "   sudo ./run-full-development-lifecycle.sh"
+        echo ""
+        echo "   Administrator privileges are required for:"
+        echo "   - Installing missing prerequisites (.NET, Java, Docker, PowerShell)"
+        echo "   - Docker container operations"
+        echo "   - System-wide tool installations"
+        exit 1
+    fi
+    echo "✅ Administrator privileges confirmed"
+}
+
+# Check admin privileges early
+check_admin_privileges
+
 # Initialize variables
 SKIP_SONAR=0
 SKIP_STRESS=0

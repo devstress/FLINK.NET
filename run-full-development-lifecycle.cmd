@@ -16,6 +16,22 @@ REM   --help           Show this help message
 
 setlocal enabledelayedexpansion
 
+REM Check if running as administrator
+call :check_admin
+if errorlevel 1 (
+    echo ❌ This script requires administrator privileges.
+    echo    Please run as Administrator:
+    echo    - Right-click on Command Prompt and select "Run as administrator"
+    echo    - Or run from an elevated PowerShell prompt
+    echo.
+    echo    Administrator privileges are required for:
+    echo    - Installing missing prerequisites ^(.NET, Java, Docker, PowerShell^)
+    echo    - Docker Desktop operations
+    echo    - System-wide tool installations
+    exit /b 1
+)
+echo ✅ Administrator privileges confirmed
+
 REM Parse command line arguments
 set SKIP_SONAR=0
 set SKIP_STRESS=0
@@ -133,11 +149,24 @@ powershell -Command "& {
     if (%SKIP_STRESS% -eq 0) {
         $dockerJob = Start-Job -ScriptBlock {
             try {
+                # First check if Docker Desktop is installed
+                $dockerDesktopExists = $false
+                if (Test-Path "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe") {
+                    $dockerDesktopExists = $true
+                } elseif (Test-Path "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe") {
+                    $dockerDesktopExists = $true
+                }
+                
+                if (-not $dockerDesktopExists) {
+                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is not installed'; Url='https://docker.com/'}
+                }
+                
+                # Then check if Docker is running
                 & docker info 2>$null
                 if ($LASTEXITCODE -eq 0) {
-                    return @{Success=$true; Tool='docker'; Message='✅ Docker is running'}
+                    return @{Success=$true; Tool='docker'; Message='✅ Docker Desktop is installed and running'}
                 } else {
-                    return @{Success=$false; Tool='docker'; Message='❌ Docker is not running or not accessible'; Url='https://docker.com/'}
+                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is installed but not running. Please start Docker Desktop.'; Url='https://docker.com/'}
                 }
             } catch {
                 return @{Success=$false; Tool='docker'; Message='❌ Docker check failed'; Error=$_.Exception.Message}
@@ -355,6 +384,12 @@ exit /b %WORKFLOW_EXIT%
 
 REM ================ HELPER FUNCTIONS ================
 
+:check_admin
+REM Check if running with administrator privileges
+net session >nul 2>&1
+if errorlevel 1 exit /b 1
+exit /b 0
+
 :check_dotnet
 where dotnet >NUL 2>&1
 if errorlevel 1 (
@@ -377,9 +412,26 @@ echo ✅ Java: %JAVA_VERSION%
 exit /b 0
 
 :check_docker
+REM First check if Docker Desktop is installed
+if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+    echo ✅ Docker Desktop is installed
+) else (
+    if exist "%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe" (
+        echo ✅ Docker Desktop is installed
+    ) else (
+        echo ❌ Docker Desktop is not installed
+        exit /b 1
+    )
+)
+
+REM Then check if Docker is running
 docker info >NUL 2>&1
-if errorlevel 1 exit /b 1
-echo ✅ Docker is running
+if errorlevel 1 (
+    echo ❌ Docker Desktop is installed but not running
+    echo    Please start Docker Desktop before running this script
+    exit /b 1
+)
+echo ✅ Docker Desktop is running
 exit /b 0
 
 :check_pwsh
