@@ -44,6 +44,30 @@ ScaffoldingReadMe.txt
 *~
 CodeCoverage/
 
+# Build and test output files
+*_output.txt
+*_warnings.txt
+*build*.txt
+*test*.txt
+stress_test_passed_output.txt
+reliability_test_passed_output.txt
+all_warnings.txt
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.swp
+*~
+
+# System files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
 # Visual Studio
 *.csproj.user
 
