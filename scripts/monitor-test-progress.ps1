@@ -27,9 +27,13 @@ while ($true) {
         if ($statusPath -and (Test-Path $statusPath)) { $percent = 100 }
         elseif (Test-Path $logPath) {
             $content = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-            if ($content -match 'completed successfully' -or $content -match 'PASSED') { $percent = 100 }
-            elseif ($content -match 'Running' -or $content -match 'Building') { $percent = 50 }
-            elseif ($content.Length -gt 0) { $percent = 10 }
+            if ($content -match 'completed successfully' -or $content -match 'PASSED' -or $content -match 'SUCCESS' -or $content -match 'Test Run Successful') {
+                $percent = 100
+            } elseif ($content -match 'Running' -or $content -match 'Building') {
+                $percent = 50
+            } elseif ($content.Length -gt 0) {
+                $percent = 10
+            }
         }
         if ($percent -lt 100) { $allDone = $false }
         Write-Progress -Id $index -Activity $t.Name -PercentComplete $percent

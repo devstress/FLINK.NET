@@ -16,6 +16,7 @@ REM Options:
 REM   --skip-sonar        Skip SonarCloud analysis 
 REM   --skip-stress       Skip stress tests
 REM   --skip-reliability  Skip reliability tests
+REM   --skip-build       Skip build step and run tests only
 REM   --help              Show this help message
 
 setlocal enabledelayedexpansion
@@ -33,6 +34,7 @@ REM Parse command line arguments
 set SKIP_SONAR=0
 set SKIP_STRESS=0
 set SKIP_RELIABILITY=0
+set SKIP_BUILD=0
 
 :parse_args
 if "%~1"=="--skip-sonar" (
@@ -50,6 +52,11 @@ if "%~1"=="--skip-reliability" (
     shift
     goto parse_args
 )
+if "%~1"=="--skip-build" (
+    set SKIP_BUILD=1
+    shift
+    goto parse_args
+)
 if "%~1"=="--help" (
     echo Complete Development Lifecycle Script
     echo.
@@ -62,6 +69,7 @@ if "%~1"=="--help" (
     echo   --skip-sonar        Skip SonarCloud analysis
     echo   --skip-stress       Skip stress tests
     echo   --skip-reliability  Skip reliability tests
+    echo   --skip-build       Skip build step and run tests only
     echo   --help              Show this help
     echo.
     exit /b 0
@@ -111,16 +119,20 @@ echo.
 
 REM Step 1: Build All Solutions (like build-all.cmd)
 echo === Step 1: Building All Solutions ===
-call :BuildSolution "%ROOT%\FlinkDotNet\FlinkDotNet.sln"
-if errorlevel 1 goto :BuildError
+if %SKIP_BUILD%==1 (
+    echo [INFO] Build step skipped due to --skip-build flag
+) else (
+    call :BuildSolution "%ROOT%\FlinkDotNet\FlinkDotNet.sln"
+    if errorlevel 1 goto :BuildError
 
-call :BuildSolution "%ROOT%\FlinkDotNetAspire\FlinkDotNetAspire.sln" 
-if errorlevel 1 goto :BuildError
+    call :BuildSolution "%ROOT%\FlinkDotNetAspire\FlinkDotNetAspire.sln"
+    if errorlevel 1 goto :BuildError
 
-call :BuildSolution "%ROOT%\FlinkDotNet.WebUI\FlinkDotNet.WebUI.sln"
-if errorlevel 1 goto :BuildError
+    call :BuildSolution "%ROOT%\FlinkDotNet.WebUI\FlinkDotNet.WebUI.sln"
+    if errorlevel 1 goto :BuildError
 
-echo [OK] All solutions built successfully!
+    echo [OK] All solutions built successfully!
+)
 echo.
 
 REM Step 2: Run All Tests in Parallel
@@ -139,24 +151,24 @@ echo.
 
 REM Start all tests in parallel using simple background processes with proper logging
 echo [INFO] Starting Unit Tests (log: %ROOT%\test-logs\unit-tests.log)...
-start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-unit-tests.ps1" ^> "%ROOT%\test-logs\unit-tests.log" 2^>^&1 ^&^& echo [OK] Unit Tests completed successfully ^> "%ROOT%\test-logs\unit-tests.status" ^|^| echo [ERROR] Unit Tests failed ^> "%ROOT%\test-logs\unit-tests.status"
+start "" /B cmd /c "powershell -File "%ROOT%\scripts\run-local-unit-tests.ps1" > "%ROOT%\test-logs\unit-tests.log" 2>&1 && echo [OK] Unit Tests completed successfully > "%ROOT%\test-logs\unit-tests.status" || echo [ERROR] Unit Tests failed > "%ROOT%\test-logs\unit-tests.status""
 
 echo [INFO] Starting Integration Tests (log: %ROOT%\test-logs\integration-tests.log)...
-start "" /B cmd /c powershell -File "%ROOT%\scripts\run-integration-tests-in-windows-os.ps1" ^> "%ROOT%\test-logs\integration-tests.log" 2^>^&1
+start "" /B cmd /c "powershell -File "%ROOT%\scripts\run-integration-tests-in-windows-os.ps1" > "%ROOT%\test-logs\integration-tests.log" 2>&1"
 
 if %SKIP_STRESS%==0 (
     echo [INFO] Starting Stress Tests (log: %ROOT%\test-logs\stress-tests.log)...
-    start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-stress-tests.ps1" ^> "%ROOT%\test-logs\stress-tests.log" 2^>^&1 ^&^& echo [OK] Stress Tests completed successfully ^> "%ROOT%\test-logs\stress-tests.status" ^|^| echo [ERROR] Stress Tests failed ^> "%ROOT%\test-logs\stress-tests.status"
+    start "" /B cmd /c "powershell -File "%ROOT%\scripts\run-local-stress-tests.ps1" > "%ROOT%\test-logs\stress-tests.log" 2>&1 && echo [OK] Stress Tests completed successfully > "%ROOT%\test-logs\stress-tests.status" || echo [ERROR] Stress Tests failed > "%ROOT%\test-logs\stress-tests.status""
 )
 
 if %SKIP_RELIABILITY%==0 (
     echo [INFO] Starting Reliability Tests (log: %ROOT%\test-logs\reliability-tests.log)...
-    start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-reliability-tests.ps1" ^> "%ROOT%\test-logs\reliability-tests.log" 2^>^&1 ^&^& echo [OK] Reliability Tests completed successfully ^> "%ROOT%\test-logs\reliability-tests.status" ^|^| echo [ERROR] Reliability Tests failed ^> "%ROOT%\test-logs\reliability-tests.status"
+    start "" /B cmd /c "powershell -File "%ROOT%\scripts\run-local-reliability-tests.ps1" > "%ROOT%\test-logs\reliability-tests.log" 2>&1 && echo [OK] Reliability Tests completed successfully > "%ROOT%\test-logs\reliability-tests.status" || echo [ERROR] Reliability Tests failed > "%ROOT%\test-logs\reliability-tests.status""
 )
 
 if %SKIP_SONAR%==0 (
     echo [INFO] Starting SonarCloud Analysis (log: %ROOT%\test-logs\sonarcloud.log)...
-    start "" /B cmd /c powershell -File "%ROOT%\scripts\run-local-sonarcloud.ps1" ^> "%ROOT%\test-logs\sonarcloud.log" 2^>^&1 ^&^& echo [OK] SonarCloud completed successfully ^> "%ROOT%\test-logs\sonarcloud.status" ^|^| echo [ERROR] SonarCloud failed ^> "%ROOT%\test-logs\sonarcloud.status"
+    start "" /B cmd /c "powershell -File "%ROOT%\scripts\run-local-sonarcloud.ps1" > "%ROOT%\test-logs\sonarcloud.log" 2>&1 && echo [OK] SonarCloud completed successfully > "%ROOT%\test-logs\sonarcloud.status" || echo [ERROR] SonarCloud failed > "%ROOT%\test-logs\sonarcloud.status""
 )
 
 echo.
