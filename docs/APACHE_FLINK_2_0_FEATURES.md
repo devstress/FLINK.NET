@@ -1,24 +1,24 @@
-# FlinkDotnet 2.0 Features Implementation for FLINK.NET
+# Apache Flink 2.0 Features Implementation for FLINK.NET
 
-This document outlines the major FlinkDotnet 2.0 features that have been implemented in FLINK.NET as part of the comprehensive modernization initiative.
+This document outlines the major Apache Flink 2.0 features that have been implemented in FLINK.NET as part of the comprehensive modernization initiative.
 
 ## ✅ Fully Implemented Features
 
 ### 1. JobManager with RocksDB State Coordination
 **Location**: `FlinkDotNet.JobManager/Services/StateManagement/StateCoordinator.cs`
 
-FlinkDotnet 2.0 style centralized state management with RocksDB backend orchestration:
+Apache Flink 2.0 style centralized state management with RocksDB backend orchestration:
 
 - **Centralized State Lifecycle Management**: JobManager coordinates RocksDB state backends across TaskManager instances
 - **Distributed Checkpointing**: Coordinated snapshots across all state backends
 - **Column Family Support**: Organized state storage with configurable column families
 - **Performance Monitoring**: Real-time metrics collection for back pressure detection
-- **FlinkDotnet 2.0 RocksDB Configuration**: Full compatibility with Flink 2.0 RocksDB options and tuning
+- **Apache Flink 2.0 RocksDB Configuration**: Full compatibility with Apache Flink 2.0 RocksDB options and tuning
 - **Credit-Based Flow Control Integration**: RocksDB metrics feed into credit-based back pressure system
-- **Real-Time Performance Monitoring**: Comprehensive RocksDB statistics with FlinkDotnet 2.0 metrics format
+- **Real-Time Performance Monitoring**: Comprehensive RocksDB statistics with Apache Flink 2.0 metrics format
 
 ```csharp
-// Create and manage state backends for TaskManagers with FlinkDotnet 2.0 configuration
+// Create and manage state backends for TaskManagers with Apache Flink 2.0 configuration
 var stateCoordinator = new StateCoordinator(logger, checkpointCoordinator);
 var stateBackendId = await stateCoordinator.CreateStateBackendAsync(
     taskManagerId: "tm-001",
@@ -30,7 +30,7 @@ var stateBackendId = await stateCoordinator.CreateStateBackendAsync(
         WriteBufferSize = 64 * 1024 * 1024,
         MaxBackgroundJobs = 4,
         BlockCacheSize = 256 * 1024 * 1024,
-        EnableStatistics = true // FlinkDotnet 2.0 style metrics
+        EnableStatistics = true // Apache Flink 2.0 style metrics
     });
 
 // Real-time RocksDB performance monitoring
@@ -44,13 +44,13 @@ logger.LogInformation("RocksDB Memory: {Memory}MB, Write Latency: {Latency}ms, B
 ### 2. Dynamic Scaling with Back Pressure Management  
 **Location**: `FlinkDotNet.JobManager/Services/BackPressure/BackPressureCoordinator.cs`
 
-**✨ ENHANCED**: Complete FlinkDotnet 2.0 style back pressure system with real-time data processing integration:
+**✨ ENHANCED**: Complete Apache Flink 2.0 style back pressure system with real-time data processing integration:
 
 - **Multi-Dimensional Pressure Detection**: Monitors state backend, network, CPU, and memory pressure
-- **Credit-Based Flow Control**: Implements FlinkDotnet 2.0 credit system for preventing system overload
+- **Credit-Based Flow Control**: Implements Apache Flink 2.0 credit system for preventing system overload
 - **Real-Time Throttling**: Dynamic throttling in LocalStreamExecutor based on queue pressure
 - **Automatic Scaling Decisions**: Triggers scale up/down based on configurable thresholds with cooldown periods
-- **FlinkDotnet 2.0 Heuristics**: Uses proven algorithms for pressure calculation and throttling
+- **Apache Flink 2.0 Heuristics**: Uses proven algorithms for pressure calculation and throttling
 - **Deployment Flexibility**: Supports Process, Container, and Kubernetes deployment modes
 - **Local and Distributed Integration**: Works both in single-process and distributed scenarios
 
@@ -83,7 +83,7 @@ if (backPressureCoordinator.ShouldThrottleDataIntake()) {
 - **Real-Time Queue Monitoring**: Tracks queue sizes across all operators and sinks
 - **Exponential Backoff Throttling**: Applies increasing delays when pressure is detected
 - **Operator-Specific Control**: Per-operator pressure monitoring and throttling
-- **FlinkDotnet 2.0 Compatible Thresholds**: Uses same pressure calculation algorithms
+- **Apache Flink 2.0 Compatible Thresholds**: Uses same pressure calculation algorithms
 - **Integration with LocalStreamExecutor**: Seamless integration with single-process execution
 
 ```csharp
@@ -125,7 +125,7 @@ var orchestrator = new TaskManagerOrchestrator(logger, new TaskManagerOrchestrat
 ### 4. Enhanced RocksDB State Backend
 **Location**: `FlinkDotNet.Storage.RocksDB/RocksDBStateBackend.cs`
 
-Production-grade RocksDB integration with FlinkDotnet 2.0 enhancements:
+Production-grade RocksDB integration with Apache Flink 2.0 enhancements:
 
 - **Column Family Management**: Organized state storage for different state types
 - **Performance Optimization**: Block-based table options with configurable caching
@@ -271,7 +271,7 @@ windowAssigner.WindowComplete += (windowStart, elements) => {
 };
 ```
 
-## 🚀 New FlinkDotnet 2.0 Production Features
+## 🚀 New Apache Flink 2.0 Production Features
 
 ### 1. Centralized Configuration Management
 **Location**: `FlinkDotNet.Common.Constants/`
@@ -325,7 +325,7 @@ Development tooling that mirrors CI/CD pipeline:
 
 ## 🔧 Production Deployment Example
 
-### Complete FlinkDotnet 2.0 Streaming Application
+### Complete Apache Flink 2.0 Streaming Application
 
 ```csharp
 // Setup execution environment with enhanced JobManager
@@ -369,7 +369,7 @@ var sink = new KafkaSinkBuilder<AggregatedOrder>()
 processedOrders.AddSink(sink);
 
 // Execute with automatic scaling and state management
-env.Execute("FlinkDotnet 2.0 Order Processing");
+env.Execute("Apache Flink 2.0 Order Processing");
 ```
 
 ### Kubernetes Deployment Configuration
@@ -425,13 +425,13 @@ spec:
 1. **Dynamic Scaling**: Automatic TaskManager scaling based on real-time pressure metrics with cooldown periods
 2. **State Backend Optimization**: RocksDB tuned for high-throughput streaming workloads with real performance monitoring
 3. **Memory Management**: Off-heap memory allocation reduces GC pressure
-4. **Credit-Based Backpressure**: Prevents system overload and improves stability through FlinkDotnet 2.0 style flow control
+4. **Credit-Based Backpressure**: Prevents system overload and improves stability through Apache Flink 2.0 style flow control
 5. **Real-Time Throttling**: Queue-based back pressure detection with exponential backoff in LocalStreamExecutor
 6. **Enhanced Metrics Collection**: Real TaskManager process metrics and RocksDB performance statistics
 
 ### Recent Enhancements (December 2024)
 🚀 **Complete Back Pressure System Implementation**:
-- Added `CreditBasedFlowController` for FlinkDotnet 2.0 style credit management
+- Added `CreditBasedFlowController` for Apache Flink 2.0 style credit management
 - Integrated `LocalBackPressureDetector` with real-time throttling in data processing loops
 - Enhanced RocksDB metrics collection with actual latency and throughput measurements
 - Improved TaskManager metrics with real process CPU, memory, and network utilization
@@ -446,7 +446,7 @@ spec:
 
 📊 **Comprehensive Diagnostics and Logging (NEW)**:
 - **LocalStreamExecutor Enhanced Logging**: Complete job execution monitoring with step-by-step progress tracking
-- **RocksDB Performance Monitoring**: Real-time FlinkDotnet 2.0 style metrics with back pressure level calculation
+- **RocksDB Performance Monitoring**: Real-time Apache Flink 2.0 style metrics with back pressure level calculation
 - **Job Error Reporting**: Detailed error diagnostics for stress test failure analysis
 - **Execution Progress Monitoring**: Real-time monitoring of data channels, memory usage, and back pressure levels
 - **Enhanced Exception Handling**: Comprehensive error reporting with context for debugging stress test failures
@@ -496,12 +496,12 @@ private async Task MonitorExecutionProgress(CancellationToken cancellationToken)
 
 🔍 **Enhanced RocksDB Monitoring**:
 ```csharp
-// FlinkDotnet 2.0 style RocksDB performance monitoring
+// Apache Flink 2.0 style RocksDB performance monitoring
 private void CollectStatistics(object? state)
 {
     var stats = GetStatistics();
     
-    _logger.LogInformation("=== RocksDB Performance Metrics (FlinkDotnet 2.0 Style) ===");
+    _logger.LogInformation("=== RocksDB Performance Metrics (Apache Flink 2.0 Style) ===");
     _logger.LogInformation("Memory Usage: {Memory}MB (Block Cache: {BlockCache}MB)", 
         stats.MemoryUsage / 1024 / 1024, stats.BlockCacheUsageBytes / 1024 / 1024);
     _logger.LogInformation("Latency - Write: {WriteLatency}ms, Read: {ReadLatency}ms", 
@@ -522,7 +522,7 @@ private void CollectStatistics(object? state)
 }
 ```
 
-### FlinkDotnet 2.0 Compatibility
+### Apache Flink 2.0 Compatibility
 1. **Centralized State Management**: JobManager coordinates all state backends
 2. **Modern APIs**: Latest Flink connector interfaces and patterns
 3. **Distributed Checkpointing**: Consistent snapshots across the cluster
@@ -540,4 +540,4 @@ private void CollectStatistics(object? state)
 3. **Observability**: Structured logging and metrics for debugging
 4. **Documentation**: Complete examples and troubleshooting guides
 
-This implementation provides a production-ready FlinkDotnet 2.0 experience in .NET, with enterprise-grade features like dynamic scaling, distributed state management, and Kubernetes orchestration, while maintaining the performance and reliability characteristics of the original FlinkDotnet.
+This implementation provides a production-ready Apache Flink 2.0 experience in .NET, with enterprise-grade features like dynamic scaling, distributed state management, and Kubernetes orchestration, while maintaining the performance and reliability characteristics of the original FlinkDotnet.

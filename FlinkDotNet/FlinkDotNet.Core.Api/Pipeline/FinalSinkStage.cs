@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace FlinkDotNet.Core.Api.Pipeline;
 
 /// <summary>
-/// FlinkDotnet 2.0 style FinalSink stage that provides acknowledgment-based
+/// Apache Flink 2.0 style FinalSink stage that provides acknowledgment-based
 /// back pressure for Kafka, Database, or Callback destinations.
 /// </summary>
 public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecycle, IDisposable

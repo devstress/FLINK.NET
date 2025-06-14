@@ -19,11 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "100000" # FlinkDotnet 2.0 standard test message count
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "100000" # Apache Flink 2.0 standard test message count
 
 jobs:
   run-reliability-tests:
-    name: Run FlinkDotnet Reliability Tests
+    name: Run FLINK.NET Apache Flink 2.0 Reliability Tests
     runs-on: ubuntu-latest
 
     defaults:
@@ -53,7 +53,7 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      - name: Build Solutions (including FlinkDotnet Standard Test)
+      - name: Build Solutions (including Apache Flink 2.0 Standard Test)
         run: |
           echo "Building FlinkDotNet solution (dependency)..."
           Push-Location FlinkDotNet
@@ -139,19 +139,19 @@ jobs:
             }
           }
 
-      - name: Run FlinkDotnet Standard Reliability Test
+      - name: Run Apache Flink 2.0 Standard Reliability Test
         env:
           FLINKDOTNET_STANDARD_TEST_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
           DOTNET_ENVIRONMENT: "Development"
         run: |
-          echo "Running FlinkDotnet Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
+          echo "Running Apache Flink 2.0 Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
           Push-Location FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
           dotnet test --configuration Release --logger "console;verbosity=detailed" --no-build
           if ($LASTEXITCODE -ne 0) {
-            echo "❌ FlinkDotnet Standard Reliability Test FAILED."
+            echo "❌ Apache Flink 2.0 Standard Reliability Test FAILED."
             exit 1
           }
-          echo "✅ FlinkDotnet Standard Reliability Test PASSED."
+          echo "✅ Apache Flink 2.0 Standard Reliability Test PASSED."
           Pop-Location
 
       - name: Stop Aspire AppHost

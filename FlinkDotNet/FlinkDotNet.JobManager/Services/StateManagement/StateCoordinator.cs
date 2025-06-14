@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 namespace FlinkDotNet.JobManager.Services.StateManagement;
 
 /// <summary>
-/// FlinkDotnet 2.0 style state coordinator that manages RocksDB state backends
+/// Apache Flink 2.0 style state coordinator that manages RocksDB state backends
 /// across TaskManager instances, providing centralized state lifecycle management
 /// and distributed checkpointing coordination.
 /// </summary>
@@ -25,7 +25,7 @@ public class StateCoordinator : IDisposable
         _stateBackends = new ConcurrentDictionary<string, RocksDBStateBackend>();
         _stateMetrics = new ConcurrentDictionary<string, StateMetrics>();
         
-        // FlinkDotnet 2.0 style metrics collection every 10 seconds
+        // Apache Flink 2.0 style metrics collection every 10 seconds
         _metricsTimer = new Timer(CollectMetrics, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
         
         _logger.LogInformation("StateCoordinator initialized with RocksDB backend management");
@@ -33,7 +33,7 @@ public class StateCoordinator : IDisposable
 
     /// <summary>
     /// Creates and manages a RocksDB state backend for a specific TaskManager instance.
-    /// This follows FlinkDotnet 2.0 pattern of centralized state lifecycle management.
+    /// This follows Apache Flink 2.0 pattern of centralized state lifecycle management.
     /// </summary>
     public async Task<string> CreateStateBackendAsync(string taskManagerId, string jobId, StateBackendConfig config)
     {
@@ -264,7 +264,7 @@ public class StateMetrics
 
     /// <summary>
     /// Determines if this state backend is under pressure and needs scaling.
-    /// Uses FlinkDotnet 2.0 style heuristics.
+    /// Uses Apache Flink 2.0 style heuristics.
     /// </summary>
     public bool IsUnderPressure()
     {

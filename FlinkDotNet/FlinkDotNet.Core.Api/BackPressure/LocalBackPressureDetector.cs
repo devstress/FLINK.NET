@@ -5,7 +5,7 @@ namespace FlinkDotNet.Core.Api.BackPressure;
 
 /// <summary>
 /// Local back pressure detection and throttling for LocalStreamExecutor.
-/// Provides FlinkDotnet 2.0 style back pressure handling within a single process.
+/// Provides Apache Flink 2.0 style back pressure handling within a single process.
 /// </summary>
 public class LocalBackPressureDetector : IDisposable
 {

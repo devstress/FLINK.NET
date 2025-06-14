@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace FlinkDotNet.JobManager.Services.BackPressure;
 
 /// <summary>
-/// FlinkDotnet 2.0 style TaskManager orchestrator that provides dynamic scaling
+/// Apache Flink 2.0 style TaskManager orchestrator that provides dynamic scaling
 /// capabilities for TaskManager instances based on system pressure and workload.
 /// </summary>
 public class TaskManagerOrchestrator : IDisposable

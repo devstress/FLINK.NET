@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace FlinkDotNet.Core.Api.Pipeline;
 
 /// <summary>
-/// FlinkDotnet 2.0 style Gateway stage that provides ingress rate control
+/// Apache Flink 2.0 style Gateway stage that provides ingress rate control
 /// and back pressure management for the pipeline entry point.
 /// </summary>
 public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposable
@@ -205,7 +205,7 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
 }
 
 /// <summary>
-/// FlinkDotnet 2.0 style KeyGen stage that provides deterministic partitioning
+/// Apache Flink 2.0 style KeyGen stage that provides deterministic partitioning
 /// with load awareness and back pressure handling.
 /// </summary>
 public class KeyGenStage<T> : IMapOperator<T, KeyedRecord<T>>, IOperatorLifecycle, IDisposable

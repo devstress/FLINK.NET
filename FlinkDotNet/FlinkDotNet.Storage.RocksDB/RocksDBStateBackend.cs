@@ -287,7 +287,7 @@ namespace FlinkDotNet.Storage.RocksDB
             {
                 var stats = GetStatistics();
                 
-                // Enhanced FlinkDotnet 2.0 style comprehensive logging for stress testing
+                // Enhanced Apache Flink 2.0 style comprehensive logging for stress testing
                 _logger.LogInformation("=== RocksDB Performance Metrics (FlinkDotnet 2.0 Style) ===");
                 _logger.LogInformation("Memory Usage: {Memory}MB (Block Cache: {BlockCache}MB)", 
                     stats.MemoryUsage / 1024 / 1024, 
@@ -330,7 +330,7 @@ namespace FlinkDotNet.Storage.RocksDB
 
         private static double CalculateBackPressureLevel(RocksDBStatistics stats)
         {
-            // FlinkDotnet 2.0 style back pressure calculation
+            // Apache Flink 2.0 style back pressure calculation
             var memoryPressure = Math.Min(1.0, stats.MemoryUsage / (512.0 * 1024 * 1024)); // Normalize to 512MB
             var latencyPressure = Math.Min(1.0, stats.AverageWriteLatencyMs / 100.0); // Normalize to 100ms
             var compactionPressure = Math.Min(1.0, stats.PendingCompactionBytes / (100.0 * 1024 * 1024)); // Normalize to 100MB
