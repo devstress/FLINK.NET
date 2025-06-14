@@ -85,15 +85,19 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
                 throw new InvalidOperationException("No processing credits available for FinalSink");
             }
 
-            // Apply acknowledgment-based back pressure
-            if (!_acknowledgmentSemaphore.Wait(TimeSpan.FromMilliseconds(_config.AcknowledgmentTimeoutMs)))
-            {
-                throw new InvalidOperationException("Too many pending acknowledgments - back pressure applied");
-            }
-
+            // Apply acknowledgment-based back pressure with proper resource management
+            bool semaphoreAcquired = false;
             bool pendingAcknowledgment = false;
+            
             try
             {
+                // Try to acquire semaphore
+                semaphoreAcquired = _acknowledgmentSemaphore.Wait(TimeSpan.FromMilliseconds(_config.AcknowledgmentTimeoutMs));
+                if (!semaphoreAcquired)
+                {
+                    throw new InvalidOperationException("Too many pending acknowledgments - back pressure applied");
+                }
+
                 // Send to final destination and handle acknowledgment
                 var acknowledgmentId = SendToDestination(value);
                 
@@ -111,8 +115,8 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
             }
             finally
             {
-                // Release semaphore unless we're tracking a pending acknowledgment
-                if (!pendingAcknowledgment)
+                // Release semaphore only if acquired and not tracking pending acknowledgment
+                if (semaphoreAcquired && !pendingAcknowledgment)
                 {
                     _acknowledgmentSemaphore.Release();
                 }
