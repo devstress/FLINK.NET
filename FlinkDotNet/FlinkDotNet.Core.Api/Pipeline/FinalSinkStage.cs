@@ -91,7 +91,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
                 throw new InvalidOperationException("Too many pending acknowledgments - back pressure applied");
             }
 
-            bool semaphoreReleased = false;
+            bool pendingAcknowledgment = false;
             try
             {
                 // Send to final destination and handle acknowledgment
@@ -101,22 +101,21 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
                 {
                     // Track pending acknowledgment - semaphore will be released in HandleAcknowledgment
                     TrackPendingAcknowledgment(acknowledgmentId, value, startTime);
+                    pendingAcknowledgment = true;
                 }
                 else
                 {
-                    // No acknowledgment required, complete immediately and release semaphore
+                    // No acknowledgment required, complete immediately
                     CompleteProcessing(value, startTime);
-                    _acknowledgmentSemaphore.Release();
-                    semaphoreReleased = true;
                 }
             }
-            catch
+            finally
             {
-                if (!semaphoreReleased)
+                // Release semaphore unless we're tracking a pending acknowledgment
+                if (!pendingAcknowledgment)
                 {
                     _acknowledgmentSemaphore.Release();
                 }
-                throw;
             }
         }
         catch (Exception ex)
