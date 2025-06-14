@@ -1,8 +1,8 @@
-# Development Guidelines for FLINK.NET FlinkDotnet 2.0 Implementation
+# Development Guidelines for FLINK.NET Implementation
 
 ## Overview
 
-This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured FlinkDotnet 2.0 implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with FlinkDotnet 2.0 specifications.
+This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured Apache Flink 2.0 like implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with Apache Flink 2.0 specifications.
 
 ## Pre-Commit Development Workflow
 
