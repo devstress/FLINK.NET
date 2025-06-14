@@ -1,8 +1,8 @@
-# Operator Chaining in FlinkDotNet
+# Operator Chaining in Flink.NET
 
 ## Introduction
 
-Operator chaining is a significant performance optimization in FlinkDotNet, inspired by similar mechanisms in Apache Flink. It involves fusing multiple data stream operators together into a single execution task. When operators are chained, records are passed between them via direct method calls within the same thread, bypassing the usual serialization/deserialization steps and network communication (or even inter-thread queueing) that would occur if they were separate tasks.
+Operator chaining is a significant performance optimization in Flink.NET, inspired by similar mechanisms in stream processing frameworks. It involves fusing multiple data stream operators together into a single execution task. When operators are chained, records are passed between them via direct method calls within the same thread, bypassing the usual serialization/deserialization steps and network communication (or even inter-thread queueing) that would occur if they were separate tasks.
 
 ## Benefits
 

@@ -2,7 +2,7 @@
 
 TaskManagers are the workhorses of a Flink cluster, executing the data processing tasks. Their memory configuration is critical for performance and stability. Flink.NET applications, with their C# operator logic, will run on these TaskManagers, making this configuration particularly relevant.
 
-Apache Flink has a detailed TaskManager memory model, which Flink.NET will adopt.
+FlinkDotnet has a detailed TaskManager memory model, which Flink.NET will adopt.
 
 ## Overview of TaskManager Memory Components
 
@@ -43,7 +43,7 @@ The total memory allocated to a TaskManager process is divided into several comp
 
 Configuration is typically done via `flink-conf.yaml` or equivalent Flink.NET mechanisms (e.g., environment variables for containerized deployments).
 
-**Key Configuration Options (from Apache Flink):**
+**Key Configuration Options (from FlinkDotnet):**
 
 *   `taskmanager.memory.process.size`: (e.g., `4g`) - Total memory for the TM process.
 *   *Alternatively, configure components individually. Flink recommends configuring `taskmanager.memory.flink.size` and letting Flink derive other components, or configuring specific components like `task.heap`, `managed.memory`, and `network`.*
@@ -74,11 +74,11 @@ taskmanager.memory.process.size: 4096m
 *   **Consider Number of Task Slots:** More slots mean memory is divided further. Ensure each slot has enough memory for the tasks it runs.
 *   **Iterate and Tune:** Memory tuning is often an iterative process. Monitor, adjust, and observe the impact. See [[Memory Tuning|Core-Concepts-Memory-Tuning]].
 
-## Relationship to Apache Flink
+## Relationship to FlinkDotnet
 
-Flink.NET TaskManagers will operate under the same memory model as Apache Flink. The key difference is that the "Task Heap" will be managed by the .NET runtime for C# operator code, rather than solely by the JVM for Java/Scala code.
+Flink.NET TaskManagers will operate under the same memory model as FlinkDotnet. The key difference is that the "Task Heap" will be managed by the .NET runtime for C# operator code, rather than solely by the JVM for Java/Scala code.
 
-**Apache Flink References:**
+**External References:**
 
 *   [TaskManager Memory Configuration (Detailed)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)
 *   [Flink Memory Tuning Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/memory/mem_tuning/)

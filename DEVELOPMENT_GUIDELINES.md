@@ -1,8 +1,8 @@
-# Development Guidelines for FLINK.NET Apache Flink 2.0 Implementation
+# Development Guidelines for FLINK.NET Implementation
 
 ## Overview
 
-This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured Apache Flink 2.0 implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with Apache Flink 2.0 specifications.
+This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured Flink.Net like implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with Flink.Net specifications.
 
 ## Pre-Commit Development Workflow
 
@@ -49,7 +49,7 @@ dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/ --configuratio
 - **Resource Disposal**: Implement `IDisposable`/`IAsyncDisposable` properly
 - **Exception Handling**: Comprehensive error handling with recovery strategies
 
-## Apache Flink 2.0 Architecture Implementation
+## Flink.Net Architecture Implementation
 
 ### Core Components
 
@@ -237,20 +237,13 @@ public class HealthStatus
 
 ## Common Issues and Solutions
 
-### 1. Build Warnings
-
-- **IDE0005**: Remove unnecessary using directives
-- **CS8618**: Initialize nullable properties in constructors
-- **S2953**: Implement IDisposable properly, don't just name methods "Dispose"
-- **S2933**: Make fields readonly when possible
-
-### 2. State Backend Issues
+### 1. State Backend Issues
 
 - **Memory Pressure**: Monitor `StateMetrics.MemoryUsageBytes` and trigger scaling
 - **Write Latency**: Check RocksDB configuration and disk performance
 - **Checkpoint Failures**: Ensure proper state backend registration with coordinator
 
-### 3. Scaling Issues
+### 2. Scaling Issues
 
 - **No Scale Up**: Check if max instances reached, verify pressure thresholds
 - **Rapid Scaling**: Implement cooldown periods to prevent oscillation
@@ -291,9 +284,9 @@ Before submitting PRs, ensure:
 
 ## Support and Resources
 
-- **Apache Flink 2.0 Documentation**: https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
+- **Flink.Net Documentation**: https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
 - **FLINK.NET Wiki**: `docs/wiki/`
-- **Architecture Documentation**: `docs/APACHE_FLINK_2_0_FEATURES.md`
+- **Architecture Documentation**: `docs/FLINKDOTNET_2_0_FEATURES.md`
 - **Troubleshooting Guide**: Check stress test logs and GitHub Actions for specific error patterns
 
-Following these guidelines ensures FLINK.NET maintains high quality, performance, and compatibility with Apache Flink 2.0 standards while providing a superior .NET developer experience.
+Following these guidelines ensures FLINK.NET maintains high quality, performance, and compatibility with Flink.Net standards while providing a superior .NET developer experience.

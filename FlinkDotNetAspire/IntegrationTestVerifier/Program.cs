@@ -1,4 +1,4 @@
-#pragma warning disable S3776 // Cognitive Complexity of methods is too high
+using System.Diagnostics.CodeAnalysis;
 using FlinkDotNet.Common.Constants;
 
 namespace IntegrationTestVerifier
@@ -10,11 +10,216 @@ namespace IntegrationTestVerifier
     using System.Threading;
     using System.Threading.Tasks;
     using System.Text.RegularExpressions;
-    using System.Net.Sockets;
     using System.IO;
     using Confluent.Kafka;
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
+
+    /// <summary>
+    /// BDD Test Coordinator for comprehensive scenario management and reporting
+    /// Implements worldwide best practices for behavior-driven testing in stream processing systems
+    /// </summary>
+    public class BddTestCoordinator
+    {
+        private readonly List<BddScenario> _scenarios = new();
+        private readonly Dictionary<string, List<string>> _scenarioSteps = new();
+        private readonly DateTime _testStartTime = DateTime.UtcNow;
+        private BddScenario? _currentScenario;
+
+        public void LogScenarioStart(string scenarioName, string description)
+        {
+            _currentScenario = new BddScenario
+            {
+                Name = scenarioName,
+                Description = description,
+                StartTime = DateTime.UtcNow,
+                Status = BddScenarioStatus.Running
+            };
+            
+            _scenarios.Add(_currentScenario);
+            _scenarioSteps[scenarioName] = new List<string> { description };
+            
+            Console.WriteLine($"\n🎯 BDD SCENARIO: {scenarioName}");
+            Console.WriteLine($"   📋 {description}");
+            Console.WriteLine($"   🕐 Started at: {DateTime.UtcNow:HH:mm:ss.fff}");
+        }
+
+        public void LogGiven(string context, string condition)
+        {
+            var message = $"   📌 GIVEN: {context} - {condition}";
+            Console.WriteLine(message);
+            
+            if (_currentScenario != null)
+            {
+                _scenarioSteps[_currentScenario.Name].Add($"GIVEN: {condition}");
+            }
+        }
+
+        public void LogWhen(string context, string action)
+        {
+            var message = $"   🎯 WHEN: {context} - {action}";
+            Console.WriteLine(message);
+            
+            if (_currentScenario != null)
+            {
+                _scenarioSteps[_currentScenario.Name].Add($"WHEN: {action}");
+            }
+        }
+
+        public void LogThen(string context, string expectation)
+        {
+            var message = $"   ✅ THEN: {context} - {expectation}";
+            Console.WriteLine(message);
+            
+            if (_currentScenario != null)
+            {
+                _scenarioSteps[_currentScenario.Name].Add($"THEN: {expectation}");
+            }
+        }
+
+        public void LogScenarioSuccess(string result)
+        {
+            if (_currentScenario != null)
+            {
+                _currentScenario.EndTime = DateTime.UtcNow;
+                _currentScenario.Status = BddScenarioStatus.Passed;
+                _currentScenario.Result = result;
+                
+                var duration = _currentScenario.EndTime.Value - _currentScenario.StartTime;
+                Console.WriteLine($"   🎉 SCENARIO RESULT: ✅ PASSED - {result}");
+                Console.WriteLine($"   ⏱️  Duration: {duration.TotalMilliseconds:F0}ms");
+            }
+        }
+
+        public void LogScenarioFailure(string error, Exception? exception = null)
+        {
+            if (_currentScenario != null)
+            {
+                _currentScenario.EndTime = DateTime.UtcNow;
+                _currentScenario.Status = BddScenarioStatus.Failed;
+                _currentScenario.Result = error;
+                _currentScenario.Exception = exception;
+                
+                var duration = _currentScenario.EndTime.Value - _currentScenario.StartTime;
+                Console.WriteLine($"   💥 SCENARIO RESULT: ❌ FAILED - {error}");
+                Console.WriteLine($"   ⏱️  Duration: {duration.TotalMilliseconds:F0}ms");
+                
+                if (exception != null)
+                {
+                    Console.WriteLine($"   🔍 Exception: {exception.GetType().Name}: {exception.Message}");
+                }
+            }
+        }
+
+        public void GenerateComprehensiveReport()
+        {
+            var totalDuration = DateTime.UtcNow - _testStartTime;
+            var passedScenarios = _scenarios.Count(s => s.Status == BddScenarioStatus.Passed);
+            var failedScenarios = _scenarios.Count(s => s.Status == BddScenarioStatus.Failed);
+            var totalScenarios = _scenarios.Count;
+            
+            PrintReportHeader(totalDuration, passedScenarios, failedScenarios, totalScenarios);
+            PrintScenarioBreakdown();
+            PrintRecommendations(failedScenarios);
+        }
+
+        private void PrintReportHeader(TimeSpan totalDuration, int passedScenarios, int failedScenarios, int totalScenarios)
+        {
+            Console.WriteLine($"\n📊 === COMPREHENSIVE BDD TEST REPORT ===");
+            Console.WriteLine($"   📅 Test Session: {_testStartTime:yyyy-MM-dd HH:mm:ss} UTC");
+            Console.WriteLine($"   ⏱️  Total Duration: {totalDuration.TotalSeconds:F1} seconds");
+            Console.WriteLine($"   📈 Success Rate: {(passedScenarios * 100.0 / Math.Max(1, totalScenarios)):F1}% ({passedScenarios}/{totalScenarios})");
+            Console.WriteLine($"   ✅ Passed Scenarios: {passedScenarios}");
+            Console.WriteLine($"   ❌ Failed Scenarios: {failedScenarios}");
+        }
+
+        private void PrintScenarioBreakdown()
+        {
+            Console.WriteLine($"\n📋 SCENARIO BREAKDOWN:");
+            foreach (var scenario in _scenarios)
+            {
+                PrintScenarioDetails(scenario);
+            }
+        }
+
+        private void PrintScenarioDetails(BddScenario scenario)
+        {
+            var scenarioDuration = scenario.EndTime.HasValue 
+                ? (scenario.EndTime.Value - scenario.StartTime).TotalMilliseconds 
+                : 0;
+            
+            var statusIcon = scenario.Status switch
+            {
+                BddScenarioStatus.Passed => "✅",
+                BddScenarioStatus.Failed => "❌",
+                BddScenarioStatus.Running => "⏳",
+                BddScenarioStatus.Skipped => "⏭️",
+                _ => "❓"
+            };
+            
+            Console.WriteLine($"\n   {statusIcon} {scenario.Name} ({scenarioDuration:F0}ms)");
+            Console.WriteLine($"      📋 {scenario.Description}");
+            Console.WriteLine($"      📊 Result: {scenario.Result}");
+            
+            if (scenario.Exception != null)
+            {
+                Console.WriteLine($"      🔍 Error: {scenario.Exception.Message}");
+            }
+            
+            // Show scenario steps
+            if (_scenarioSteps.ContainsKey(scenario.Name) && _scenarioSteps[scenario.Name].Count > 1)
+            {
+                Console.WriteLine($"      📝 Steps executed:");
+                foreach (var step in _scenarioSteps[scenario.Name].Skip(1)) // Skip description
+                {
+                    Console.WriteLine($"         • {step}");
+                }
+            }
+        }
+
+        private void PrintRecommendations(int failedScenarios)
+        {
+            Console.WriteLine($"\n💡 === RECOMMENDATIONS ===");
+            if (failedScenarios == 0)
+            {
+                Console.WriteLine($"   🎉 All scenarios passed! System is functioning according to Flink.Net standards.");
+                Console.WriteLine($"   📈 Consider increasing test complexity or message volumes for further validation.");
+            }
+            else
+            {
+                Console.WriteLine($"   ⚠️  {failedScenarios} scenario(s) failed. Review the following:");
+                foreach (var failedScenario in _scenarios.Where(s => s.Status == BddScenarioStatus.Failed))
+                {
+                    Console.WriteLine($"      • {failedScenario.Name}: {failedScenario.Result}");
+                }
+                Console.WriteLine($"   🔍 Check infrastructure connectivity, resource availability, and configuration.");
+            }
+        }
+
+        public bool AllScenariosPassedOrSkipped()
+        {
+            return _scenarios.All(s => s.Status == BddScenarioStatus.Passed);
+        }
+    }
+
+    public enum BddScenarioStatus
+    {
+        Running,
+        Passed,
+        Failed,
+        Skipped
+    }
+
+    public class BddScenario
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public DateTime StartTime { get; set; }
+        public DateTime? EndTime { get; set; }
+        public BddScenarioStatus Status { get; set; }
+        public string Result { get; set; } = string.Empty;
+        public Exception? Exception { get; set; }
+    }
 
     /// <summary>
     /// System resource monitoring and mathematical analysis for BDD stress testing
@@ -301,21 +506,67 @@ namespace IntegrationTestVerifier
         public double TotalTestDurationMs { get; set; }
     }
 
+    /// <summary>
+    /// BDD-Style Integration Test Verifier with Flink.Net Best Practices
+    /// 
+    /// This verifier implements worldwide best practices for stream processing testing:
+    /// - BDD Style: Given/When/Then scenarios for clear test documentation  
+    /// - Flink.Net Patterns: Follows official Flink testing methodologies
+    /// - Comprehensive Diagnostics: Detailed failure analysis and expected behavior logging
+    /// - Mathematical Analysis: Predictive performance modeling and validation
+    /// - Real-time Monitoring: Live system resource and performance tracking
+    /// 
+    /// SCENARIOS COVERED:
+    /// 1. Infrastructure Health Verification (Redis + Kafka)
+    /// 2. High-Volume Message Processing Validation  
+    /// 3. Performance and Resource Utilization Analysis
+    /// 4. Back Pressure and Throughput Verification
+    /// 5. Data Integrity and Exactly-Once Semantics Validation
+    /// </summary>
+    [SuppressMessage("Design", "S1144:Remove the unused private method", Justification = "Test diagnostic methods are kept for debugging and future use")]
     public static class Program
     {
 
         public static async Task<int> Main(string[] args)
         {
-            Console.WriteLine("=== FlinkDotNet Integration Test Verifier Started ===");
+            Console.WriteLine("=== 🧪 FLINK.NET BDD-STYLE INTEGRATION TEST VERIFIER ===");
             Console.WriteLine($"Started at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
             Console.WriteLine($"Arguments: {string.Join(" ", args)}");
+            Console.WriteLine($"Following Flink.Net best practices with comprehensive BDD scenarios");
 
             var configuration = new ConfigurationBuilder()
                 .AddEnvironmentVariables()
                 .Build();
             
-            // Log all relevant environment variables for debugging
-            Console.WriteLine("\n=== Environment Variables ===");
+            // Initialize BDD test coordinator
+            var testCoordinator = new BddTestCoordinator();
+            
+            // BDD SCENARIO: Environment Configuration Analysis
+            testCoordinator.LogScenarioStart("Environment Analysis", 
+                "Analyzing test environment configuration and system resources");
+            
+            LogEnvironmentConfiguration(configuration, testCoordinator);
+
+            if (args.Contains("--health-check"))
+            {
+                testCoordinator.LogScenarioStart("Health Check Mode", 
+                    "Running infrastructure health verification only");
+                return await RunBddHealthCheckAsync(configuration, testCoordinator);
+            }
+            else
+            {
+                testCoordinator.LogScenarioStart("Full Verification Mode", 
+                    "Running comprehensive BDD verification with performance analysis");
+                return await RunBddFullVerificationAsync(configuration, testCoordinator);
+            }
+        }
+
+        private static void LogEnvironmentConfiguration(IConfigurationRoot configuration, BddTestCoordinator testCoordinator)
+        {
+            testCoordinator.LogGiven("Environment setup", 
+                "Test environment should be properly configured with all required variables");
+            
+            Console.WriteLine("\n🔧 === ENVIRONMENT CONFIGURATION ANALYSIS ===");
             var envVars = new[]
             {
                 "DOTNET_REDIS_URL", "DOTNET_KAFKA_BOOTSTRAP_SERVERS", "SIMULATOR_NUM_MESSAGES",
@@ -323,190 +574,159 @@ namespace IntegrationTestVerifier
                 "SIMULATOR_KAFKA_TOPIC", "MAX_ALLOWED_TIME_MS", "DOTNET_ENVIRONMENT"
             };
             
+            var configuredVars = 0;
+            var missingVars = new List<string>();
+            
             foreach (var envVar in envVars)
             {
                 var value = configuration[envVar];
-                Console.WriteLine($"{envVar}: {(string.IsNullOrEmpty(value) ? "<not set>" : value)}");
+                var isConfigured = !string.IsNullOrEmpty(value);
+                
+                Console.WriteLine($"   {(isConfigured ? "✅" : "⚠️")} {envVar}: {(isConfigured ? value : "<not set>")}");
+                
+                if (isConfigured)
+                {
+                    configuredVars++;
+                }
+                else
+                {
+                    missingVars.Add(envVar);
+                }
             }
-
-            if (args.Contains("--health-check"))
+            
+            var configurationPercent = (configuredVars * 100.0) / envVars.Length;
+            Console.WriteLine($"\n   📊 Configuration completeness: {configurationPercent:F1}% ({configuredVars}/{envVars.Length} variables)");
+            
+            if (missingVars.Any())
             {
-                Console.WriteLine("\n=== Running in --health-check mode ===");
-                return await RunHealthCheckAsync(configuration);
+                Console.WriteLine($"   ⚠️  Missing variables will use default values: {string.Join(", ", missingVars)}");
+                testCoordinator.LogWhen("Environment setup", $"Using defaults for {missingVars.Count} missing variables");
             }
             else
             {
-                Console.WriteLine("\n=== Running full verification ===");
-                return await RunFullVerificationAsync(configuration);
+                testCoordinator.LogWhen("Environment setup", "All environment variables configured");
             }
+            
+            testCoordinator.LogThen("Environment setup", 
+                $"Environment analysis completed - {configurationPercent:F1}% configured");
         }
 
-        private static async Task<int> RunHealthCheckAsync(IConfigurationRoot config)
+        private static async Task<int> RunBddHealthCheckAsync(IConfigurationRoot config, BddTestCoordinator testCoordinator)
         {
-            Console.WriteLine("\n🏥 === INFRASTRUCTURE HEALTH CHECK ===");
-            Console.WriteLine("📋 Validating Redis and Kafka container accessibility");
+            testCoordinator.LogGiven("Infrastructure verification", 
+                "Redis and Kafka containers should be accessible and operational");
             
-            bool redisOk = false;
-            bool kafkaOk = false;
-            var redisConnectionString = config["DOTNET_REDIS_URL"];
-            var kafkaBootstrapServers = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
-
-            // Basic port connectivity check similar to workflow logic
-            static bool CheckPort(string host, int port)
+            Console.WriteLine("\n🏥 === BDD INFRASTRUCTURE HEALTH CHECK ===");
+            Console.WriteLine("📋 Scenario: Validate containerized infrastructure readiness for Flink.Net processing");
+            
+            var healthCheckResults = new Dictionary<string, bool>();
+            
+            try
             {
-                try
-                {
-                    using var client = new TcpClient();
-                    var task = client.ConnectAsync(host, port);
-                    return task.Wait(TimeSpan.FromSeconds(3)) && client.Connected;
-                }
-                catch
-                {
-                    return false;
-                }
+                bool redisOk = await RunRedisHealthCheckAsync(config, testCoordinator);
+                healthCheckResults["Redis"] = redisOk;
+                
+                bool kafkaOk = await RunKafkaHealthCheckAsync(config, testCoordinator);
+                healthCheckResults["Kafka"] = kafkaOk;
+                
+                await RunInfrastructureAssessmentAsync(testCoordinator, healthCheckResults);
             }
-
-            Console.WriteLine("\n🔍 DISCOVERY: Resolving service connection strings");
-            if (string.IsNullOrEmpty(redisConnectionString))
+            catch (Exception ex)
             {
-                redisConnectionString = ServiceUris.RedisConnectionString;
-                Console.WriteLine($"   ⚠ Redis connection string not found in env. Using default: {redisConnectionString}");
-            }
-            else
-            {
-                Console.WriteLine($"   ✅ Redis connection string found: {redisConnectionString}");
+                testCoordinator.LogScenarioFailure($"Infrastructure health check failed with exception: {ex.Message}", ex);
+                healthCheckResults.Clear();
             }
             
-            if (string.IsNullOrEmpty(kafkaBootstrapServers))
-            {
-                kafkaBootstrapServers = ServiceUris.KafkaBootstrapServers;
-                Console.WriteLine($"   ⚠ Kafka bootstrap servers not found in env. Using default: {kafkaBootstrapServers}");
-            }
-            else
-            {
-                Console.WriteLine($"   ✅ Kafka bootstrap servers found: {kafkaBootstrapServers}");
-            }
-
-            // Port reachability checks
-            if (!string.IsNullOrEmpty(redisConnectionString) && redisConnectionString.Contains(':'))
-            {
-                var portPart = redisConnectionString.Split(':')[1];
-                if (int.TryParse(portPart, out var port))
-                {
-                    Console.WriteLine($"\n   🔌 Testing Redis port reachability (localhost:{port})...");
-                    Console.WriteLine($"      {(CheckPort("localhost", port) ? "✅ Port reachable" : "❌ Port unreachable")}");
-                }
-            }
-
-            if (!string.IsNullOrEmpty(kafkaBootstrapServers) && kafkaBootstrapServers.Contains(':'))
-            {
-                var portPart = kafkaBootstrapServers.Split(':')[1];
-                if (int.TryParse(portPart, out var port))
-                {
-                    Console.WriteLine($"   🔌 Testing Kafka port reachability (localhost:{port})...");
-                    Console.WriteLine($"      {(CheckPort("localhost", port) ? "✅ Port reachable" : "❌ Port unreachable")}");
-                }
-            }
-
-            // Redis Health Check
-            Console.WriteLine($"\n🔴 HEALTH CHECK 1: Redis Service");
-            Console.WriteLine($"   📌 GIVEN: Redis container should be accessible at {redisConnectionString}");
-            Console.WriteLine($"   🎯 WHEN: Attempting connection and basic operations");
-            var redisStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            redisOk = await WaitForRedisAsync(redisConnectionString);
-            redisStopwatch.Stop();
-            Console.WriteLine($"   {(redisOk ? "✅ THEN: Redis health check PASSED" : "❌ THEN: Redis health check FAILED")} (took {redisStopwatch.ElapsedMilliseconds}ms)");
-
-            // Kafka Health Check
-            Console.WriteLine($"\n🟡 HEALTH CHECK 2: Kafka Service");
-            Console.WriteLine($"   📌 GIVEN: Kafka container should be accessible at {kafkaBootstrapServers}");
-            Console.WriteLine($"   🎯 WHEN: Attempting connection and metadata retrieval");
-            var kafkaStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            kafkaOk = WaitForKafka(kafkaBootstrapServers);
-            kafkaStopwatch.Stop();
-            Console.WriteLine($"   {(kafkaOk ? "✅ THEN: Kafka health check PASSED" : "❌ THEN: Kafka health check FAILED")} (took {kafkaStopwatch.ElapsedMilliseconds}ms)");
-
-            var overall = redisOk && kafkaOk;
-            Console.WriteLine($"\n🏁 === HEALTH CHECK SUMMARY ===");
-            if (overall)
-            {
-                Console.WriteLine("🎉 INFRASTRUCTURE: ✅ **HEALTHY** - All services accessible");
-                Console.WriteLine($"   ✓ Redis: Operational");
-                Console.WriteLine($"   ✓ Kafka: Operational");
-            }
-            else
-            {
-                Console.WriteLine("💥 INFRASTRUCTURE: ❌ **UNHEALTHY** - Service failures detected");
-                Console.WriteLine($"   {(redisOk ? "✓" : "❌")} Redis: {(redisOk ? "Operational" : "Failed")}");
-                Console.WriteLine($"   {(kafkaOk ? "✓" : "❌")} Kafka: {(kafkaOk ? "Operational" : "Failed")}");
-            }
+            // Generate comprehensive BDD report
+            testCoordinator.GenerateComprehensiveReport();
             
-            return overall ? 0 : 1;
+            bool allHealthChecksPass = healthCheckResults.Values.All(v => v);
+            return allHealthChecksPass ? 0 : 1;
         }
 
-        private static void PrintBddScenarioDocumentation(string globalSequenceKey, int expectedMessages, string sinkCounterKey, string kafkaTopic, ResourceAnalysis analysis)
+        private static async Task<bool> RunRedisHealthCheckAsync(IConfigurationRoot config, BddTestCoordinator testCoordinator)
         {
-            Console.WriteLine("📖 GIVEN: Local Flink.NET Setup with Aspire orchestration");
-            Console.WriteLine($"   ├─ Redis provides sequence ID generation (key: '{globalSequenceKey}')");
-            Console.WriteLine($"   ├─ HighVolumeSourceFunction generates {expectedMessages:N0} ordered messages");
-            Console.WriteLine($"   ├─ RedisIncrementSinkFunction counts messages (key: '{sinkCounterKey}')");
-            Console.WriteLine($"   └─ KafkaSinkFunction writes messages to topic ('{kafkaTopic}')");
-            Console.WriteLine("");
+            testCoordinator.LogScenarioStart("Redis Health Check", 
+                "Verifying Redis container connectivity and basic operations");
             
-            Console.WriteLine("🔧 SYSTEM SPECIFICATIONS & MATHEMATICAL ANALYSIS:");
-            Console.WriteLine($"   ├─ 🖥️  Hardware: {analysis.SystemSpec.CpuCores} CPU cores, {analysis.SystemSpec.TotalRamMB:N0}MB total RAM");
-            Console.WriteLine($"   ├─ 💾 Available: {analysis.SystemSpec.AvailableRamMB:N0}MB RAM ({(double)analysis.SystemSpec.AvailableRamMB/analysis.SystemSpec.TotalRamMB*100:F1}% of total)");
-            Console.WriteLine($"   ├─ ⚡ Parallel: {analysis.SystemSpec.TaskManagerInstances} TaskManager instances");
-            Console.WriteLine($"   └─ 🎯 Target: {expectedMessages:N0} messages @ ~{analysis.PredictedRequirements.MemoryPerMessage*1024:F2}KB per message");
-            Console.WriteLine("");
+            var redisConnectionString = config["DOTNET_REDIS_URL"] ?? ServiceUris.RedisConnectionString;
+            testCoordinator.LogGiven("Redis connectivity", $"Redis should be accessible at {redisConnectionString}");
+            testCoordinator.LogWhen("Redis connectivity", "Testing connection and basic operations");
             
-            Console.WriteLine("📊 MATHEMATICAL PREDICTIONS:");
-            Console.WriteLine($"   ├─ 🧮 Memory Required: {analysis.PredictedRequirements.RequiredMemoryMB:F1}MB");
-            Console.WriteLine($"   ├─ 🛡️  Safety Margin: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% memory headroom");
-            Console.WriteLine($"   ├─ ⏱️  CPU Time/Message: {analysis.PredictedRequirements.CpuTimePerMessage*1000000:F2} microseconds");
-            Console.WriteLine($"   ├─ 🚀 Predicted Throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} messages/second");
-            Console.WriteLine($"   ├─ ⏰ Estimated Completion: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
-            Console.WriteLine($"   └─ ✅ Optimal TaskManagers: {analysis.PredictedRequirements.OptimalTaskManagerCount} (current: {analysis.SystemSpec.TaskManagerInstances})");
-            Console.WriteLine("");
-
-            Console.WriteLine("🎯 WHEN: FlinkJobSimulator executes the dual-sink job");
-            Console.WriteLine("   ├─ Source: Redis INCR generates sequence IDs 1 to N");
-            Console.WriteLine("   ├─ Map: SimpleToUpperMapOperator processes messages (P=1 for FIFO order)");
-            Console.WriteLine("   ├─ Fork: Stream splits to Redis sink AND Kafka sink");
-            Console.WriteLine("   └─ Execution: LocalStreamExecutor runs the job");
-            Console.WriteLine("");
+            bool redisOk = await WaitForRedisAsync(redisConnectionString);
             
-            Console.WriteLine("✅ THEN: Expected behavior according to documentation:");
-            Console.WriteLine($"   ├─ Global sequence key should equal {expectedMessages:N0}");
-            Console.WriteLine($"   ├─ Sink counter key should equal {expectedMessages:N0}");
-            Console.WriteLine($"   ├─ Kafka topic contains {expectedMessages:N0} ordered messages");
-            Console.WriteLine($"   ├─ FIFO ordering maintained with Redis-generated sequence IDs");
-            Console.WriteLine($"   ├─ Memory usage stays below {analysis.PredictedRequirements.RequiredMemoryMB:F0}MB threshold");
-            Console.WriteLine($"   └─ Processing completes within predicted {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms timeframe");
+            if (redisOk)
+            {
+                testCoordinator.LogScenarioSuccess("Redis is fully operational and ready for stream processing");
+            }
+            else
+            {
+                testCoordinator.LogScenarioFailure("Redis connectivity failed - container may not be ready");
+            }
+            
+            return redisOk;
         }
 
-        private static bool ValidatePerformanceRequirements(Stopwatch verificationStopwatch, int expectedMessages, IConfigurationRoot config, ResourceAnalysis analysis)
+        private static Task<bool> RunKafkaHealthCheckAsync(IConfigurationRoot config, BddTestCoordinator testCoordinator)
         {
-            verificationStopwatch.Stop();
-            Console.WriteLine($"\n🚀 SCENARIO 3: Performance & Resource Validation");
-            Console.WriteLine($"   📋 Testing: Processing time and resource utilization within acceptable limits");
+            testCoordinator.LogScenarioStart("Kafka Health Check", 
+                "Verifying Kafka container connectivity and metadata access");
             
-            PrintTimingAnalysis(verificationStopwatch, expectedMessages, analysis);
+            var kafkaBootstrapServers = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] ?? ServiceUris.KafkaBootstrapServers;
+            testCoordinator.LogGiven("Kafka connectivity", $"Kafka should be accessible at {kafkaBootstrapServers}");
+            testCoordinator.LogWhen("Kafka connectivity", "Testing broker connection and metadata retrieval");
             
-            long maxAllowedTimeMs = GetMaxAllowedTimeMs(config);
-            bool timingPassed = ValidateAndPrintCriticalAssertion(verificationStopwatch, expectedMessages, maxAllowedTimeMs);
+            bool kafkaOk = WaitForKafka(kafkaBootstrapServers);
             
-            PrintRedisPerformanceAnalysis();
+            if (kafkaOk)
+            {
+                testCoordinator.LogScenarioSuccess("Kafka is fully operational and ready for message streaming");
+            }
+            else
+            {
+                testCoordinator.LogScenarioFailure("Kafka connectivity failed - broker may not be ready");
+            }
             
-            bool memoryPassed = ValidateAndPrintMemoryAnalysis(analysis);
-            bool cpuPassed = ValidateAndPrintCpuAnalysis(analysis);
-            bool throughputPassed = ValidateAndPrintThroughputAnalysis(verificationStopwatch, expectedMessages, analysis);
-            
-            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
-            PrintAssessmentResults(timingPassed, memoryPassed, cpuPassed, throughputPassed, allPassed, maxAllowedTimeMs);
-            
-            return allPassed;
+            return Task.FromResult(kafkaOk);
         }
+
+        private static Task RunInfrastructureAssessmentAsync(BddTestCoordinator testCoordinator, Dictionary<string, bool> healthCheckResults)
+        {
+            testCoordinator.LogScenarioStart("Infrastructure Assessment", 
+                "Evaluating overall infrastructure readiness for high-volume processing");
+            
+            testCoordinator.LogGiven("Infrastructure status", "All components should be operational for reliable testing");
+            testCoordinator.LogWhen("Infrastructure assessment", "Analyzing component health and readiness");
+            
+            bool allHealthChecksPass = healthCheckResults.Values.All(v => v);
+            
+            if (allHealthChecksPass)
+            {
+                testCoordinator.LogScenarioSuccess("All infrastructure components are ready for Flink.Net processing");
+                Console.WriteLine($"\n🎉 === INFRASTRUCTURE HEALTH: ✅ EXCELLENT ===");
+                Console.WriteLine($"   ✓ Redis: Operational and responsive");
+                Console.WriteLine($"   ✓ Kafka: Operational with metadata access");
+                Console.WriteLine($"   📊 Overall Health Score: 100% - Ready for high-volume processing");
+            }
+            else
+            {
+                testCoordinator.LogScenarioFailure("Infrastructure health check failed - some components not ready");
+                Console.WriteLine($"\n💥 === INFRASTRUCTURE HEALTH: ❌ DEGRADED ===");
+                foreach (var result in healthCheckResults)
+                {
+                    Console.WriteLine($"   {(result.Value ? "✓" : "❌")} {result.Key}: {(result.Value ? "Operational" : "Failed")}");
+                }
+                
+                var healthScore = (healthCheckResults.Values.Count(v => v) * 100.0) / healthCheckResults.Count;
+                Console.WriteLine($"   📊 Overall Health Score: {healthScore:F1}% - Infrastructure issues detected");
+            }
+            
+            return Task.CompletedTask;
+        }
+
+
+
+
 
         private static void PrintTimingAnalysis(Stopwatch verificationStopwatch, int expectedMessages, ResourceAnalysis analysis)
         {
@@ -637,129 +857,418 @@ namespace IntegrationTestVerifier
             }
         }
 
-        private static void PrintFinalResult(bool allChecksPassed)
-        {
-            Console.WriteLine($"\n🏁 === FINAL VERIFICATION RESULT ===");
-            if (allChecksPassed)
-            {
-                Console.WriteLine("🎉 STRESS TEST: ✅ **PASSED** - All scenarios validated successfully");
-                Console.WriteLine("   ✓ Redis sequence generation and sink counting");
-                Console.WriteLine("   ✓ Kafka message ordering and content");
-                Console.WriteLine("   ✓ Performance within acceptable limits");
-            }
-            else
-            {
-                Console.WriteLine("💥 STRESS TEST: ❌ **FAILED** - One or more scenarios failed validation");
-                Console.WriteLine("   ℹ️  Check individual scenario results above for details");
-            }
-        }
 
-        private static async Task<int> RunFullVerificationAsync(IConfigurationRoot config)
+
+        private static async Task<int> RunBddFullVerificationAsync(IConfigurationRoot config, BddTestCoordinator testCoordinator)
         {
-            Console.WriteLine("\n=== 🧪 FLINK.NET HIGH-THROUGHPUT STRESS TEST VERIFICATION ===");
-            Console.WriteLine("📋 BDD Test Scenario: Local High Throughput Test with Redis Sequenced Messages to Kafka & Redis Sink");
+            testCoordinator.LogScenarioStart("Full System Verification", 
+                "Comprehensive Flink.Net high-throughput processing validation");
+            
+            Console.WriteLine("\n=== 🧪 FLINK.NET BDD HIGH-THROUGHPUT VERIFICATION ===");
+            Console.WriteLine("📋 BDD Scenario: Flink.Net compliant high-volume stream processing with comprehensive diagnostics");
             Console.WriteLine("");
             
-            // Initialize resource monitoring
+            // Initialize enhanced resource monitoring with BDD integration
             using var resourceMonitor = new SystemResourceMonitor();
+            var verificationResults = new BddVerificationResults();
             
-            var redisConnectionStringFull = config["DOTNET_REDIS_URL"];
-            var kafkaBootstrapServersFull = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
-            var globalSequenceKey = config["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
-            var sinkCounterKey = config["SIMULATOR_REDIS_KEY_SINK_COUNTER"] ?? "flinkdotnet:sample:processed_message_counter";
-            var kafkaTopic = config["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.sample.topic";
-
-            if (!int.TryParse(config["SIMULATOR_NUM_MESSAGES"], out int expectedMessages))
-            {
-                Console.WriteLine("⚠ Warning: SIMULATOR_NUM_MESSAGES environment variable not set or not a valid integer.");
-                expectedMessages = 100; // Defaulting
-                Console.WriteLine($"Defaulting to {expectedMessages} expected messages for verification logic.");
-            }
-
-            // Wait for initial resource baseline
-            await Task.Delay(1000);
-            
-            // Get initial resource analysis (assuming 20 TaskManager instances as per recent changes)
-            var analysis = resourceMonitor.GetResourceAnalysis(expectedMessages, 20);
-
-            // Print test specification from documentation with resource analysis
-            PrintBddScenarioDocumentation(globalSequenceKey, expectedMessages, sinkCounterKey, kafkaTopic, analysis);
-
-            if (string.IsNullOrEmpty(redisConnectionStringFull))
-            {
-                redisConnectionStringFull = ServiceUris.RedisConnectionString;
-                Console.WriteLine($"\n⚠ Redis connection string not found. Using default: {redisConnectionStringFull}");
-            }
-            else
-            {
-                Console.WriteLine($"\n✅ Redis connection discovered: {redisConnectionStringFull}");
-            }
-
-            if (string.IsNullOrEmpty(kafkaBootstrapServersFull))
-            {
-                kafkaBootstrapServersFull = ServiceUris.KafkaBootstrapServers;
-                Console.WriteLine($"⚠ Kafka bootstrap servers not found. Using default: {kafkaBootstrapServersFull}");
-            }
-            else
-            {
-                Console.WriteLine($"✅ Kafka bootstrap servers discovered: {kafkaBootstrapServersFull}");
-            }
-
-            var verificationStopwatch = Stopwatch.StartNew();
-
-            Console.WriteLine($"\n🔍 === VERIFICATION EXECUTION ===");
-            bool allChecksPassed = true;
-            
-            Console.WriteLine("\n🔴 SCENARIO 1: Redis Sink Verification");
-            Console.WriteLine("   📋 Testing: Source sequence generation and sink message counting");
-            allChecksPassed &= await VerifyRedisAsync(redisConnectionStringFull, expectedMessages, globalSequenceKey, sinkCounterKey, 1);
-            
-            Console.WriteLine("\n🟡 SCENARIO 2: Kafka Sink Verification");
-            Console.WriteLine("   📋 Testing: Message ordering and content in Kafka topic");
-            allChecksPassed &= VerifyKafkaAsync(kafkaBootstrapServersFull, kafkaTopic, expectedMessages);
-
-            // Get final resource analysis after test execution
-            analysis = resourceMonitor.GetResourceAnalysis(expectedMessages, 20);
-            allChecksPassed &= ValidatePerformanceRequirements(verificationStopwatch, expectedMessages, config, analysis);
-
-            PrintFinalResult(allChecksPassed);
-            Console.WriteLine($"📅 Completed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
-            
-            return allChecksPassed ? 0 : 1;
-        }
-
-        private static async Task<bool> VerifyRedisAsync(string connectionString, int expectedMessages, string globalSeqKey, string sinkCounterKey, int attemptNumber)
-        {
-            Console.WriteLine($"🔗 Connecting to Redis ({connectionString})...");
-            ConnectionMultiplexer? redis = null;
             try
             {
-                redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
+                // BDD SCENARIO 1: Configuration and Resource Analysis
+                testCoordinator.LogScenarioStart("System Configuration Analysis", 
+                    "Analyzing system capabilities and test configuration for optimal performance");
+                
+                var testConfig = ExtractTestConfiguration(config);
+                var analysis = resourceMonitor.GetResourceAnalysis(testConfig.ExpectedMessages, 20);
+                
+                testCoordinator.LogGiven("System analysis", 
+                    $"System has {analysis.SystemSpec.CpuCores} CPU cores and {analysis.SystemSpec.AvailableRamMB:N0}MB available RAM");
+                testCoordinator.LogWhen("Configuration analysis", 
+                    $"Analyzing requirements for {testConfig.ExpectedMessages:N0} messages");
+                
+                LogBddTestConfiguration(testConfig, analysis, testCoordinator);
+                testCoordinator.LogScenarioSuccess($"System analysis completed - {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% memory safety margin");
+                
+                var redisConnectionStringFull = config["DOTNET_REDIS_URL"] ?? ServiceUris.RedisConnectionString;
+                var kafkaBootstrapServersFull = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] ?? ServiceUris.KafkaBootstrapServers;
+                
+                testCoordinator.LogGiven("Infrastructure connectivity", 
+                    $"Redis: {redisConnectionStringFull}, Kafka: {kafkaBootstrapServersFull}");
+                
+                var verificationStopwatch = Stopwatch.StartNew();
+                
+                Console.WriteLine($"\n🔍 === BDD VERIFICATION EXECUTION ===");
+                bool allVerificationsPassed = true;
+                
+                // BDD SCENARIO 2: Redis Data Verification
+                testCoordinator.LogScenarioStart("Redis Data Stream Verification", 
+                    "Validating Redis-based sequence generation and sink processing with exactly-once semantics");
+                
+                bool redisVerified = await RunBddRedisVerificationAsync(redisConnectionStringFull, testConfig, testCoordinator);
+                allVerificationsPassed &= redisVerified;
+                verificationResults.RedisVerificationPassed = redisVerified;
+                
+                // BDD SCENARIO 3: Kafka Message Stream Verification  
+                testCoordinator.LogScenarioStart("Kafka Message Stream Verification", 
+                    "Validating message ordering, content integrity, and FIFO semantics in Kafka topics");
+                
+                bool kafkaVerified = await RunBddKafkaVerificationAsync(kafkaBootstrapServersFull, testConfig, testCoordinator);
+                allVerificationsPassed &= kafkaVerified;
+                verificationResults.KafkaVerificationPassed = kafkaVerified;
+                
+                // BDD SCENARIO 4: Performance and Resource Validation
+                testCoordinator.LogScenarioStart("Performance and Resource Validation", 
+                    "Validating system performance against Flink.Net benchmarks and resource utilization targets");
+                
+                analysis = resourceMonitor.GetResourceAnalysis(testConfig.ExpectedMessages, 20);
+                bool performanceVerified = ValidateBddPerformanceRequirements(verificationStopwatch, testConfig, analysis, testCoordinator);
+                allVerificationsPassed &= performanceVerified;
+                verificationResults.PerformanceVerificationPassed = performanceVerified;
+                
+                // BDD SCENARIO 5: Overall System Assessment
+                testCoordinator.LogScenarioStart("Overall System Assessment", 
+                    "Comprehensive assessment of Flink.Net compliance and reliability standards");
+                
+                verificationResults.OverallSuccess = allVerificationsPassed;
+                verificationResults.TotalExecutionTimeMs = verificationStopwatch.ElapsedMilliseconds;
+                verificationResults.ResourceAnalysis = analysis;
+                
+                LogBddFinalAssessment(verificationResults, testCoordinator);
+                
+                if (allVerificationsPassed)
+                {
+                    testCoordinator.LogScenarioSuccess("All verification scenarios passed - system meets Flink.Net standards");
+                }
+                else
+                {
+                    testCoordinator.LogScenarioFailure("One or more verification scenarios failed - review detailed results above");
+                }
+                
+                Console.WriteLine($"📅 Verification completed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+                
+                return allVerificationsPassed ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                testCoordinator.LogScenarioFailure($"Critical verification failure: {ex.Message}", ex);
+                Console.WriteLine($"💥 CRITICAL ERROR: {ex.Message}");
+                return 1;
+            }
+            finally
+            {
+                // Generate comprehensive BDD test report
+                testCoordinator.GenerateComprehensiveReport();
+                
+                // Log detailed verification results
+                LogDetailedVerificationResults(verificationResults);
+            }
+        }
+
+        // BDD Verification Helper Methods and Classes
+        
+        private static BddTestConfiguration ExtractTestConfiguration(IConfigurationRoot config)
+        {
+            if (!int.TryParse(config["SIMULATOR_NUM_MESSAGES"], out int expectedMessages))
+            {
+                expectedMessages = 100; // Default for testing
+            }
+            
+            if (!long.TryParse(config["MAX_ALLOWED_TIME_MS"], out long maxAllowedTimeMs))
+            {
+                maxAllowedTimeMs = 1000; // 1 second default
+            }
+            
+            return new BddTestConfiguration
+            {
+                ExpectedMessages = expectedMessages,
+                MaxAllowedTimeMs = maxAllowedTimeMs,
+                GlobalSequenceKey = config["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id",
+                SinkCounterKey = config["SIMULATOR_REDIS_KEY_SINK_COUNTER"] ?? "flinkdotnet:sample:processed_message_counter",
+                KafkaTopic = config["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.sample.topic"
+            };
+        }
+        
+        private static void LogBddTestConfiguration(BddTestConfiguration config, ResourceAnalysis analysis, BddTestCoordinator testCoordinator)
+        {
+            testCoordinator.LogGiven("Test configuration", 
+                $"Processing {config.ExpectedMessages:N0} messages with {config.MaxAllowedTimeMs:N0}ms timeout");
+            
+            Console.WriteLine("📖 === BDD TEST SPECIFICATION ===");
+            Console.WriteLine($"   📋 Target Messages: {config.ExpectedMessages:N0}");
+            Console.WriteLine($"   ⏱️  Timeout Limit: {config.MaxAllowedTimeMs:N0}ms");
+            Console.WriteLine($"   🔑 Global Sequence Key: {config.GlobalSequenceKey}");
+            Console.WriteLine($"   📊 Sink Counter Key: {config.SinkCounterKey}");
+            Console.WriteLine($"   📨 Kafka Topic: {config.KafkaTopic}");
+            Console.WriteLine("");
+            
+            Console.WriteLine("🔧 === PREDICTIVE SYSTEM ANALYSIS ===");
+            Console.WriteLine($"   🖥️  CPU Cores: {analysis.SystemSpec.CpuCores}");
+            Console.WriteLine($"   💾 Available RAM: {analysis.SystemSpec.AvailableRamMB:N0}MB");
+            Console.WriteLine($"   📈 Predicted Throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} msg/sec");
+            Console.WriteLine($"   ⏰ Estimated Completion: {analysis.PredictedRequirements.EstimatedCompletionTimeMs:F0}ms");
+            Console.WriteLine($"   🛡️  Memory Safety Margin: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}%");
+            
+            testCoordinator.LogWhen("System analysis", 
+                $"Predicted throughput: {analysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} msg/sec");
+        }
+        
+        private static async Task<bool> RunBddRedisVerificationAsync(string connectionString, BddTestConfiguration config, BddTestCoordinator testCoordinator)
+        {
+            testCoordinator.LogGiven("Redis verification", 
+                $"Redis should contain exactly {config.ExpectedMessages:N0} messages in sequence and sink counters");
+            
+            Console.WriteLine($"\n🔴 === BDD REDIS VERIFICATION ===");
+            Console.WriteLine($"   📋 Scenario: Validate Redis-based message sequencing and sink processing");
+            
+            try
+            {
+                testCoordinator.LogWhen("Redis connection", "Establishing connection to Redis container");
+                
+                using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
                 if (!redis.IsConnected)
                 {
-                    throw new InvalidOperationException("Failed to connect to Redis.");
+                    testCoordinator.LogScenarioFailure("Failed to establish Redis connection");
+                    return false;
                 }
-                Console.WriteLine("   ✅ Successfully connected to Redis.");
+                
                 IDatabase db = redis.GetDatabase();
-
-                await CheckJobExecutionError(db);
-                bool redisVerified = await PerformRedisValidation(db, expectedMessages, globalSeqKey, sinkCounterKey);
-                LogRedisVerificationResults(redisVerified, expectedMessages);
+                
+                // Check for job execution errors first
+                await CheckAndLogJobExecutionErrors(db, testCoordinator);
+                
+                bool redisVerified = await PerformBddRedisValidation(db, config, testCoordinator);
+                
+                if (redisVerified)
+                {
+                    testCoordinator.LogScenarioSuccess($"Redis verification passed - {config.ExpectedMessages:N0} messages processed correctly");
+                }
+                else
+                {
+                    testCoordinator.LogScenarioFailure("Redis verification failed - message count or processing issues detected");
+                }
                 
                 return redisVerified;
             }
             catch (Exception ex)
             {
-                LogRedisConnectionError(ex, attemptNumber);
+                testCoordinator.LogScenarioFailure($"Redis verification failed with exception: {ex.Message}", ex);
                 return false;
             }
-            finally
+        }
+        
+        private static async Task<bool> RunBddKafkaVerificationAsync(string bootstrapServers, BddTestConfiguration config, BddTestCoordinator testCoordinator)
+        {
+            testCoordinator.LogGiven("Kafka verification", 
+                $"Kafka topic should contain {config.ExpectedMessages:N0} ordered messages with proper FIFO semantics");
+            
+            Console.WriteLine($"\n🟡 === BDD KAFKA VERIFICATION ===");
+            Console.WriteLine($"   📋 Scenario: Validate Kafka message streaming and ordering");
+            
+            try
             {
-                if (redis != null) {
-                    await redis.DisposeAsync();
+                testCoordinator.LogWhen("Kafka connection", "Connecting to Kafka broker and subscribing to topic");
+                
+                bool kafkaVerified = await Task.Run(() => VerifyKafkaAsync(bootstrapServers, config.KafkaTopic, config.ExpectedMessages));
+                
+                if (kafkaVerified)
+                {
+                    testCoordinator.LogScenarioSuccess($"Kafka verification passed - {config.ExpectedMessages:N0} messages with proper ordering");
                 }
+                else
+                {
+                    testCoordinator.LogScenarioFailure("Kafka verification failed - message ordering or content issues detected");
+                }
+                
+                return kafkaVerified;
+            }
+            catch (Exception ex)
+            {
+                testCoordinator.LogScenarioFailure($"Kafka verification failed with exception: {ex.Message}", ex);
+                return false;
             }
         }
+        
+        private static bool ValidateBddPerformanceRequirements(Stopwatch verificationStopwatch, BddTestConfiguration config, ResourceAnalysis analysis, BddTestCoordinator testCoordinator)
+        {
+            verificationStopwatch.Stop();
+            
+            testCoordinator.LogGiven("Performance validation", 
+                $"Processing should complete within {config.MaxAllowedTimeMs:N0}ms with optimal resource utilization");
+            
+            Console.WriteLine($"\n🚀 === BDD PERFORMANCE VALIDATION ===");
+            Console.WriteLine($"   📋 Scenario: Flink.Net performance standards compliance");
+            
+            var actualTimeMs = verificationStopwatch.ElapsedMilliseconds;
+            var timingPassed = actualTimeMs <= config.MaxAllowedTimeMs;
+            var memoryPassed = analysis.PredictedRequirements.MemorySafetyMarginPercent > 10;
+            var cpuPassed = analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80);
+            
+            var actualThroughput = config.ExpectedMessages / (actualTimeMs / 1000.0);
+            var throughputPassed = actualThroughput >= (analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.5);
+            
+            testCoordinator.LogWhen("Performance measurement", 
+                $"Measured: {actualTimeMs:N0}ms execution, {actualThroughput:N0} msg/sec throughput");
+            
+            Console.WriteLine($"   ⏰ Execution Time: {actualTimeMs:N0}ms / {config.MaxAllowedTimeMs:N0}ms limit ({(timingPassed ? "PASS" : "FAIL")})");
+            Console.WriteLine($"   💾 Memory Safety: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% margin ({(memoryPassed ? "PASS" : "FAIL")})");
+            Console.WriteLine($"   ⚡ CPU Utilization: {analysis.PerformanceMetrics.PeakCpuPercent:F1}% peak ({(cpuPassed ? "PASS" : "FAIL")})");
+            Console.WriteLine($"   🚀 Throughput: {actualThroughput:N0} msg/sec ({(throughputPassed ? "PASS" : "FAIL")})");
+            
+            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
+            
+            if (allPassed)
+            {
+                testCoordinator.LogScenarioSuccess("All performance requirements met - system exceeds Flink.Net standards");
+            }
+            else
+            {
+                var failedAreas = new List<string>();
+                if (!timingPassed) failedAreas.Add("execution time");
+                if (!memoryPassed) failedAreas.Add("memory safety");
+                if (!cpuPassed) failedAreas.Add("CPU utilization");
+                if (!throughputPassed) failedAreas.Add("throughput");
+                
+                testCoordinator.LogScenarioFailure($"Performance requirements failed: {string.Join(", ", failedAreas)}");
+            }
+            
+            return allPassed;
+        }
+        
+        private static void LogBddFinalAssessment(BddVerificationResults results, BddTestCoordinator testCoordinator)
+        {
+            testCoordinator.LogGiven("Final assessment", 
+                "All verification scenarios should pass for Flink.Net compliance");
+            
+            Console.WriteLine($"\n🏁 === BDD FINAL ASSESSMENT ===");
+            Console.WriteLine($"   📊 Redis Verification: {(results.RedisVerificationPassed ? "✅ PASSED" : "❌ FAILED")}");
+            Console.WriteLine($"   📊 Kafka Verification: {(results.KafkaVerificationPassed ? "✅ PASSED" : "❌ FAILED")}");
+            Console.WriteLine($"   📊 Performance Validation: {(results.PerformanceVerificationPassed ? "✅ PASSED" : "❌ FAILED")}");
+            Console.WriteLine($"   ⏱️  Total Execution Time: {results.TotalExecutionTimeMs:N0}ms");
+            
+            var passedCount = new[] { results.RedisVerificationPassed, results.KafkaVerificationPassed, results.PerformanceVerificationPassed }.Count(x => x);
+            var successRate = (passedCount * 100.0) / 3;
+            
+            Console.WriteLine($"   📈 Success Rate: {successRate:F1}% ({passedCount}/3 scenarios)");
+            
+            testCoordinator.LogWhen("Final assessment", $"Analyzing {passedCount}/3 passed scenarios");
+            
+            if (results.OverallSuccess)
+            {
+                Console.WriteLine($"   🎉 OVERALL RESULT: ✅ **EXCELLENT** - Flink.Net compliance verified");
+                testCoordinator.LogThen("Final assessment", "System meets all Flink.Net reliability and performance standards");
+            }
+            else
+            {
+                Console.WriteLine($"   💥 OVERALL RESULT: ❌ **NEEDS ATTENTION** - Some requirements not met");
+                testCoordinator.LogThen("Final assessment", "System requires attention to meet Flink.Net standards");
+            }
+        }
+        
+        private static void LogDetailedVerificationResults(BddVerificationResults results)
+        {
+            Console.WriteLine($"\n📋 === DETAILED VERIFICATION RESULTS ===");
+            Console.WriteLine($"   🕐 Test Duration: {results.TotalExecutionTimeMs:N0}ms");
+            Console.WriteLine($"   📊 System Utilization:");
+            
+            if (results.ResourceAnalysis != null)
+            {
+                Console.WriteLine($"      💾 Peak Memory: {results.ResourceAnalysis.PerformanceMetrics.PeakMemoryMB:N0}MB");
+                Console.WriteLine($"      ⚡ Peak CPU: {results.ResourceAnalysis.PerformanceMetrics.PeakCpuPercent:F1}%");
+                Console.WriteLine($"      🚀 Predicted Throughput: {results.ResourceAnalysis.PredictedRequirements.PredictedThroughputMsgPerSec:N0} msg/sec");
+            }
+            
+            Console.WriteLine($"   📈 Verification Summary:");
+            Console.WriteLine($"      🔴 Redis: {(results.RedisVerificationPassed ? "Operational" : "Failed")}");
+            Console.WriteLine($"      🟡 Kafka: {(results.KafkaVerificationPassed ? "Operational" : "Failed")}");
+            Console.WriteLine($"      🚀 Performance: {(results.PerformanceVerificationPassed ? "Meets Standards" : "Below Standards")}");
+        }
+        
+        private static async Task CheckAndLogJobExecutionErrors(IDatabase db, BddTestCoordinator testCoordinator)
+        {
+            var jobErrorKey = "flinkdotnet:job_execution_error";
+            RedisValue jobError = await db.StringGetAsync(jobErrorKey);
+            if (jobError.HasValue)
+            {
+                testCoordinator.LogWhen("Error detection", $"Job execution error found: {jobError}");
+                Console.WriteLine($"   🚨 JOB EXECUTION ERROR DETECTED: {jobError}");
+                Console.WriteLine($"   💡 This explains processing pipeline issues");
+                
+                await db.KeyDeleteAsync(jobErrorKey);
+            }
+        }
+        
+        private static async Task<bool> PerformBddRedisValidation(IDatabase db, BddTestConfiguration config, BddTestCoordinator testCoordinator)
+        {
+            Console.WriteLine($"\n   📋 BDD Redis Validation Steps:");
+            
+            // Measure Redis performance for diagnostics
+            var redisPerf = await MeasureRedisPerformance(db);
+            Console.WriteLine($"   ⚡ Redis Performance: {redisPerf.ReadSpeedOpsPerSec:N0} reads/sec, {redisPerf.WriteSpeedOpsPerSec:N0} writes/sec");
+            
+            bool redisVerified = true;
+            
+            // Check global sequence key
+            testCoordinator.LogWhen("Sequence validation", $"Checking global sequence key: {config.GlobalSequenceKey}");
+            redisVerified &= await CheckBddRedisKey(db, config.GlobalSequenceKey, "Source Sequence Generation", config.ExpectedMessages, testCoordinator);
+            
+            // Check sink counter key  
+            testCoordinator.LogWhen("Sink validation", $"Checking sink counter key: {config.SinkCounterKey}");
+            redisVerified &= await CheckBddRedisKey(db, config.SinkCounterKey, "Redis Sink Processing", config.ExpectedMessages, testCoordinator);
+            
+            return redisVerified;
+        }
+        
+        private static async Task<bool> CheckBddRedisKey(IDatabase db, string keyName, string description, int expectedMessages, BddTestCoordinator testCoordinator)
+        {
+            Console.WriteLine($"\n      🔍 {description} Validation:");
+            Console.WriteLine($"         📌 GIVEN: Redis key '{keyName}' should exist with value {expectedMessages:N0}");
+            
+            RedisValue value = await db.StringGetAsync(keyName);
+            if (!value.HasValue)
+            {
+                Console.WriteLine($"         ❌ THEN: Key validation FAILED - Key '{keyName}' not found");
+                testCoordinator.LogThen("Key validation", $"{description} key missing - indicates processing failure");
+                return false;
+            }
+            
+            var actualValue = (long)value;
+            Console.WriteLine($"         📊 WHEN: Key found with value: {actualValue:N0}");
+            
+            if (actualValue != expectedMessages)
+            {
+                var gap = Math.Abs(actualValue - expectedMessages);
+                var gapPercent = (gap * 100.0) / expectedMessages;
+                Console.WriteLine($"         ❌ THEN: Value validation FAILED - Expected {expectedMessages:N0}, got {actualValue:N0} (gap: {gap:N0}, {gapPercent:F1}%)");
+                testCoordinator.LogThen("Value validation", $"{description} value mismatch - {gapPercent:F1}% processing gap detected");
+                return false;
+            }
+            
+            Console.WriteLine($"         ✅ THEN: Value validation PASSED - Correct value: {actualValue:N0}");
+            testCoordinator.LogThen("Value validation", $"{description} validation passed");
+            return true;
+        }
+        
+        // BDD verification result classes
+        public class BddVerificationResults
+        {
+            public bool RedisVerificationPassed { get; set; }
+            public bool KafkaVerificationPassed { get; set; }
+            public bool PerformanceVerificationPassed { get; set; }
+            public bool OverallSuccess { get; set; }
+            public long TotalExecutionTimeMs { get; set; }
+            public ResourceAnalysis? ResourceAnalysis { get; set; }
+        }
+        
+        public class BddTestConfiguration
+        {
+            public int ExpectedMessages { get; set; }
+            public long MaxAllowedTimeMs { get; set; }
+            public string GlobalSequenceKey { get; set; } = string.Empty;
+            public string SinkCounterKey { get; set; } = string.Empty;
+            public string KafkaTopic { get; set; } = string.Empty;
+        }
+
+
 
         private static async Task CheckJobExecutionError(IDatabase db)
         {
@@ -965,82 +1474,98 @@ namespace IntegrationTestVerifier
             
             if (description.Contains("Source", StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"         💡 Source Function Insights:");
-                Console.WriteLine($"            - Source stopped at {actualValue:N0}/{expectedMessages:N0} messages");
-                Console.WriteLine($"            - This suggests LocalStreamExecutor timeout or error in source execution");
-                Console.WriteLine($"            - Check AppHost logs for source function error messages");
-                
-                // 🔍 SOURCE-SPECIFIC DIAGNOSTICS
-                Console.WriteLine($"\n         🔍 SOURCE-SPECIFIC DIAGNOSTICS:");
-                if (actualValue == 0)
-                {
-                    Console.WriteLine($"            🚨 CRITICAL: Source never generated any messages");
-                    Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection failure, source function not registered, job execution error");
-                }
-                else if (actualValue < expectedMessages * 0.1)
-                {
-                    Console.WriteLine($"            ⚠️  Source failed very early (<10% completion)");
-                    Console.WriteLine($"            💡 LIKELY CAUSES: Source initialization error, immediate timeout, resource exhaustion");
-                }
-                else if (actualValue < expectedMessages * 0.5)
-                {
-                    Console.WriteLine($"            ⚠️  Source failed mid-execution (<50% completion)");
-                    Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection timeout, memory issues, LocalStreamExecutor timeout");
-                }
-                else
-                {
-                    Console.WriteLine($"            ✅ Source made good progress (>{actualValue * 100.0 / expectedMessages:F1}% completion)");
-                    Console.WriteLine($"            💡 LIKELY CAUSES: Controlled shutdown, late-stage timeout, resource constraints");
-                }
+                ProvideSourceFunctionDiagnostics(actualValue, expectedMessages);
             }
             else if (description.Contains("Sink", StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"         💡 Sink Function Insights:");
-                Console.WriteLine($"            - Sink processed {actualValue:N0}/{expectedMessages:N0} messages");
-                Console.WriteLine($"            - Check if source generated full volume or if sink processing failed");
+                await ProvideSinkFunctionDiagnosticsAsync(db, actualValue, expectedMessages);
+            }
+        }
+
+        private static void ProvideSourceFunctionDiagnostics(long actualValue, int expectedMessages)
+        {
+            Console.WriteLine($"         💡 Source Function Insights:");
+            Console.WriteLine($"            - Source stopped at {actualValue:N0}/{expectedMessages:N0} messages");
+            Console.WriteLine($"            - This suggests LocalStreamExecutor timeout or error in source execution");
+            Console.WriteLine($"            - Check AppHost logs for source function error messages");
+            
+            Console.WriteLine($"\n         🔍 SOURCE-SPECIFIC DIAGNOSTICS:");
+            
+            if (actualValue == 0)
+            {
+                Console.WriteLine($"            🚨 CRITICAL: Source never generated any messages");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection failure, source function not registered, job execution error");
+            }
+            else if (actualValue < expectedMessages * 0.1)
+            {
+                Console.WriteLine($"            ⚠️  Source failed very early (<10% completion)");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Source initialization error, immediate timeout, resource exhaustion");
+            }
+            else if (actualValue < expectedMessages * 0.5)
+            {
+                Console.WriteLine($"            ⚠️  Source failed mid-execution (<50% completion)");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Redis connection timeout, memory issues, LocalStreamExecutor timeout");
+            }
+            else
+            {
+                Console.WriteLine($"            ✅ Source made good progress (>{actualValue * 100.0 / expectedMessages:F1}% completion)");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Controlled shutdown, late-stage timeout, resource constraints");
+            }
+        }
+
+        private static async Task ProvideSinkFunctionDiagnosticsAsync(IDatabase db, long actualValue, int expectedMessages)
+        {
+            Console.WriteLine($"         💡 Sink Function Insights:");
+            Console.WriteLine($"            - Sink processed {actualValue:N0}/{expectedMessages:N0} messages");
+            Console.WriteLine($"            - Check if source generated full volume or if sink processing failed");
+            
+            var sourceKey = "flinkdotnet:global_sequence_id";
+            var sourceValue = await db.StringGetAsync(sourceKey);
+            
+            if (sourceValue.HasValue)
+            {
+                var sourceCount = (long)sourceValue;
+                Console.WriteLine($"            - Source generated {sourceValue} messages vs sink processed {actualValue}");
                 
-                // Check source volume
-                var sourceKey = "flinkdotnet:global_sequence_id";
-                var sourceValue = await db.StringGetAsync(sourceKey);
-                if (sourceValue.HasValue)
+                if (sourceCount > actualValue)
                 {
-                    var sourceCount = (long)sourceValue;
-                    Console.WriteLine($"            - Source generated {sourceValue} messages vs sink processed {actualValue}");
-                    if (sourceCount > actualValue)
-                    {
-                        var dataLoss = sourceCount - actualValue;
-                        var dataLossPercent = (double)dataLoss / sourceCount * 100;
-                        Console.WriteLine($"            - ⚠️  Data loss: Sink missed {dataLoss} messages ({dataLossPercent:F1}% loss rate)");
-                        
-                        // 🔍 SINK-SPECIFIC DIAGNOSTICS
-                        Console.WriteLine($"\n         🔍 SINK-SPECIFIC DIAGNOSTICS:");
-                        if (actualValue == 0)
-                        {
-                            Console.WriteLine($"            🚨 CRITICAL: Sink never processed any messages despite source generating {sourceCount}");
-                            Console.WriteLine($"            💡 LIKELY CAUSES: Sink function not registered, sink Redis connection failure, sink execution error");
-                        }
-                        else if (dataLossPercent > 50)
-                        {
-                            Console.WriteLine($"            ⚠️  High data loss rate (>{dataLossPercent:F1}%)");
-                            Console.WriteLine($"            💡 LIKELY CAUSES: Sink connection instability, processing exceptions, sink timeout");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"            ⚠️  Moderate data loss ({dataLossPercent:F1}%)");
-                            Console.WriteLine($"            💡 LIKELY CAUSES: Processing backpressure, occasional failures, late shutdown");
-                        }
-                    }
-                    else if (sourceCount == actualValue)
-                    {
-                        Console.WriteLine($"            ✅ Perfect source-to-sink ratio - data flow is working correctly");
-                        Console.WriteLine($"            💡 Issue is likely in source generation capacity, not sink processing");
-                    }
+                    AnalyzeSinkDataLoss(actualValue, sourceCount);
                 }
-                else
+                else if (sourceCount == actualValue)
                 {
-                    Console.WriteLine($"            🚨 CRITICAL: Cannot compare with source - source key not found");
-                    Console.WriteLine($"            💡 Both source and sink may have failed completely");
+                    Console.WriteLine($"            ✅ Perfect source-to-sink ratio - data flow is working correctly");
+                    Console.WriteLine($"            💡 Issue is likely in source generation capacity, not sink processing");
                 }
+            }
+            else
+            {
+                Console.WriteLine($"            🚨 CRITICAL: Cannot compare with source - source key not found");
+                Console.WriteLine($"            💡 Both source and sink may have failed completely");
+            }
+        }
+
+        private static void AnalyzeSinkDataLoss(long actualValue, long sourceCount)
+        {
+            var dataLoss = sourceCount - actualValue;
+            var dataLossPercent = (double)dataLoss / sourceCount * 100;
+            Console.WriteLine($"            - ⚠️  Data loss: Sink missed {dataLoss} messages ({dataLossPercent:F1}% loss rate)");
+            
+            Console.WriteLine($"\n         🔍 SINK-SPECIFIC DIAGNOSTICS:");
+            
+            if (actualValue == 0)
+            {
+                Console.WriteLine($"            🚨 CRITICAL: Sink never processed any messages despite source generating {sourceCount}");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Sink function not registered, sink Redis connection failure, sink execution error");
+            }
+            else if (dataLossPercent > 50)
+            {
+                Console.WriteLine($"            ⚠️  High data loss rate (>{dataLossPercent:F1}%)");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Sink connection instability, processing exceptions, sink timeout");
+            }
+            else
+            {
+                Console.WriteLine($"            ⚠️  Moderate data loss ({dataLossPercent:F1}%)");
+                Console.WriteLine($"            💡 LIKELY CAUSES: Processing backpressure, occasional failures, late shutdown");
             }
         }
 

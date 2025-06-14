@@ -29,9 +29,9 @@ The immediate focus is on implementing **Phase 1: Core Functionality for Exactly
 
 The project welcomes contributions, especially for the core features outlined in these phases.
 
-## Flink 2.0 Compatibility
+## Flink.Net Compatibility
 
-This section tracks how the project aligns with features introduced in Apache Flink 2.0. The goal is eventual parity, but the implementation is still early.
+This section tracks how the project aligns with features introduced in Flink.Net. The goal is eventual parity, but the implementation is still early.
 
 ### Implemented Features
 - **Networking Buffer Pool** – basic `NetworkBufferPool` and `LocalBufferPool` for efficient buffer reuse.
@@ -51,7 +51,7 @@ This section tracks how the project aligns with features introduced in Apache Fl
 - Additional connectors using the unified API.
 
 ### Status
-The project remains experimental. Achieving full feature parity with Apache Flink 2.0 will require substantial additional development.
+The project remains experimental. Achieving full feature parity with Flink.Net will require substantial additional development.
 ---
 Previous: [Advanced Security](./Advanced-Security.md)
 [Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

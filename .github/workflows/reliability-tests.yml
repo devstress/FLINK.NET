@@ -1,0 +1,179 @@
+name: Reliability Tests
+
+on:
+  push:
+    branches:
+      - main # Or your primary branch name
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main # Or your primary branch name
+  workflow_dispatch: # Retain manual triggering
+
+concurrency:
+  group: |
+    ${{ github.workflow }}-${{ github.workflow_ref }}-${{
+      github.event_name == 'pull_request' 
+      && github.event.pull_request.number 
+      || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Fast reliability test message count for 5-minute execution
+
+jobs:
+  run-reliability-tests:
+    name: Run Flink.Net Reliability Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure Docker is running
+        run: docker info
+
+      - name: Set up .NET 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install .NET Aspire Workload
+        run: dotnet workload install aspire
+
+      - name: Restore .NET Workloads for Solutions
+        run: |
+          dotnet workload restore FlinkDotNet/FlinkDotNet.sln
+          dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
+          dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
+
+      - name: Build Solutions
+        run: |
+          echo "Building FlinkDotNet solution (dependency)..."
+          Push-Location FlinkDotNet
+          dotnet build FlinkDotNet.sln --configuration Release
+          Pop-Location
+          
+          echo "Building FlinkDotNetAspire solution..."
+          Push-Location FlinkDotNetAspire
+          dotnet build FlinkDotNetAspire.sln --configuration Release
+          Pop-Location
+
+      - name: Start Aspire AppHost
+        run: |
+          $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
+          
+          # Create log files
+          $outLogPath = "apphost.out.log"
+          $errLogPath = "apphost.err.log"
+          
+          Write-Host "Starting AppHost with output logging to $outLogPath and $errLogPath"
+          
+          # Use Start-Process with file redirection
+          $processArgs = @(
+            'run',
+            '--no-build',
+            '--configuration', 'Release',
+            '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
+          )
+          
+          # Start the process with output redirection using Start-Process
+          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru
+          $proc.Id | Out-File apphost.pid -Encoding utf8
+          
+          Write-Host "Started AppHost with PID: $($proc.Id)"
+          Write-Host "AppHost started, waiting 10 seconds for Redis/Kafka container initialization..."
+          
+          # Faster startup in CI for quick testing
+          Start-Sleep -Seconds 10
+
+      - name: Discover Aspire Container Ports
+        run: |
+          Write-Host "Discovering actual Aspire container ports after AppHost startup..."
+          & ./scripts/discover-aspire-ports.ps1
+          
+          Write-Host "Current environment variables after discovery:"
+          Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+
+      - name: Health Check Loop
+        env:
+          DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
+          # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
+        run: |
+          $maxAttempts = 2  # Fast health checks for quick testing
+          $delaySeconds = 5  # Reduced delay for faster execution
+          $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
+
+          Write-Host "`n=== Health Check Configuration ==="
+          Write-Host "Max attempts: $maxAttempts"
+          Write-Host "Delay between attempts: $delaySeconds seconds"
+          Write-Host "Total max time: $($maxAttempts * $delaySeconds) seconds"
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
+            Write-Host "Starting health check at $(Get-Date -Format 'HH:mm:ss')..."
+            
+            & dotnet $verifierDll --health-check
+            $healthExitCode = $LASTEXITCODE
+            
+            if ($healthExitCode -eq 0) {
+              Write-Host "✅ Health check PASSED on attempt $attempt" -ForegroundColor Green
+              break
+            }
+            
+            Write-Host "❌ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
+            
+            if ($attempt -lt $maxAttempts) {
+              Write-Host "Waiting $delaySeconds seconds before retry..." -ForegroundColor Yellow
+              Start-Sleep -Seconds $delaySeconds
+            } else {
+              Write-Host "❌ Max health check attempts ($maxAttempts) reached. Health checks failed." -ForegroundColor Red
+              exit 1
+            }
+          }
+
+      - name: Run Flink.Net Standard Reliability Test
+        env:
+          FLINKDOTNET_STANDARD_TEST_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
+          DOTNET_ENVIRONMENT: "Development"
+        run: |
+          echo "Running Flink.Net Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
+          Push-Location FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
+          dotnet test --configuration Release --logger "console;verbosity=detailed" --no-build
+          if ($LASTEXITCODE -ne 0) {
+            echo "❌ Flink.Net Standard Reliability Test FAILED."
+            exit 1
+          }
+          echo "✅ Flink.Net Standard Reliability Test PASSED."
+          Pop-Location
+
+      - name: Stop Aspire AppHost
+        if: always()
+        run: |
+          Write-Host "=================== STOPPING APPHOST ==================="
+          
+          # Stop AppHost process
+          if (Test-Path apphost.pid) {
+            $apphostPid = Get-Content apphost.pid
+            Write-Host "Stopping AppHost with PID $apphostPid"
+            
+            $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "Process is running, stopping it..."
+              Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 2
+            } else {
+              Write-Host "Process was already stopped."
+            }
+          } else {
+            Write-Host "No AppHost PID file found."
+          }
+          
+          Write-Host "AppHost cleanup complete."

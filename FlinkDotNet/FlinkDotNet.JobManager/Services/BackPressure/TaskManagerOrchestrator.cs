@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace FlinkDotNet.JobManager.Services.BackPressure;
 
 /// <summary>
-/// Apache Flink 2.0 style TaskManager orchestrator that provides dynamic scaling
+/// Flink.Net style TaskManager orchestrator that provides dynamic scaling
 /// capabilities for TaskManager instances based on system pressure and workload.
 /// </summary>
 public class TaskManagerOrchestrator : IDisposable
@@ -15,6 +15,8 @@ public class TaskManagerOrchestrator : IDisposable
     private readonly ConcurrentDictionary<string, TaskManagerMetrics> _taskManagerMetrics;
     private readonly Timer _metricsTimer;
     private readonly TaskManagerOrchestratorConfiguration _config;
+    private DateTime _lastScaleUpTime = DateTime.MinValue;
+    private DateTime _lastScaleDownTime = DateTime.MinValue;
     private bool _disposed;
 
     public TaskManagerOrchestrator(
@@ -56,6 +58,13 @@ public class TaskManagerOrchestrator : IDisposable
     {
         try
         {
+            // Check cooldown period to prevent rapid scaling
+            if (DateTime.UtcNow - _lastScaleUpTime < _config.ScalingCooldownPeriod)
+            {
+                _logger.LogDebug("Scale up skipped due to cooldown period. Last scale up: {LastScaleUp}", _lastScaleUpTime);
+                return false;
+            }
+
             var currentCount = GetTaskManagerCount();
             if (currentCount >= _config.MaxInstances)
             {
@@ -68,6 +77,7 @@ public class TaskManagerOrchestrator : IDisposable
             
             _taskManagers.TryAdd(newInstanceId, instance);
             _taskManagerMetrics.TryAdd(newInstanceId, new TaskManagerMetrics { TaskManagerId = newInstanceId });
+            _lastScaleUpTime = DateTime.UtcNow;
 
             _logger.LogInformation("Scaled up TaskManager {InstanceId}. Total instances: {TotalCount}", 
                 newInstanceId, GetTaskManagerCount());
@@ -88,6 +98,13 @@ public class TaskManagerOrchestrator : IDisposable
     {
         try
         {
+            // Check cooldown period to prevent rapid scaling
+            if (DateTime.UtcNow - _lastScaleDownTime < _config.ScalingCooldownPeriod)
+            {
+                _logger.LogDebug("Scale down skipped due to cooldown period. Last scale down: {LastScaleDown}", _lastScaleDownTime);
+                return false;
+            }
+
             var currentCount = GetTaskManagerCount();
             if (currentCount <= _config.MinInstances)
             {
@@ -107,6 +124,7 @@ public class TaskManagerOrchestrator : IDisposable
             
             _taskManagers.TryRemove(candidateInstance.TaskManagerId, out _);
             _taskManagerMetrics.TryRemove(candidateInstance.TaskManagerId, out _);
+            _lastScaleDownTime = DateTime.UtcNow;
 
             _logger.LogInformation("Scaled down TaskManager {InstanceId}. Total instances: {TotalCount}", 
                 candidateInstance.TaskManagerId, GetTaskManagerCount());
@@ -455,14 +473,77 @@ spec:
 
     private TaskManagerMetrics CollectTaskManagerMetrics(TaskManagerInstance instance)
     {
-        // Simplified metrics collection - in production would connect to actual TaskManager metrics endpoints
+        try
+        {
+            // Collect real system metrics when possible
+            var metrics = new TaskManagerMetrics
+            {
+                TaskManagerId = instance.TaskManagerId,
+                LastUpdated = DateTime.UtcNow
+            };
+
+            // Try to collect real process metrics if it's a local process
+            if (instance.ProcessId.HasValue && instance.DeploymentType == TaskManagerDeploymentType.Process)
+            {
+                try
+                {
+                    var process = Process.GetProcessById(instance.ProcessId.Value);
+                    if (!process.HasExited)
+                    {
+                        // Get real CPU and memory usage
+                        metrics.CpuUtilizationPercent = Math.Min(100.0, process.TotalProcessorTime.TotalMilliseconds / Environment.TickCount * 100.0);
+                        metrics.MemoryUtilizationPercent = Math.Min(100.0, (process.WorkingSet64 / (double)(1024 * 1024 * 1024)) * 25); // Scale to percentage
+                        metrics.TasksRunning = process.Threads.Count;
+                    }
+                    else
+                    {
+                        // Process has exited, mark as stopped
+                        instance.Status = TaskManagerStatus.Stopped;
+                        return CreateDefaultMetrics(instance.TaskManagerId);
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // Process no longer exists
+                    instance.Status = TaskManagerStatus.Stopped;
+                    return CreateDefaultMetrics(instance.TaskManagerId);
+                }
+            }
+            else
+            {
+                // For container/Kubernetes deployments, use simulated but realistic metrics
+                // Based on instance uptime and status
+                var uptime = DateTime.UtcNow - instance.StartTime;
+                var baseLoad = Math.Min(50.0, uptime.TotalMinutes * 2); // Gradually increasing load
+                
+                metrics.CpuUtilizationPercent = baseLoad + Random.Shared.NextDouble() * 20 - 10; // ±10% variance
+                metrics.MemoryUtilizationPercent = Math.Min(85.0, baseLoad * 1.2 + Random.Shared.NextDouble() * 15);
+                metrics.TasksRunning = Random.Shared.Next(1, 8);
+            }
+
+            // Network utilization is typically correlated with task activity
+            metrics.NetworkUtilizationPercent = Math.Min(95.0, 
+                (metrics.CpuUtilizationPercent + metrics.MemoryUtilizationPercent) / 2.0 + 
+                Random.Shared.NextDouble() * 10 - 5);
+
+            return metrics;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error collecting metrics for TaskManager {TaskManagerId}", instance.TaskManagerId);
+            return CreateDefaultMetrics(instance.TaskManagerId);
+        }
+    }
+
+    private static TaskManagerMetrics CreateDefaultMetrics(string taskManagerId)
+    {
         return new TaskManagerMetrics
         {
-            TaskManagerId = instance.TaskManagerId,
-            CpuUtilizationPercent = Random.Shared.NextDouble() * 100,
-            MemoryUtilizationPercent = Random.Shared.NextDouble() * 100,
-            NetworkUtilizationPercent = Random.Shared.NextDouble() * 100,
-            TasksRunning = Random.Shared.Next(0, 10),
+            TaskManagerId = taskManagerId,
+            CpuUtilizationPercent = 15.0,
+            MemoryUtilizationPercent = 25.0,
+            NetworkUtilizationPercent = 10.0,
+            TasksRunning = 2,
             LastUpdated = DateTime.UtcNow
         };
     }
@@ -589,6 +670,7 @@ public class TaskManagerOrchestratorConfiguration
     public string JobManagerAddress { get; set; } = "localhost:6123";
     public int TaskManagerMemoryMB { get; set; } = 1024;
     public string? KubernetesNamespace { get; set; }
+    public TimeSpan ScalingCooldownPeriod { get; set; } = TimeSpan.FromMinutes(2);
 }
 
 public enum TaskManagerDeploymentType

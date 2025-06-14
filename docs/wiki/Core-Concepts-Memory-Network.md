@@ -12,7 +12,7 @@ Network memory is primarily used for **Network Buffers**:
 
 ## How Network Memory is Configured
 
-In Apache Flink (and thus for Flink.NET), network memory is configured as part of the TaskManager's overall memory setup. Key parameters include:
+In FlinkDotnet (and thus for Flink.NET), network memory is configured as part of the TaskManager's overall memory setup. Key parameters include:
 
 *   **`taskmanager.memory.network.fraction`:** (Recommended) Defines the fraction of the total "Flink memory" (Total Process Memory minus Framework Heap, Task Heap, Managed Memory, and JVM overheads) to be used for network buffers.
 *   **`taskmanager.memory.network.min`:** The minimum amount of memory dedicated to network buffers.
@@ -33,7 +33,7 @@ While Flink.NET uses Flink's underlying network stack, considerations for .NET a
 *   **Parallelism (`parallelism.default` and per-operator parallelism):** Higher parallelism means more concurrent data streams and potentially more demand for network buffers.
 *   **Skew in Data:** If data is skewed and one task is producing or consuming much more data, its network channels might become bottlenecks.
 
-**General Guidelines (from Apache Flink, applicable to Flink.NET):**
+**General Guidelines (from FlinkDotnet, applicable to Flink.NET):**
 
 1.  **Default Segment Size (32KB):** This is a good starting point.
     *   **Larger segments (e.g., 64KB, 128KB):** Can improve throughput for high-volume transfers over high-bandwidth networks by reducing the overhead of buffer management. However, they can also lead to increased latency if buffers are not filled quickly and can cause "buffer bloat." May also increase recovery times as more in-flight data might be lost.
@@ -64,7 +64,7 @@ Flink.NET itself doesn't change how Flink's network memory management works at a
 
 Therefore, when tuning network memory for a Flink.NET job, consider both the general Flink guidelines and the nature of your C# data types and processing logic.
 
-**Apache Flink References:**
+**External References:**
 
 *   [Network Memory Tuning Guide (Flink Docs)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/network_mem_tuning/)
 *   [TaskManager Memory Configuration (for context)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)

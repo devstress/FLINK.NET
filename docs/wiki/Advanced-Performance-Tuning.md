@@ -56,7 +56,7 @@ This page will be updated with:
 *   Profiling Flink.NET applications.
 *   Case studies and benchmark results.
 
-Refer to the Apache Flink documentation on [Performance Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/performance_tuning/) for general concepts and inspiration.
+Refer to the FlinkDotnet documentation on [Performance Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/performance_tuning/) for general concepts and inspiration.
 
 ---
 [Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

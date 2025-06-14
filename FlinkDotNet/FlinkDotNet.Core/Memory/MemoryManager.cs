@@ -302,6 +302,7 @@ namespace FlinkDotNet.Core.Memory
         /// <remarks>
         /// This constructor uses unsafe code to allocate unmanaged memory via Marshal.AllocHGlobal.
         /// The unsafe keyword is required here to create a Span&lt;byte&gt; from the raw pointer.
+        /// SAFETY ANALYSIS: Using unsafe code for off-heap memory allocation.
         /// This is safe because:
         /// 1. The memory is properly allocated using Marshal.AllocHGlobal
         /// 2. The size parameter is validated and stored for bounds checking
@@ -311,9 +312,8 @@ namespace FlinkDotNet.Core.Memory
         /// 6. The unsafe context is limited to only the specific operations that require it
         /// 7. No unsafe pointer arithmetic is performed beyond creating the Span
         /// </remarks>
-#pragma warning disable S6640 // Using "unsafe" should be reviewed - this is safe and necessary for direct memory allocation
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Sonar Code Smell", "S6640:Make sure that using \"unsafe\" is safe here", Justification = "Unsafe code is necessary for high-performance off-heap memory allocation. Safety is ensured through proper lifecycle management, bounds checking, and controlled access through Span<T>.")]
         public unsafe OffHeapMemorySegment(int size)
-#pragma warning restore S6640
         {
             _size = size;
             _pointer = Marshal.AllocHGlobal(size);
@@ -328,15 +328,15 @@ namespace FlinkDotNet.Core.Memory
         /// </summary>
         /// <remarks>
         /// This property uses unsafe code to create a Span from the unmanaged memory pointer.
+        /// SAFETY ANALYSIS: Using unsafe code for high-performance memory access.
         /// This is safe because:
         /// 1. The pointer was allocated with Marshal.AllocHGlobal and is valid until disposal
         /// 2. The size is exactly what was allocated and stored during construction
         /// 3. Disposal state is checked before accessing the memory
         /// 4. The Span provides bounds checking for all subsequent access
         /// </remarks>
-#pragma warning disable S6640 // Using "unsafe" should be reviewed - this is safe and necessary for direct memory access
-        public unsafe Span<byte> Span => _disposed
-#pragma warning restore S6640 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Sonar Code Smell", "S6640:Make sure that using \"unsafe\" is safe here", Justification = "Unsafe code is necessary for high-performance memory access. Safety is ensured through disposal state checking and Span<T> bounds checking.")]
+        public unsafe Span<byte> Span => _disposed 
             ? throw new ObjectDisposedException(nameof(OffHeapMemorySegment))
             : new Span<byte>((void*)_pointer, _size);
 

@@ -1,0 +1,332 @@
+MSBuild version 17.8.27+3ab07f0cf for .NET
+Build started 06/14/2025 02:01:48.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" on node 1 (default targets).
+     1>ValidateSolutionConfiguration:
+         Building solution configuration "Debug|Any CPU".
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/FlinkDotNet.Core.Abstractions.csproj" (3) on node 2 (default targets).
+     3>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Core.Abstractions.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Core.Abstractions -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/bin/Debug/net8.0/FlinkDotNet.Core.Abstractions.dll
+     3>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Abstractions/FlinkDotNet.Core.Abstractions.csproj" (default targets).
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/FlinkDotNet.Connectors.Sinks.Console.csproj" (9) on node 2 (default targets).
+     9>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/FlinkDotNet.Connectors.Sources.File.csproj" (10) on node 3 (default targets).
+    10>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     9>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    10>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+     9>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Connectors.Sinks.Console -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/bin/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.dll
+     9>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console/FlinkDotNet.Connectors.Sinks.Console.csproj" (default targets).
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/FlinkDotNet.JobManager.Tests.csproj" (4) on node 4 (default targets).
+     4>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/FlinkDotNet.JobManager.Tests.csproj" (4) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/FlinkDotNet.Storage.FileSystem.csproj" (8:2) on node 4 (default targets).
+     8>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj" (5) on node 3 (default targets).
+     5>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj" (5) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/FlinkDotNet.Common.Constants.csproj" (7:4) on node 3 (default targets).
+     7>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Common.Constants.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+     8>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Storage.FileSystem.sourcelink.json' is up-to-date.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/FlinkDotNet.Core.csproj" (13) on node 2 (default targets).
+    13>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     7>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Common.Constants -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/bin/Debug/net8.0/FlinkDotNet.Common.Constants.dll
+     8>CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Storage.FileSystem -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/bin/Debug/net8.0/FlinkDotNet.Storage.FileSystem.dll
+     7>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants/FlinkDotNet.Common.Constants.csproj" (default targets).
+    13>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    10>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+     8>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem/FlinkDotNet.Storage.FileSystem.csproj" (default targets).
+    10>CopyFilesToOutputDirectory:
+         FlinkDotNet.Connectors.Sources.File -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.dll
+    10>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File/FlinkDotNet.Connectors.Sources.File.csproj" (default targets).
+    13>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Core.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Core -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/bin/Debug/net8.0/FlinkDotNet.Core.dll
+    13>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core/FlinkDotNet.Core.csproj" (default targets).
+     5>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj" (5) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/FlinkDotNet.Storage.RocksDB.csproj" (12:4) on node 4 (default targets).
+    12>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/FlinkDotNet.Connectors.Sources.Kafka.csproj" (18) on node 2 (default targets).
+    18>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+    12>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    18>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Connectors.Sources.Kafka.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+    12>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Storage.RocksDB.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+    18>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Connectors.Sources.Kafka -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.Kafka.dll
+    12>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/FlinkDotNet.Connectors.Sources.File.Tests.csproj" (19) on node 3 (default targets).
+    19>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+    18>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/FlinkDotNet.Connectors.Sources.Kafka.csproj" (default targets).
+    19>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    12>CopyFilesToOutputDirectory:
+         FlinkDotNet.Storage.RocksDB -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/bin/Debug/net8.0/FlinkDotNet.Storage.RocksDB.dll
+    12>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.RocksDB/FlinkDotNet.Storage.RocksDB.csproj" (default targets).
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/FlinkDotNet.Core.Tests.csproj" (15) on node 3 (default targets).
+    15>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/FlinkDotNet.Storage.FileSystem.Tests.csproj" (16) on node 2 (default targets).
+    16>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    15>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Core.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/FlinkDotNet.Common.Constants.Tests.csproj" (21) on node 4 (default targets).
+    21>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    19>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Connectors.Sources.File.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/bin/Debug/net8.0/FlinkDotNet.Connectors.Sources.File.Tests.dll
+    16>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Storage.FileSystem.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+    19>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sources.File.Tests/FlinkDotNet.Connectors.Sources.File.Tests.csproj" (default targets).
+    16>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Storage.FileSystem.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/bin/Debug/net8.0/FlinkDotNet.Storage.FileSystem.Tests.dll
+    16>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Storage.FileSystem.Tests/FlinkDotNet.Storage.FileSystem.Tests.csproj" (default targets).
+     5>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       _Protobuf_GatherStaleBatched:
+       Skipping target "_Protobuf_GatherStaleBatched" because all output files are up-to-date with respect to the input files.
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/FlinkDotNet.Connectors.Sinks.Console.Tests.csproj" (17) on node 1 (default targets).
+    17>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     5>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _DiscoverMvcApplicationParts:
+       Skipping target "_DiscoverMvcApplicationParts" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.JobManager.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CreateAppHost:
+       Skipping target "_CreateAppHost" because all output files are up-to-date with respect to the input files.
+    15>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Core.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/bin/Debug/net8.0/FlinkDotNet.Core.Tests.dll
+    15>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Tests/FlinkDotNet.Core.Tests.csproj" (default targets).
+    21>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Common.Constants.Tests.sourcelink.json' is up-to-date.
+     5>_GenerateScopedCssFiles:
+       Skipping target "_GenerateScopedCssFiles" because it has no outputs.
+       _GenerateScopedCssFiles:
+       Skipping target "_GenerateScopedCssFiles" because it has no outputs.
+    21>CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+     5>_BuildCopyStaticWebAssetsPreserveNewest:
+       Skipping target "_BuildCopyStaticWebAssetsPreserveNewest" because it has no outputs.
+    21>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+    17>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    21>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+     5>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+    21>GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+     5>GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+    21>CopyFilesToOutputDirectory:
+         FlinkDotNet.Common.Constants.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/bin/Debug/net8.0/FlinkDotNet.Common.Constants.Tests.dll
+     5>CopyFilesToOutputDirectory:
+         FlinkDotNet.JobManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/bin/Debug/net8.0/FlinkDotNet.JobManager.dll
+     5>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager/FlinkDotNet.JobManager.csproj" (default targets).
+    21>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Common.Constants.Tests/FlinkDotNet.Common.Constants.Tests.csproj" (default targets).
+    17>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+     4>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/FlinkDotNet.JobManager.Tests.csproj" (4) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/FlinkDotNet.Core.Api.csproj" (6:2) on node 4 (default targets).
+     6>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Core.Api.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+    17>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+     6>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+    17>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Connectors.Sinks.Console.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/bin/Debug/net8.0/FlinkDotNet.Connectors.Sinks.Console.Tests.dll
+    17>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Connectors.Sinks.Console.Tests/FlinkDotNet.Connectors.Sinks.Console.Tests.csproj" (default targets).
+     6>CopyFilesToOutputDirectory:
+         FlinkDotNet.Core.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/bin/Debug/net8.0/FlinkDotNet.Core.Api.dll
+     6>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Core.Api/FlinkDotNet.Core.Api.csproj" (default targets).
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Table.Api/FlinkDotNet.Table.Api.csproj" (20) on node 2 (default targets).
+    20>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     4>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    20>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Table.Api.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+     4>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.JobManager.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.JobManager.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/bin/Debug/net8.0/FlinkDotNet.JobManager.Tests.dll
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/FlinkDotNet.TaskManager.csproj" (11) on node 1 (default targets).
+    11>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+     4>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.JobManager.Tests/FlinkDotNet.JobManager.Tests.csproj" (default targets).
+    20>_CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+    11>CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+    20>GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Table.Api -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Table.Api/bin/Debug/net8.0/FlinkDotNet.Table.Api.dll
+    20>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Table.Api/FlinkDotNet.Table.Api.csproj" (default targets).
+    11>_GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.TaskManager.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CreateAppHost:
+       Skipping target "_CreateAppHost" because all output files are up-to-date with respect to the input files.
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.TaskManager -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/bin/Debug/net8.0/FlinkDotNet.TaskManager.dll
+    11>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.TaskManager/FlinkDotNet.TaskManager.csproj" (default targets).
+     1>Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (1) is building "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/FlinkDotNet.Architecture.Tests.csproj" (14) on node 4 (default targets).
+    14>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj/Debug/net8.0/FlinkDotNet.Architecture.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         FlinkDotNet.Architecture.Tests -> /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/bin/Debug/net8.0/FlinkDotNet.Architecture.Tests.dll
+    14>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.Architecture.Tests/FlinkDotNet.Architecture.Tests.csproj" (default targets).
+     1>Done Building Project "/home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNet/FlinkDotNet.sln" (default targets).
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.93
