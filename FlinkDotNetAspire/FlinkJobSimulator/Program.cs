@@ -604,7 +604,7 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
         
-        // Add Redis client using Aspire pattern
+        // Add Redis client using connection string for external Redis instances
         builder.AddRedisClient("redis");
         
         // Register IDatabase as a singleton service
