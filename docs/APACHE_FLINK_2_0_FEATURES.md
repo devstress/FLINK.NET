@@ -13,9 +13,12 @@ Apache Flink 2.0 style centralized state management with RocksDB backend orchest
 - **Distributed Checkpointing**: Coordinated snapshots across all state backends
 - **Column Family Support**: Organized state storage with configurable column families
 - **Performance Monitoring**: Real-time metrics collection for back pressure detection
+- **Apache Flink 2.0 RocksDB Configuration**: Full compatibility with Flink 2.0 RocksDB options and tuning
+- **Credit-Based Flow Control Integration**: RocksDB metrics feed into credit-based back pressure system
+- **Real-Time Performance Monitoring**: Comprehensive RocksDB statistics with Apache Flink 2.0 metrics format
 
 ```csharp
-// Create and manage state backends for TaskManagers
+// Create and manage state backends for TaskManagers with Apache Flink 2.0 configuration
 var stateCoordinator = new StateCoordinator(logger, checkpointCoordinator);
 var stateBackendId = await stateCoordinator.CreateStateBackendAsync(
     taskManagerId: "tm-001",
@@ -23,9 +26,19 @@ var stateBackendId = await stateCoordinator.CreateStateBackendAsync(
     config: new StateBackendConfig
     {
         StateDir = "/tmp/flink-state",
-        ColumnFamilies = new[] { "default", "user_state", "operator_state" },
-        WriteBufferSize = 64 * 1024 * 1024
+        ColumnFamilies = new[] { "default", "user_state", "operator_state", "timer_state" },
+        WriteBufferSize = 64 * 1024 * 1024,
+        MaxBackgroundJobs = 4,
+        BlockCacheSize = 256 * 1024 * 1024,
+        EnableStatistics = true // Apache Flink 2.0 style metrics
     });
+
+// Real-time RocksDB performance monitoring
+var rocksDBStats = stateBackend.GetStatistics();
+logger.LogInformation("RocksDB Memory: {Memory}MB, Write Latency: {Latency}ms, Back Pressure: {Pressure:F2}", 
+    rocksDBStats.MemoryUsage / 1024 / 1024, 
+    rocksDBStats.AverageWriteLatencyMs,
+    CalculateBackPressureLevel(rocksDBStats));
 ```
 
 ### 2. Dynamic Scaling with Back Pressure Management  
@@ -430,6 +443,84 @@ spec:
 - Added queue monitoring and throttling to sink and operator processing
 - Improved error handling and resilience in back pressure detection
 - Added proper disposal patterns for all back pressure components
+
+📊 **Comprehensive Diagnostics and Logging (NEW)**:
+- **LocalStreamExecutor Enhanced Logging**: Complete job execution monitoring with step-by-step progress tracking
+- **RocksDB Performance Monitoring**: Real-time Apache Flink 2.0 style metrics with back pressure level calculation
+- **Job Error Reporting**: Detailed error diagnostics for stress test failure analysis
+- **Execution Progress Monitoring**: Real-time monitoring of data channels, memory usage, and back pressure levels
+- **Enhanced Exception Handling**: Comprehensive error reporting with context for debugging stress test failures
+
+```csharp
+// Enhanced LocalStreamExecutor with comprehensive logging
+public async Task ExecuteJobAsync(JobGraph jobGraph, CancellationToken cancellationToken = default)
+{
+    Console.WriteLine($"=== LocalStreamExecutor Job Execution Started ===");
+    Console.WriteLine($"[LocalStreamExecutor] Job has {jobGraph.Vertices.Count} vertices and {jobGraph.Edges.Count} edges");
+    Console.WriteLine($"[LocalStreamExecutor] Back pressure detector enabled: {_backPressureDetector != null}");
+    
+    // Real-time execution monitoring
+    var monitoringTask = MonitorExecutionProgress(cancellationToken);
+    
+    try 
+    {
+        // Step-by-step execution with detailed logging
+        await Task.WhenAll(executionTasks.Concat(new[] { monitoringTask }));
+        Console.WriteLine($"[LocalStreamExecutor] ✅ Job execution completed successfully");
+    }
+    catch (Exception ex)
+    {
+        // Enhanced error reporting for stress test diagnostics
+        await ReportJobExecutionError(ex);
+        throw;
+    }
+}
+
+// Real-time execution progress monitoring
+private async Task MonitorExecutionProgress(CancellationToken cancellationToken)
+{
+    while (!cancellationToken.IsCancellationRequested)
+    {
+        var overallPressure = _backPressureDetector.GetOverallPressureLevel();
+        Console.WriteLine($"[Monitor] Overall Back Pressure Level: {overallPressure:F2}");
+        
+        if (overallPressure > 0.7)
+        {
+            Console.WriteLine($"[Monitor] ⚠️ HIGH BACK PRESSURE DETECTED: {overallPressure:F2}");
+        }
+        
+        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+    }
+}
+```
+
+🔍 **Enhanced RocksDB Monitoring**:
+```csharp
+// Apache Flink 2.0 style RocksDB performance monitoring
+private void CollectStatistics(object? state)
+{
+    var stats = GetStatistics();
+    
+    _logger.LogInformation("=== RocksDB Performance Metrics (Apache Flink 2.0 Style) ===");
+    _logger.LogInformation("Memory Usage: {Memory}MB (Block Cache: {BlockCache}MB)", 
+        stats.MemoryUsage / 1024 / 1024, stats.BlockCacheUsageBytes / 1024 / 1024);
+    _logger.LogInformation("Latency - Write: {WriteLatency}ms, Read: {ReadLatency}ms", 
+        stats.AverageWriteLatencyMs, stats.AverageReadLatencyMs);
+    _logger.LogInformation("Throughput - Writes: {WritesPerSec}/s, Reads: {ReadsPerSec}/s", 
+        stats.WritesPerSecond, stats.ReadsPerSecond);
+    
+    var pressureLevel = CalculateBackPressureLevel(stats);
+    _logger.LogInformation("RocksDB Back Pressure Level: {PressureLevel} ({Description})", 
+        pressureLevel, GetPressureDescription(pressureLevel));
+        
+    // Stress test specific warnings
+    if (stats.AverageWriteLatencyMs > 50)
+    {
+        _logger.LogWarning("⚠️ HIGH WRITE LATENCY: {WriteLatency}ms - may cause back pressure", 
+            stats.AverageWriteLatencyMs);
+    }
+}
+```
 
 ### Apache Flink 2.0 Compatibility
 1. **Centralized State Management**: JobManager coordinates all state backends
