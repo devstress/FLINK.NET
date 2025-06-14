@@ -1,5 +1,4 @@
 // Existing using statements (implicit for DistributedApplication, Projects)
-using FlinkDotNet.Common.Constants;
 
 namespace FlinkDotNetAspire.AppHost.AppHost;
 
@@ -19,20 +18,22 @@ public static class Program
         // Set up for 1 million message high throughput test
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES") ?? "1000000";
 
-        // Add JobManager (1 instance)
-        builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
-            .WithEnvironment("JOBMANAGER_HTTP_PORT", ServicePorts.JobManagerHttp.ToString())
-            .WithEnvironment(EnvironmentVariables.JobManagerGrpcPort, ServicePorts.JobManagerGrpc.ToString())
-            .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+        // Add JobManager (1 instance) - Using container instead of project
+        var jobManager = builder.AddContainer("jobmanager", "flinkdotnet/jobmanager", "latest")
+            .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+            .WithHttpEndpoint(targetPort: 8080, name: "http")
+            .WithEndpoint(targetPort: 8081, scheme: "http", name: "grpc");
 
-        // Add TaskManagers (20 instances as per requirements)
+        // Add TaskManagers (20 instances as per requirements) - Using containers instead of projects
         for (int i = 1; i <= 20; i++)
         {
-            builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
+            builder.AddContainer($"taskmanager{i}", "flinkdotnet/taskmanager", "latest")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
-                .WithEnvironment("TASKMANAGER_GRPC_PORT", ServiceUris.GetTaskManagerAspirePort(i).ToString())
-                .WithEnvironment("services__jobmanager__grpc__0", ServiceUris.Insecure.JobManagerGrpcHttp)
-                .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+                .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+                .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", "http://jobmanager:8081")
+                .WithHttpEndpoint(targetPort: 8080, name: "grpc");
         }
 
         // Provide Redis and Kafka connection information to the FlinkJobSimulator

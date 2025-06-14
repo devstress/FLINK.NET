@@ -8,9 +8,40 @@ namespace FlinkDotNet.Common.Constants.Tests;
 public class ServiceConstantsTests
 {
     [Fact]
-    public void ServicePorts_Should_Have_Expected_Defaults()
+    public void ServicePorts_Should_Use_Environment_Variables_When_Available()
     {
-        // Verify that the expected default ports are defined
+        // Set test environment variables
+        Environment.SetEnvironmentVariable("JOBMANAGER_GRPC_PORT", "60051");
+        Environment.SetEnvironmentVariable("JOBMANAGER_HTTP_PORT", "9088");
+        Environment.SetEnvironmentVariable("TASKMANAGER_GRPC_PORT", "70051");
+        
+        try
+        {
+            // Verify that the ports read from environment variables
+            Assert.Equal(60051, ServicePorts.JobManagerGrpc);
+            Assert.Equal(9088, ServicePorts.JobManagerHttp);
+            Assert.Equal(70051, ServicePorts.TaskManagerGrpc);
+        }
+        finally
+        {
+            // Clean up environment variables
+            Environment.SetEnvironmentVariable("JOBMANAGER_GRPC_PORT", null);
+            Environment.SetEnvironmentVariable("JOBMANAGER_HTTP_PORT", null);
+            Environment.SetEnvironmentVariable("TASKMANAGER_GRPC_PORT", null);
+        }
+    }
+
+    [Fact]
+    public void ServicePorts_Should_Have_Expected_Defaults_When_No_Environment_Variables()
+    {
+        // Ensure no environment variables are set for these tests
+        Environment.SetEnvironmentVariable("JOBMANAGER_GRPC_PORT", null);
+        Environment.SetEnvironmentVariable("JOBMANAGER_HTTP_PORT", null);
+        Environment.SetEnvironmentVariable("TASKMANAGER_GRPC_PORT", null);
+        Environment.SetEnvironmentVariable("KAFKA_PORT", null);
+        Environment.SetEnvironmentVariable("REDIS_PORT", null);
+        
+        // Verify that the expected default ports are used as fallbacks
         Assert.Equal(50051, ServicePorts.JobManagerGrpc);
         Assert.Equal(8088, ServicePorts.JobManagerHttp);
         Assert.Equal(9092, ServicePorts.Kafka);
