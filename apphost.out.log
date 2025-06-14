@@ -6,61 +6,51 @@ info: Aspire.Hosting.DistributedApplication[0]
       Distributed application starting.
 info: Aspire.Hosting.DistributedApplication[0]
       Application host directory is: /home/runner/work/FLINK.NET/FLINK.NET/FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
-fail: Microsoft.Extensions.Hosting.Internal.Host[11]
-      Hosting failed to start
-      System.IO.IOException: Failed to bind to address https://127.0.0.1:22279: address already in use.
-       ---> Microsoft.AspNetCore.Connections.AddressInUseException: Address already in use
-       ---> System.Net.Sockets.SocketException (98): Address already in use
-         at System.Net.Sockets.Socket.UpdateStatusAfterSocketErrorAndThrowException(SocketError error, Boolean disconnectOnFailure, String callerName)
-         at System.Net.Sockets.Socket.DoBind(EndPoint endPointSnapshot, SocketAddress socketAddress)
-         at System.Net.Sockets.Socket.Bind(EndPoint localEP)
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportOptions.CreateDefaultBoundListenSocket(EndPoint endpoint)
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
-         --- End of inner exception stack trace ---
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportFactory.BindAsync(EndPoint endpoint, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.TransportManager.BindAsync(EndPoint endPoint, ConnectionDelegate connectionDelegate, EndpointConfig endpointConfig, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.<>c__DisplayClass28_0`1.<<StartAsync>g__OnBind|0>d.MoveNext()
-      --- End of stack trace from previous location ---
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
-         --- End of inner exception stack trace ---
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.LocalhostListenOptions.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.EndpointsStrategy.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindAsync(ListenOptions[] listenOptions, AddressBindContext context, Func`2 useHttps, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
-         at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__15_1(IHostedService service, CancellationToken token)
-         at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
-fail: Microsoft.Extensions.Hosting.Internal.Host[11]
-      Hosting failed to start
-      System.IO.IOException: Failed to bind to address https://127.0.0.1:22279: address already in use.
-       ---> Microsoft.AspNetCore.Connections.AddressInUseException: Address already in use
-       ---> System.Net.Sockets.SocketException (98): Address already in use
-         at System.Net.Sockets.Socket.UpdateStatusAfterSocketErrorAndThrowException(SocketError error, Boolean disconnectOnFailure, String callerName)
-         at System.Net.Sockets.Socket.DoBind(EndPoint endPointSnapshot, SocketAddress socketAddress)
-         at System.Net.Sockets.Socket.Bind(EndPoint localEP)
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportOptions.CreateDefaultBoundListenSocket(EndPoint endpoint)
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
-         --- End of inner exception stack trace ---
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
-         at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportFactory.BindAsync(EndPoint endpoint, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.TransportManager.BindAsync(EndPoint endPoint, ConnectionDelegate connectionDelegate, EndpointConfig endpointConfig, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.<>c__DisplayClass28_0`1.<<StartAsync>g__OnBind|0>d.MoveNext()
-      --- End of stack trace from previous location ---
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
-         --- End of inner exception stack trace ---
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.LocalhostListenOptions.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.EndpointsStrategy.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindAsync(ListenOptions[] listenOptions, AddressBindContext context, Func`2 useHttps, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, CancellationToken cancellationToken)
-         at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
-         at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__15_1(IHostedService service, CancellationToken token)
-         at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
-         at Microsoft.Extensions.Hosting.Internal.Host.StartAsync(CancellationToken cancellationToken)
-         at Aspire.Hosting.Dashboard.DashboardServiceHost.Microsoft.Extensions.Hosting.IHostedService.StartAsync(CancellationToken cancellationToken) in /_/src/Aspire.Hosting/Dashboard/DashboardServiceHost.cs:line 201
-         at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__15_1(IHostedService service, CancellationToken token)
-         at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
+info: Aspire.Hosting.DistributedApplication[0]
+      Now listening on: https://localhost:17184
+info: Aspire.Hosting.DistributedApplication[0]
+      Login to the dashboard at https://localhost:17184/login?t=7af10b443eb3d133fbb07c153438358a
+info: Aspire.Hosting.DistributedApplication[0]
+      Distributed application started. Press Ctrl+C to shut down.
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"jobmanager-ytmrktkn"}, "Reconciliation": 5, "ContainerName": "jobmanager-ytmrktkn", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager9-hjzsqtzs"}, "Reconciliation": 52, "ContainerName": "taskmanager9-hjzsqtzs", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager2-rqwaecvf"}, "Reconciliation": 50, "ContainerName": "taskmanager2-rqwaecvf", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager1-paqukbph"}, "Reconciliation": 28, "ContainerName": "taskmanager1-paqukbph", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager4-jtxutfak"}, "Reconciliation": 54, "ContainerName": "taskmanager4-jtxutfak", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager5-pndkwhxv"}, "Reconciliation": 53, "ContainerName": "taskmanager5-pndkwhxv", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager3-bsybzksy"}, "Reconciliation": 55, "ContainerName": "taskmanager3-bsybzksy", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager6-wkutchxu"}, "Reconciliation": 56, "ContainerName": "taskmanager6-wkutchxu", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager12-enzjmmfr"}, "Reconciliation": 57, "ContainerName": "taskmanager12-enzjmmfr", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager11-kwtxnqej"}, "Reconciliation": 59, "ContainerName": "taskmanager11-kwtxnqej", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager13-mgsfxfna"}, "Reconciliation": 58, "ContainerName": "taskmanager13-mgsfxfna", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager16-hwdppjpb"}, "Reconciliation": 60, "ContainerName": "taskmanager16-hwdppjpb", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager18-pczfarzn"}, "Reconciliation": 65, "ContainerName": "taskmanager18-pczfarzn", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager17-zhpsapgs"}, "Reconciliation": 62, "ContainerName": "taskmanager17-zhpsapgs", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager14-udcgavkw"}, "Reconciliation": 66, "ContainerName": "taskmanager14-udcgavkw", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager19-frgtgmsg"}, "Reconciliation": 63, "ContainerName": "taskmanager19-frgtgmsg", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager8-rcubngqc"}, "Reconciliation": 61, "ContainerName": "taskmanager8-rcubngqc", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager20-tatywewn"}, "Reconciliation": 64, "ContainerName": "taskmanager20-tatywewn", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager15-wadtvqrm"}, "Reconciliation": 67, "ContainerName": "taskmanager15-wadtvqrm", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager10-rguzgkwy"}, "Reconciliation": 69, "ContainerName": "taskmanager10-rguzgkwy", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
+fail: Aspire.Hosting.Dcp.dcpctrl.ContainerReconciler[0]
+      could not create the container	{"Container": {"name":"taskmanager7-kqntcyzd"}, "Reconciliation": 68, "ContainerName": "taskmanager7-kqntcyzd", "error": "object not found\ncontainer not found\ndocker command 'CreateContainer' returned with non-zero exit code -1: command output: Stdout: '' Stderr: ''"}
