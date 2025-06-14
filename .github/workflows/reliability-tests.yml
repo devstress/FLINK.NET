@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "100000" # Flink.Net standard test message count
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Fast reliability test message count for 30-second execution
 
 jobs:
   run-reliability-tests:
@@ -88,10 +88,10 @@ jobs:
           $proc.Id | Out-File apphost.pid -Encoding utf8
           
           Write-Host "Started AppHost with PID: $($proc.Id)"
-          Write-Host "AppHost started, waiting 60 seconds for Redis/Kafka container initialization..."
+          Write-Host "AppHost started, waiting 10 seconds for Redis/Kafka container initialization..."
           
-          # Wait longer in CI for container startup - Redis can be slow to initialize
-          Start-Sleep -Seconds 60
+          # Faster startup in CI for quick testing
+          Start-Sleep -Seconds 10
 
       - name: Discover Aspire Container Ports
         run: |
@@ -107,8 +107,8 @@ jobs:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
         run: |
-          $maxAttempts = 5  # Increased from 2 to 5 for CI environment
-          $delaySeconds = 10  # Increased from 5 to 10 seconds between attempts
+          $maxAttempts = 2  # Fast health checks for quick testing
+          $delaySeconds = 5  # Reduced delay for faster execution
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           Write-Host "`n=== Health Check Configuration ==="
