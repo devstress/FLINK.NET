@@ -22,6 +22,7 @@ concurrency:
 env:
   SIMULATOR_NUM_MESSAGES_CI: "1000000" # Number of messages for CI tests - reduced for faster execution
   MAX_ALLOWED_TIME_MS: "1000" # 1 second timeout for processing 1M messages
+  APACHE_FLINK_STANDARD_TEST_MESSAGES: "100000" # Apache Flink 2.0 standard test message count
 
 jobs:
   run-stress-tests:
@@ -55,7 +56,7 @@ jobs:
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
 
-      - name: Build Solutions (including Verifier)
+      - name: Build Solutions (including Verifier and Apache Flink Standard Test)
         run: |
           echo "Building FlinkDotNet solution (dependency)..."
           Push-Location FlinkDotNet
@@ -65,6 +66,11 @@ jobs:
           echo "Building FlinkDotNetAspire solution..."
           Push-Location FlinkDotNetAspire
           dotnet build FlinkDotNetAspire.sln --configuration Release
+          Pop-Location
+          
+          echo "Building Apache Flink 2.0 Standard Reliability Test..."
+          Push-Location FlinkDotNetAspire/ApacheFlinkStandardReliabilityTest
+          dotnet build ApacheFlinkStandardReliabilityTest.csproj --configuration Release
           Pop-Location
 
       - name: Start Aspire AppHost
@@ -243,6 +249,21 @@ jobs:
               exit 1
             }
           }
+
+      - name: Run Apache Flink 2.0 Standard Reliability Test
+        env:
+          APACHE_FLINK_STANDARD_TEST_MESSAGES: ${{ env.APACHE_FLINK_STANDARD_TEST_MESSAGES }}
+          DOTNET_ENVIRONMENT: "Development"
+        run: |
+          echo "Running Apache Flink 2.0 Standard Reliability Test with ${{ env.APACHE_FLINK_STANDARD_TEST_MESSAGES }} messages..."
+          Push-Location FlinkDotNetAspire/ApacheFlinkStandardReliabilityTest
+          dotnet test --configuration Release --logger "console;verbosity=detailed" --no-build
+          if ($LASTEXITCODE -ne 0) {
+            echo "❌ Apache Flink 2.0 Standard Reliability Test FAILED."
+            exit 1
+          }
+          echo "✅ Apache Flink 2.0 Standard Reliability Test PASSED."
+          Pop-Location
 
       - name: Run Verification Tests
         env:

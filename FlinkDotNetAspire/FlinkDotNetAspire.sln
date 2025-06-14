@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.IntegrationTests", "FlinkDotNetAspire.IntegrationTests\FlinkDotNetAspire.IntegrationTests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApacheFlinkStandardReliabilityTest", "ApacheFlinkStandardReliabilityTest\ApacheFlinkStandardReliabilityTest.csproj", "{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.JobManager", "..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj", "{E1F2A3B4-C5D6-7890-1234-567890ABCDEF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.TaskManager", "..\FlinkDotNet\FlinkDotNet.TaskManager\FlinkDotNet.TaskManager.csproj", "{F2E3B4C5-D6A7-8901-2345-67890ABCDEF1}"
@@ -42,6 +44,10 @@ Global
 		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E1F2A3B4-C5D6-7890-1234-567890ABCDEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E1F2A3B4-C5D6-7890-1234-567890ABCDEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E1F2A3B4-C5D6-7890-1234-567890ABCDEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
