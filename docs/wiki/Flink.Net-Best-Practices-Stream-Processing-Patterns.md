@@ -1,12 +1,12 @@
-# Apache Flink 2.0 Best Practices: Stream Processing Patterns
+# Flink.Net Best Practices: Stream Processing Patterns
 
-This document provides comprehensive guidance on Apache Flink 2.0 stream processing patterns and best practices, with specific evaluation of different pipeline architectures and recommendations for production use.
+This document provides comprehensive guidance on Flink.Net stream processing patterns and best practices, with specific evaluation of different pipeline architectures and recommendations for production use.
 
 ## Overview
 
-Apache Flink 2.0 follows specific patterns and architectural principles that ensure high performance, fault tolerance, and scalability. Understanding these patterns is crucial for building reliable streaming applications.
+Flink.Net follows specific patterns and architectural principles that ensure high performance, fault tolerance, and scalability. Understanding these patterns is crucial for building reliable streaming applications.
 
-## Proposed vs. Standard Apache Flink 2.0 Pipeline Analysis
+## Proposed vs. Standard Flink.Net Pipeline Analysis
 
 ### Proposed Pipeline Architecture
 ```
@@ -21,31 +21,31 @@ AsyncEgressProcessing (External I/O with Timeout, Retry, DLQ)
 Final Sink (e.g., Kafka, DB, Callback) with Acknowledgment
 ```
 
-### Analysis: Why This Deviates from Apache Flink 2.0 Standards
+### Analysis: Why This Deviates from Flink.Net Standards
 
 #### ❌ Issues with Current Approach
 
 1. **Gateway Pattern is Non-Standard**
    - **Problem**: "Gateway" is a web service/API gateway pattern, not a stream processing pattern
-   - **Flink 2.0 Standard**: Uses **Sources** (KafkaSource, FileSource, SocketSource, etc.)
+   - **Flink.Net Standard**: Uses **Sources** (KafkaSource, FileSource, SocketSource, etc.)
    - **Impact**: Creates unnecessary abstraction layer and doesn't leverage Flink's built-in source capabilities
 
 2. **KeyGen as Separate Stage**
    - **Problem**: Treating key generation as a distinct processing stage
-   - **Flink 2.0 Standard**: Key generation is integrated into **KeyBy** operations
+   - **Flink.Net Standard**: Key generation is integrated into **KeyBy** operations
    - **Impact**: Adds unnecessary latency and complexity
 
 3. **IngressProcessing Mixing Concerns**
    - **Problem**: Combines validation, preprocessing, and buffering in one stage
-   - **Flink 2.0 Standard**: Separates these as distinct operators (**Map**, **Filter**, **FlatMap**)
+   - **Flink.Net Standard**: Separates these as distinct operators (**Map**, **Filter**, **FlatMap**)
    - **Impact**: Violates single responsibility principle and reduces composability
 
 4. **Missing Standard Flink Operators**
    - **Problem**: Doesn't utilize Flink's core operators (Windows, Process Functions, etc.)
-   - **Flink 2.0 Standard**: Leverages rich operator ecosystem
+   - **Flink.Net Standard**: Leverages rich operator ecosystem
    - **Impact**: Loses Flink's powerful windowing and state management capabilities
 
-## ✅ Apache Flink 2.0 Standard Pipeline Pattern
+## ✅ Flink.Net Standard Pipeline Pattern
 
 ### Recommended Architecture
 ```
@@ -65,7 +65,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 ### Detailed Stage Analysis
 
 #### 1. Source Stage
-**Apache Flink 2.0 Standard:**
+**Flink.Net Standard:**
 ```csharp
 // Kafka Source with proper configuration
 var kafkaSource = KafkaSource<string>.Builder()
@@ -86,7 +86,7 @@ DataStream<string> sourceStream = env.FromSource(kafkaSource,
 - Exactly-once semantics
 
 #### 2. Validation & Transformation (Map/Filter)
-**Apache Flink 2.0 Standard:**
+**Flink.Net Standard:**
 ```csharp
 // Separate concerns into distinct operators
 DataStream<ValidatedRecord> validatedStream = sourceStream
@@ -102,7 +102,7 @@ DataStream<ValidatedRecord> validatedStream = sourceStream
 - Easy testing and maintenance
 
 #### 3. Partitioning (KeyBy)
-**Apache Flink 2.0 Standard:**
+**Flink.Net Standard:**
 ```csharp
 // Partition by key for stateful processing
 KeyedStream<ValidatedRecord, string> keyedStream = validatedStream
@@ -116,7 +116,7 @@ KeyedStream<ValidatedRecord, string> keyedStream = validatedStream
 - Built-in rescaling
 
 #### 4. Stateful Processing (Process/Window Functions)
-**Apache Flink 2.0 Standard:**
+**Flink.Net Standard:**
 ```csharp
 // Use ProcessFunction for complex stateful logic
 DataStream<ProcessedRecord> processedStream = keyedStream
@@ -135,7 +135,7 @@ DataStream<AggregatedRecord> windowedStream = keyedStream
 - Timer support
 
 #### 5. Async External I/O (AsyncFunction)
-**Apache Flink 2.0 Standard:**
+**Flink.Net Standard:**
 ```csharp
 // Async I/O for external service calls
 DataStream<EnrichedRecord> enrichedStream = processedStream
@@ -151,7 +151,7 @@ DataStream<EnrichedRecord> enrichedStream = processedStream
 - Backpressure integration
 
 #### 6. Sink Stage
-**Apache Flink 2.0 Standard:**
+**Flink.Net Standard:**
 ```csharp
 // Multiple sink options with proper configuration
 enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
@@ -167,7 +167,7 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 - Checkpoint integration
 - Multiple destination support
 
-## Complete Apache Flink 2.0 Best Practice Example
+## Complete Flink.Net Best Practice Example
 
 ```csharp
 public class ApacheFlinkStandardPipeline
@@ -281,7 +281,7 @@ env.GetConfig().SetGlobalJobParameters(rocksDBConfig);
 
 ## Reliability Test Implementation
 
-Based on Apache Flink 2.0 best practices, here's how the reliability test should be structured:
+Based on Flink.Net best practices, here's how the reliability test should be structured:
 
 ### Test Pipeline Architecture
 ```csharp
@@ -290,7 +290,7 @@ public class ApacheFlinkReliabilityTest
     [Fact]
     public async Task ShouldProcessHighVolumeWithStandardPipeline()
     {
-        // Arrange: Standard Flink 2.0 pipeline
+        // Arrange: Standard Flink.Net pipeline
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SetParallelism(4);
         env.EnableCheckpointing(TimeSpan.FromSeconds(30));
@@ -306,7 +306,7 @@ public class ApacheFlinkReliabilityTest
         // Act: Execute standard pipeline
         var result = await ExecuteStandardPipeline(env, testConfig);
         
-        // Assert: Verify Apache Flink 2.0 requirements
+        // Assert: Verify Flink.Net requirements
         Assert.True(result.Success);
         Assert.True(result.ProcessedCount >= testConfig.MessageCount * (1 - testConfig.FailureToleranceRate));
         Assert.True(result.ExecutionTimeMs <= testConfig.ExpectedProcessingTimeMs);
@@ -316,7 +316,7 @@ public class ApacheFlinkReliabilityTest
 }
 ```
 
-## Migration Guide: From Custom Pipeline to Apache Flink 2.0 Standard
+## Migration Guide: From Custom Pipeline to Flink.Net Standard
 
 ### Step 1: Replace Gateway with Source
 ```csharp
@@ -378,7 +378,7 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 
 ## Performance Comparison
 
-| Aspect | Custom Pipeline | Apache Flink 2.0 Standard |
+| Aspect | Custom Pipeline | Flink.Net Standard |
 |--------|----------------|----------------------------|
 | **Throughput** | Variable | Optimized (10-100x better) |
 | **Latency** | High (multiple stages) | Low (optimized operators) |
@@ -391,7 +391,7 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 
 ## Recommendations
 
-### ✅ DO: Follow Apache Flink 2.0 Patterns
+### ✅ DO: Follow Flink.Net Patterns
 1. **Use Standard Sources**: KafkaSource, FileSource, SocketSource
 2. **Leverage Built-in Operators**: Map, Filter, KeyBy, Window, Process
 3. **Implement AsyncFunction**: For external service integration
@@ -410,7 +410,7 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 
 ## Conclusion
 
-The proposed "Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → Final Sink" pipeline, while functional, **deviates significantly from Apache Flink 2.0 best practices**. 
+The proposed "Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → Final Sink" pipeline, while functional, **deviates significantly from Flink.Net best practices**. 
 
 **Key Issues:**
 - Creates unnecessary abstractions over Flink's optimized operators
@@ -419,10 +419,10 @@ The proposed "Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing
 - Makes maintenance and scaling more difficult
 
 **Recommended Approach:**
-Follow the standard Apache Flink 2.0 pattern of **Source → Map/Filter → KeyBy → Process/Window → AsyncFunction → Sink**, which provides:
+Follow the standard Flink.Net pattern of **Source → Map/Filter → KeyBy → Process/Window → AsyncFunction → Sink**, which provides:
 - Superior performance and scalability
 - Built-in fault tolerance and exactly-once semantics
 - Rich monitoring and observability
 - Industry-standard patterns and maintainability
 
-The reliability tests should be updated to follow this standard pattern to ensure compatibility with Apache Flink 2.0 ecosystem and leverage its full capabilities.
+The reliability tests should be updated to follow this standard pattern to ensure compatibility with Flink.Net ecosystem and leverage its full capabilities.

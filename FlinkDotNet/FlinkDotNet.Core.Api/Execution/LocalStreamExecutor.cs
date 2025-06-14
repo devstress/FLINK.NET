@@ -13,7 +13,7 @@ namespace FlinkDotNet.Core.Api.Execution
     /// <summary>
     /// Local execution engine for FlinkDotNet that can execute JobGraphs in a single process.
     /// This enables local testing and development without requiring a full distributed setup.
-    /// Implements core Apache Flink 2.0 execution concepts including back pressure handling.
+    /// Implements core Flink.Net execution concepts including back pressure handling.
     /// </summary>
     public class LocalStreamExecutor : IDisposable
     {
@@ -30,7 +30,7 @@ namespace FlinkDotNet.Core.Api.Execution
             _dataChannels = new ConcurrentDictionary<Guid, ConcurrentQueue<object>>();
             _logger = logger;
             
-            // Initialize back pressure detection for FlinkDotnet 2.0 compatibility
+            // Initialize back pressure detection for Flink.Net compatibility
             _backPressureDetector = new LocalBackPressureDetector(
                 new LocalBackPressureConfiguration
                 {
@@ -39,12 +39,12 @@ namespace FlinkDotNet.Core.Api.Execution
                     DefaultMaxQueueSize = 1000
                 });
             
-            _logger?.LogInformation("LocalStreamExecutor initialized with Apache Flink 2.0 style back pressure detection");
+            _logger?.LogInformation("LocalStreamExecutor initialized with Flink.Net style back pressure detection");
         }
 
         /// <summary>
         /// Executes the given JobGraph locally in the current process.
-        /// This provides Apache Flink 2.0 compatible execution semantics.
+        /// This provides Flink.Net compatible execution semantics.
         /// </summary>
         public async Task ExecuteJobAsync(JobGraph jobGraph, CancellationToken cancellationToken = default)
         {

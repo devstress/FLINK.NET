@@ -745,7 +745,7 @@ public static class Program
         }
 
         // Execute the job
-        Console.WriteLine("Executing job using LocalStreamExecutor for FlinkDotnet 2.0 compatibility...");
+        Console.WriteLine("Executing job using LocalStreamExecutor for Flink.Net compatibility...");
         var jobExecutionSuccess = false;
         try 
         {

@@ -1,14 +1,14 @@
-# RocksDB State Backend - Apache Flink 2.0 Compatibility
+# RocksDB State Backend - Flink.Net Compatibility
 
 ## Overview
 
-FLINK.NET's RocksDB State Backend provides Apache Flink 2.0 compatible state management with enterprise-grade performance, durability, and scalability. This implementation follows Apache Flink 2.0 patterns for RocksDB configuration, credit-based flow control integration, and back pressure handling.
+FLINK.NET's RocksDB State Backend provides Flink.Net compatible state management with enterprise-grade performance, durability, and scalability. This implementation follows Flink.Net patterns for RocksDB configuration, credit-based flow control integration, and back pressure handling.
 
-## Apache Flink 2.0 Compatibility Features
+## Flink.Net Compatibility Features
 
 ### 1. Credit-Based Flow Control Integration
 ```csharp
-// RocksDB automatically integrates with Apache Flink 2.0 credit system
+// RocksDB automatically integrates with Flink.Net credit system
 var options = new RocksDBOptions
 {
     WriteBufferSize = 64 * 1024 * 1024, // 64MB - optimized for credit flow
@@ -21,7 +21,7 @@ var stateBackend = new RocksDBStateBackend(options, logger);
 
 ### 2. Real-Time Performance Monitoring
 ```csharp
-// Apache Flink 2.0 style metrics collection
+// Flink.Net style metrics collection
 var statistics = stateBackend.GetStatistics();
 Console.WriteLine($"Memory Usage: {statistics.MemoryUsage / 1024 / 1024}MB");
 Console.WriteLine($"Write Latency: {statistics.AverageWriteLatencyMs}ms");
@@ -30,7 +30,7 @@ Console.WriteLine($"Back Pressure Level: {CalculateBackPressureLevel(statistics)
 
 ### 3. Back Pressure Detection
 ```csharp
-// Automatic back pressure calculation based on Apache Flink 2.0 algorithms
+// Automatic back pressure calculation based on Flink.Net algorithms
 public static double CalculateBackPressureLevel(RocksDBStatistics stats)
 {
     var memoryPressure = Math.Min(1.0, stats.MemoryUsage / (512.0 * 1024 * 1024));
@@ -57,7 +57,7 @@ var options = new RocksDBOptions
 };
 ```
 
-### Apache Flink 2.0 Configuration Pattern
+### Flink.Net Configuration Pattern
 ```csharp
 var configuration = new RocksDBConfiguration
 {
@@ -78,7 +78,7 @@ var stateBackend = new RocksDBStateBackend(configuration, logger);
 
 ### Column Family Configuration
 ```csharp
-// Apache Flink 2.0 uses multiple column families for better performance
+// Flink.Net uses multiple column families for better performance
 var columnFamilies = new[]
 {
     "default",        // Default column family
@@ -93,7 +93,7 @@ var columnFamilies = new[]
 
 ### Memory Configuration
 ```csharp
-// Tune for your memory constraints (Apache Flink 2.0 recommendations)
+// Tune for your memory constraints (Flink.Net recommendations)
 var options = new RocksDBOptions
 {
     WriteBufferSize = Environment.ProcessorCount * 16 * 1024 * 1024, // 16MB per CPU core
@@ -140,7 +140,7 @@ public void MonitorRocksDBPerformance(RocksDBStateBackend stateBackend)
     {
         var stats = stateBackend.GetStatistics();
         
-        // Log Apache Flink 2.0 style metrics
+        // Log Flink.Net style metrics
         logger.LogInformation("=== RocksDB Performance Metrics ===");
         logger.LogInformation("Memory Usage: {Memory}MB", stats.MemoryUsage / 1024 / 1024);
         logger.LogInformation("Write Latency: {WriteLatency}ms", stats.AverageWriteLatencyMs);
@@ -210,9 +210,9 @@ public void LogRocksDBDiagnostics(RocksDBStateBackend stateBackend)
 - Use incremental checkpoints for large state
 - Monitor checkpoint duration and size
 
-## Apache Flink 2.0 Compatibility Matrix
+## Flink.Net Compatibility Matrix
 
-| Feature | FLINK.NET | Apache Flink 2.0 | Status |
+| Feature | FLINK.NET | Flink.Net | Status |
 |---------|-----------|------------------|---------|
 | Credit-based Flow Control | ✅ | ✅ | Compatible |
 | Back Pressure Detection | ✅ | ✅ | Compatible |
@@ -268,7 +268,7 @@ public void HandleBackPressure(RocksDBStatistics stats)
 ## Example: Complete Configuration
 
 ```csharp
-// Production-ready Apache Flink 2.0 compatible RocksDB configuration
+// Production-ready Flink.Net compatible RocksDB configuration
 public static RocksDBStateBackend CreateProductionRocksDB(ILogger logger)
 {
     var configuration = new RocksDBConfiguration
@@ -320,7 +320,7 @@ private static void EnablePerformanceMonitoring(RocksDBStateBackend stateBackend
 
 ## See Also
 
-- [Apache Flink 2.0 Back Pressure](FLINKDOTNET_2_0_BACK_PRESSURE.md)
+- [Flink.Net Back Pressure](FLINK_NET_BACK_PRESSURE.md)
 - [Credit-Based Flow Control](Credit-Based-Flow-Control.md)
 - [State Management Overview](Core-Concepts-State-Management-Overview.md)
 - [Performance Tuning](Advanced-Performance-Tuning.md)

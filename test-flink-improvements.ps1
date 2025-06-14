@@ -2,7 +2,7 @@
 # Simple diagnostic test to validate our comprehensive logging improvements
 
 Write-Host "=== FLINK.NET Diagnostic Test ==="
-Write-Host "Testing enhanced logging and Apache Flink 2.0 compatibility"
+Write-Host "Testing enhanced logging and Flink.Net compatibility"
 
 # Test 1: Build verification
 Write-Host "`n1. Building FLINK.NET projects..."
@@ -51,14 +51,14 @@ if ($testExitCode -eq 0) {
 }
 
 # Test 3: RocksDB configuration test
-Write-Host "`n3. Testing RocksDB Apache Flink 2.0 configuration..."
+Write-Host "`n3. Testing RocksDB Flink.Net configuration..."
 $rocksDbTestCode = @"
 using FlinkDotNet.Storage.RocksDB;
 using Microsoft.Extensions.Logging;
 
 var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<RocksDBStateBackend>();
 
-// Test Apache Flink 2.0 style configuration
+// Test Flink.Net style configuration
 var configuration = new RocksDBConfiguration
 {
     DbPath = Path.GetTempPath() + "/test-rocksdb",
@@ -70,7 +70,7 @@ var configuration = new RocksDBConfiguration
 try
 {
     var stateBackend = new RocksDBStateBackend(configuration, logger);
-    Console.WriteLine("✅ RocksDB configured with Apache Flink 2.0 compatibility");
+    Console.WriteLine("✅ RocksDB configured with Flink.Net compatibility");
     
     // Test statistics
     var stats = stateBackend.GetStatistics();
@@ -143,9 +143,9 @@ Write-Host $flowControlResult
 
 # Summary
 Write-Host "`n=== DIAGNOSTIC SUMMARY ==="
-Write-Host "✅ Enhanced logging and Apache Flink 2.0 compatibility implemented"
+Write-Host "✅ Enhanced logging and Flink.Net compatibility implemented"
 Write-Host "✅ LocalStreamExecutor with comprehensive diagnostics"
-Write-Host "✅ RocksDB with Apache Flink 2.0 style performance monitoring"
+Write-Host "✅ RocksDB with Flink.Net style performance monitoring"
 Write-Host "✅ Credit-based flow control with monitoring properties"
 Write-Host "✅ Code analysis warnings fixed"
 
@@ -158,8 +158,8 @@ Write-Host "Ensure Redis and Kafka containers are started and accessible before 
 Write-Host "The comprehensive logging will now provide detailed diagnostics for any failures."
 
 Write-Host "`n📚 DOCUMENTATION:"
-Write-Host "- Created comprehensive RocksDB documentation with Apache Flink 2.0 patterns"
-Write-Host "- Enhanced Apache Flink 2.0 features documentation with diagnostics information"
-Write-Host "- All logging follows Apache Flink 2.0 style metrics and monitoring patterns"
+Write-Host "- Created comprehensive RocksDB documentation with Flink.Net patterns"
+Write-Host "- Enhanced Flink.Net features documentation with diagnostics information"
+Write-Host "- All logging follows Flink.Net style metrics and monitoring patterns"
 
 exit 0

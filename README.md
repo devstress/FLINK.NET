@@ -8,7 +8,7 @@ The core objective is to implement fundamental stream processing concepts like s
 - [Why Flink.NET?](#why-flinknet)
 - [Documentation Structure](#documentation-structure)
 - [Project Status](#project-status)
-- [Flink 2.0 Compatibility](#flink-20-compatibility)
+- [Flink.Net Compatibility](#flink-20-compatibility)
 - [Samples and Tutorials](#samples-and-tutorials)
 - [AI-Assisted Development](#ai-assisted-development)
 - [Getting Involved & Contribution](#getting-involved--contribution)
@@ -33,9 +33,9 @@ This structure ensures that the main README remains concise, providing a high-le
 Flink.NET is currently in an **alpha/foundational development stage**. Core components are being actively developed.
 For detailed information on the current development status, implemented features, and future roadmap, please see [Project Status and Roadmap](./docs/wiki/Project-Status-And-Roadmap.md).
 
-## Flink 2.0 Compatibility
+## Flink.Net Compatibility
 
-An overview of how Flink.NET aligns with the capabilities introduced in FlinkDotnet 2.0 can be found in the [Project Status and Roadmap](./docs/wiki/Project-Status-And-Roadmap.md#flink-20-compatibility) document. The project is still experimental, and full feature parity has not been achieved yet.
+An overview of how Flink.NET aligns with the capabilities introduced in Flink.Net can be found in the [Project Status and Roadmap](./docs/wiki/Project-Status-And-Roadmap.md#flink-20-compatibility) document. The project is still experimental, and full feature parity has not been achieved yet.
 
 ## Samples and Tutorials
 

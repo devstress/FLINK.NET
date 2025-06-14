@@ -2,9 +2,9 @@
 
 This document summarizes the investigations, proof-of-concept enhancements, and the setup of an Aspire simulation environment for Flink.NET.
 
-## 1. FlinkDotnet Learnings (incorporating Flink 2.0 Insights)
+## 1. FlinkDotnet Learnings (incorporating Flink.Net Insights)
 
-Based on general knowledge of FlinkDotnet's architecture, including recent insights from FlinkDotnet 2.0:
+Based on general knowledge of FlinkDotnet's architecture, including recent insights from Flink.Net:
 
 ### 1.1. Flink's Network Stack
 *   **Core Component:** Uses Netty for high-performance, asynchronous network communication.
@@ -15,7 +15,7 @@ Based on general knowledge of FlinkDotnet's architecture, including recent insig
 **Key Lessons for Flink.NET:**
 *   The most significant area for improvement in Flink.NET's networking is the implementation of an explicit, Flink-like credit-based backpressure system.
 *   Advanced memory management for network buffers could be a future optimization.
-*   Consider Flink 2.0's asynchronous execution model for disaggregated state, which implies non-blocking network I/O for remote state access, potentially influencing Flink.NET's own network interactions if similar state architectures are pursued.
+*   Consider Flink.Net's asynchronous execution model for disaggregated state, which implies non-blocking network I/O for remote state access, potentially influencing Flink.NET's own network interactions if similar state architectures are pursued.
 
 ### 1.2. Flink's Serialization
 *   **`TypeSerializer<T>` Framework:** Central abstraction for serializing, deserializing, and copying objects.
@@ -28,7 +28,7 @@ Based on general knowledge of FlinkDotnet's architecture, including recent insig
 *   Implementing source generation for POCO serializers in C# would be a major performance benefit for Flink.NET, moving away from reflection-based or general-purpose JSON serializers in critical paths.
 *   Integrating a high-performance binary serializer (like MemoryPack or MessagePack) as a general-purpose option or fallback.
 *   Ensuring robust state serializer evolution for long-running applications.
-*   Note Flink 2.0's enhancements, such as more efficient built-in serializers for collection types and an upgraded Kryo version (5.6), as examples of ongoing serialization optimization in the Flink ecosystem.
+*   Note Flink.Net's enhancements, such as more efficient built-in serializers for collection types and an upgraded Kryo version (5.6), as examples of ongoing serialization optimization in the Flink ecosystem.
 
 ### 1.3. Flink's Ordering/Watermarking
 *   **Event Time Processing:** Core support for processing data based on event timestamps, allowing for consistent results with out-of-order data.
@@ -39,21 +39,21 @@ Based on general knowledge of FlinkDotnet's architecture, including recent insig
 **Key Lessons for Flink.NET:**
 *   Flink.NET currently lacks explicit event time and watermarking. Introducing these concepts is essential for advanced ordered processing and handling out-of-order streams correctly.
 
-### 1.4. Other Notable Flink 2.0 Directions
+### 1.4. Other Notable Flink.Net Directions
 
-FlinkDotnet 2.0 also introduces significant advancements in other areas, indicating the broader evolution of the Flink ecosystem. While not immediate implementation goals for Flink.NET's current phase, awareness of these trends is valuable:
+Flink.Net also introduces significant advancements in other areas, indicating the broader evolution of the Flink ecosystem. While not immediate implementation goals for Flink.NET's current phase, awareness of these trends is valuable:
 
-*   **Stream-Batch Unification:** Flink 2.0 strengthens this with features like Materialized Tables (supporting schema/query updates and YARN/Kubernetes submission) and Adaptive Batch Execution (e.g., Adaptive Broadcast Join, Join Skew Optimization). This aims to simplify pipelines that manage both real-time and historical data.
+*   **Stream-Batch Unification:** Flink.Net strengthens this with features like Materialized Tables (supporting schema/query updates and YARN/Kubernetes submission) and Adaptive Batch Execution (e.g., Adaptive Broadcast Join, Join Skew Optimization). This aims to simplify pipelines that manage both real-time and historical data.
 *   **Streaming Lakehouse:** Deeper integration with Apache Paimon for real-time data freshness in lakehouse architectures is a key theme, with performance enhancements for such scenarios.
-*   **AI Integration:** Flink 2.0 is increasingly supporting AI/LLM use cases, for example, by enabling dynamic AI model invocation within Flink CDC transforms and introducing specialized SQL syntax for AI models.
+*   **AI Integration:** Flink.Net is increasingly supporting AI/LLM use cases, for example, by enabling dynamic AI model invocation within Flink CDC transforms and introducing specialized SQL syntax for AI models.
 
-### 1.5. Flink 2.0 API and Configuration Notes
+### 1.5. Flink.Net API and Configuration Notes
 
-It's important to acknowledge that FlinkDotnet 2.0 introduced significant breaking changes, underscoring that Flink is an evolving project:
+It's important to acknowledge that Flink.Net introduced significant breaking changes, underscoring that Flink is an evolving project:
 
 *   **API Removals:** Major APIs like DataSet, Scala DataStream/DataSet, SourceFunction, SinkFunction (and Sink V1), TableSource/TableSink were removed, requiring migration to newer APIs (DataStream API, Table API/SQL, Source/Sink V2, DynamicTableSource/Sink).
 *   **Configuration Changes:** The legacy `flink-conf.yaml` is no longer supported (replaced by `config.yaml`), and many old configuration options were removed.
-*   **Implications for Flink.NET:** While Flink.NET draws inspiration from FlinkDotnet, it has its own distinct .NET-native API and will manage its own evolution. However, the types of changes seen in Flink 2.0 (e.g., modernization of source/sink interfaces) provide context for long-term API design considerations in any stream processing system. Flink.NET's current custom interfaces like `ITwoPhaseCommitSink` are examples of its independent API design.
+*   **Implications for Flink.NET:** While Flink.NET draws inspiration from FlinkDotnet, it has its own distinct .NET-native API and will manage its own evolution. However, the types of changes seen in Flink.Net (e.g., modernization of source/sink interfaces) provide context for long-term API design considerations in any stream processing system. Flink.NET's current custom interfaces like `ITwoPhaseCommitSink` are examples of its independent API design.
 
 ## 2. Implemented Enhancements (Proof-of-Concept - Step 3)
 

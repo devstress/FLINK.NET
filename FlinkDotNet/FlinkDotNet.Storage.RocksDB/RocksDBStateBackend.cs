@@ -13,7 +13,7 @@ using System.Linq;
 namespace FlinkDotNet.Storage.RocksDB
 {
     /// <summary>
-    /// Configuration options for RocksDB state backend with FlinkDotnet 2.0 enhancements
+    /// Configuration options for RocksDB state backend with Flink.Net enhancements
     /// </summary>
     public class RocksDBOptions
     {
@@ -28,7 +28,7 @@ namespace FlinkDotNet.Storage.RocksDB
     }
 
     /// <summary>
-    /// FlinkDotnet 2.0 enhanced RocksDB configuration
+    /// Flink.Net enhanced RocksDB configuration
     /// </summary>
     public class RocksDBConfiguration
     {
@@ -66,7 +66,7 @@ namespace FlinkDotNet.Storage.RocksDB
     }
 
     /// <summary>
-    /// High-performance RocksDB-based state backend for production workloads with FlinkDotnet 2.0 enhancements
+    /// High-performance RocksDB-based state backend for production workloads with Flink.Net enhancements
     /// </summary>
     public class RocksDBStateBackend : IStateBackend, IDisposable
     {
@@ -88,7 +88,7 @@ namespace FlinkDotNet.Storage.RocksDB
         {
         }
 
-        // Constructor for new FlinkDotnet 2.0 configuration pattern
+        // Constructor for new Flink.Net configuration pattern
         public RocksDBStateBackend(RocksDBConfiguration configuration, ILogger<RocksDBStateBackend> logger)
             : this(null, configuration, logger)
         {
@@ -137,7 +137,7 @@ namespace FlinkDotNet.Storage.RocksDB
                 // Start statistics collection timer every 10 seconds
                 _statisticsTimer = new Timer(CollectStatistics, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
                 
-                _logger.LogInformation("=== RocksDB FlinkDotnet 2.0 State Backend Initialization ===");
+                _logger.LogInformation("=== RocksDB Flink.Net State Backend Initialization ===");
                 _logger.LogInformation("RocksDB state backend initialized at {DataDirectory} with {ColumnFamilyCount} column families", 
                     dataDir, columnFamilyNames.Length);
                 _logger.LogInformation("RocksDB Configuration - WriteBufferSize: {WriteBufferSize}MB, BackgroundJobs: {BackgroundJobs}", 
@@ -146,7 +146,7 @@ namespace FlinkDotNet.Storage.RocksDB
                 _logger.LogInformation("Column Families: {ColumnFamilies}", string.Join(", ", columnFamilyNames));
                 
                 // Enhanced diagnostics for stress testing
-                _logger.LogInformation("=== FlinkDotnet 2.0 RocksDB Compatibility Features ===");
+                _logger.LogInformation("=== Flink.Net RocksDB Compatibility Features ===");
                 _logger.LogInformation("- Credit-based flow control integration: Enabled");
                 _logger.LogInformation("- Back pressure monitoring: Enabled");
                 _logger.LogInformation("- Real-time performance metrics: Enabled");
@@ -167,7 +167,7 @@ namespace FlinkDotNet.Storage.RocksDB
         public RocksDb Database => _database;
 
         /// <summary>
-        /// Initialize async for FlinkDotnet 2.0 compatibility
+        /// Initialize async for Flink.Net compatibility
         /// </summary>
         public async Task InitializeAsync()
         {
@@ -287,8 +287,8 @@ namespace FlinkDotNet.Storage.RocksDB
             {
                 var stats = GetStatistics();
                 
-                // Enhanced Apache Flink 2.0 style comprehensive logging for stress testing
-                _logger.LogInformation("=== RocksDB Performance Metrics (FlinkDotnet 2.0 Style) ===");
+                // Enhanced Flink.Net style comprehensive logging for stress testing
+                _logger.LogInformation("=== RocksDB Performance Metrics (Flink.Net Style) ===");
                 _logger.LogInformation("Memory Usage: {Memory}MB (Block Cache: {BlockCache}MB)", 
                     stats.MemoryUsage / 1024 / 1024, 
                     stats.BlockCacheUsageBytes / 1024 / 1024);
@@ -330,7 +330,7 @@ namespace FlinkDotNet.Storage.RocksDB
 
         private static double CalculateBackPressureLevel(RocksDBStatistics stats)
         {
-            // Apache Flink 2.0 style back pressure calculation
+            // Flink.Net style back pressure calculation
             var memoryPressure = Math.Min(1.0, stats.MemoryUsage / (512.0 * 1024 * 1024)); // Normalize to 512MB
             var latencyPressure = Math.Min(1.0, stats.AverageWriteLatencyMs / 100.0); // Normalize to 100ms
             var compactionPressure = Math.Min(1.0, stats.PendingCompactionBytes / (100.0 * 1024 * 1024)); // Normalize to 100MB

@@ -48,17 +48,17 @@ Flink.NET can be used for a variety of stream processing applications, including
 *   Data ingestion and transformation pipelines
 *   Anomaly detection
 
-## FlinkDotnet 2.0 Best Practices
+## Flink.Net Best Practices
 
 For production-ready applications, follow our comprehensive best practices guides:
 
-* **[[FlinkDotnet 2.0 Best Practices: Stream Processing Patterns|Apache-Flink-2.0-Best-Practices-Stream-Processing-Patterns]]** - Complete guide to FlinkDotnet 2.0 standard pipeline patterns
-* **[[FlinkDotnet 2.0 Back Pressure|FLINKDOTNET_2_0_BACK_PRESSURE]]** - Credit-based flow control and back pressure handling
+* **[[Flink.Net Best Practices: Stream Processing Patterns|Flink.Net-Best-Practices-Stream-Processing-Patterns]]** - Complete guide to Flink.Net standard pipeline patterns
+* **[[Flink.Net Back Pressure|FLINK_NET_BACK_PRESSURE]]** - Credit-based flow control and back pressure handling
 * **[[RocksDB State Backend|Core-Concepts-RocksDB-State-Backend]]** - Enterprise-grade state management
 
 ### Recommended Pipeline Pattern
 
-Follow the FlinkDotnet 2.0 standard pattern for optimal performance:
+Follow the Flink.Net standard pattern for optimal performance:
 
 ```
 Source -> Map/Filter -> KeyBy -> Process/Window -> AsyncFunction -> Sink

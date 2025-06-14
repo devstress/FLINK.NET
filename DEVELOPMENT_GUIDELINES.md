@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured Apache Flink 2.0 like implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with Apache Flink 2.0 specifications.
+This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured Flink.Net like implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with Flink.Net specifications.
 
 ## Pre-Commit Development Workflow
 
@@ -49,7 +49,7 @@ dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/ --configuratio
 - **Resource Disposal**: Implement `IDisposable`/`IAsyncDisposable` properly
 - **Exception Handling**: Comprehensive error handling with recovery strategies
 
-## FlinkDotnet 2.0 Architecture Implementation
+## Flink.Net Architecture Implementation
 
 ### Core Components
 
@@ -284,9 +284,9 @@ Before submitting PRs, ensure:
 
 ## Support and Resources
 
-- **Apache Flink 2.0 Documentation**: https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
+- **Flink.Net Documentation**: https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
 - **FLINK.NET Wiki**: `docs/wiki/`
 - **Architecture Documentation**: `docs/FLINKDOTNET_2_0_FEATURES.md`
 - **Troubleshooting Guide**: Check stress test logs and GitHub Actions for specific error patterns
 
-Following these guidelines ensures FLINK.NET maintains high quality, performance, and compatibility with Apache Flink 2.0 standards while providing a superior .NET developer experience.
+Following these guidelines ensures FLINK.NET maintains high quality, performance, and compatibility with Flink.Net standards while providing a superior .NET developer experience.

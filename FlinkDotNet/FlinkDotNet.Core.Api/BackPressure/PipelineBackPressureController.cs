@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace FlinkDotNet.Core.Api.BackPressure;
 
 /// <summary>
-/// Apache Flink 2.0 style pipeline back pressure controller that manages back pressure
+/// Flink.Net style pipeline back pressure controller that manages back pressure
 /// across a complex multi-stage pipeline with proper credit-based flow control.
 /// 
 /// Supports the pipeline: Gateway -> KeyGen -> IngressProcessing -> AsyncEgressProcessing -> Final Sink
@@ -30,11 +30,11 @@ public class PipelineBackPressureController : IDisposable
         // Initialize flow controls for each pipeline stage
         InitializeStageFlowControls();
         
-        // Start monitoring back pressure every 2 seconds (Apache Flink 2.0 style)
+        // Start monitoring back pressure every 2 seconds (Flink.Net style)
         _monitoringTimer = new Timer(MonitorPipelineBackPressure, null, 
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
         
-        _logger.LogInformation("PipelineBackPressureController initialized for Apache Flink 2.0 style pipeline back pressure");
+        _logger.LogInformation("PipelineBackPressureController initialized for Flink.Net style pipeline back pressure");
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ public class PipelineBackPressureController : IDisposable
     }
 
     /// <summary>
-    /// Get stage-specific configuration based on Apache Flink 2.0 best practices
+    /// Get stage-specific configuration based on Flink.Net best practices
     /// </summary>
     private StageFlowConfiguration GetStageConfiguration(string stage)
     {
@@ -104,7 +104,7 @@ public class PipelineBackPressureController : IDisposable
     }
 
     /// <summary>
-    /// Monitor pipeline back pressure and apply Apache Flink 2.0 style throttling
+    /// Monitor pipeline back pressure and apply Flink.Net style throttling
     /// </summary>
     private void MonitorPipelineBackPressure(object? state)
     {
@@ -128,7 +128,7 @@ public class PipelineBackPressureController : IDisposable
     }
 
     /// <summary>
-    /// Calculate overall pipeline pressure using Apache Flink 2.0 heuristics
+    /// Calculate overall pipeline pressure using Flink.Net heuristics
     /// </summary>
     private double CalculateOverallPipelinePressure()
     {
@@ -195,7 +195,7 @@ public class PipelineBackPressureController : IDisposable
             {
                 var stagePressure = metrics.BackPressureLevel;
                 
-                // Apply Apache Flink 2.0 style throttling decisions
+                // Apply Flink.Net style throttling decisions
                 if (stagePressure > 0.8)
                 {
                     ApplyHighPressureThrottling(stageName, stagePressure);
@@ -394,7 +394,7 @@ public class PipelineBackPressureController : IDisposable
 }
 
 /// <summary>
-/// Pipeline stage names for Apache Flink 2.0 style processing
+/// Pipeline stage names for Flink.Net style processing
 /// </summary>
 public static class PipelineStage
 {

@@ -19,11 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "100000" # Apache Flink 2.0 standard test message count
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "100000" # Flink.Net standard test message count
 
 jobs:
   run-reliability-tests:
-    name: Run FLINK.NET Apache Flink 2.0 Reliability Tests
+    name: Run FLINK.NET Flink.Net Reliability Tests
     runs-on: ubuntu-latest
 
     defaults:

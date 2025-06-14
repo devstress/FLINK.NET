@@ -4,7 +4,7 @@ using FlinkDotNet.JobManager.Services.StateManagement;
 namespace FlinkDotNet.JobManager.Services.BackPressure;
 
 /// <summary>
-/// Apache Flink 2.0 style back pressure coordinator that monitors system pressure
+/// Flink.Net style back pressure coordinator that monitors system pressure
 /// and coordinates dynamic scaling of TaskManager instances to handle load fluctuations.
 /// </summary>
 public class BackPressureCoordinator : IDisposable
@@ -42,7 +42,7 @@ public class BackPressureCoordinator : IDisposable
                 BackPressureThreshold = _config.ScaleUpThreshold
             });
 
-        // Apache Flink 2.0 style monitoring every 5 seconds
+        // Flink.Net style monitoring every 5 seconds
         _monitoringTimer = new Timer(MonitorBackPressure, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
         
         _logger.LogInformation("BackPressureCoordinator initialized with monitoring interval: {Interval}s, flow control enabled", 5);
@@ -77,7 +77,7 @@ public class BackPressureCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Calculates back pressure level using Apache Flink 2.0 heuristics including flow control
+    /// Calculates back pressure level using Flink.Net heuristics including flow control
     /// </summary>
     private BackPressureMetrics CalculateBackPressure(StateMetrics stateMetrics, Dictionary<string, TaskManagerMetrics> taskManagerMetrics)
     {

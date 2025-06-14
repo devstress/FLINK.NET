@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace FlinkDotNet.JobManager.Services.BackPressure;
 
 /// <summary>
-/// Apache Flink 2.0 style credit-based flow control system that prevents
+/// Flink.Net style credit-based flow control system that prevents
 /// system overload by regulating data flow between operators and task managers.
 /// </summary>
 public class CreditBasedFlowController : IDisposable

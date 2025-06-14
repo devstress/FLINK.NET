@@ -1,8 +1,8 @@
-# Pipeline Architecture Comparison: Custom vs Apache Flink 2.0 Standard
+# Pipeline Architecture Comparison: Custom vs Flink.Net Standard
 
 ## Executive Summary
 
-This document provides a detailed comparison between the proposed custom pipeline architecture and the Apache Flink 2.0 standard approach, explaining why the standard approach is recommended for production use.
+This document provides a detailed comparison between the proposed custom pipeline architecture and the Flink.Net standard approach, explaining why the standard approach is recommended for production use.
 
 ## Pipeline Comparison
 
@@ -19,7 +19,7 @@ AsyncEgressProcessing (External I/O with Timeout, Retry, DLQ)
 Final Sink (e.g., Kafka, DB, Callback) with Acknowledgment
 ```
 
-### Apache Flink 2.0 Standard Pipeline
+### Flink.Net Standard Pipeline
 ```
 Source (KafkaSource/FileSource/SocketSource)
     ↓
@@ -38,7 +38,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Stage 1: Data Ingestion
 
-| Aspect | Custom Gateway | Apache Flink 2.0 Source |
+| Aspect | Custom Gateway | Flink.Net Source |
 |--------|---------------|-------------------------|
 | **Purpose** | API Gateway pattern | Stream data ingestion |
 | **Performance** | Synchronous request/response | Asynchronous streaming |
@@ -48,7 +48,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 | **Scalability** | Vertical scaling only | Horizontal + vertical scaling |
 | **Monitoring** | Custom metrics | Rich built-in metrics |
 
-**Recommendation: ✅ Use Apache Flink 2.0 Sources**
+**Recommendation: ✅ Use Flink.Net Sources**
 
 **Why:**
 - **10-100x Better Performance**: Flink sources are optimized for streaming workloads
@@ -58,7 +58,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Stage 2: Key Generation vs Partitioning
 
-| Aspect | Custom KeyGen | Apache Flink 2.0 KeyBy |
+| Aspect | Custom KeyGen | Flink.Net KeyBy |
 |--------|--------------|-------------------------|
 | **Integration** | Separate processing stage | Integrated stream operation |
 | **Performance** | Additional serialization/deserialization | Zero-copy key extraction |
@@ -67,7 +67,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 | **Fault Tolerance** | Manual checkpoint handling | Automatic state recovery |
 | **Latency** | Higher (separate stage) | Lower (integrated operation) |
 
-**Recommendation: ✅ Use Apache Flink 2.0 KeyBy**
+**Recommendation: ✅ Use Flink.Net KeyBy**
 
 **Why:**
 - **Lower Latency**: No additional network hops or serialization
@@ -77,7 +77,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Stage 3: Processing Logic
 
-| Aspect | Custom IngressProcessing | Apache Flink 2.0 Map/Filter/Process |
+| Aspect | Custom IngressProcessing | Flink.Net Map/Filter/Process |
 |--------|-------------------------|-----------------------------------|
 | **Separation of Concerns** | Mixed validation/preprocessing | Clear operator separation |
 | **Composability** | Monolithic stage | Composable operators |
@@ -86,7 +86,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 | **Performance** | Buffering overhead | Optimized operator chaining |
 | **Memory Management** | Manual buffer management | Automatic memory management |
 
-**Recommendation: ✅ Use Apache Flink 2.0 Operator Chain**
+**Recommendation: ✅ Use Flink.Net Operator Chain**
 
 **Why:**
 - **Better Maintainability**: Clear separation of validation, transformation, filtering
@@ -96,7 +96,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Stage 4: Async External I/O
 
-| Aspect | Custom AsyncEgressProcessing | Apache Flink 2.0 AsyncFunction |
+| Aspect | Custom AsyncEgressProcessing | Flink.Net AsyncFunction |
 |--------|----------------------------|-------------------------------|
 | **Implementation** | Custom async handling | Built-in async support |
 | **Timeout Management** | Manual timeout logic | Built-in timeout handling |
@@ -105,7 +105,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 | **Resource Management** | Manual thread management | Automatic resource management |
 | **Error Handling** | Custom retry logic | Built-in retry mechanisms |
 
-**Recommendation: ✅ Use Apache Flink 2.0 AsyncFunction**
+**Recommendation: ✅ Use Flink.Net AsyncFunction**
 
 **Why:**
 - **Proven Implementation**: Battle-tested in production environments
@@ -115,7 +115,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Stage 5: Data Output
 
-| Aspect | Custom Final Sink | Apache Flink 2.0 Sinks |
+| Aspect | Custom Final Sink | Flink.Net Sinks |
 |--------|------------------|-------------------------|
 | **Exactly-Once Guarantees** | Manual implementation | Built-in exactly-once |
 | **Connector Ecosystem** | Custom connectors | Rich connector ecosystem |
@@ -124,7 +124,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 | **Monitoring** | Custom metrics | Built-in metrics |
 | **Error Handling** | Manual retry/DLQ | Built-in retry/DLQ support |
 
-**Recommendation: ✅ Use Apache Flink 2.0 Sinks**
+**Recommendation: ✅ Use Flink.Net Sinks**
 
 **Why:**
 - **Exactly-Once Semantics**: Built-in support for transactional sinks
@@ -139,12 +139,12 @@ Sink (KafkaSink/JdbcSink/FileSink)
 | Pipeline Type | Messages/Second | CPU Usage | Memory Usage | Latency (p99) |
 |--------------|----------------|-----------|--------------|---------------|
 | Custom Pipeline | 50,000 | 80% | 2GB | 500ms |
-| Apache Flink 2.0 | 500,000 | 60% | 1.5GB | 50ms |
+| Flink.Net | 500,000 | 60% | 1.5GB | 50ms |
 | **Improvement** | **10x** | **25% better** | **25% better** | **10x better** |
 
 ### Resource Efficiency
 
-| Metric | Custom Pipeline | Apache Flink 2.0 | Improvement |
+| Metric | Custom Pipeline | Flink.Net | Improvement |
 |--------|----------------|-------------------|-------------|
 | **Serialization Overhead** | 5 serialize/deserialize per record | 1 serialize/deserialize per record | 80% reduction |
 | **Network Hops** | 5 network hops | 1 network hop | 80% reduction |
@@ -153,7 +153,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ## Fault Tolerance Comparison
 
-| Feature | Custom Pipeline | Apache Flink 2.0 |
+| Feature | Custom Pipeline | Flink.Net |
 |---------|----------------|-------------------|
 | **Exactly-Once Semantics** | Manual implementation | Built-in |
 | **State Recovery** | Custom checkpointing | Automatic checkpointing |
@@ -165,7 +165,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Development Complexity
 
-| Aspect | Custom Pipeline | Apache Flink 2.0 |
+| Aspect | Custom Pipeline | Flink.Net |
 |--------|----------------|-------------------|
 | **Lines of Code** | ~5,000 LOC | ~500 LOC |
 | **Testing Complexity** | High (integration tests) | Low (unit tests) |
@@ -174,7 +174,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Maintenance Complexity
 
-| Aspect | Custom Pipeline | Apache Flink 2.0 |
+| Aspect | Custom Pipeline | Flink.Net |
 |--------|----------------|-------------------|
 | **Bug Fixes** | Custom implementation fixes | Upstream Flink fixes |
 | **Performance Tuning** | Manual optimization | Built-in optimizations |
@@ -185,11 +185,11 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### Phase 1: Assessment (Week 1)
 - ✅ **Completed**: Analyzed current custom pipeline
-- ✅ **Completed**: Identified Apache Flink 2.0 equivalents
+- ✅ **Completed**: Identified Flink.Net equivalents
 - ✅ **Completed**: Created comparison documentation
 
 ### Phase 2: Standard Implementation (Week 2)
-- ✅ **Completed**: Implemented Apache Flink 2.0 standard reliability test
+- ✅ **Completed**: Implemented Flink.Net standard reliability test
 - ✅ **Completed**: Created performance benchmark comparisons
 - 🔄 **In Progress**: Update CI/CD pipeline to run both tests
 
@@ -199,7 +199,7 @@ Sink (KafkaSink/JdbcSink/FileSink)
 - 📋 **Planned**: Migrate production traffic gradually
 
 ### Phase 4: Optimization (Weeks 5-6)
-- 📋 **Planned**: Fine-tune Apache Flink 2.0 configuration
+- 📋 **Planned**: Fine-tune Flink.Net configuration
 - 📋 **Planned**: Optimize resource allocation and scaling policies
 - 📋 **Planned**: Complete deprecation of custom pipeline
 
@@ -207,14 +207,14 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ### ✅ Immediate Actions (Next Sprint)
 
-1. **Adopt Apache Flink 2.0 Standard Pipeline** for all new development
+1. **Adopt Flink.Net Standard Pipeline** for all new development
 2. **Update Documentation** to reference standard patterns
 3. **Run Standard Reliability Tests** in CI/CD pipeline
-4. **Train Development Team** on Apache Flink 2.0 patterns
+4. **Train Development Team** on Flink.Net patterns
 
 ### 🔄 Medium-term Actions (Next Quarter)
 
-1. **Migrate Existing Pipelines** to Apache Flink 2.0 standard
+1. **Migrate Existing Pipelines** to Flink.Net standard
 2. **Deprecate Custom Pipeline Components** gradually
 3. **Implement Advanced Features** (windowing, complex event processing)
 4. **Optimize Performance** based on production metrics
@@ -245,11 +245,11 @@ Sink (KafkaSink/JdbcSink/FileSink)
 
 ## Conclusion
 
-The Apache Flink 2.0 standard pipeline approach provides significant advantages over the custom pipeline in terms of:
+The Flink.Net standard pipeline approach provides significant advantages over the custom pipeline in terms of:
 
 - **Performance**: 10x better throughput and latency
 - **Reliability**: Built-in fault tolerance and exactly-once semantics
 - **Maintainability**: Standard patterns and reduced complexity
 - **Cost Efficiency**: Better resource utilization and lower operational overhead
 
-**Recommendation**: Migrate to Apache Flink 2.0 standard pipeline patterns immediately for all new development, with a phased migration plan for existing systems.
+**Recommendation**: Migrate to Flink.Net standard pipeline patterns immediately for all new development, with a phased migration plan for existing systems.
