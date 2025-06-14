@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace FlinkDotNet.Common.Constants;
 
 /// <summary>
@@ -98,12 +100,16 @@ public static class ServiceUris
         /// JobManager gRPC address (insecure HTTP - use only for local development)
         /// For production, use Secure.JobManagerGrpcHttps instead.
         /// </summary>
+        [SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", 
+            Justification = "Intentionally insecure HTTP for local development - production code should use Secure.JobManagerGrpcHttps")]
         public static string JobManagerGrpcHttp => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
 
         /// <summary>
         /// JobManager HTTP API address (insecure HTTP - use only for local development)
         /// For production, use Secure.JobManagerHttpsApi instead.
         /// </summary>
+        [SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", 
+            Justification = "Intentionally insecure HTTP for local development - production code should use Secure.JobManagerHttpsApi")]
         public static string JobManagerHttpApi => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
 
         /// <summary>
@@ -112,6 +118,8 @@ public static class ServiceUris
         /// </summary>
         /// <param name="port">Custom port number</param>
         /// <returns>TaskManager gRPC URI</returns>
+        [SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", 
+            Justification = "Intentionally insecure HTTP for local development - production code should use Secure.TaskManagerGrpcHttps")]
         public static string TaskManagerGrpcHttp(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
     }
 

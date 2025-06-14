@@ -1,6 +1,8 @@
 // Copyright (c) Geta Digital. All rights reserved.
 // Licensed under Apache-2.0. See the LICENSE file in the project root for more information
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace FlinkDotNet.Core.Abstractions.Windowing
 {
     /// <summary>
@@ -11,6 +13,8 @@ namespace FlinkDotNet.Core.Abstractions.Windowing
     /// to provide common Equals/GetHashCode implementations which are essential
     /// for window objects used as keys in internal state management.
     /// </summary>
+    [SuppressMessage("Design", "S1694:Convert this 'abstract' class to an interface", 
+        Justification = "Abstract class is required to provide common Equals/GetHashCode implementations essential for window objects used as keys in internal state management")]
     public abstract class Window
     {
         /// <summary>
