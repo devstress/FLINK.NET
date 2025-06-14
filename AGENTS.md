@@ -78,7 +78,7 @@ dotnet run --project FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 - Async/await patterns for all I/O operations
 
 ### State Management
-- Implements FlinkDotnet's state semantics
+- Implements Apache Flink like's state semantics
 - IValueState, IListState, IMapState interfaces
 - StateDescriptor pattern for state registration
 - Checkpoint barriers for fault tolerance
