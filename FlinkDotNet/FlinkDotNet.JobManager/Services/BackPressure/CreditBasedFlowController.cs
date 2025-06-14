@@ -133,6 +133,36 @@ public class OperatorCredit
     public string OperatorId { get; }
     public int AvailableCredits => _availableCredits;
     public int TotalBufferSize => _config.MaxBufferSize;
+    public long TotalRequestedCredits 
+    { 
+        get 
+        { 
+            lock (_lock) 
+            { 
+                return _totalRequestedCredits; 
+            } 
+        } 
+    }
+    public long TotalGrantedCredits 
+    { 
+        get 
+        { 
+            lock (_lock) 
+            { 
+                return _totalGrantedCredits; 
+            } 
+        } 
+    }
+    public DateTime LastActivity 
+    { 
+        get 
+        { 
+            lock (_lock) 
+            { 
+                return _lastActivity; 
+            } 
+        } 
+    }
 
     public OperatorCredit(string operatorId, CreditFlowConfiguration config)
     {

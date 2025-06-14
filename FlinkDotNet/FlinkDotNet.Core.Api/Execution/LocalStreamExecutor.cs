@@ -498,68 +498,82 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             var processed = 0;
             var noDataCount = 0;
-            
-            // Increased timeout for high-volume processing - 2 hours instead of 30 minutes
             const int maxNoDataIterations = 1440000; // Exit after ~2 hours of no data (1440000 * 5ms)
             
             Console.WriteLine($"[LocalStreamExecutor] Operator starting data processing loop...");
             
             while (!cancellationToken.IsCancellationRequested)
             {
-                // Monitor back pressure for both input and output queues
-                var inputQueueSize = inputChannels.Sum(c => c.Count);
-                var outputQueueSize = outputChannels.Sum(c => c.Count);
-                var maxInputCapacity = inputChannels.Count * 1000;
-                var maxOutputCapacity = outputChannels.Count * 1000;
-                
-                _backPressureDetector.RecordQueueSize($"{operatorId}-input", inputQueueSize, maxInputCapacity);
-                _backPressureDetector.RecordQueueSize($"{operatorId}-output", outputQueueSize, maxOutputCapacity);
-                
-                // Apply throttling if back pressure is detected
-                if (_backPressureDetector.ShouldThrottle(operatorId))
-                {
-                    var throttleDelay = _backPressureDetector.GetThrottleDelayMs();
-                    if (throttleDelay > 0)
-                    {
-                        _logger?.LogDebug("Applying back pressure throttling for operator {OperatorId}: {DelayMs}ms", operatorId, throttleDelay);
-                        Thread.Sleep(Math.Min(throttleDelay, 50)); // Cap at 50ms for operators
-                    }
-                }
+                MonitorAndApplyBackPressure(inputChannels, outputChannels, operatorId);
                 
                 var hasData = ProcessOperatorChannels(inputChannels, outputChannels, operatorInstance, mapMethod, ref processed, operatorId);
                 
                 if (!hasData)
                 {
-                    noDataCount++;
-                    
-                    // Enhanced logging for debugging timeout issues
-                    if (noDataCount % 60000 == 0) // Every 5 minutes
+                    if (await HandleNoDataScenario(inputChannels, outputChannels, operatorId, processed, noDataCount, maxNoDataIterations, cancellationToken))
                     {
-                        Console.WriteLine($"[LocalStreamExecutor] Operator waiting for data: {noDataCount * 5}ms. Processed: {processed}, Input queue: {inputQueueSize}, Output queue: {outputQueueSize}, Pressure: {_backPressureDetector.GetOverallPressureLevel():F2}");
-                    }
-                    
-                    if (noDataCount >= maxNoDataIterations)
-                    {
-                        Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 2 hours)");
                         break;
                     }
-                    await Task.Delay(5, cancellationToken); // Reduced delay for better responsiveness
+                    noDataCount++;
                 }
                 else
                 {
-                    noDataCount = 0; // Reset counter when data is found
-                    
-                    // Enhanced progress logging for debugging
-                    if (processed % 10000 == 0 && processed > 0)
-                    {
-                        var inputQueueSizeForLogging = inputChannels.Sum(c => c.Count);
-                        var outputQueueSizeForLogging = outputChannels.Sum(c => c.Count);
-                        Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records, input queue: {inputQueueSizeForLogging}, output queue: {outputQueueSizeForLogging}");
-                    }
+                    HandleDataProcessingProgress(inputChannels, outputChannels, processed);
+                    noDataCount = 0;
                 }
             }
             
             Console.WriteLine($"[LocalStreamExecutor] Operator completed processing {processed} total records");
+        }
+
+        private void MonitorAndApplyBackPressure(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, string operatorId)
+        {
+            var inputQueueSize = inputChannels.Sum(c => c.Count);
+            var outputQueueSize = outputChannels.Sum(c => c.Count);
+            var maxInputCapacity = inputChannels.Count * 1000;
+            var maxOutputCapacity = outputChannels.Count * 1000;
+            
+            _backPressureDetector.RecordQueueSize($"{operatorId}-input", inputQueueSize, maxInputCapacity);
+            _backPressureDetector.RecordQueueSize($"{operatorId}-output", outputQueueSize, maxOutputCapacity);
+            
+            if (_backPressureDetector.ShouldThrottle(operatorId))
+            {
+                var throttleDelay = _backPressureDetector.GetThrottleDelayMs();
+                if (throttleDelay > 0)
+                {
+                    _logger?.LogDebug("Applying back pressure throttling for operator {OperatorId}: {DelayMs}ms", operatorId, throttleDelay);
+                    Thread.Sleep(Math.Min(throttleDelay, 50)); // Cap at 50ms for operators
+                }
+            }
+        }
+
+        private async Task<bool> HandleNoDataScenario(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, string operatorId, int processed, int noDataCount, int maxNoDataIterations, CancellationToken cancellationToken)
+        {
+            if (noDataCount % 60000 == 0) // Every 5 minutes
+            {
+                var inputQueueSize = inputChannels.Sum(c => c.Count);
+                var outputQueueSize = outputChannels.Sum(c => c.Count);
+                Console.WriteLine($"[LocalStreamExecutor] Operator waiting for data: {noDataCount * 5}ms. Processed: {processed}, Input queue: {inputQueueSize}, Output queue: {outputQueueSize}, Pressure: {_backPressureDetector.GetOverallPressureLevel():F2}");
+            }
+            
+            if (noDataCount >= maxNoDataIterations)
+            {
+                Console.WriteLine($"[LocalStreamExecutor] Operator stopping after processing {processed} records (no more data available after 2 hours)");
+                return true;
+            }
+            
+            await Task.Delay(5, cancellationToken);
+            return false;
+        }
+
+        private static void HandleDataProcessingProgress(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, int processed)
+        {
+            if (processed % 10000 == 0 && processed > 0)
+            {
+                var inputQueueSizeForLogging = inputChannels.Sum(c => c.Count);
+                var outputQueueSizeForLogging = outputChannels.Sum(c => c.Count);
+                Console.WriteLine($"[LocalStreamExecutor] Operator processed {processed} records, input queue: {inputQueueSizeForLogging}, output queue: {outputQueueSizeForLogging}");
+            }
         }
 
         private static bool ProcessOperatorChannels(List<ConcurrentQueue<object>> inputChannels, List<ConcurrentQueue<object>> outputChannels, object operatorInstance, MethodInfo mapMethod, ref int processed, string operatorId)

@@ -2,6 +2,7 @@ using FlinkDotNet.Core.Api.BackPressure;
 using FlinkDotNet.Core.Api.Pipeline;
 using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Context;
+using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Serializers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;

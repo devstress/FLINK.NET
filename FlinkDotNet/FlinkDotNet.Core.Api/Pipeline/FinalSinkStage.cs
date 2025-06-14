@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Context;
+using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.Core.Api.BackPressure;
 using Microsoft.Extensions.Logging;
 
@@ -16,7 +17,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
     private readonly PipelineBackPressureController _backPressureController;
     private readonly IFinalDestination<T> _destination;
     private readonly FinalSinkConfiguration _config;
-    private readonly ConcurrentDictionary<string, PendingAcknowledgment> _pendingAcks;
+    private readonly ConcurrentDictionary<string, PendingAcknowledgment<T>> _pendingAcks;
     private readonly SemaphoreSlim _acknowledgmentSemaphore;
     private readonly Timer _metricsTimer;
     private readonly Timer _acknowledgmentTimer;
@@ -37,7 +38,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
         _destination = destination ?? throw new ArgumentNullException(nameof(destination));
         _config = config ?? new FinalSinkConfiguration();
         
-        _pendingAcks = new ConcurrentDictionary<string, PendingAcknowledgment>();
+        _pendingAcks = new ConcurrentDictionary<string, PendingAcknowledgment<T>>();
         _acknowledgmentSemaphore = new SemaphoreSlim(_config.MaxPendingAcknowledgments, _config.MaxPendingAcknowledgments);
         
         // Update metrics every 2 seconds
@@ -206,7 +207,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
     /// </summary>
     private void TrackPendingAcknowledgment(string acknowledgmentId, EgressResult<T> result, DateTime startTime)
     {
-        var pendingAck = new PendingAcknowledgment
+        var pendingAck = new PendingAcknowledgment<T>
         {
             AcknowledgmentId = acknowledgmentId,
             Record = result,
@@ -270,7 +271,7 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
     /// <summary>
     /// Handle failed acknowledgment
     /// </summary>
-    private void HandleFailedAcknowledgment(PendingAcknowledgment pendingAck, string? error)
+    private void HandleFailedAcknowledgment(PendingAcknowledgment<T> pendingAck, string? error)
     {
         // Could implement retry logic, DLQ, etc.
         _logger.LogError("Acknowledgment failed for record, implementing recovery strategy: {Error}", error);
@@ -408,10 +409,10 @@ public enum DestinationType
 /// <summary>
 /// Represents a pending acknowledgment
 /// </summary>
-public class PendingAcknowledgment
+public class PendingAcknowledgment<T>
 {
     public string AcknowledgmentId { get; set; } = string.Empty;
-    public EgressResult<object> Record { get; set; } = null!;
+    public EgressResult<T> Record { get; set; } = null!;
     public DateTime StartTime { get; set; }
     public DateTime TimeoutAt { get; set; }
 }
