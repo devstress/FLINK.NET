@@ -45,12 +45,8 @@ ScaffoldingReadMe.txt
 CodeCoverage/
 
 # Build and test output files
-*_output.txt
 *_warnings.txt
 *build*.txt
-*test*.txt
-stress_test_passed_output.txt
-reliability_test_passed_output.txt
 all_warnings.txt
 
 # Temporary files
