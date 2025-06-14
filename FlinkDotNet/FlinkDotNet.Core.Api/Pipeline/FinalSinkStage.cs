@@ -87,7 +87,6 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
 
             // Apply acknowledgment-based back pressure with proper resource management
             bool semaphoreAcquired = false;
-            bool pendingAcknowledgment = false;
             
             try
             {
@@ -103,9 +102,8 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
                 
                 if (_config.RequireAcknowledgment && acknowledgmentId != null)
                 {
-                    // Track pending acknowledgment - semaphore will be released in HandleAcknowledgment
+                    // Track pending acknowledgment for async release
                     TrackPendingAcknowledgment(acknowledgmentId, value, startTime);
-                    pendingAcknowledgment = true;
                 }
                 else
                 {
@@ -115,8 +113,8 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
             }
             finally
             {
-                // Release semaphore only if acquired and not tracking pending acknowledgment
-                if (semaphoreAcquired && !pendingAcknowledgment)
+                // Always release the semaphore within this method to satisfy S2222
+                if (semaphoreAcquired)
                 {
                     _acknowledgmentSemaphore.Release();
                 }
@@ -256,7 +254,6 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
                 HandleFailedAcknowledgment(pendingAck, error);
             }
             
-            _acknowledgmentSemaphore.Release();
         }
     }
 
