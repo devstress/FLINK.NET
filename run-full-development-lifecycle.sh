@@ -16,6 +16,25 @@
 
 set -e  # Exit on error
 
+# Check if running with appropriate privileges (sudo or root)
+check_admin_privileges() {
+    if [[ $EUID -ne 0 ]] && ! sudo -n true 2>/dev/null; then
+        echo "❌ This script requires administrator privileges."
+        echo "   Please run with 'sudo' or as root user:"
+        echo "   sudo ./run-full-development-lifecycle.sh"
+        echo ""
+        echo "   Administrator privileges are required for:"
+        echo "   - Installing missing prerequisites (.NET, Java, Docker, PowerShell)"
+        echo "   - Docker container operations"
+        echo "   - System-wide tool installations"
+        exit 1
+    fi
+    echo "✅ Administrator privileges confirmed"
+}
+
+# Check admin privileges early
+check_admin_privileges
+
 # Initialize variables
 SKIP_SONAR=0
 SKIP_STRESS=0
@@ -129,6 +148,26 @@ check_docker_running() {
         return 0
     else
         echo "❌ Docker is not running or not accessible"
+        
+        # Try to start Docker Desktop if it exists
+        if command -v "Docker Desktop" &> /dev/null; then
+            echo "   Attempting to start Docker Desktop..."
+            open -a "Docker Desktop" 2>/dev/null || true
+            
+            # Wait for Docker to start (max 60 seconds)
+            local wait_count=0
+            while [[ $wait_count -lt 60 ]]; do
+                sleep 5
+                wait_count=$((wait_count + 5))
+                if docker info &> /dev/null; then
+                    echo "✅ Docker Desktop started successfully"
+                    return 0
+                fi
+            done
+            echo "❌ Docker Desktop failed to start automatically"
+        fi
+        
+        echo "   Please start Docker Desktop manually before running this script"
         return 1
     fi
 }
@@ -136,40 +175,136 @@ check_docker_running() {
 # Check prerequisites
 echo "=== Checking Prerequisites ==="
 
-check_command dotnet ".NET SDK" "https://dotnet.microsoft.com/download"
-if [[ $? -ne 0 ]]; then
-    exit 1
-fi
-
-if [[ $SKIP_SONAR -eq 0 ]]; then
-    if ! check_command java "Java" "https://adoptopenjdk.net/"; then
-        echo "WARNING: Java not found. SonarCloud analysis will be skipped."
-        SKIP_SONAR=1
+# Parallel prerequisite checking for improved speed
+check_prerequisites_parallel() {
+    local dotnet_result=""
+    local java_result=""
+    local docker_result=""
+    local pwsh_result=""
+    
+    # Create temporary files for parallel results
+    local temp_dir="/tmp/prereq_check_$$"
+    mkdir -p "$temp_dir"
+    
+    # Start parallel checks
+    echo "Running prerequisite checks in parallel..."
+    
+    # Check .NET SDK
+    (
+        if check_command dotnet ".NET SDK" "https://dotnet.microsoft.com/download" >/dev/null 2>&1; then
+            echo "success" > "$temp_dir/dotnet"
+        else
+            echo "fail" > "$temp_dir/dotnet"
+        fi
+    ) &
+    local dotnet_pid=$!
+    
+    # Check Java (if needed)
+    if [[ $SKIP_SONAR -eq 0 ]]; then
+        (
+            if check_command java "Java" "https://adoptopenjdk.net/" >/dev/null 2>&1; then
+                echo "success" > "$temp_dir/java"
+            else
+                echo "fail" > "$temp_dir/java"
+            fi
+        ) &
+        local java_pid=$!
     fi
-fi
-
-if [[ $SKIP_STRESS -eq 0 ]]; then
-    if ! check_command docker "Docker" "https://docker.com/" || ! check_docker_running; then
-        echo "WARNING: Docker not available. Stress tests will be skipped."
-        SKIP_STRESS=1
+    
+    # Check Docker (if needed)
+    if [[ $SKIP_STRESS -eq 0 ]]; then
+        (
+            if check_command docker "Docker" "https://docker.com/" >/dev/null 2>&1; then
+                if check_docker_running >/dev/null 2>&1; then
+                    echo "success" > "$temp_dir/docker"
+                else
+                    echo "fail_start" > "$temp_dir/docker"
+                fi
+            else
+                echo "fail_install" > "$temp_dir/docker"
+            fi
+        ) &
+        local docker_pid=$!
     fi
-fi
+    
+    # Check PowerShell Core
+    (
+        if check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell" >/dev/null 2>&1; then
+            echo "success" > "$temp_dir/pwsh"
+        else
+            echo "fail" > "$temp_dir/pwsh"
+        fi
+    ) &
+    local pwsh_pid=$!
+    
+    # Wait for all parallel checks to complete
+    wait $dotnet_pid
+    [[ $SKIP_SONAR -eq 0 ]] && wait $java_pid
+    [[ $SKIP_STRESS -eq 0 ]] && wait $docker_pid
+    wait $pwsh_pid
+    
+    # Now display results in proper order and handle failures
+    check_command dotnet ".NET SDK" "https://dotnet.microsoft.com/download"
+    if [[ $? -ne 0 ]]; then
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    if [[ $SKIP_SONAR -eq 0 ]]; then
+        if ! check_command java "Java" "https://adoptopenjdk.net/"; then
+            echo "WARNING: Java not found. SonarCloud analysis will be skipped."
+            SKIP_SONAR=1
+        fi
+    fi
+    
+    if [[ $SKIP_STRESS -eq 0 ]]; then
+        local docker_result=$(cat "$temp_dir/docker" 2>/dev/null || echo "fail")
+        if [[ "$docker_result" == "success" ]]; then
+            check_command docker "Docker" "https://docker.com/"
+            check_docker_running
+        elif [[ "$docker_result" == "fail_start" ]]; then
+            check_command docker "Docker" "https://docker.com/"
+            if ! check_docker_running; then
+                echo "WARNING: Docker available but not running. Stress tests will be skipped."
+                SKIP_STRESS=1
+            fi
+        else
+            if ! check_command docker "Docker" "https://docker.com/"; then
+                echo "WARNING: Docker not available. Stress tests will be skipped."
+                SKIP_STRESS=1
+            fi
+        fi
+    fi
+    
+    check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell"
+    if [[ $? -ne 0 ]]; then
+        echo "WARNING: PowerShell Core not found. Please install PowerShell 7+ manually:"
+        echo "   https://github.com/PowerShell/PowerShell/releases"
+        echo "   Some workflows may not function correctly without PowerShell Core."
+        echo ""
+        echo "Continuing without PowerShell Core..."
+    fi
+    
+    # Clean up
+    rm -rf "$temp_dir"
+}
 
-check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell"
-if [[ $? -ne 0 ]]; then
-    exit 1
-fi
+check_prerequisites_parallel
 
 echo "Prerequisites check completed."
 echo ""
 
-# Create output directories for parallel execution
-mkdir -p "$ROOT/workflow-logs"
+# Create output directories for parallel execution in parallel with other setup
+mkdir -p "$ROOT/workflow-logs" &
+mkdir -p "$ROOT/scripts" &
 
 # Set environment variables
 export SIMULATOR_NUM_MESSAGES=${SIMULATOR_NUM_MESSAGES:-1000000}
 export MAX_ALLOWED_TIME_MS=${MAX_ALLOWED_TIME_MS:-60000}
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
+
+# Wait for directory creation to complete
+wait
 
 echo "=== Starting Workflows in Parallel ==="
 echo "Unit Tests: workflow-logs/unit-tests.log"
@@ -183,408 +318,21 @@ echo "Integration Tests: workflow-logs/integration-tests.log"
 echo ""
 
 # Create individual workflow scripts to run
-create_unit_tests_workflow() {
-    cat > "$ROOT/scripts/run-unit-tests-workflow.ps1" << 'EOF'
-#!/usr/bin/env pwsh
-# Unit Tests Workflow - mirrors .github/workflows/unit-tests.yml
 
-Write-Host "=== UNIT TESTS WORKFLOW STARTED ==="
-$startTime = Get-Date
-
-try {
-    # Set up .NET Aspire Workload
-    Write-Host "Installing .NET Aspire Workload..."
-    dotnet workload install aspire
-    if ($LASTEXITCODE -ne 0) { throw "Failed to install Aspire workload" }
-
-    # Restore .NET Workloads for Solutions
-    Write-Host "Restoring workloads for FlinkDotNet.sln..."
-    dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-    if ($LASTEXITCODE -ne 0) { throw "Failed to restore FlinkDotNet workloads" }
-
-    Write-Host "Restoring workloads for FlinkDotNetAspire.sln..."
-    dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-    if ($LASTEXITCODE -ne 0) { throw "Failed to restore FlinkDotNetAspire workloads" }
-
-    Write-Host "Restoring workloads for FlinkDotNet.WebUI.sln..."
-    dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-    if ($LASTEXITCODE -ne 0) { throw "Failed to restore FlinkDotNet.WebUI workloads" }
-
-    # Run tests for FlinkDotNet solution
-    Write-Host "Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection..."
-    Push-Location FlinkDotNet
-    dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
-    if ($LASTEXITCODE -ne 0) { 
-        Pop-Location
-        throw "Tests failed for FlinkDotNet solution" 
-    }
-    Pop-Location
-
-    # Convert coverage to multiple formats
-    Write-Host "Installing ReportGenerator..."
-    dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
-    
-    Write-Host "Converting coverage files to multiple formats..."
-    Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
-        $coberturaFile = $_.FullName
-        $targetDir = $_.DirectoryName
-        Write-Host "Processing coverage file: $coberturaFile"
-        
-        # Convert to OpenCover format for SonarCloud
-        $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
-        Write-Host "Converting to OpenCover format: $openCoverFile"
-        reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
-        
-        # Generate HTML report for debugging
-        $htmlReportDir = Join-Path $targetDir "coverage-html"
-        Write-Host "Generating HTML coverage report: $htmlReportDir"
-        reportgenerator -reports:"$coberturaFile" -targetdir:"$htmlReportDir" -reporttypes:"Html" -verbosity:Info
-    }
-
-    # Build FlinkDotNetAspire solution (no tests)
-    Write-Host "Building FlinkDotNetAspire/FlinkDotNetAspire.sln..."
-    Push-Location FlinkDotNetAspire
-    dotnet build FlinkDotNetAspire.sln --configuration Release
-    if ($LASTEXITCODE -ne 0) { 
-        Pop-Location
-        throw "Build failed for FlinkDotNetAspire solution" 
-    }
-    Pop-Location
-
-    # Build FlinkDotNet.WebUI solution (no tests)
-    Write-Host "Building FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln..."
-    Push-Location FlinkDotNet.WebUI
-    dotnet build FlinkDotNet.WebUI.sln --configuration Release
-    if ($LASTEXITCODE -ne 0) { 
-        Pop-Location
-        throw "Build failed for FlinkDotNet.WebUI solution" 
-    }
-    Pop-Location
-
-    # Verify Test Results
-    Write-Host "Unit tests completed successfully."
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== UNIT TESTS WORKFLOW COMPLETED in $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 0
-
-} catch {
-    Write-Host "❌ Unit Tests Workflow Failed: $_" -ForegroundColor Red
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== UNIT TESTS WORKFLOW FAILED after $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 1
-}
-EOF
-}
-
-create_sonarcloud_workflow() {
-    cat > "$ROOT/scripts/run-sonarcloud-workflow.ps1" << 'EOF'
-#!/usr/bin/env pwsh
-# SonarCloud Workflow - mirrors .github/workflows/sonarcloud.yml
-
-Write-Host "=== SONARCLOUD WORKFLOW STARTED ==="
-$startTime = Get-Date
-
-try {
-    function RunCommandWithWarningCheck($command, $description) {
-        Write-Host "Running $description"
-        $output = & $command 2>&1
-        $output | ForEach-Object { Write-Host $_ }
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[FAIL] $description failed with exit code $LASTEXITCODE"
-            return -1
-        }
-        $warnings = $output | Where-Object { $_ -match "(?i)warning " }
-        if ($warnings.Count -gt 0) {
-            Write-Host "[WARN] Found warning(s) in ${description}:"
-            $warnings | ForEach-Object { Write-Host "  $_" }
-        } else {
-            Write-Host "[OK] $description completed successfully with no warnings."
-        }
-        return $warnings.Count
-    }
-
-    # Install SonarCloud scanner
-    if (-not (Test-Path ".sonar/scanner")) {
-        Write-Host "Installing SonarCloud scanner..."
-        New-Item -Path ".sonar/scanner" -ItemType Directory -Force | Out-Null
-        dotnet tool update dotnet-sonarscanner --tool-path .sonar/scanner
-    }
-
-    # Install .NET Aspire workload
-    Write-Host "Installing .NET Aspire Workload..."
-    dotnet workload install aspire
-
-    # Restore .NET Workloads for Solutions
-    dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-    dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-    dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-
-    # Begin SonarCloud analysis (only if SONAR_TOKEN is available)
-    if ($env:SONAR_TOKEN) {
-        Write-Host "Starting SonarCloud analysis..."
-        $beginCmd = { .\.sonar\scanner\dotnet-sonarscanner begin /k:"devstress_FLINK.NET" /o:"devstress" /d:sonar.token="$env:SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.scanner.skipJreProvisioning=true /d:sonar.scanner.scanAll=false /d:sonar.coverage.exclusions="**/Program.cs,**/Migrations/**" /d:sonar.cs.opencover.reportsPaths="FlinkDotNet/TestResults/**/*.opencover.xml" }
-        $exitBegin = RunCommandWithWarningCheck $beginCmd "Sonar begin"
-        if ($exitBegin -lt 0) { throw "SonarCloud begin failed" }
-    } else {
-        Write-Host "SONAR_TOKEN not set - skipping SonarCloud analysis"
-    }
-
-    # Build all solutions
-    $exit1 = RunCommandWithWarningCheck { dotnet build FlinkDotNet/FlinkDotNet.sln } "Build FlinkDotNet"
-    $exit2 = RunCommandWithWarningCheck { dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln } "Build FlinkDotNetAspire"
-    $exit3 = RunCommandWithWarningCheck { dotnet build FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln } "Build FlinkDotNet.WebUI"
-
-    $totalWarnings = [Math]::Max(0, $exit1) + [Math]::Max(0, $exit2) + [Math]::Max(0, $exit3)
-    $buildFailed = ($exit1 -lt 0) -or ($exit2 -lt 0) -or ($exit3 -lt 0)
-
-    if ($buildFailed) {
-        throw "One or more builds failed"
-    }
-
-    if ($totalWarnings -gt 0) {
-        throw "Found $totalWarnings warning(s) - builds should have no warnings"
-    }
-
-    # Check for test artifacts and run tests if needed
-    $artifactsAvailable = $false
-    if (Test-Path "./FlinkDotNet/TestResults") {
-        $openCoverFiles = Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "*.opencover.xml" -ErrorAction SilentlyContinue
-        if ($openCoverFiles.Count -gt 0) {
-            Write-Host "Found existing test artifacts from unit-tests workflow"
-            $artifactsAvailable = $true
-        }
-    }
-    
-    if (-not $artifactsAvailable) {
-        Write-Host "No test artifacts available - running tests locally for coverage..."
-        Push-Location FlinkDotNet
-        dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
-        Pop-Location
-        
-        # Convert coverage
-        dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.2.0 2>$null
-        Get-ChildItem -Path "./FlinkDotNet/TestResults" -Recurse -Filter "coverage.cobertura.xml" | ForEach-Object {
-            $coberturaFile = $_.FullName
-            $targetDir = $_.DirectoryName
-            $openCoverFile = Join-Path $targetDir "coverage.opencover.xml"
-            reportgenerator -reports:"$coberturaFile" -targetdir:"$targetDir" -reporttypes:"OpenCover" -verbosity:Info
-        }
-    }
-
-    # Submit to SonarCloud
-    if ($env:SONAR_TOKEN) {
-        Write-Host "Submitting to SonarCloud..."
-        $endCmd = { .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN" }
-        $exitEnd = RunCommandWithWarningCheck $endCmd "Sonar end with coverage"
-        if ($exitEnd -ne 0) { throw "SonarCloud submission failed" }
-    }
-
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== SONARCLOUD WORKFLOW COMPLETED in $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 0
-
-} catch {
-    Write-Host "❌ SonarCloud Workflow Failed: $_" -ForegroundColor Red
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== SONARCLOUD WORKFLOW FAILED after $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 1
-}
-EOF
-}
-
-create_stress_tests_workflow() {
-    cat > "$ROOT/scripts/run-stress-tests-workflow.ps1" << 'EOF'
-#!/usr/bin/env pwsh
-# Stress Tests Workflow - mirrors .github/workflows/stress-tests.yml
-
-Write-Host "=== STRESS TESTS WORKFLOW STARTED ==="
-$startTime = Get-Date
-
-try {
-    # Set environment variables
-    $env:SIMULATOR_NUM_MESSAGES = if ($env:SIMULATOR_NUM_MESSAGES) { $env:SIMULATOR_NUM_MESSAGES } else { "1000000" }
-    $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
-
-    Write-Host "Stress Tests Configuration:"
-    Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
-    Write-Host "  MAX_ALLOWED_TIME_MS: $(if ($env:MAX_ALLOWED_TIME_MS) { $env:MAX_ALLOWED_TIME_MS } else { '60000' })"
-
-    # Install .NET Aspire Workload
-    Write-Host "Installing .NET Aspire Workload..."
-    dotnet workload install aspire
-
-    # Restore .NET Workloads
-    dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-    dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-    dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-
-    # Build Solutions
-    Write-Host "Building FlinkDotNet solution..."
-    Push-Location FlinkDotNet
-    dotnet build FlinkDotNet.sln --configuration Release
-    if ($LASTEXITCODE -ne 0) { 
-        Pop-Location
-        throw "Build failed for FlinkDotNet solution" 
-    }
-    Pop-Location
-    
-    Write-Host "Building FlinkDotNetAspire solution..."
-    Push-Location FlinkDotNetAspire
-    dotnet build FlinkDotNetAspire.sln --configuration Release
-    if ($LASTEXITCODE -ne 0) { 
-        Pop-Location
-        throw "Build failed for FlinkDotNetAspire solution" 
-    }
-    Pop-Location
-
-    # Start Aspire AppHost
-    Write-Host "Starting Aspire AppHost..."
-    $processArgs = @(
-        'run',
-        '--no-build',
-        '--configuration', 'Release',
-        '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
-    )
-    
-    $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput 'apphost.out.log' -RedirectStandardError 'apphost.err.log' -NoNewWindow -PassThru
-    $proc.Id | Out-File apphost.pid -Encoding utf8
-    Write-Host "Started AppHost with PID: $($proc.Id)"
-    
-    # Wait for container initialization
-    Write-Host "Waiting 60 seconds for Redis/Kafka container initialization..."
-    Start-Sleep -Seconds 60
-
-    # Discover Aspire Container Ports
-    Write-Host "Discovering actual Aspire container ports..."
-    & ./scripts/discover-aspire-ports.ps1
-
-    # Health Check Loop
-    Write-Host "Starting health checks..."
-    $maxAttempts = 5
-    $delaySeconds = 10
-    $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
-
-    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        Write-Host "Health check attempt $attempt/$maxAttempts"
-        & dotnet $verifierDll --health-check
-        $healthExitCode = $LASTEXITCODE
-        
-        if ($healthExitCode -eq 0) {
-            Write-Host "✅ Health check PASSED on attempt $attempt" -ForegroundColor Green
-            break
-        }
-        
-        Write-Host "❌ Health check FAILED on attempt $attempt" -ForegroundColor Red
-        
-        if ($attempt -lt $maxAttempts) {
-            Write-Host "Waiting $delaySeconds seconds before retry..."
-            Start-Sleep -Seconds $delaySeconds
-        } else {
-            throw "Max health check attempts ($maxAttempts) reached. Health checks failed."
-        }
-    }
-
-    # Run Verification Tests
-    Write-Host "Running verification tests..."
-    & dotnet $verifierDll
-    if ($LASTEXITCODE -ne 0) {
-        throw "Verification tests failed"
-    }
-
-    Write-Host "Verification tests PASSED."
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== STRESS TESTS WORKFLOW COMPLETED in $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 0
-
-} catch {
-    Write-Host "❌ Stress Tests Workflow Failed: $_" -ForegroundColor Red
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== STRESS TESTS WORKFLOW FAILED after $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 1
-} finally {
-    # Stop AppHost
-    Write-Host "Stopping AppHost..."
-    if (Test-Path apphost.pid) {
-        $apphostPid = Get-Content apphost.pid
-        $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
-        if ($process) {
-            Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
-        }
-    }
-}
-EOF
-}
-
-create_integration_tests_workflow() {
-    cat > "$ROOT/scripts/run-integration-tests-workflow.ps1" << 'EOF'
-#!/usr/bin/env pwsh
-# Integration Tests Workflow - mirrors .github/workflows/integration-tests.yml
-
-Write-Host "=== INTEGRATION TESTS WORKFLOW STARTED ==="
-$startTime = Get-Date
-
-try {
-    $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
-
-    # Install .NET Aspire Workload
-    Write-Host "Installing .NET Aspire Workload..."
-    dotnet workload install aspire
-
-    # Restore .NET Workloads
-    dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-    dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-
-    # Build Solutions
-    Write-Host "Building FlinkDotNet solution..."
-    dotnet build FlinkDotNet/FlinkDotNet.sln --configuration Release
-    if ($LASTEXITCODE -ne 0) { throw "Build failed for FlinkDotNet solution" }
-    
-    Write-Host "Building FlinkDotNetAspire solution..."
-    dotnet build FlinkDotNetAspire/FlinkDotNetAspire.sln --configuration Release
-    if ($LASTEXITCODE -ne 0) { throw "Build failed for FlinkDotNetAspire solution" }
-
-    # Run Integration Tests
-    Write-Host "Running Aspire integration tests..."
-    dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/FlinkDotNetAspire.IntegrationTests.csproj --configuration Release --logger trx --collect:"XPlat Code Coverage"
-    if ($LASTEXITCODE -ne 0) { throw "Integration tests failed" }
-
-    Write-Host "Integration tests completed successfully."
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== INTEGRATION TESTS WORKFLOW COMPLETED in $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 0
-
-} catch {
-    Write-Host "❌ Integration Tests Workflow Failed: $_" -ForegroundColor Red
-    $duration = (Get-Date) - $startTime
-    Write-Host "=== INTEGRATION TESTS WORKFLOW FAILED after $($duration.TotalMinutes.ToString('F1')) minutes ==="
-    exit 1
-}
-EOF
-}
-
-# Create individual workflow scripts
-create_unit_tests_workflow
-create_sonarcloud_workflow
-if [[ $SKIP_STRESS -eq 0 ]]; then
-    create_stress_tests_workflow
-fi
-create_integration_tests_workflow
-
-# Start workflows in parallel
+# Start workflows in parallel using existing local scripts
 declare -a PIDS=()
 declare -a WORKFLOW_NAMES=()
 
 # Start Unit Tests
 echo "Starting Unit Tests workflow..."
-pwsh -File "$ROOT/scripts/run-unit-tests-workflow.ps1" > "$ROOT/workflow-logs/unit-tests.log" 2>&1 &
+pwsh -File "$ROOT/scripts/run-local-unit-tests.ps1" > "$ROOT/workflow-logs/unit-tests.log" 2>&1 &
 PIDS+=($!)
 WORKFLOW_NAMES+=("Unit Tests")
 
 # Start SonarCloud (if not skipped)
 if [[ $SKIP_SONAR -eq 0 ]]; then
     echo "Starting SonarCloud workflow..."
-    pwsh -File "$ROOT/scripts/run-sonarcloud-workflow.ps1" > "$ROOT/workflow-logs/sonarcloud.log" 2>&1 &
+    pwsh -File "$ROOT/scripts/run-local-sonarcloud.ps1" > "$ROOT/workflow-logs/sonarcloud.log" 2>&1 &
     PIDS+=($!)
     WORKFLOW_NAMES+=("SonarCloud")
 fi
@@ -592,14 +340,14 @@ fi
 # Start Stress Tests (if not skipped)
 if [[ $SKIP_STRESS -eq 0 ]]; then
     echo "Starting Stress Tests workflow..."
-    pwsh -File "$ROOT/scripts/run-stress-tests-workflow.ps1" > "$ROOT/workflow-logs/stress-tests.log" 2>&1 &
+    pwsh -File "$ROOT/scripts/run-local-stress-tests.ps1" > "$ROOT/workflow-logs/stress-tests.log" 2>&1 &
     PIDS+=($!)
     WORKFLOW_NAMES+=("Stress Tests")
 fi
 
 # Start Integration Tests
 echo "Starting Integration Tests workflow..."
-pwsh -File "$ROOT/scripts/run-integration-tests-workflow.ps1" > "$ROOT/workflow-logs/integration-tests.log" 2>&1 &
+pwsh -File "$ROOT/scripts/run-integration-tests-in-linux.sh" > "$ROOT/workflow-logs/integration-tests.log" 2>&1 &
 PIDS+=($!)
 WORKFLOW_NAMES+=("Integration Tests")
 
@@ -640,15 +388,11 @@ while [[ ${#PIDS[@]} -gt 0 ]]; do
     done
     
     if [[ ${#PIDS[@]} -gt 0 ]]; then
-        sleep 2
+        sleep 1  # Reduced from 2 seconds to 1 second for faster monitoring
     fi
 done
 
-# Clean up temporary workflow scripts
-rm -f "$ROOT/scripts/run-unit-tests-workflow.ps1"
-rm -f "$ROOT/scripts/run-sonarcloud-workflow.ps1"
-rm -f "$ROOT/scripts/run-stress-tests-workflow.ps1"  
-rm -f "$ROOT/scripts/run-integration-tests-workflow.ps1"
+# All workflows completed, no cleanup needed for local scripts
 
 # Report final results
 echo ""
