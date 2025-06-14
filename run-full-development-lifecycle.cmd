@@ -179,7 +179,7 @@ if %SKIP_SONAR%==0 (
     if not exist test-logs\sonarcloud.done set ALL_DONE=0
 )
 
-if %ALL_DONE%==0 (
+if !ALL_DONE!==0 (
     timeout /t 5 /nobreak >nul
     goto wait_loop
 )
@@ -211,7 +211,7 @@ if errorlevel 1 (
     exit /b 1
 )
 for /f "tokens=*" %%i in ('dotnet --version 2^>nul') do set DOTNET_VERSION=%%i
-echo [OK] .NET SDK: %DOTNET_VERSION%
+echo [OK] .NET SDK: !DOTNET_VERSION!
 exit /b 0
 
 :check_java
@@ -221,7 +221,7 @@ for /f "tokens=3" %%i in ('java -version 2^>^&1 ^| findstr "version"') do (
     set JAVA_VERSION=%%i
     set JAVA_VERSION=!JAVA_VERSION:"=!
 )
-echo [OK] Java: %JAVA_VERSION%
+echo [OK] Java: !JAVA_VERSION!
 exit /b 0
 
 :check_docker
@@ -232,7 +232,7 @@ if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
     if errorlevel 1 (
         echo [INFO] Docker Desktop not running. Attempting to start...
         start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
-        echo [INFO] Waiting for Docker Desktop to start up to 60 seconds...
+        echo [INFO] Waiting for Docker Desktop to start (timeout: 60 seconds)...
         set /a TIMEOUT_COUNT=0
         :docker_wait_loop
         timeout /t 2 /nobreak >nul
@@ -242,8 +242,8 @@ if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
             exit /b 0
         )
         set /a TIMEOUT_COUNT+=2
-        if %TIMEOUT_COUNT% LSS 60 goto docker_wait_loop
-        echo [ERROR] Docker Desktop failed to start within 60 seconds
+        if !TIMEOUT_COUNT! LSS 60 goto docker_wait_loop
+        echo [ERROR] Docker Desktop startup timeout after 60 seconds. Please start Docker Desktop manually.
         exit /b 1
     ) else (
         echo [OK] Docker Desktop is already running
@@ -262,7 +262,7 @@ if errorlevel 1 (
     exit /b 1
 )
 for /f "tokens=*" %%i in ('pwsh -Command "$PSVersionTable.PSVersion.ToString()" 2^>nul') do set PWSH_VERSION=%%i
-echo [OK] PowerShell Core: %PWSH_VERSION%
+echo [OK] PowerShell Core: !PWSH_VERSION!
 exit /b 0
 
 :BuildSolution
