@@ -86,8 +86,14 @@ namespace FlinkDotnetStandardReliabilityTest
                 .Build();
                 
             _kafkaContainer = new KafkaBuilder()
-                .WithImage("confluentinc/cp-kafka:latest")
+                .WithImage("confluentinc/cp-kafka:7.4.0") // Use specific stable version
                 .WithPortBinding(9092, true)
+                .WithStartupCallback((container, ct) =>
+                {
+                    // Add extra wait time for Kafka to fully start in CI environments
+                    Thread.Sleep(20000); // 20 seconds for Kafka startup in CI
+                    return Task.CompletedTask;
+                })
                 .Build();
             
             // Configure test parameters for fast execution
