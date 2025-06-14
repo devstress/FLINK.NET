@@ -105,6 +105,8 @@ public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecy
                 {
                     // No acknowledgment required, complete immediately
                     CompleteProcessing(value, startTime);
+                    // Release semaphore when processing completes without acknowledgment
+                    _acknowledgmentSemaphore.Release();
                 }
             }
             catch

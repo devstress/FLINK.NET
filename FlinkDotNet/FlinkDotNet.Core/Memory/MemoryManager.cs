@@ -311,7 +311,8 @@ namespace FlinkDotNet.Core.Memory
         /// 5. Access to the memory is controlled through the Span property which checks disposal state
         /// 6. The unsafe context is limited to only the specific operations that require it
         /// 7. No unsafe pointer arithmetic is performed beyond creating the Span
-        /// </summary>
+        /// </remarks>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Sonar Code Smell", "S6640:Make sure that using \"unsafe\" is safe here", Justification = "Unsafe code is necessary for high-performance off-heap memory allocation. Safety is ensured through proper lifecycle management, bounds checking, and controlled access through Span<T>.")]
         public unsafe OffHeapMemorySegment(int size)
         {
             _size = size;
@@ -333,7 +334,8 @@ namespace FlinkDotNet.Core.Memory
         /// 2. The size is exactly what was allocated and stored during construction
         /// 3. Disposal state is checked before accessing the memory
         /// 4. The Span provides bounds checking for all subsequent access
-        /// </summary>
+        /// </remarks>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Sonar Code Smell", "S6640:Make sure that using \"unsafe\" is safe here", Justification = "Unsafe code is necessary for high-performance memory access. Safety is ensured through disposal state checking and Span<T> bounds checking.")]
         public unsafe Span<byte> Span => _disposed 
             ? throw new ObjectDisposedException(nameof(OffHeapMemorySegment))
             : new Span<byte>((void*)_pointer, _size);

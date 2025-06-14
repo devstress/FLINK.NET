@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using FlinkDotNet.Core.Api.BackPressure;
 using FlinkDotNet.Core.Api.Pipeline;
 using FlinkDotNet.Core.Abstractions.Sources;
@@ -244,19 +245,16 @@ public class FlinkDotnetPipelineExample
 
     private static void DisplayPipelineMetrics(PipelineBackPressureController backPressureController, ILogger logger)
     {
-        logger.LogInformation("=== Flink.Net Pipeline Back Pressure Metrics ===");
-
         var pipelineStatus = backPressureController.GetPipelineStatus();
-        logger.LogInformation("Overall Pipeline Pressure Level: {Pressure:F2}", pipelineStatus.OverallPressureLevel);
+        
+        // Build consolidated metrics message to reduce logging calls
+        var metricsMessage = new StringBuilder();
+        metricsMessage.AppendLine("=== Flink.Net Pipeline Back Pressure Metrics ===");
+        metricsMessage.AppendLine($"Overall Pipeline Pressure Level: {pipelineStatus.OverallPressureLevel:F2}");
 
         foreach (var (stageName, stageStatus) in pipelineStatus.StageStatuses)
         {
-            logger.LogInformation("Stage {Stage}: Pressure {Pressure:F2}, Queue Utilization {QueueUtil:F2}, Latency {Latency:F2}ms, Error Rate {ErrorRate:F2}",
-                stageName,
-                stageStatus.BackPressureLevel,
-                stageStatus.QueueUtilization,
-                stageStatus.ProcessingLatencyMs,
-                stageStatus.ErrorRate);
+            metricsMessage.AppendLine($"Stage {stageName}: Pressure {stageStatus.BackPressureLevel:F2}, Queue Utilization {stageStatus.QueueUtilization:F2}, Latency {stageStatus.ProcessingLatencyMs:F2}ms, Error Rate {stageStatus.ErrorRate:F2}");
         }
 
         var healthStatus = pipelineStatus.OverallPressureLevel switch
@@ -267,7 +265,10 @@ public class FlinkDotnetPipelineExample
             _ => "🔴 CRITICAL PRESSURE"
         };
 
-        logger.LogInformation("Pipeline Health Status: {Status}", healthStatus);
+        metricsMessage.AppendLine($"Pipeline Health Status: {healthStatus}");
+        
+        // Single consolidated log statement to comply with S6664 rule
+        logger.LogInformation("{MetricsReport}", metricsMessage.ToString().TrimEnd());
     }
 }
 
