@@ -84,8 +84,127 @@ echo Repository: %ROOT%
 echo Timestamp: %DATE% %TIME%
 echo.
 
-REM Check prerequisites
+REM Check prerequisites in parallel for improved speed
 echo === Checking Prerequisites ===
+
+REM Use PowerShell for parallel prerequisite checking
+powershell -Command "& {
+    Write-Host 'Running prerequisite checks in parallel...'
+    
+    # Start parallel jobs for each prerequisite check
+    $dotnetJob = Start-Job -ScriptBlock {
+        try {
+            where.exe dotnet 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $version = & dotnet --version 2>$null
+                return @{Success=$true; Tool='dotnet'; Version=$version; Message='✅ .NET SDK: ' + $version}
+            } else {
+                return @{Success=$false; Tool='dotnet'; Message='❌ .NET SDK not found. Please install .NET 8.0 or later.'; Url='https://dotnet.microsoft.com/download'}
+            }
+        } catch {
+            return @{Success=$false; Tool='dotnet'; Message='❌ .NET SDK check failed'; Error=$_.Exception.Message}
+        }
+    }
+    
+    $javaJob = $null
+    if (%SKIP_SONAR% -eq 0) {
+        $javaJob = Start-Job -ScriptBlock {
+            try {
+                where.exe java 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    $versionOutput = & java -version 2>&1
+                    $version = ($versionOutput | Select-String 'version' | Select-Object -First 1).ToString()
+                    if ($version -match '\"([^\"]+)\"') {
+                        $cleanVersion = $matches[1]
+                        return @{Success=$true; Tool='java'; Version=$cleanVersion; Message='✅ Java: ' + $cleanVersion}
+                    } else {
+                        return @{Success=$true; Tool='java'; Version='unknown'; Message='✅ Java: found'}
+                    }
+                } else {
+                    return @{Success=$false; Tool='java'; Message='❌ Java not found.'; Url='https://adoptopenjdk.net/'}
+                }
+            } catch {
+                return @{Success=$false; Tool='java'; Message='❌ Java check failed'; Error=$_.Exception.Message}
+            }
+        }
+    }
+    
+    $dockerJob = $null
+    if (%SKIP_STRESS% -eq 0) {
+        $dockerJob = Start-Job -ScriptBlock {
+            try {
+                & docker info 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    return @{Success=$true; Tool='docker'; Message='✅ Docker is running'}
+                } else {
+                    return @{Success=$false; Tool='docker'; Message='❌ Docker is not running or not accessible'; Url='https://docker.com/'}
+                }
+            } catch {
+                return @{Success=$false; Tool='docker'; Message='❌ Docker check failed'; Error=$_.Exception.Message}
+            }
+        }
+    }
+    
+    $pwshJob = Start-Job -ScriptBlock {
+        try {
+            where.exe pwsh 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $version = & pwsh -Command '$PSVersionTable.PSVersion.ToString()' 2>$null
+                return @{Success=$true; Tool='pwsh'; Version=$version; Message='✅ PowerShell Core: ' + $version}
+            } else {
+                return @{Success=$false; Tool='pwsh'; Message='❌ PowerShell Core (pwsh) not found.'; Url='https://github.com/PowerShell/PowerShell'}
+            }
+        } catch {
+            return @{Success=$false; Tool='pwsh'; Message='❌ PowerShell Core check failed'; Error=$_.Exception.Message}
+        }
+    }
+    
+    # Collect all jobs
+    $jobs = @($dotnetJob)
+    if ($javaJob) { $jobs += $javaJob }
+    if ($dockerJob) { $jobs += $dockerJob }
+    $jobs += $pwshJob
+    
+    # Wait for all jobs and collect results
+    $results = @()
+    foreach ($job in $jobs) {
+        $results += Wait-Job $job | Receive-Job
+        Remove-Job $job
+    }
+    
+    # Process results and handle installations
+    $failedTools = @()
+    $skipSonar = %SKIP_SONAR%
+    $skipStress = %SKIP_STRESS%
+    
+    foreach ($result in $results) {
+        Write-Host $result.Message
+        if (-not $result.Success) {
+            if ($result.Tool -eq 'dotnet' -or $result.Tool -eq 'pwsh') {
+                $failedTools += $result.Tool
+            } elseif ($result.Tool -eq 'java') {
+                Write-Host 'WARNING: Java not found. SonarCloud analysis will be skipped.'
+                $skipSonar = 1
+            } elseif ($result.Tool -eq 'docker') {
+                Write-Host 'WARNING: Docker not available. Stress tests will be skipped.'
+                $skipStress = 1
+            }
+        }
+    }
+    
+    # Update environment variables
+    $env:SKIP_SONAR_UPDATED = $skipSonar
+    $env:SKIP_STRESS_UPDATED = $skipStress
+    
+    # Return failed tools for installation
+    return $failedTools
+}"
+
+REM Get the results from PowerShell execution
+for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_SONAR_UPDATED"') do set SKIP_SONAR=%%i
+for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_STRESS_UPDATED"') do set SKIP_STRESS=%%i
+
+REM Handle tool installations if needed (these still need to be sequential due to system requirements)
 call :check_dotnet
 if errorlevel 1 call :install_dotnet
 if errorlevel 1 exit /b 1
@@ -119,8 +238,9 @@ if errorlevel 1 exit /b 1
 echo Prerequisites check completed.
 echo.
 
-REM Create output directories for parallel execution
+REM Create output directories for parallel execution  
 if not exist "%ROOT%\workflow-logs" mkdir "%ROOT%\workflow-logs"
+if not exist "%ROOT%\scripts" mkdir "%ROOT%\scripts"
 
 REM Set environment variables
 if not defined SIMULATOR_NUM_MESSAGES set SIMULATOR_NUM_MESSAGES=1000000
@@ -136,7 +256,9 @@ echo Integration Tests: workflow-logs\integration-tests.log
 echo.
 
 REM Start workflows in parallel using PowerShell background jobs
+REM Note: Individual workflow scripts should already exist in scripts/ folder
 powershell -Command "& {
+    Write-Host 'Starting workflows in parallel...'
     # Start Unit Tests workflow
     $unitTestsJob = Start-Job -ScriptBlock {
         param($root)
@@ -197,7 +319,7 @@ powershell -Command "& {
                 Remove-Job -Job $job
             }
         }
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 1  # Reduced from 2 seconds to 1 second for faster monitoring
     }
     
     # Report final results

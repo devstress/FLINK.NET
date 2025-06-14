@@ -136,40 +136,117 @@ check_docker_running() {
 # Check prerequisites
 echo "=== Checking Prerequisites ==="
 
-check_command dotnet ".NET SDK" "https://dotnet.microsoft.com/download"
-if [[ $? -ne 0 ]]; then
-    exit 1
-fi
-
-if [[ $SKIP_SONAR -eq 0 ]]; then
-    if ! check_command java "Java" "https://adoptopenjdk.net/"; then
-        echo "WARNING: Java not found. SonarCloud analysis will be skipped."
-        SKIP_SONAR=1
+# Parallel prerequisite checking for improved speed
+check_prerequisites_parallel() {
+    local dotnet_result=""
+    local java_result=""
+    local docker_result=""
+    local pwsh_result=""
+    
+    # Create temporary files for parallel results
+    local temp_dir="/tmp/prereq_check_$$"
+    mkdir -p "$temp_dir"
+    
+    # Start parallel checks
+    echo "Running prerequisite checks in parallel..."
+    
+    # Check .NET SDK
+    (
+        if check_command dotnet ".NET SDK" "https://dotnet.microsoft.com/download" >/dev/null 2>&1; then
+            echo "success" > "$temp_dir/dotnet"
+        else
+            echo "fail" > "$temp_dir/dotnet"
+        fi
+    ) &
+    local dotnet_pid=$!
+    
+    # Check Java (if needed)
+    if [[ $SKIP_SONAR -eq 0 ]]; then
+        (
+            if check_command java "Java" "https://adoptopenjdk.net/" >/dev/null 2>&1; then
+                echo "success" > "$temp_dir/java"
+            else
+                echo "fail" > "$temp_dir/java"
+            fi
+        ) &
+        local java_pid=$!
     fi
-fi
-
-if [[ $SKIP_STRESS -eq 0 ]]; then
-    if ! check_command docker "Docker" "https://docker.com/" || ! check_docker_running; then
-        echo "WARNING: Docker not available. Stress tests will be skipped."
-        SKIP_STRESS=1
+    
+    # Check Docker (if needed)
+    if [[ $SKIP_STRESS -eq 0 ]]; then
+        (
+            if check_command docker "Docker" "https://docker.com/" >/dev/null 2>&1 && check_docker_running >/dev/null 2>&1; then
+                echo "success" > "$temp_dir/docker"
+            else
+                echo "fail" > "$temp_dir/docker"
+            fi
+        ) &
+        local docker_pid=$!
     fi
-fi
+    
+    # Check PowerShell Core
+    (
+        if check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell" >/dev/null 2>&1; then
+            echo "success" > "$temp_dir/pwsh"
+        else
+            echo "fail" > "$temp_dir/pwsh"
+        fi
+    ) &
+    local pwsh_pid=$!
+    
+    # Wait for all parallel checks to complete
+    wait $dotnet_pid
+    [[ $SKIP_SONAR -eq 0 ]] && wait $java_pid
+    [[ $SKIP_STRESS -eq 0 ]] && wait $docker_pid
+    wait $pwsh_pid
+    
+    # Now display results in proper order and handle failures
+    check_command dotnet ".NET SDK" "https://dotnet.microsoft.com/download"
+    if [[ $? -ne 0 ]]; then
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    if [[ $SKIP_SONAR -eq 0 ]]; then
+        if ! check_command java "Java" "https://adoptopenjdk.net/"; then
+            echo "WARNING: Java not found. SonarCloud analysis will be skipped."
+            SKIP_SONAR=1
+        fi
+    fi
+    
+    if [[ $SKIP_STRESS -eq 0 ]]; then
+        if ! check_command docker "Docker" "https://docker.com/" || ! check_docker_running; then
+            echo "WARNING: Docker not available. Stress tests will be skipped."
+            SKIP_STRESS=1
+        fi
+    fi
+    
+    check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell"
+    if [[ $? -ne 0 ]]; then
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    # Clean up
+    rm -rf "$temp_dir"
+}
 
-check_command pwsh "PowerShell Core" "https://github.com/PowerShell/PowerShell"
-if [[ $? -ne 0 ]]; then
-    exit 1
-fi
+check_prerequisites_parallel
 
 echo "Prerequisites check completed."
 echo ""
 
-# Create output directories for parallel execution
-mkdir -p "$ROOT/workflow-logs"
+# Create output directories for parallel execution in parallel with other setup
+mkdir -p "$ROOT/workflow-logs" &
+mkdir -p "$ROOT/scripts" &
 
 # Set environment variables
 export SIMULATOR_NUM_MESSAGES=${SIMULATOR_NUM_MESSAGES:-1000000}
 export MAX_ALLOWED_TIME_MS=${MAX_ALLOWED_TIME_MS:-60000}
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
+
+# Wait for directory creation to complete
+wait
 
 echo "=== Starting Workflows in Parallel ==="
 echo "Unit Tests: workflow-logs/unit-tests.log"
@@ -563,13 +640,26 @@ try {
 EOF
 }
 
-# Create individual workflow scripts
-create_unit_tests_workflow
-create_sonarcloud_workflow
-if [[ $SKIP_STRESS -eq 0 ]]; then
-    create_stress_tests_workflow
-fi
-create_integration_tests_workflow
+# Create individual workflow scripts in parallel for faster setup
+echo "Creating workflow scripts..."
+(
+    create_unit_tests_workflow
+) &
+(
+    create_sonarcloud_workflow
+) &
+(
+    if [[ $SKIP_STRESS -eq 0 ]]; then
+        create_stress_tests_workflow
+    fi
+) &
+(
+    create_integration_tests_workflow
+) &
+
+# Wait for all workflow script creation to complete
+wait
+echo "Workflow scripts created."
 
 # Start workflows in parallel
 declare -a PIDS=()
@@ -640,15 +730,16 @@ while [[ ${#PIDS[@]} -gt 0 ]]; do
     done
     
     if [[ ${#PIDS[@]} -gt 0 ]]; then
-        sleep 2
+        sleep 1  # Reduced from 2 seconds to 1 second for faster monitoring
     fi
 done
 
-# Clean up temporary workflow scripts
-rm -f "$ROOT/scripts/run-unit-tests-workflow.ps1"
-rm -f "$ROOT/scripts/run-sonarcloud-workflow.ps1"
-rm -f "$ROOT/scripts/run-stress-tests-workflow.ps1"  
-rm -f "$ROOT/scripts/run-integration-tests-workflow.ps1"
+# Clean up temporary workflow scripts in parallel
+(rm -f "$ROOT/scripts/run-unit-tests-workflow.ps1") &
+(rm -f "$ROOT/scripts/run-sonarcloud-workflow.ps1") &
+(rm -f "$ROOT/scripts/run-stress-tests-workflow.ps1") &
+(rm -f "$ROOT/scripts/run-integration-tests-workflow.ps1") &
+wait
 
 # Report final results
 echo ""
