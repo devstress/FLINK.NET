@@ -13,7 +13,7 @@ This document provides comprehensive context about the Flink.NET project for AI 
 
 ## Project Overview
 
-Flink.NET is an ambitious open-source project creating a .NET-native stream processing framework inspired by FlinkDotnet. The goal is to provide .NET developers with familiar tools for sophisticated real-time data processing.
+Flink.NET is an ambitious open-source project creating a .NET-native stream processing framework inspired by Apache Flink. The goal is to provide .NET developers with familiar tools for sophisticated real-time data processing.
 
 **Key Goals:**
 - Stateful stream processing with exactly-once semantics
