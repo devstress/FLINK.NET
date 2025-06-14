@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.Core.Abstractions.Context;
-using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Api.BackPressure;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +11,7 @@ namespace FlinkDotNet.Core.Api.Pipeline;
 /// Flink.Net style IngressProcessing stage that provides validation 
 /// and preprocessing with bounded buffers and back pressure handling.
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this ingress stage")]
 public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedRecord<T>>, IOperatorLifecycle, IDisposable
 {
     private readonly ILogger<IngressProcessingStage<T>> _logger;
@@ -264,6 +265,7 @@ public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedR
 /// Flink.Net style AsyncEgressProcessing stage that handles external I/O
 /// with timeout, retry, and Dead Letter Queue (DLQ) support.
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this async egress stage")]
 public class AsyncEgressProcessingStage<T> : IMapOperator<ProcessedRecord<T>, EgressResult<T>>, IOperatorLifecycle, IDisposable
 {
     private readonly ILogger<AsyncEgressProcessingStage<T>> _logger;
@@ -374,7 +376,7 @@ public class AsyncEgressProcessingStage<T> : IMapOperator<ProcessedRecord<T>, Eg
         {
             Interlocked.Increment(ref _failureCount);
             _logger.LogError(ex, "AsyncEgressProcessing failed for record");
-            throw;
+            throw new InvalidOperationException("AsyncEgressProcessing failed", ex);
         }
     }
 
@@ -607,6 +609,7 @@ public class ValidationResult
 /// <summary>
 /// Interface for record validation
 /// </summary>
+[SuppressMessage("Design", "S3246:Add the 'in' keyword to parameter 'T' to make it 'contravariant'", Justification = "T parameter needs to be invariant for validation operations")]
 public interface IRecordValidator<T>
 {
     ValidationResult Validate(T record);

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Api.BackPressure;
@@ -10,6 +11,7 @@ namespace FlinkDotNet.Core.Api.Pipeline;
 /// Flink.Net style Gateway stage that provides ingress rate control
 /// and back pressure management for the pipeline entry point.
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this gateway stage")]
 public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposable
 {
     private readonly ILogger<GatewayStage<T>> _logger;
@@ -211,6 +213,7 @@ public class GatewayStage<T> : IMapOperator<T, T>, IOperatorLifecycle, IDisposab
 /// Flink.Net style KeyGen stage that provides deterministic partitioning
 /// with load awareness and back pressure handling.
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this key generation stage")]
 public class KeyGenStage<T> : IMapOperator<T, KeyedRecord<T>>, IOperatorLifecycle, IDisposable
 {
     private readonly ILogger<KeyGenStage<T>> _logger;

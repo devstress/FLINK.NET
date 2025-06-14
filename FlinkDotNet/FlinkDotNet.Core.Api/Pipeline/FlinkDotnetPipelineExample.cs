@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FlinkDotNet.Core.Api.BackPressure;
 using FlinkDotNet.Core.Api.Pipeline;
 using FlinkDotNet.Core.Abstractions.Sources;
@@ -14,6 +15,7 @@ namespace FlinkDotNet.Examples.Pipeline;
 /// Complete example of Flink.Net style pipeline with comprehensive back pressure handling.
 /// Demonstrates: Gateway -> KeyGen -> IngressProcessing -> AsyncEgressProcessing -> FinalSink
 /// </summary>
+[SuppressMessage("Design", "S1118:Add a 'protected' constructor or the 'static' keyword to the class declaration", Justification = "This is an example class designed to be used statically")]
 public class FlinkDotnetPipelineExample
 {
     public static async Task RunExample()
@@ -359,6 +361,7 @@ public class ExampleExternalService : IExternalService<string>
     }
 }
 
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this example destination")]
 public class ExampleKafkaDestination : IKafkaDestination<string>
 {
     private readonly Dictionary<string, Action<string, bool, string?>> _callbacks = new();

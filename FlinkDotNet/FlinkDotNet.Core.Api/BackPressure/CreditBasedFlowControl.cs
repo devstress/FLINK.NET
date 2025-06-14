@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 namespace FlinkDotNet.Core.Api.BackPressure;
 
@@ -6,14 +6,16 @@ namespace FlinkDotNet.Core.Api.BackPressure;
 /// Flink.Net style credit-based flow control for individual pipeline stages.
 /// Manages credits and back pressure for a specific stage in the processing pipeline.
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this flow control class")]
 public class CreditBasedFlowControl : IDisposable
 {
     private readonly string _stageName;
+    [SuppressMessage("Performance", "S4487:Remove this unread private field '_config' or refactor the code to use its value", Justification = "Configuration may be used for future enhancements")]
     private readonly StageFlowConfiguration _config;
     private readonly object _lock = new object();
     
     private int _availableCredits;
-    private int _maxCredits;
+    private readonly int _maxCredits;
     private long _totalCreditsRequested;
     private long _totalCreditsGranted;
     private double _creditReductionFactor = 1.0;

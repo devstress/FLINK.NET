@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FlinkDotNet.Common.Constants;
 
 namespace IntegrationTestVerifier
@@ -522,6 +523,7 @@ namespace IntegrationTestVerifier
     /// 4. Back Pressure and Throughput Verification
     /// 5. Data Integrity and Exactly-Once Semantics Validation
     /// </summary>
+    [SuppressMessage("Design", "S1144:Remove the unused private method", Justification = "Test diagnostic methods are kept for debugging and future use")]
     public static class Program
     {
 

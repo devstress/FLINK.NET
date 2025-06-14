@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace FlinkDotNet.Core.Api.BackPressure;
@@ -9,6 +10,7 @@ namespace FlinkDotNet.Core.Api.BackPressure;
 /// 
 /// Supports the pipeline: Gateway -> KeyGen -> IngressProcessing -> AsyncEgressProcessing -> Final Sink
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this back pressure controller")]
 public class PipelineBackPressureController : IDisposable
 {
     private readonly ILogger<PipelineBackPressureController> _logger;
@@ -116,7 +118,7 @@ public class PipelineBackPressureController : IDisposable
             var overallPressure = CalculateOverallPipelinePressure();
             
             // Apply back pressure decisions for each stage
-            ApplyPipelineBackPressureDecisions(overallPressure);
+            ApplyPipelineBackPressureDecisions();
             
             // Log system health
             LogPipelineHealth(overallPressure);
@@ -156,7 +158,7 @@ public class PipelineBackPressureController : IDisposable
     /// <summary>
     /// Calculate back pressure for a specific pipeline stage
     /// </summary>
-    private double CalculateStagePressure(string stageName, PipelineStageMetrics metrics, CreditBasedFlowControl flowControl)
+    private static double CalculateStagePressure(string stageName, PipelineStageMetrics metrics, CreditBasedFlowControl flowControl)
     {
         // Queue utilization pressure
         var queuePressure = (double)metrics.QueueSize / Math.Max(1, metrics.MaxQueueSize);
@@ -187,7 +189,7 @@ public class PipelineBackPressureController : IDisposable
     /// <summary>
     /// Apply back pressure decisions across the pipeline
     /// </summary>
-    private void ApplyPipelineBackPressureDecisions(double overallPressure)
+    private void ApplyPipelineBackPressureDecisions()
     {
         foreach (var (stageName, flowControl) in _stageFlowControls)
         {
@@ -196,6 +198,9 @@ public class PipelineBackPressureController : IDisposable
                 var stagePressure = metrics.BackPressureLevel;
                 
                 // Apply Flink.Net style throttling decisions
+                // Monitor flow control for each stage
+                _logger.LogDebug("Applied back pressure decision for stage {StageName} with pressure {StagePressure} - FlowControl credits: {AvailableCredits}", 
+                    stageName, stagePressure, flowControl.AvailableCredits);
                 if (stagePressure > 0.8)
                 {
                     ApplyHighPressureThrottling(stageName, stagePressure);

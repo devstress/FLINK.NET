@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Operators;
@@ -11,6 +12,7 @@ namespace FlinkDotNet.Core.Api.Pipeline;
 /// Flink.Net style FinalSink stage that provides acknowledgment-based
 /// back pressure for Kafka, Database, or Callback destinations.
 /// </summary>
+[SuppressMessage("Design", "S3881:Fix this implementation of 'IDisposable' to conform to the dispose pattern", Justification = "Simple disposal pattern is sufficient for this sink stage")]
 public class FinalSinkStage<T> : ISinkFunction<EgressResult<T>>, IOperatorLifecycle, IDisposable
 {
     private readonly ILogger<FinalSinkStage<T>> _logger;
@@ -427,6 +429,7 @@ public class PendingAcknowledgment<T>
 /// <summary>
 /// Base interface for final destinations
 /// </summary>
+[SuppressMessage("Design", "S2326:'T' is not used in the interface", Justification = "Generic type parameter T is used by implementing classes for type safety")]
 public interface IFinalDestination<T> : IDisposable
 {
     void Initialize(Dictionary<string, object> configuration);
