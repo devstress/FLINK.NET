@@ -137,26 +137,26 @@ set ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 echo Starting parallel test execution (running silently in background)
 echo.
 
-REM Start all tests in parallel using PowerShell background jobs (silent execution)
-echo [INFO] Starting Unit Tests...
-powershell -WindowStyle Hidden -Command "Start-Job -Name 'UnitTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-unit-tests.ps1' > '%ROOT%\test-logs\unit-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Unit Tests completed successfully' > '%ROOT%\test-logs\unit-tests.status' } else { '[ERROR] Unit Tests failed' > '%ROOT%\test-logs\unit-tests.status' } }" >nul
+REM Start all tests in parallel using simple background processes with proper logging
+echo [INFO] Starting Unit Tests (log: %ROOT%\test-logs\unit-tests.log)...
+start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-unit-tests.ps1" > "%ROOT%\test-logs\unit-tests.log" 2>&1 && echo [OK] Unit Tests completed successfully > "%ROOT%\test-logs\unit-tests.status" || echo [ERROR] Unit Tests failed > "%ROOT%\test-logs\unit-tests.status""
 
-echo [INFO] Starting Integration Tests...
-powershell -WindowStyle Hidden -Command "Start-Job -Name 'IntegrationTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-integration-tests-in-windows-os.ps1' > '%ROOT%\test-logs\integration-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Integration Tests completed successfully' > '%ROOT%\test-logs\integration-tests.status' } else { '[ERROR] Integration Tests failed' > '%ROOT%\test-logs\integration-tests.status' } }" >nul
+echo [INFO] Starting Integration Tests (log: %ROOT%\test-logs\integration-tests.log)...
+start /B cmd /c "powershell -File "%ROOT%\scripts\run-integration-tests-in-windows-os.ps1" > "%ROOT%\test-logs\integration-tests.log" 2>&1 && echo [OK] Integration Tests completed successfully > "%ROOT%\test-logs\integration-tests.status" || echo [ERROR] Integration Tests failed > "%ROOT%\test-logs\integration-tests.status""
 
 if %SKIP_STRESS%==0 (
-    echo [INFO] Starting Stress Tests...
-    powershell -WindowStyle Hidden -Command "Start-Job -Name 'StressTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-stress-tests.ps1' > '%ROOT%\test-logs\stress-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Stress Tests completed successfully' > '%ROOT%\test-logs\stress-tests.status' } else { '[ERROR] Stress Tests failed' > '%ROOT%\test-logs\stress-tests.status' } }" >nul
+    echo [INFO] Starting Stress Tests (log: %ROOT%\test-logs\stress-tests.log)...
+    start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-stress-tests.ps1" > "%ROOT%\test-logs\stress-tests.log" 2>&1 && echo [OK] Stress Tests completed successfully > "%ROOT%\test-logs\stress-tests.status" || echo [ERROR] Stress Tests failed > "%ROOT%\test-logs\stress-tests.status""
 )
 
 if %SKIP_RELIABILITY%==0 (
-    echo [INFO] Starting Reliability Tests...
-    powershell -WindowStyle Hidden -Command "Start-Job -Name 'ReliabilityTests' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-reliability-tests.ps1' > '%ROOT%\test-logs\reliability-tests.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] Reliability Tests completed successfully' > '%ROOT%\test-logs\reliability-tests.status' } else { '[ERROR] Reliability Tests failed' > '%ROOT%\test-logs\reliability-tests.status' } }" >nul
+    echo [INFO] Starting Reliability Tests (log: %ROOT%\test-logs\reliability-tests.log)...
+    start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-reliability-tests.ps1" > "%ROOT%\test-logs\reliability-tests.log" 2>&1 && echo [OK] Reliability Tests completed successfully > "%ROOT%\test-logs\reliability-tests.status" || echo [ERROR] Reliability Tests failed > "%ROOT%\test-logs\reliability-tests.status""
 )
 
 if %SKIP_SONAR%==0 (
-    echo [INFO] Starting SonarCloud Analysis...
-    powershell -WindowStyle Hidden -Command "Start-Job -Name 'SonarCloud' -ScriptBlock { powershell -File '%ROOT%\scripts\run-local-sonarcloud.ps1' > '%ROOT%\test-logs\sonarcloud.log' 2>&1; if ($LASTEXITCODE -eq 0) { '[OK] SonarCloud completed successfully' > '%ROOT%\test-logs\sonarcloud.status' } else { '[ERROR] SonarCloud failed' > '%ROOT%\test-logs\sonarcloud.status' } }" >nul
+    echo [INFO] Starting SonarCloud Analysis (log: %ROOT%\test-logs\sonarcloud.log)...
+    start /B cmd /c "powershell -File "%ROOT%\scripts\run-local-sonarcloud.ps1" > "%ROOT%\test-logs\sonarcloud.log" 2>&1 && echo [OK] SonarCloud completed successfully > "%ROOT%\test-logs\sonarcloud.status" || echo [ERROR] SonarCloud failed > "%ROOT%\test-logs\sonarcloud.status""
 )
 
 echo.
@@ -269,8 +269,16 @@ echo.
 echo === All Tests Completed ===
 echo [OK] Complete development lifecycle finished!
 echo.
-echo Check test-logs\ directory for detailed results:
-dir test-logs\*.log
+echo === Test Results and Logs ===
+echo Check the following log files for detailed results:
+if exist test-logs\unit-tests.log echo   - Unit Tests: test-logs\unit-tests.log
+if exist test-logs\integration-tests.log echo   - Integration Tests: test-logs\integration-tests.log
+if exist test-logs\stress-tests.log echo   - Stress Tests: test-logs\stress-tests.log
+if exist test-logs\reliability-tests.log echo   - Reliability Tests: test-logs\reliability-tests.log
+if exist test-logs\sonarcloud.log echo   - SonarCloud Analysis: test-logs\sonarcloud.log
+echo.
+echo Log directory contents:
+dir test-logs\*.log /B 2>nul || echo   No log files found
 
 popd
 endlocal
@@ -282,42 +290,52 @@ REM ================ HELPER FUNCTIONS ================
 set "LOG_FILE=%~1"
 set "TEST_NAME=%~2"
 set "PROGRESS=0"
+set "LOG_PATH=test-logs\%LOG_FILE%.log"
 
-if exist "test-logs\%LOG_FILE%.log" (
-    REM Parse log file for progress indicators using simple pattern matching
-    findstr /C:"Prerequisites Check" "test-logs\%LOG_FILE%.log" >nul 2>&1
+if exist "%LOG_PATH%" (
+    REM Get the size of the log file to detect if it's growing
+    for %%F in ("%LOG_PATH%") do set "FILE_SIZE=%%~zF"
+    
+    REM Parse log file for progress indicators using specific PowerShell script patterns
+    findstr /C:"Prerequisites Check" "%LOG_PATH%" >nul 2>&1
     if not errorlevel 1 set PROGRESS=10
     
-    findstr /C:"Building" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    findstr /C:"Building" "%LOG_PATH%" >nul 2>&1
     if not errorlevel 1 set PROGRESS=30
     
-    findstr /C:"Running" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    findstr /C:"Running" "%LOG_PATH%" >nul 2>&1
     if not errorlevel 1 set PROGRESS=50
     
-    findstr /C:"tests" "test-logs\%LOG_FILE%.log" >nul 2>&1
+    findstr /C:"Unit Tests" "%LOG_PATH%" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=60
+    
+    findstr /C:"tests" "%LOG_PATH%" >nul 2>&1
     if not errorlevel 1 set PROGRESS=70
     
-    findstr /C:"Summary" "test-logs\%LOG_FILE%.log" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=90
+    findstr /C:"Summary" "%LOG_PATH%" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=85
     
-    REM Check if task is near completion by looking for success indicators
-    findstr /C:"SUCCESS" "test-logs\%LOG_FILE%.log" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=99
+    REM Check for specific completion indicators
+    findstr /C:"PASSED" "%LOG_PATH%" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=95
     
-    findstr /C:"PASSED" "test-logs\%LOG_FILE%.log" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=99
+    findstr /C:"completed successfully" "%LOG_PATH%" >nul 2>&1
+    if not errorlevel 1 set PROGRESS=98
     
-    findstr /C:"completed successfully" "test-logs\%LOG_FILE%.log" >nul 2>&1
-    if not errorlevel 1 set PROGRESS=99
-)
-
-REM Show progress information
-if !PROGRESS! GEQ 99 (
-    echo [INFO] %TEST_NAME%: 100%% - Finalizing...
-) else if !PROGRESS! GTR 0 (
-    echo [INFO] %TEST_NAME%: !PROGRESS!%% - In progress...
+    REM Show current status with file size as activity indicator
+    if !PROGRESS! GEQ 95 (
+        echo [INFO] %TEST_NAME%: 98%% - Finalizing... (log: %FILE_SIZE% bytes)
+    ) else if !PROGRESS! GTR 0 (
+        echo [INFO] %TEST_NAME%: !PROGRESS!%% - In progress... (log: %FILE_SIZE% bytes)
+    ) else (
+        if !FILE_SIZE! GTR 0 (
+            echo [INFO] %TEST_NAME%: 5%% - Starting... (log: %FILE_SIZE% bytes)
+        ) else (
+            echo [INFO] %TEST_NAME%: 0%% - Initializing...
+        )
+    )
 ) else (
-    echo [INFO] %TEST_NAME%: Starting...
+    echo [INFO] %TEST_NAME%: 0%% - Waiting to start... (log: %LOG_PATH%)
 )
 exit /b 0
 
