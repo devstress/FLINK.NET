@@ -1,7 +1,7 @@
 # Flink.NET Copilot Custom Instructions
 
 ## Project Overview
-Flink.NET is a .NET-native stream processing framework inspired by FlinkDotnet. It provides stateful stream processing, exactly-once semantics, and fault tolerance within the .NET ecosystem.
+Flink.NET is a .NET-native stream processing framework inspired by Apache Flink. It provides stateful stream processing, exactly-once semantics, and fault tolerance within the .NET ecosystem.
 
 ## Key Architecture Components
 
