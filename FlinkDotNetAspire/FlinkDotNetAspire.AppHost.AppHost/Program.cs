@@ -10,7 +10,8 @@ public static class Program
 
         // Add resources with Aspire's default dynamic port allocation
         // Don't force specific ports - let Aspire handle port management
-        var redis = builder.AddConnectionString("redis");
+        var redis = builder.AddRedis("redis")
+            .PublishAsContainer(); // Ensure Redis is accessible from host
         var kafka = builder.AddKafka("kafka")
             .PublishAsContainer(); // Ensure Kafka is accessible from host
 
