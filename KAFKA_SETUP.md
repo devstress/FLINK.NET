@@ -147,6 +147,34 @@ processedStream.SinkTo(KafkaSink<ProcessedEvent>.Builder()
 - **Topic Metrics:** Monitor partition distribution and consumer lag
 - **Consumer Groups:** Track processing progress and lag
 
+## Aspire Integration
+
+This Kafka environment integrates seamlessly with the Flink.Net Aspire setup for comprehensive development and testing:
+
+### Combined Setup
+
+```bash
+# 1. Start Kafka best practices environment
+./scripts/kafka-dev.sh start
+
+# 2. Run Aspire application (separate terminal)
+cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+dotnet run
+
+# 3. Run reliability tests with 10M messages (separate terminal)
+cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
+dotnet test
+```
+
+### Key Benefits
+
+- **10 Million Message Testing**: Comprehensive reliability validation
+- **Production-like Environment**: External Kafka vs embedded containers
+- **Real-time Monitoring**: Kafka UI integration at http://localhost:8080
+- **Best Practices Integration**: Follows Apache Flink recommended patterns
+
+For complete Aspire setup instructions, see [Aspire Local Development Setup](docs/wiki/Aspire-Local-Development-Setup.md).
+
 ## Production Considerations
 
 This setup is for development only. For production:
