@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace FlinkDotNet.Core.Api.BackPressure;
 
 /// <summary>
-/// Apache Flink 2.0 style credit-based flow control for individual pipeline stages.
+/// FlinkDotnet 2.0 style credit-based flow control for individual pipeline stages.
 /// Manages credits and back pressure for a specific stage in the processing pipeline.
 /// </summary>
 public class CreditBasedFlowControl : IDisposable

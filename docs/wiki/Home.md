@@ -2,38 +2,38 @@
 
 ## Overview of Flink.NET
 
-Flink.NET is a .NET library that allows developers to write and execute Apache Flink applications using C#. It aims to provide a familiar and intuitive experience for .NET developers while leveraging the power and scalability of Apache Flink.
+Flink.NET is a .NET library that allows developers to write and execute FlinkDotnet applications using C#. It aims to provide a familiar and intuitive experience for .NET developers while leveraging the power and scalability of FlinkDotnet.
 
 *(See main [Readme.md](../../Readme.md) for more details)*
 
 ## Key Features & Goals
 
 *   **Native .NET Development:** Write Flink applications entirely in C# using familiar .NET patterns and libraries.
-*   **Apache Flink Compatibility:** Leverage the core strengths of Apache Flink, including its robust stream processing engine, fault tolerance, and state management capabilities.
+*   **FlinkDotnet Compatibility:** Leverage the core strengths of FlinkDotnet, including its robust stream processing engine, fault tolerance, and state management capabilities.
 *   **Extensibility:** Designed to be extensible, allowing for the addition of custom operators, connectors, and state backends.
 *   **Simplified Deployment:** (Future Goal) Streamlined deployment options, potentially integrating with .NET Aspire and Kubernetes.
 
 *(See main [Readme.md](../../Readme.md) for more details)*
 
-## Relationship to Apache Flink
+## Relationship to FlinkDotnet
 
-Flink.NET is built upon the foundations of Apache Flink. It acts as a .NET layer that interacts with Flink's core components.
+Flink.NET is built upon the foundations of FlinkDotnet. It acts as a .NET layer that interacts with Flink's core components.
 
-*   **Philosophy of Alignment:** Flink.NET strives to align with Apache Flink's core concepts and architecture. Many Flink.NET components have direct counterparts in Apache Flink, and the documentation will often refer to the official Apache Flink documentation for deeper understanding.
+*   **Philosophy of Alignment:** Flink.NET strives to align with FlinkDotnet's core concepts and architecture. Many Flink.NET components have direct counterparts in FlinkDotnet, and the documentation will often refer to the official FlinkDotnet documentation for deeper understanding.
 *   **Key Differences:**
     *   **.NET Ecosystem:** Flink.NET is tailored for the .NET ecosystem, utilizing C# as the primary language and integrating with .NET libraries and tools.
-    *   **Implementation Choices:** Specific implementation choices may differ from Apache Flink's Java implementation to better suit the .NET environment.
+    *   **Implementation Choices:** Specific implementation choices may differ from FlinkDotnet's Java implementation to better suit the .NET environment.
 
-**Apache Flink References:**
+**FlinkDotnet References:**
 
-*   [Apache Flink Home](https://flink.apache.org/)
-*   [What is Apache Flink?](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/overview/)
+*   [FlinkDotnet Home](https://flink.apache.org/)
+*   [What is FlinkDotnet?](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/overview/)
 
 ## Getting Started
 
 Ready to dive in? Our [[Getting Started|Getting-Started]] guide will walk you through setting up your environment and writing your first Flink.NET application.
 
-**Apache Flink References:**
+**FlinkDotnet References:**
 
 *   [Flink Getting Started](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/)
 *   [Fundamental Concepts](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/)
@@ -48,17 +48,17 @@ Flink.NET can be used for a variety of stream processing applications, including
 *   Data ingestion and transformation pipelines
 *   Anomaly detection
 
-## Apache Flink 2.0 Best Practices
+## FlinkDotnet 2.0 Best Practices
 
 For production-ready applications, follow our comprehensive best practices guides:
 
-* **[[Apache Flink 2.0 Best Practices: Stream Processing Patterns|Apache-Flink-2.0-Best-Practices-Stream-Processing-Patterns]]** - Complete guide to Apache Flink 2.0 standard pipeline patterns
-* **[[Apache Flink 2.0 Back Pressure|APACHE_FLINK_2_0_BACK_PRESSURE]]** - Credit-based flow control and back pressure handling
+* **[[FlinkDotnet 2.0 Best Practices: Stream Processing Patterns|Apache-Flink-2.0-Best-Practices-Stream-Processing-Patterns]]** - Complete guide to FlinkDotnet 2.0 standard pipeline patterns
+* **[[FlinkDotnet 2.0 Back Pressure|FLINKDOTNET_2_0_BACK_PRESSURE]]** - Credit-based flow control and back pressure handling
 * **[[RocksDB State Backend|Core-Concepts-RocksDB-State-Backend]]** - Enterprise-grade state management
 
 ### Recommended Pipeline Pattern
 
-Follow the Apache Flink 2.0 standard pattern for optimal performance:
+Follow the FlinkDotnet 2.0 standard pattern for optimal performance:
 
 ```
 Source -> Map/Filter -> KeyBy -> Process/Window -> AsyncFunction -> Sink

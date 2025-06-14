@@ -10,7 +10,7 @@ using FlinkDotNet.Storage.RocksDB;
 namespace FlinkDotNet.JobManager.Checkpointing
 {
     /// <summary>
-    /// Apache Flink 2.0 enhanced checkpoint coordinator with RocksDB state backend management
+    /// FlinkDotnet 2.0 enhanced checkpoint coordinator with RocksDB state backend management
     /// </summary>
     public class CheckpointCoordinator
     {
@@ -82,7 +82,7 @@ namespace FlinkDotNet.JobManager.Checkpointing
             var checkpointId = Interlocked.Increment(ref _nextCheckpointId);
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            _logger.LogInformation("Job {JobId}: Triggering Apache Flink 2.0 style checkpoint {CheckpointId} with {StateBackendCount} state backends", 
+            _logger.LogInformation("Job {JobId}: Triggering FlinkDotnet 2.0 style checkpoint {CheckpointId} with {StateBackendCount} state backends", 
                 _jobId, checkpointId, _registeredStateBackends.Count);
 
             var successfulStateBackends = await TriggerStateBackendCheckpoints(checkpointId);

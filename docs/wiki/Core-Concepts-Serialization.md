@@ -1,6 +1,6 @@
 # Core Concepts: Serialization in Flink.NET
 
-Serialization is a fundamental process in distributed systems like Apache Flink, and it's equally crucial for Flink.NET. It involves converting objects into a byte stream for transmission over the network (e.g., between TaskManagers), for storage in state backends, or for persisting in checkpoints. Efficient serialization is key to performance and can also impact memory usage.
+Serialization is a fundamental process in distributed systems like FlinkDotnet, and it's equally crucial for Flink.NET. It involves converting objects into a byte stream for transmission over the network (e.g., between TaskManagers), for storage in state backends, or for persisting in checkpoints. Efficient serialization is key to performance and can also impact memory usage.
 
 ## Why Serialization Matters in Flink.NET
 
@@ -13,7 +13,7 @@ Serialization is a fundamental process in distributed systems like Apache Flink,
 
 ## Flink's Type System and Serializers
 
-Apache Flink has a sophisticated type system that automatically analyzes the data types used in applications and tries to infer efficient serializers.
+FlinkDotnet has a sophisticated type system that automatically analyzes the data types used in applications and tries to infer efficient serializers.
 
 *   **Basic Types:** For primitives (int, long, string, etc.), Flink has highly optimized built-in serializers.
 *   **Tuples, POJOs (Plain Old Java Objects), Case Classes (Scala):** Flink analyzes these structures and generates efficient serializers. For POJOs, fields must be public or have getters/setters.
@@ -100,7 +100,7 @@ public interface ITypeSerializer<T>
 
 See [[Serialization Strategy|Core-Concepts-Serialization-Strategy]] for more on the planned approach.
 
-**Apache Flink References:**
+**FlinkDotnet References:**
 
 *   [Flink's Type System and Serialization](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/types_serialization/)
 *   [Custom Serializers (Flink Java/Scala)](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/custom_serializers/)

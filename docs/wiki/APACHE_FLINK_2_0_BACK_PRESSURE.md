@@ -1,10 +1,10 @@
-# Apache Flink 2.0 Back Pressure Implementation for FLINK.NET
+# FlinkDotnet 2.0 Back Pressure Implementation for FLINK.NET
 
-This document provides comprehensive documentation for the Apache Flink 2.0 style back pressure implementation in FLINK.NET, specifically designed to handle complex multi-stage pipelines with proper credit-based flow control.
+This document provides comprehensive documentation for the FlinkDotnet 2.0 style back pressure implementation in FLINK.NET, specifically designed to handle complex multi-stage pipelines with proper credit-based flow control.
 
 ## Overview
 
-Apache Flink 2.0 implements sophisticated back pressure mechanisms to prevent system overload and ensure stable stream processing. Our implementation follows the exact same patterns and algorithms used by Apache Flink 2.0, adapted for .NET environments.
+FlinkDotnet 2.0 implements sophisticated back pressure mechanisms to prevent system overload and ensure stable stream processing. Our implementation follows the exact same patterns and algorithms used by FlinkDotnet 2.0, adapted for .NET environments.
 
 ## Pipeline Architecture
 
@@ -22,11 +22,11 @@ AsyncEgressProcessing (External I/O with Timeout, Retry, DLQ)
 Final Sink (e.g., Kafka, DB, Callback) with Acknowledgment
 ```
 
-## How Apache Flink 2.0 Handles Back Pressure
+## How FlinkDotnet 2.0 Handles Back Pressure
 
 ### 1. Credit-Based Flow Control
 
-Apache Flink 2.0 uses a credit-based system where:
+FlinkDotnet 2.0 uses a credit-based system where:
 - Each operator has a limited number of "credits" representing buffer capacity
 - Upstream operators must request credits before sending data downstream
 - When credits are exhausted, upstream operators are automatically throttled
@@ -51,7 +51,7 @@ backPressureController.ReplenishCredits(PipelineStage.KeyGen, 1);
 
 ### 2. Multi-Dimensional Pressure Detection
 
-Apache Flink 2.0 monitors multiple dimensions of system pressure:
+FlinkDotnet 2.0 monitors multiple dimensions of system pressure:
 
 - **Queue Utilization**: Monitors internal buffer fill levels
 - **Processing Latency**: Tracks how long operations take
@@ -480,9 +480,9 @@ var healthStatus = pipelineStatus.OverallPressureLevel switch
 - Adjust monitoring intervals for optimal responsiveness
 - Balance between back pressure sensitivity and stability
 
-## Comparison with Apache Flink 2.0
+## Comparison with FlinkDotnet 2.0
 
-| Feature | Apache Flink 2.0 | FLINK.NET Implementation |
+| Feature | FlinkDotnet 2.0 | FLINK.NET Implementation |
 |---------|------------------|--------------------------|
 | Credit-Based Flow Control | ✅ | ✅ Exact implementation |
 | Multi-Dimensional Pressure | ✅ | ✅ Queue, latency, error, credit |
@@ -495,11 +495,11 @@ var healthStatus = pipelineStatus.OverallPressureLevel switch
 
 ## Conclusion
 
-This implementation provides a production-ready Apache Flink 2.0 style back pressure system for .NET applications. It handles the complex pipeline described (Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → FinalSink) with proper credit-based flow control, acknowledgment handling, and comprehensive monitoring.
+This implementation provides a production-ready FlinkDotnet 2.0 style back pressure system for .NET applications. It handles the complex pipeline described (Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → FinalSink) with proper credit-based flow control, acknowledgment handling, and comprehensive monitoring.
 
 The system ensures:
 - **Stability**: Prevents system overload through intelligent throttling
 - **Performance**: Maintains high throughput while respecting resource limits
 - **Reliability**: Handles failures gracefully with retry and DLQ mechanisms
 - **Observability**: Provides detailed metrics for monitoring and debugging
-- **Compatibility**: Matches Apache Flink 2.0 behavior and patterns exactly
+- **Compatibility**: Matches FlinkDotnet 2.0 behavior and patterns exactly

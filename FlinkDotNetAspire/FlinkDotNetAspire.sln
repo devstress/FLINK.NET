@@ -12,7 +12,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.AppHost.S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNetAspire.IntegrationTests", "FlinkDotNetAspire.IntegrationTests\FlinkDotNetAspire.IntegrationTests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-1234567890EF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApacheFlinkStandardReliabilityTest", "ApacheFlinkStandardReliabilityTest\ApacheFlinkStandardReliabilityTest.csproj", "{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotnetStandardReliabilityTest", "FlinkDotnetStandardReliabilityTest\FlinkDotnetStandardReliabilityTest.csproj", "{B2C3D4E5-F6A7-8901-BCDE-234567890FAB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlinkDotNet.JobManager", "..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj", "{E1F2A3B4-C5D6-7890-1234-567890ABCDEF}"
 EndProject

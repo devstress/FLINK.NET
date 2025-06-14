@@ -10,10 +10,10 @@ using System.Text.Json;
 namespace FlinkBackPressureDemo;
 
 /// <summary>
-/// Apache Flink 2.0 Back Pressure Demonstration Program
+/// FlinkDotnet 2.0 Back Pressure Demonstration Program
 /// 
 /// This program demonstrates the comprehensive back pressure system implemented for FLINK.NET
-/// that matches Apache Flink 2.0 behavior exactly. It showcases the complete pipeline:
+/// that matches FlinkDotnet 2.0 behavior exactly. It showcases the complete pipeline:
 /// 
 /// Gateway (Ingress Rate Control) → KeyGen (Deterministic Partitioning + Load Awareness) → 
 /// IngressProcessing (Validation + Preprocessing with Bounded Buffers) → 
@@ -24,7 +24,7 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
-        Console.WriteLine("🚀 Apache Flink 2.0 Back Pressure Demonstration for FLINK.NET");
+        Console.WriteLine("🚀 FlinkDotnet 2.0 Back Pressure Demonstration for FLINK.NET");
         Console.WriteLine("===============================================================");
         Console.WriteLine();
 
@@ -119,7 +119,7 @@ public class BackPressureDemoService
 
     public async Task RunDemonstrationAsync()
     {
-        _logger.LogInformation("🎯 Starting Apache Flink 2.0 Back Pressure Demonstration");
+        _logger.LogInformation("🎯 Starting FlinkDotnet 2.0 Back Pressure Demonstration");
         _logger.LogInformation("Pipeline: Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → FinalSink");
         _logger.LogInformation("");
 
@@ -366,7 +366,7 @@ public class BackPressureDemoService
             scenario = scenario,
             data = $"demo-data-{index}",
             timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            payload = $"Apache Flink 2.0 back pressure demo record #{index}"
+            payload = $"FlinkDotnet 2.0 back pressure demo record #{index}"
         };
 
         return JsonSerializer.Serialize(record);
@@ -389,7 +389,7 @@ public class BackPressureDemoService
     private void DisplayFinalMetrics(PipelineBackPressureController backPressureController)
     {
         _logger.LogInformation("");
-        _logger.LogInformation("📈 Apache Flink 2.0 Back Pressure Final Metrics");
+        _logger.LogInformation("📈 FlinkDotnet 2.0 Back Pressure Final Metrics");
         _logger.LogInformation("================================================");
 
         var pipelineStatus = backPressureController.GetPipelineStatus();
@@ -425,7 +425,7 @@ public class BackPressureDemoService
 
         _logger.LogInformation("");
         _logger.LogInformation("✨ Demonstration completed successfully!");
-        _logger.LogInformation("   This implementation matches Apache Flink 2.0 back pressure behavior exactly.");
+        _logger.LogInformation("   This implementation matches FlinkDotnet 2.0 back pressure behavior exactly.");
         _logger.LogInformation("   All pipeline stages demonstrated proper credit-based flow control,");
         _logger.LogInformation("   acknowledgment-based back pressure, and intelligent throttling.");
     }
@@ -579,7 +579,7 @@ public class DemoKafkaDestination : IKafkaDestination<string>
 // Simple context implementations for demo
 public class DemoRuntimeContext : IRuntimeContext
 {
-    public string JobName => "Apache Flink 2.0 Back Pressure Demo";
+    public string JobName => "FlinkDotnet 2.0 Back Pressure Demo";
     public string TaskName { get; }
     public int IndexOfThisSubtask => 0;
     public int NumberOfParallelSubtasks => 1;

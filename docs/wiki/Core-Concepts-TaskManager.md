@@ -21,13 +21,13 @@ In Flink.NET, the TaskManager's primary responsibilities include:
 *   **Pod Structure (if applicable, e.g., in Kubernetes):** When deployed in containerized environments like Kubernetes, each TaskManager typically runs in its own pod. This allows for isolated resource management and scaling.
 *   **Communication with JobManager:** TaskManagers communicate with the JobManager to receive tasks, report status, and send checkpoint acknowledgments. This communication is typically handled via Flink's internal RPC mechanisms.
 
-## Relationship to Apache Flink TaskManager
+## Relationship to FlinkDotnet TaskManager
 
-The Flink.NET TaskManager performs the same fundamental functions as its Apache Flink counterpart. It is the component where the user-defined business logic (operators) gets executed. The core principles of task slots, data exchange, and state handling are consistent.
+The Flink.NET TaskManager performs the same fundamental functions as its FlinkDotnet counterpart. It is the component where the user-defined business logic (operators) gets executed. The core principles of task slots, data exchange, and state handling are consistent.
 
 Flink.NET ensures that .NET developers can write their logic in C#, and the TaskManager environment is capable of executing this .NET code efficiently as part of a distributed Flink job.
 
-**Apache Flink References:**
+**FlinkDotnet References:**
 
 *   [TaskManager (Flink Architecture)](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager)
 *   [Task Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_execution/)

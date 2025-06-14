@@ -2,9 +2,9 @@
 
 This document summarizes the investigations, proof-of-concept enhancements, and the setup of an Aspire simulation environment for Flink.NET.
 
-## 1. Apache Flink Learnings (incorporating Flink 2.0 Insights)
+## 1. FlinkDotnet Learnings (incorporating Flink 2.0 Insights)
 
-Based on general knowledge of Apache Flink's architecture, including recent insights from Apache Flink 2.0:
+Based on general knowledge of FlinkDotnet's architecture, including recent insights from FlinkDotnet 2.0:
 
 ### 1.1. Flink's Network Stack
 *   **Core Component:** Uses Netty for high-performance, asynchronous network communication.
@@ -41,7 +41,7 @@ Based on general knowledge of Apache Flink's architecture, including recent insi
 
 ### 1.4. Other Notable Flink 2.0 Directions
 
-Apache Flink 2.0 also introduces significant advancements in other areas, indicating the broader evolution of the Flink ecosystem. While not immediate implementation goals for Flink.NET's current phase, awareness of these trends is valuable:
+FlinkDotnet 2.0 also introduces significant advancements in other areas, indicating the broader evolution of the Flink ecosystem. While not immediate implementation goals for Flink.NET's current phase, awareness of these trends is valuable:
 
 *   **Stream-Batch Unification:** Flink 2.0 strengthens this with features like Materialized Tables (supporting schema/query updates and YARN/Kubernetes submission) and Adaptive Batch Execution (e.g., Adaptive Broadcast Join, Join Skew Optimization). This aims to simplify pipelines that manage both real-time and historical data.
 *   **Streaming Lakehouse:** Deeper integration with Apache Paimon for real-time data freshness in lakehouse architectures is a key theme, with performance enhancements for such scenarios.
@@ -49,11 +49,11 @@ Apache Flink 2.0 also introduces significant advancements in other areas, indica
 
 ### 1.5. Flink 2.0 API and Configuration Notes
 
-It's important to acknowledge that Apache Flink 2.0 introduced significant breaking changes, underscoring that Flink is an evolving project:
+It's important to acknowledge that FlinkDotnet 2.0 introduced significant breaking changes, underscoring that Flink is an evolving project:
 
 *   **API Removals:** Major APIs like DataSet, Scala DataStream/DataSet, SourceFunction, SinkFunction (and Sink V1), TableSource/TableSink were removed, requiring migration to newer APIs (DataStream API, Table API/SQL, Source/Sink V2, DynamicTableSource/Sink).
 *   **Configuration Changes:** The legacy `flink-conf.yaml` is no longer supported (replaced by `config.yaml`), and many old configuration options were removed.
-*   **Implications for Flink.NET:** While Flink.NET draws inspiration from Apache Flink, it has its own distinct .NET-native API and will manage its own evolution. However, the types of changes seen in Flink 2.0 (e.g., modernization of source/sink interfaces) provide context for long-term API design considerations in any stream processing system. Flink.NET's current custom interfaces like `ITwoPhaseCommitSink` are examples of its independent API design.
+*   **Implications for Flink.NET:** While Flink.NET draws inspiration from FlinkDotnet, it has its own distinct .NET-native API and will manage its own evolution. However, the types of changes seen in Flink 2.0 (e.g., modernization of source/sink interfaces) provide context for long-term API design considerations in any stream processing system. Flink.NET's current custom interfaces like `ITwoPhaseCommitSink` are examples of its independent API design.
 
 ## 2. Implemented Enhancements (Proof-of-Concept - Step 3)
 
@@ -64,7 +64,7 @@ It's important to acknowledge that Apache Flink 2.0 introduced significant break
     *   Added a `SemaphoreSlim` to limit the number of outstanding send operations (i.e., `WriteAsync` calls on the gRPC stream that have not yet "completed" from the client's perspective).
     *   The `MaxOutstandingSends` is currently hardcoded (e.g., to 100).
     *   The semaphore is acquired before attempting to send a record and released after the `WriteAsync` operation is initiated.
-*   **Nature:** This is client-side self-throttling, not a full server-driven credit-based backpressure system like in Apache Flink. In this PoC, the permit is released immediately after the write is initiated by the client, rather than waiting for an explicit acknowledgement or credit from the server.
+*   **Nature:** This is client-side self-throttling, not a full server-driven credit-based backpressure system like in FlinkDotnet. In this PoC, the permit is released immediately after the write is initiated by the client, rather than waiting for an explicit acknowledgement or credit from the server.
 *   **File:** `FlinkDotNet/FlinkDotNet.TaskManager/TaskExecutor.cs`
 
 ### 2.2. Serialization PoC

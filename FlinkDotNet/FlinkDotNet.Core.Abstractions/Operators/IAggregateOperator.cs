@@ -4,13 +4,14 @@ namespace FlinkDotNet.Core.Abstractions.Operators
     /// Interface for an aggregate operator that computes an aggregate over elements.
     /// It involves creating an accumulator, adding elements to it, and then deriving a final result.
     /// Similar to Flink's AggregateFunction.
+    /// 
+    /// Note: Uses contravariant 'in' parameters and covariant 'out' parameter
+    /// for proper type variance in functional composition scenarios.
     /// </summary>
     /// <typeparam name="TIn">The type of the input elements.</typeparam>
     /// <typeparam name="TAgg">The type of the accumulator.</typeparam>
     /// <typeparam name="TOut">The type of the output (result) elements.</typeparam>
-#pragma warning disable S2436
     public interface IAggregateOperator<in TIn, TAgg, out TOut>
-#pragma warning restore S2436
     {
         /// <summary>
         /// Creates a new accumulator, starting a new aggregate.

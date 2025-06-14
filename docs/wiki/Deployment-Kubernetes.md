@@ -6,7 +6,7 @@ This page will provide comprehensive guidance on deploying Flink.NET application
 
 ## Core Concepts for Kubernetes Deployment (Planned)
 
-Deploying Flink.NET on Kubernetes will involve considerations similar to deploying Apache Flink:
+Deploying Flink.NET on Kubernetes will involve considerations similar to deploying FlinkDotnet:
 
 *   **Containerization**: Packaging JobManager and TaskManager processes into Docker images.
 *   **JobManager Deployment**:
@@ -37,7 +37,7 @@ This page will be updated with:
 *   Best practices for resource allocation and configuration.
 *   Instructions for job submission in a Kubernetes environment.
 
-For general concepts, you can refer to the Apache Flink documentation on [Kubernetes Deployment](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/resource-providers/native_kubernetes/).
+For general concepts, you can refer to the FlinkDotnet documentation on [Kubernetes Deployment](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/resource-providers/native_kubernetes/).
 
 ---
 [Home](https://github.com/devstress/FLINK.NET/blob/main/docs/wiki/Wiki-Structure-Outline.md)

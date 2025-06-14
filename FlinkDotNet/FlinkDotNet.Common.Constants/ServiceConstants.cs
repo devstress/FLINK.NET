@@ -87,30 +87,56 @@ public static class ServiceUris
     /// <summary>
     /// Insecure service URIs for local development only
     /// </summary>
+    /// <summary>
+    /// Service URIs for insecure HTTP connections.
+    /// WARNING: These should only be used for local development and testing.
+    /// For production environments, use the Secure class with HTTPS endpoints.
+    /// </summary>
     public static class Insecure
     {
         /// <summary>
         /// JobManager gRPC address (insecure HTTP - use only for local development)
+        /// For production, use Secure.JobManagerGrpcHttps instead.
         /// </summary>
-#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
         public static string JobManagerGrpcHttp => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
-#pragma warning restore S5332
 
         /// <summary>
         /// JobManager HTTP API address (insecure HTTP - use only for local development)
+        /// For production, use Secure.JobManagerHttpsApi instead.
         /// </summary>
-#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
         public static string JobManagerHttpApi => $"http://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
-#pragma warning restore S5332
 
         /// <summary>
         /// TaskManager gRPC address with specified port (insecure HTTP - use only for local development)
+        /// For production, use Secure.TaskManagerGrpcHttps instead.
         /// </summary>
         /// <param name="port">Custom port number</param>
         /// <returns>TaskManager gRPC URI</returns>
-#pragma warning disable S5332 // Using http protocol is insecure. Use https instead.
         public static string TaskManagerGrpcHttp(int port = ServicePorts.TaskManagerGrpc) => $"http://{ServiceHosts.Localhost}:{port}";
-#pragma warning restore S5332
+    }
+
+    /// <summary>
+    /// Service URIs for secure HTTPS connections.
+    /// Use these for production environments.
+    /// </summary>
+    public static class Secure
+    {
+        /// <summary>
+        /// JobManager gRPC address (secure HTTPS - recommended for production)
+        /// </summary>
+        public static string JobManagerGrpcHttps => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerGrpc}";
+
+        /// <summary>
+        /// JobManager HTTP API address (secure HTTPS - recommended for production)
+        /// </summary>
+        public static string JobManagerHttpsApi => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
+
+        /// <summary>
+        /// TaskManager gRPC address with specified port (secure HTTPS - recommended for production)
+        /// </summary>
+        /// <param name="port">Custom port number</param>
+        /// <returns>TaskManager gRPC URI</returns>
+        public static string TaskManagerGrpcHttps(int port = ServicePorts.TaskManagerGrpc) => $"https://{ServiceHosts.Localhost}:{port}";
     }
 
     /// <summary>

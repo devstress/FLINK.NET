@@ -9,21 +9,21 @@ using System.Collections.Concurrent;
 namespace FlinkDotNet.Tests.BackPressure;
 
 /// <summary>
-/// Comprehensive test suite for Apache Flink 2.0 style back pressure implementation.
+/// Comprehensive test suite for FlinkDotnet 2.0 style back pressure implementation.
 /// Tests all aspects of the back pressure system including credit-based flow control,
 /// pipeline stage interactions, and pressure propagation.
 /// </summary>
-public class ApacheFlinkBackPressureTests : IDisposable
+public class FlinkDotnetBackPressureTests : IDisposable
 {
     private readonly IHost _host;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly ILogger<ApacheFlinkBackPressureTests> _logger;
+    private readonly ILogger<FlinkDotnetBackPressureTests> _logger;
 
-    public ApacheFlinkBackPressureTests()
+    public FlinkDotnetBackPressureTests()
     {
         _host = CreateTestHost();
         _loggerFactory = _host.Services.GetRequiredService<ILoggerFactory>();
-        _logger = _loggerFactory.CreateLogger<ApacheFlinkBackPressureTests>();
+        _logger = _loggerFactory.CreateLogger<FlinkDotnetBackPressureTests>();
     }
 
     #region Credit-Based Flow Control Tests

@@ -6,10 +6,12 @@ namespace FlinkDotNet.Core.Abstractions.Windowing
     /// <summary>
     /// Base class for all window types (e.g., TimeWindow, GlobalWindow).
     /// A Window is a logical grouping of elements from a stream.
+    /// 
+    /// Note: This is intentionally an abstract class rather than an interface
+    /// to provide common Equals/GetHashCode implementations which are essential
+    /// for window objects used as keys in internal state management.
     /// </summary>
-#pragma warning disable S1694 // CS: Abstract class 'Window' should be an interface. Justification: Base class with common overrides for Equals/GetHashCode is a valid pattern.
     public abstract class Window
-#pragma warning restore S1694
     {
         /// <summary>
         /// Gets the maximum timestamp that is included in this window.

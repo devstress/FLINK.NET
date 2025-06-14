@@ -20,14 +20,14 @@ using Testcontainers.Redis;
 using Testcontainers.Kafka;
 using System.Text.Json;
 
-namespace ApacheFlinkStandardReliabilityTest
+namespace FlinkDotnetStandardReliabilityTest
 {
     /// <summary>
-    /// Apache Flink 2.0 Standard Pipeline Reliability Test with BDD Style and Comprehensive Diagnostics
+    /// FlinkDotnet 2.0 Standard Pipeline Reliability Test with BDD Style and Comprehensive Diagnostics
     /// 
-    /// This test implements Apache Flink 2.0 best practices with worldwide stream processing patterns:
+    /// This test implements FlinkDotnet 2.0 best practices with worldwide stream processing patterns:
     /// - BDD Style: Given/When/Then scenarios for clear test documentation
-    /// - Apache Flink 2.0 Pattern: Source → Map/Filter → KeyBy → Process → AsyncFunction → Sink
+    /// - FlinkDotnet 2.0 Pattern: Source → Map/Filter → KeyBy → Process → AsyncFunction → Sink
     /// - Comprehensive Diagnostics: Detailed failure analysis and expected behavior logging
     /// - Worldwide Best Practices: Follows industry standards for stream processing testing
     /// 
@@ -37,10 +37,10 @@ namespace ApacheFlinkStandardReliabilityTest
     /// 3. Fault Tolerance and Recovery Testing
     /// 4. Performance and Resource Utilization Validation
     /// </summary>
-    public class ApacheFlinkStandardReliabilityTest : IAsyncLifetime
+    public class FlinkDotnetStandardReliabilityTest : IAsyncLifetime
     {
         private readonly ITestOutputHelper _output;
-        private readonly ILogger<ApacheFlinkStandardReliabilityTest> _logger;
+        private readonly ILogger<FlinkDotnetStandardReliabilityTest> _logger;
         
         // Test containers for integration testing
         private readonly RedisContainer _redisContainer;
@@ -51,7 +51,7 @@ namespace ApacheFlinkStandardReliabilityTest
         private readonly TestDiagnostics _diagnostics;
         private readonly TestScenarioLogger _scenarioLogger;
         
-        public ApacheFlinkStandardReliabilityTest(ITestOutputHelper output)
+        public FlinkDotnetStandardReliabilityTest(ITestOutputHelper output)
         {
             _output = output;
             
@@ -60,7 +60,7 @@ namespace ApacheFlinkStandardReliabilityTest
                 builder.AddConsole()
                        .SetMinimumLevel(LogLevel.Debug) // Enhanced logging for diagnostics
                        .AddFilter("Microsoft", LogLevel.Warning)); // Filter noisy framework logs
-            _logger = loggerFactory.CreateLogger<ApacheFlinkStandardReliabilityTest>();
+            _logger = loggerFactory.CreateLogger<FlinkDotnetStandardReliabilityTest>();
             
             // Initialize BDD scenario logger
             _scenarioLogger = new TestScenarioLogger(_logger, _output);
@@ -68,7 +68,7 @@ namespace ApacheFlinkStandardReliabilityTest
             // Initialize comprehensive diagnostics
             _diagnostics = new TestDiagnostics(_logger, _scenarioLogger);
             
-            // Configure test containers with Apache Flink 2.0 best practices
+            // Configure test containers with FlinkDotnet 2.0 best practices
             _redisContainer = new RedisBuilder()
                 .WithImage("redis:7-alpine")
                 .WithPortBinding(6379, true)
@@ -79,14 +79,14 @@ namespace ApacheFlinkStandardReliabilityTest
                 .WithPortBinding(9092, true)
                 .Build();
             
-            // Configure test parameters following Apache Flink 2.0 and worldwide best practices
+            // Configure test parameters following FlinkDotnet 2.0 and worldwide best practices
             _config = new ReliabilityTestConfiguration
             {
                 MessageCount = GetMessageCountFromEnvironment(), // Support CI/local testing
                 ParallelSourceInstances = Environment.ProcessorCount, // Align with CPU cores
                 ExpectedProcessingTimeMs = 300_000, // 5 minutes for comprehensive testing
-                FailureToleranceRate = 0.001, // 0.1% failure tolerance (Apache Flink standard)
-                CheckpointInterval = TimeSpan.FromSeconds(10), // Apache Flink 2.0 standard
+                FailureToleranceRate = 0.001, // 0.1% failure tolerance (FlinkDotnet standard)
+                CheckpointInterval = TimeSpan.FromSeconds(10), // FlinkDotnet 2.0 standard
                 EnableExactlyOnceSemantics = true, // Enable for production-like testing
                 BackPressureThresholdPercent = 80, // Flink 2.0 default threshold
                 NetworkTimeoutMs = 30_000, // 30 seconds for network operations
@@ -95,7 +95,7 @@ namespace ApacheFlinkStandardReliabilityTest
             
             // Log test initialization with BDD context
             _scenarioLogger.LogScenarioStart("Test Initialization", 
-                $"Configuring Apache Flink 2.0 reliability test with {_config.MessageCount:N0} messages");
+                $"Configuring FlinkDotnet 2.0 reliability test with {_config.MessageCount:N0} messages");
         }
 
         private long GetMessageCountFromEnvironment()
@@ -215,15 +215,15 @@ namespace ApacheFlinkStandardReliabilityTest
         }
 
         [Fact]
-        public async Task ShouldProcessHighVolumeWithApacheFlinkStandardPipeline()
+        public async Task ShouldProcessHighVolumeWithFlinkDotnetStandardPipeline()
         {
-            // BDD SCENARIO: High-Volume Message Processing with Apache Flink 2.0 Standard Pipeline
+            // BDD SCENARIO: High-Volume Message Processing with FlinkDotnet 2.0 Standard Pipeline
             _scenarioLogger.LogScenarioStart("High-Volume Processing", 
-                "Testing Apache Flink 2.0 standard pipeline with comprehensive diagnostics");
+                "Testing FlinkDotnet 2.0 standard pipeline with comprehensive diagnostics");
             
-            // GIVEN: Apache Flink 2.0 environment is configured for high-volume processing
+            // GIVEN: FlinkDotnet 2.0 environment is configured for high-volume processing
             _scenarioLogger.LogGiven("Pipeline configuration", 
-                $"Apache Flink 2.0 environment configured for {_config.MessageCount:N0} messages with " +
+                $"FlinkDotnet 2.0 environment configured for {_config.MessageCount:N0} messages with " +
                 $"{_config.ParallelSourceInstances} parallel sources and exactly-once semantics");
             
             var executionStopwatch = Stopwatch.StartNew();
@@ -231,7 +231,7 @@ namespace ApacheFlinkStandardReliabilityTest
             
             try
             {
-                // Configure Flink environment following Apache Flink 2.0 best practices
+                // Configure Flink environment following FlinkDotnet 2.0 best practices
                 var env = StreamExecutionEnvironment.GetExecutionEnvironment();
                 _diagnostics.LogEnvironmentConfiguration(env, _config);
                 
@@ -241,7 +241,7 @@ namespace ApacheFlinkStandardReliabilityTest
                 
                 _diagnostics.LogInfrastructureDetails(redisConnectionString, kafkaBootstrapServers);
 
-                // WHEN: Apache Flink 2.0 standard pipeline executes with back pressure monitoring
+                // WHEN: FlinkDotnet 2.0 standard pipeline executes with back pressure monitoring
                 _scenarioLogger.LogWhen("Pipeline execution", 
                     "Executing Source → Map/Filter → KeyBy → Process → AsyncFunction → Sink pipeline");
                 
@@ -250,7 +250,7 @@ namespace ApacheFlinkStandardReliabilityTest
                 executionStopwatch.Stop();
                 testResults.TotalExecutionTimeMs = executionStopwatch.ElapsedMilliseconds;
                 
-                // THEN: Pipeline execution meets Apache Flink 2.0 reliability requirements
+                // THEN: Pipeline execution meets FlinkDotnet 2.0 reliability requirements
                 _scenarioLogger.LogThen("Pipeline execution", 
                     $"Pipeline completed in {executionStopwatch.ElapsedMilliseconds:N0}ms, validating results");
                 
@@ -258,7 +258,7 @@ namespace ApacheFlinkStandardReliabilityTest
                 await ValidateTestResultsWithDiagnostics(result, testResults, executionStopwatch);
                 
                 _scenarioLogger.LogThen("Test completion", 
-                    "✅ Apache Flink 2.0 standard pipeline reliability test PASSED with all assertions");
+                    "✅ FlinkDotnet 2.0 standard pipeline reliability test PASSED with all assertions");
                 
                 _logger.LogInformation("🎉 Test execution completed successfully with comprehensive diagnostics");
             }
@@ -281,43 +281,43 @@ namespace ApacheFlinkStandardReliabilityTest
             TestExecutionResults testResults)
         {
             _scenarioLogger.LogGiven("Pipeline building", 
-                "Apache Flink 2.0 standard pipeline components should be configured correctly");
+                "FlinkDotnet 2.0 standard pipeline components should be configured correctly");
             
             var pipelineStopwatch = Stopwatch.StartNew();
             
             try
             {
-                // Step 1: Source (Apache Flink 2.0 standard - use proper sources, not gateways)
+                // Step 1: Source (FlinkDotnet 2.0 standard - use proper sources, not gateways)
                 _logger.LogDebug("Configuring high-volume source with diagnostics");
                 var source = new EnhancedHighVolumeSource(_config.MessageCount, redisConnectionString, _diagnostics);
                 DataStream<string> sourceStream = env.AddSource(source, "apache-flink-standard-source");
                 _scenarioLogger.LogWhen("Source configuration", "High-volume source configured with Redis sequence generation");
 
-                // Step 2: Map/Filter (Apache Flink 2.0 standard - separate validation and transformation)
+                // Step 2: Map/Filter (FlinkDotnet 2.0 standard - separate validation and transformation)
                 _logger.LogDebug("Configuring validation and transformation stages");
                 DataStream<ValidatedRecord> validatedStream = sourceStream
                     .Map(new EnhancedValidationMapFunction(_diagnostics)); // Enhanced with diagnostics
                 _scenarioLogger.LogWhen("Validation configuration", "Validation and transformation stages configured with comprehensive logging");
 
-                // Step 3: KeyBy (Apache Flink 2.0 standard - proper partitioning)  
+                // Step 3: KeyBy (FlinkDotnet 2.0 standard - proper partitioning)  
                 _logger.LogDebug("Configuring partitioning with load balancing");
                 KeySelector<ValidatedRecord, string> keySelector = record => record.PartitionKey;
                 var keyedStream = validatedStream.KeyBy(keySelector);
                 _scenarioLogger.LogWhen("Partitioning configuration", "Partitioning stage configured with load-aware key selection");
 
-                // Step 4: Map for processing (Apache Flink 2.0 standard - using available interfaces)
+                // Step 4: Map for processing (FlinkDotnet 2.0 standard - using available interfaces)
                 _logger.LogDebug("Configuring stateful processing with back pressure monitoring");
                 DataStream<ProcessedRecord> processedStream = keyedStream
                     .Map(new EnhancedProcessingMapFunction(_diagnostics, _config));
                 _scenarioLogger.LogWhen("Processing configuration", "Stateful processing stage configured with back pressure monitoring");
 
-                // Step 5: Map for enrichment (Apache Flink 2.0 standard - using available interfaces)
+                // Step 5: Map for enrichment (FlinkDotnet 2.0 standard - using available interfaces)
                 _logger.LogDebug("Configuring enrichment with fault tolerance");
                 DataStream<EnrichedRecord> enrichedStream = processedStream
                     .Map(new EnhancedEnrichmentMapFunction(_diagnostics));
                 _scenarioLogger.LogWhen("Enrichment configuration", "Enrichment stage configured with fault tolerance and retry logic");
 
-                // Step 6: Sink (Apache Flink 2.0 standard - proper sinks with exactly-once)
+                // Step 6: Sink (FlinkDotnet 2.0 standard - proper sinks with exactly-once)
                 _logger.LogDebug("Configuring sink with exactly-once semantics");
                 var resultCollector = new EnhancedReliabilityTestResultCollector(_diagnostics, _config);
                 enrichedStream.AddSink(new EnhancedReliabilityTestSink(redisConnectionString, resultCollector, _diagnostics), 
@@ -328,7 +328,7 @@ namespace ApacheFlinkStandardReliabilityTest
 
                 // Execute the pipeline with comprehensive monitoring
                 _scenarioLogger.LogWhen("Pipeline execution", "Starting pipeline execution with real-time monitoring");
-                _logger.LogInformation("🚀 Executing Apache Flink 2.0 standard pipeline with comprehensive diagnostics...");
+                _logger.LogInformation("🚀 Executing FlinkDotnet 2.0 standard pipeline with comprehensive diagnostics...");
                 
                 var executionTask = env.ExecuteLocallyAsync("apache-flink-standard-reliability-test", CancellationToken.None);
                 
@@ -420,7 +420,7 @@ namespace ApacheFlinkStandardReliabilityTest
         private async Task ValidateTestResultsWithDiagnostics(PipelineExecutionResult result, TestExecutionResults testResults, Stopwatch executionStopwatch)
         {
             _scenarioLogger.LogGiven("Result validation", 
-                "Pipeline execution results should meet Apache Flink 2.0 reliability standards");
+                "Pipeline execution results should meet FlinkDotnet 2.0 reliability standards");
             
             _logger.LogInformation("🔍 VALIDATION RESULTS:");
             _logger.LogInformation($"   Execution time: {executionStopwatch.ElapsedMilliseconds:N0}ms");
@@ -515,10 +515,10 @@ namespace ApacheFlinkStandardReliabilityTest
         }
     }
 
-    // Apache Flink 2.0 Standard Pipeline Components with Enhanced Diagnostics
+    // FlinkDotnet 2.0 Standard Pipeline Components with Enhanced Diagnostics
     
     /// <summary>
-    /// Enhanced high-volume source with comprehensive diagnostics and Apache Flink 2.0 best practices
+    /// Enhanced high-volume source with comprehensive diagnostics and FlinkDotnet 2.0 best practices
     /// </summary>
     public class EnhancedHighVolumeSource : ISourceFunction<string>, IOperatorLifecycle
     {
@@ -1114,7 +1114,7 @@ namespace ApacheFlinkStandardReliabilityTest
         }
     }
 
-    // Enhanced Data Models for Apache Flink 2.0 Standard Pipeline with Comprehensive Diagnostics
+    // Enhanced Data Models for FlinkDotnet 2.0 Standard Pipeline with Comprehensive Diagnostics
 
     public class ValidatedRecord
     {
@@ -1293,7 +1293,7 @@ namespace ApacheFlinkStandardReliabilityTest
             _logger.LogInformation($"   Exactly-Once: {config.EnableExactlyOnceSemantics}");
             _logger.LogInformation($"   Back Pressure Threshold: {config.BackPressureThresholdPercent}%");
             
-            RecordEvent("EnvironmentConfiguration", "Environment configured with Apache Flink 2.0 settings");
+            RecordEvent("EnvironmentConfiguration", "Environment configured with FlinkDotnet 2.0 settings");
         }
 
         public void LogInfrastructureDetails(string redisConnectionString, string kafkaBootstrapServers)

@@ -1,6 +1,6 @@
 # Core Concepts: Memory Management Overview in Flink.NET
 
-Effective memory management is crucial for the performance and stability of distributed stream processing applications. Apache Flink has a sophisticated memory management system, and Flink.NET aims to align with these concepts to provide .NET developers with control and understanding of how memory is used.
+Effective memory management is crucial for the performance and stability of distributed stream processing applications. FlinkDotnet has a sophisticated memory management system, and Flink.NET aims to align with these concepts to provide .NET developers with control and understanding of how memory is used.
 
 This page provides a high-level overview. Detailed Flink.NET specific configurations and recommendations will be added as the project evolves. The primary goal is to leverage Flink's existing memory management capabilities.
 
@@ -52,11 +52,11 @@ Flink divides memory management into several key areas, primarily concerning the
 *   Offer best practices for writing memory-efficient C# operator logic.
 *   Develop strategies for [[Memory Tuning|Core-Concepts-Memory-Tuning]] and [[Memory Troubleshooting|Core-Concepts-Memory-Troubleshooting]].
 
-## Relationship to Apache Flink Memory Management
+## Relationship to FlinkDotnet Memory Management
 
-Flink.NET will largely adopt Apache Flink's memory model. The documentation and understanding of Flink's memory management are directly applicable. Flink.NET's specific contribution will be in detailing how .NET applications fit into this model and any particular configurations or behaviors related to the .NET runtime.
+Flink.NET will largely adopt FlinkDotnet's memory model. The documentation and understanding of Flink's memory management are directly applicable. Flink.NET's specific contribution will be in detailing how .NET applications fit into this model and any particular configurations or behaviors related to the .NET runtime.
 
-**Apache Flink References:**
+**FlinkDotnet References:**
 
 *   [Flink Memory Management (General Overview - start here)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
 *   [JobManager Memory Configuration](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_jobmanager/)

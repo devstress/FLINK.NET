@@ -1,8 +1,8 @@
-# Development Guidelines for FLINK.NET Apache Flink 2.0 Implementation
+# Development Guidelines for FLINK.NET FlinkDotnet 2.0 Implementation
 
 ## Overview
 
-This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured Apache Flink 2.0 implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with Apache Flink 2.0 specifications.
+This document provides comprehensive guidelines for developing and maintaining FLINK.NET as a full-featured FlinkDotnet 2.0 implementation for .NET and Kubernetes environments. Follow these guidelines to ensure consistency, quality, and compatibility with FlinkDotnet 2.0 specifications.
 
 ## Pre-Commit Development Workflow
 
@@ -49,7 +49,7 @@ dotnet test FlinkDotNetAspire/FlinkDotNetAspire.IntegrationTests/ --configuratio
 - **Resource Disposal**: Implement `IDisposable`/`IAsyncDisposable` properly
 - **Exception Handling**: Comprehensive error handling with recovery strategies
 
-## Apache Flink 2.0 Architecture Implementation
+## FlinkDotnet 2.0 Architecture Implementation
 
 ### Core Components
 
@@ -291,9 +291,9 @@ Before submitting PRs, ensure:
 
 ## Support and Resources
 
-- **Apache Flink 2.0 Documentation**: https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
+- **FlinkDotnet 2.0 Documentation**: https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
 - **FLINK.NET Wiki**: `docs/wiki/`
-- **Architecture Documentation**: `docs/APACHE_FLINK_2_0_FEATURES.md`
+- **Architecture Documentation**: `docs/FLINKDOTNET_2_0_FEATURES.md`
 - **Troubleshooting Guide**: Check stress test logs and GitHub Actions for specific error patterns
 
-Following these guidelines ensures FLINK.NET maintains high quality, performance, and compatibility with Apache Flink 2.0 standards while providing a superior .NET developer experience.
+Following these guidelines ensures FLINK.NET maintains high quality, performance, and compatibility with FlinkDotnet 2.0 standards while providing a superior .NET developer experience.

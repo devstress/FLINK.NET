@@ -9,18 +9,18 @@
 - [6. Deployment](#6-deployment)
 - [7. Advanced Topics](#7-advanced-topics)
 
-This document outlines the proposed structure for the Flink.NET GitHub Wiki. The goal is to provide comprehensive documentation for users and developers, with clear references to Apache Flink''s concepts where applicable.
+This document outlines the proposed structure for the Flink.NET GitHub Wiki. The goal is to provide comprehensive documentation for users and developers, with clear references to FlinkDotnet''s concepts where applicable.
 
 ## 1. Introduction
 *   **Welcome to Flink.NET**
   *   Overview of Flink.NET (See main [Readme.md](../Readme.md))
   *   Key Features & Goals (See main [Readme.md](../Readme.md))
-  *   Relationship to Apache Flink
+  *   Relationship to FlinkDotnet
     *   *Flink.NET Content:* Philosophy of alignment, key differences (e.g., .NET ecosystem, specific implementation choices).
-    *   *Apache Flink Ref:* [Apache Flink Home](https://flink.apache.org/), [What is Apache Flink?](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/overview/)
+    *   *FlinkDotnet Ref:* [FlinkDotnet Home](https://flink.apache.org/), [What is FlinkDotnet?](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/overview/)
 *   **Getting Started**
   *   *Flink.NET Content:* [Setting up and Writing a Simple Application](Getting-Started.md)
-  *   *Apache Flink Ref:* [Flink Getting Started](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/), [Fundamental Concepts](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/)
+  *   *FlinkDotnet Ref:* [Flink Getting Started](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/), [Fundamental Concepts](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/)
 *   **Use Cases**
   *   *Flink.NET Content:* Examples of potential applications for Flink.NET.
 *   **Community & Contribution**
@@ -30,25 +30,25 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 *   **Architecture Overview** (See main [Readme.md](../Readme.md#system-design-overview))
   *   [JobManager](Core-Concepts-JobManager.md)
     *   *Flink.NET Content:* Role in Flink.NET, HA setup (planned).
-    *   *Apache Flink Ref:* [JobManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#jobmanager), [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/)
+    *   *FlinkDotnet Ref:* [JobManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#jobmanager), [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/)
   *   [TaskManager](Core-Concepts-TaskManager.md)
     *   *Flink.NET Content:* Role in Flink.NET, execution of tasks, pod structure.
-    *   *Apache Flink Ref:* [TaskManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager), [Task Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_execution/)
+    *   *FlinkDotnet Ref:* [TaskManager](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager), [Task Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_execution/)
   *   Dataflow & JobGraph
     *   *Flink.NET Content:* How logical plans are translated and executed.
-    *   *Apache Flink Ref:* [Dataflow Programming Model](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/programming_model/), [Job Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/job_scheduling/)
+    *   *FlinkDotnet Ref:* [Dataflow Programming Model](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/programming_model/), [Job Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/job_scheduling/)
 *   **Stream Processing Model**
   *   Streams, Events, Transformations (briefly)
-  *   *Apache Flink Ref:* [DataStream API Programming Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/overview/)
+  *   *FlinkDotnet Ref:* [DataStream API Programming Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/overview/)
 *   [State Management Overview](Core-Concepts-State-Management-Overview.md)
   *   *Flink.NET Content:* Overview of state in Flink.NET (`IValueState`, `IListState`, `IMapState`), keyed state, state descriptors. Brief mention of planned state backends.
-  *   *Apache Flink Ref:* [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/)
+  *   *FlinkDotnet Ref:* [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/)
 *   [Checkpointing & Fault Tolerance](Core-Concepts-Checkpointing-Overview.md)
   *   *Flink.NET Content:* Overview of Flink.NET''s checkpointing mechanism, exactly-once semantics. Role of `CheckpointMetadata` and `OperatorStateMetadata`.
-  *   *Apache Flink Ref:* [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/), [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
+  *   *FlinkDotnet Ref:* [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/), [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
 *   **Exactly-Once Semantics** (dedicated section, cross-referencing)
   *   *Flink.NET Content:* [How Flink.NET achieves this](Core-Concepts-Exactly-Once-Semantics.md)
-  *   *Apache Flink Ref:* [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
+  *   *FlinkDotnet Ref:* [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
 *   **Memory Management**
   *   [Overview](Core-Concepts-Memory-Overview.md)
   *   [JobManager Memory](Core-Concepts-Memory-JobManager.md)
@@ -75,23 +75,23 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
   *   `IWindowOperator` (placeholder)
   *   *For each:*
     *   *Flink.NET Content:* C# interface details, simple usage examples.
-    *   *Apache Flink Ref:* Link to the corresponding Flink `Function`.
+    *   *FlinkDotnet Ref:* Link to the corresponding Flink `Function`.
 *   [Using IRuntimeContext](Developing-RuntimeContext.md)
   *   *Flink.NET Content:* Accessing job/task info, state, etc.
 *   [Working with State](Developing-State.md)
   *   Using `StateDescriptor`s.
   *   Examples for each state type.
   *   State TTL (planned).
-  *   *Apache Flink Ref:* [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/).
+  *   *FlinkDotnet Ref:* [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/).
 *   [Windowing API (Future)](Developing-Windowing-Api.md)
   *   *Flink.NET Content:* Concepts and examples.
-  *   *Apache Flink Ref:* [Windowing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/).
+  *   *FlinkDotnet Ref:* [Windowing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/).
 
 ## 4. Connectors
 *   [Overview](Connectors-Overview.md)
 *   [Source Connectors (Kafka, File - planned)](Connectors-Source.md) <!-- Broken link: Connectors-Source.md not found -->
 *   [Sink Connectors (Console, File, Transactional - planned)](Connectors-Sink.md) <!-- Broken link: Connectors-Sink.md not found -->
-*   *Apache Flink Ref:* [Connectors](https://nightlies.apache.org/flink/flink-docs-stable/docs/connectors/datastream/overview/).
+*   *FlinkDotnet Ref:* [Connectors](https://nightlies.apache.org/flink/flink-docs-stable/docs/connectors/datastream/overview/).
 
 ## 5. JobManager API Reference
 *   [REST API](JobManager-Rest-Api.md)
@@ -100,7 +100,7 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 ## 6. Deployment
 *   [Kubernetes Deployment](Deployment-Kubernetes.md)
 *   [Local Development and Testing](Deployment-Local.md) (potentially with Aspire)
-*   *Apache Flink Ref:* [Deployment](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/overview/).
+*   *FlinkDotnet Ref:* [Deployment](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/overview/).
 
 ## 7. Advanced Topics
 *   [Metrics and Monitoring](Advanced-Metrics-Monitoring.md)

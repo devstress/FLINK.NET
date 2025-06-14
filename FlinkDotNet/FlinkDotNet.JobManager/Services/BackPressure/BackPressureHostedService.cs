@@ -2,7 +2,7 @@ namespace FlinkDotNet.JobManager.Services.BackPressure;
 
 /// <summary>
 /// Hosted service that ensures the BackPressureCoordinator is initialized and started
-/// when the JobManager application starts, following Apache Flink 2.0 patterns.
+/// when the JobManager application starts, following FlinkDotnet 2.0 patterns.
 /// </summary>
 public class BackPressureHostedService : IHostedService
 {
@@ -19,7 +19,7 @@ public class BackPressureHostedService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("BackPressureHostedService starting - initializing Apache Flink 2.0 style back pressure coordination");
+        _logger.LogInformation("BackPressureHostedService starting - initializing FlinkDotnet 2.0 style back pressure coordination");
         
         // The BackPressureCoordinator starts monitoring automatically in its constructor
         // This service just ensures it's instantiated and available for the application lifetime

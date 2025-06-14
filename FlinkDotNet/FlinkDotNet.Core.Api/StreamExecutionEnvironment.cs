@@ -109,7 +109,7 @@ namespace FlinkDotNet.Core.Api
 
         /// <summary>
         /// Executes the job locally in the current process using the LocalStreamExecutor.
-        /// This provides Apache Flink 2.0 compatible execution for development and testing.
+        /// This provides FlinkDotnet 2.0 compatible execution for development and testing.
         /// </summary>
         public async Task ExecuteLocallyAsync(string jobName = "MyFlinkJob", CancellationToken cancellationToken = default)
         {

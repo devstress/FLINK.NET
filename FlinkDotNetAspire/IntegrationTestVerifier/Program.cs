@@ -1,4 +1,3 @@
-#pragma warning disable S3776 // Cognitive Complexity of methods is too high
 using FlinkDotNet.Common.Constants;
 
 namespace IntegrationTestVerifier
@@ -164,7 +163,7 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"\n💡 === RECOMMENDATIONS ===");
             if (failedScenarios == 0)
             {
-                Console.WriteLine($"   🎉 All scenarios passed! System is functioning according to Apache Flink 2.0 standards.");
+                Console.WriteLine($"   🎉 All scenarios passed! System is functioning according to FlinkDotnet 2.0 standards.");
                 Console.WriteLine($"   📈 Consider increasing test complexity or message volumes for further validation.");
             }
             else
@@ -489,11 +488,11 @@ namespace IntegrationTestVerifier
     }
 
     /// <summary>
-    /// BDD-Style Integration Test Verifier with Apache Flink 2.0 Best Practices
+    /// BDD-Style Integration Test Verifier with FlinkDotnet 2.0 Best Practices
     /// 
     /// This verifier implements worldwide best practices for stream processing testing:
     /// - BDD Style: Given/When/Then scenarios for clear test documentation  
-    /// - Apache Flink 2.0 Patterns: Follows official Flink testing methodologies
+    /// - FlinkDotnet 2.0 Patterns: Follows official Flink testing methodologies
     /// - Comprehensive Diagnostics: Detailed failure analysis and expected behavior logging
     /// - Mathematical Analysis: Predictive performance modeling and validation
     /// - Real-time Monitoring: Live system resource and performance tracking
@@ -513,7 +512,7 @@ namespace IntegrationTestVerifier
             Console.WriteLine("=== 🧪 FLINK.NET BDD-STYLE INTEGRATION TEST VERIFIER ===");
             Console.WriteLine($"Started at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
             Console.WriteLine($"Arguments: {string.Join(" ", args)}");
-            Console.WriteLine($"Following Apache Flink 2.0 best practices with comprehensive BDD scenarios");
+            Console.WriteLine($"Following FlinkDotnet 2.0 best practices with comprehensive BDD scenarios");
 
             var configuration = new ConfigurationBuilder()
                 .AddEnvironmentVariables()
@@ -598,7 +597,7 @@ namespace IntegrationTestVerifier
                 "Redis and Kafka containers should be accessible and operational");
             
             Console.WriteLine("\n🏥 === BDD INFRASTRUCTURE HEALTH CHECK ===");
-            Console.WriteLine("📋 Scenario: Validate containerized infrastructure readiness for Apache Flink 2.0 processing");
+            Console.WriteLine("📋 Scenario: Validate containerized infrastructure readiness for FlinkDotnet 2.0 processing");
             
             bool allHealthChecksPass = true;
             var healthCheckResults = new Dictionary<string, bool>();
@@ -656,7 +655,7 @@ namespace IntegrationTestVerifier
                 
                 if (allHealthChecksPass)
                 {
-                    testCoordinator.LogScenarioSuccess("All infrastructure components are ready for Apache Flink 2.0 processing");
+                    testCoordinator.LogScenarioSuccess("All infrastructure components are ready for FlinkDotnet 2.0 processing");
                     Console.WriteLine($"\n🎉 === INFRASTRUCTURE HEALTH: ✅ EXCELLENT ===");
                     Console.WriteLine($"   ✓ Redis: Operational and responsive");
                     Console.WriteLine($"   ✓ Kafka: Operational with metadata access");
@@ -900,10 +899,10 @@ namespace IntegrationTestVerifier
         private static async Task<int> RunBddFullVerificationAsync(IConfigurationRoot config, BddTestCoordinator testCoordinator)
         {
             testCoordinator.LogScenarioStart("Full System Verification", 
-                "Comprehensive Apache Flink 2.0 high-throughput processing validation");
+                "Comprehensive FlinkDotnet 2.0 high-throughput processing validation");
             
             Console.WriteLine("\n=== 🧪 FLINK.NET BDD HIGH-THROUGHPUT VERIFICATION ===");
-            Console.WriteLine("📋 BDD Scenario: Apache Flink 2.0 compliant high-volume stream processing with comprehensive diagnostics");
+            Console.WriteLine("📋 BDD Scenario: FlinkDotnet 2.0 compliant high-volume stream processing with comprehensive diagnostics");
             Console.WriteLine("");
             
             // Initialize enhanced resource monitoring with BDD integration
@@ -956,7 +955,7 @@ namespace IntegrationTestVerifier
                 
                 // BDD SCENARIO 4: Performance and Resource Validation
                 testCoordinator.LogScenarioStart("Performance and Resource Validation", 
-                    "Validating system performance against Apache Flink 2.0 benchmarks and resource utilization targets");
+                    "Validating system performance against FlinkDotnet 2.0 benchmarks and resource utilization targets");
                 
                 analysis = resourceMonitor.GetResourceAnalysis(testConfig.ExpectedMessages, 20);
                 bool performanceVerified = ValidateBddPerformanceRequirements(verificationStopwatch, testConfig, analysis, testCoordinator);
@@ -965,7 +964,7 @@ namespace IntegrationTestVerifier
                 
                 // BDD SCENARIO 5: Overall System Assessment
                 testCoordinator.LogScenarioStart("Overall System Assessment", 
-                    "Comprehensive assessment of Apache Flink 2.0 compliance and reliability standards");
+                    "Comprehensive assessment of FlinkDotnet 2.0 compliance and reliability standards");
                 
                 verificationResults.OverallSuccess = allVerificationsPassed;
                 verificationResults.TotalExecutionTimeMs = verificationStopwatch.ElapsedMilliseconds;
@@ -975,7 +974,7 @@ namespace IntegrationTestVerifier
                 
                 if (allVerificationsPassed)
                 {
-                    testCoordinator.LogScenarioSuccess("All verification scenarios passed - system meets Apache Flink 2.0 standards");
+                    testCoordinator.LogScenarioSuccess("All verification scenarios passed - system meets FlinkDotnet 2.0 standards");
                 }
                 else
                 {
@@ -1134,7 +1133,7 @@ namespace IntegrationTestVerifier
                 $"Processing should complete within {config.MaxAllowedTimeMs:N0}ms with optimal resource utilization");
             
             Console.WriteLine($"\n🚀 === BDD PERFORMANCE VALIDATION ===");
-            Console.WriteLine($"   📋 Scenario: Apache Flink 2.0 performance standards compliance");
+            Console.WriteLine($"   📋 Scenario: FlinkDotnet 2.0 performance standards compliance");
             
             var actualTimeMs = verificationStopwatch.ElapsedMilliseconds;
             var timingPassed = actualTimeMs <= config.MaxAllowedTimeMs;
@@ -1156,7 +1155,7 @@ namespace IntegrationTestVerifier
             
             if (allPassed)
             {
-                testCoordinator.LogScenarioSuccess("All performance requirements met - system exceeds Apache Flink 2.0 standards");
+                testCoordinator.LogScenarioSuccess("All performance requirements met - system exceeds FlinkDotnet 2.0 standards");
             }
             else
             {
@@ -1175,7 +1174,7 @@ namespace IntegrationTestVerifier
         private static void LogBddFinalAssessment(BddVerificationResults results, BddTestCoordinator testCoordinator)
         {
             testCoordinator.LogGiven("Final assessment", 
-                "All verification scenarios should pass for Apache Flink 2.0 compliance");
+                "All verification scenarios should pass for FlinkDotnet 2.0 compliance");
             
             Console.WriteLine($"\n🏁 === BDD FINAL ASSESSMENT ===");
             Console.WriteLine($"   📊 Redis Verification: {(results.RedisVerificationPassed ? "✅ PASSED" : "❌ FAILED")}");
@@ -1192,13 +1191,13 @@ namespace IntegrationTestVerifier
             
             if (results.OverallSuccess)
             {
-                Console.WriteLine($"   🎉 OVERALL RESULT: ✅ **EXCELLENT** - Apache Flink 2.0 compliance verified");
-                testCoordinator.LogThen("Final assessment", "System meets all Apache Flink 2.0 reliability and performance standards");
+                Console.WriteLine($"   🎉 OVERALL RESULT: ✅ **EXCELLENT** - FlinkDotnet 2.0 compliance verified");
+                testCoordinator.LogThen("Final assessment", "System meets all FlinkDotnet 2.0 reliability and performance standards");
             }
             else
             {
                 Console.WriteLine($"   💥 OVERALL RESULT: ❌ **NEEDS ATTENTION** - Some requirements not met");
-                testCoordinator.LogThen("Final assessment", "System requires attention to meet Apache Flink 2.0 standards");
+                testCoordinator.LogThen("Final assessment", "System requires attention to meet FlinkDotnet 2.0 standards");
             }
         }
         

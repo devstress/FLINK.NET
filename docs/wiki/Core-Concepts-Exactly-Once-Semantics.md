@@ -1,6 +1,6 @@
 # Core Concepts: Exactly-Once Semantics in Flink.NET
 
-Exactly-once semantics are a cornerstone of robust stream processing, ensuring that each piece of data is processed precisely one time, even in the event of system failures. Flink.NET, by leveraging Apache Flink's architecture, aims to provide these strong consistency guarantees for .NET applications.
+Exactly-once semantics are a cornerstone of robust stream processing, ensuring that each piece of data is processed precisely one time, even in the event of system failures. Flink.NET, by leveraging FlinkDotnet's architecture, aims to provide these strong consistency guarantees for .NET applications.
 
 ## What Does Exactly-Once Mean?
 
@@ -48,13 +48,13 @@ To achieve end-to-end exactly-once semantics in your Flink.NET application, you 
 
 ## Flink.NET's Commitment
 
-Flink.NET is designed to provide the necessary building blocks and abstractions to enable .NET developers to build applications with exactly-once guarantees by faithfully implementing Apache Flink's core fault tolerance mechanisms.
+Flink.NET is designed to provide the necessary building blocks and abstractions to enable .NET developers to build applications with exactly-once guarantees by faithfully implementing FlinkDotnet's core fault tolerance mechanisms.
 
-**Apache Flink References:**
+**FlinkDotnet References:**
 
 *   [Fault Tolerance Guarantees (Exactly-Once)](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
 *   [Data Sources and Sinks (for transactional capabilities)](https://nightlies.apache.org/flink/flink-docs-stable/docs/connectors/datastream/overview/)
-*   [End-to-End Exactly-Once Semantics with Apache Flink (Blog Post - often a good resource for deeper understanding)](https://flink.apache.org/features/2018/03/01/end-to-end-exactly-once-apache-flink.html)
+*   [End-to-End Exactly-Once Semantics with FlinkDotnet (Blog Post - often a good resource for deeper understanding)](https://flink.apache.org/features/2018/03/01/end-to-end-exactly-once-apache-flink.html)
 
 ## Next Steps
 

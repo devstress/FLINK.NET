@@ -11,19 +11,19 @@ using Microsoft.Extensions.Hosting;
 namespace FlinkDotNet.Examples.Pipeline;
 
 /// <summary>
-/// Complete example of Apache Flink 2.0 style pipeline with comprehensive back pressure handling.
+/// Complete example of FlinkDotnet 2.0 style pipeline with comprehensive back pressure handling.
 /// Demonstrates: Gateway -> KeyGen -> IngressProcessing -> AsyncEgressProcessing -> FinalSink
 /// </summary>
-public class ApacheFlinkPipelineExample
+public class FlinkDotnetPipelineExample
 {
     public static async Task RunExample()
     {
         // Configure logging and DI
         using var host = CreateHost();
-        var logger = host.Services.GetRequiredService<ILogger<ApacheFlinkPipelineExample>>();
+        var logger = host.Services.GetRequiredService<ILogger<FlinkDotnetPipelineExample>>();
         var loggerFactory = host.Services.GetRequiredService<ILoggerFactory>();
 
-        logger.LogInformation("Starting Apache Flink 2.0 Pipeline Example with comprehensive back pressure");
+        logger.LogInformation("Starting FlinkDotnet 2.0 Pipeline Example with comprehensive back pressure");
 
         // Initialize back pressure controller
         var backPressureController = new PipelineBackPressureController(
@@ -170,7 +170,7 @@ public class ApacheFlinkPipelineExample
         FinalSinkStage<string> finalSink,
         ILogger logger)
     {
-        logger.LogInformation("Executing Apache Flink 2.0 pipeline with back pressure monitoring");
+        logger.LogInformation("Executing FlinkDotnet 2.0 pipeline with back pressure monitoring");
 
         var processedCount = 0;
         var context = new SimpleRuntimeContext("PipelineExample");
@@ -242,7 +242,7 @@ public class ApacheFlinkPipelineExample
 
     private static void DisplayPipelineMetrics(PipelineBackPressureController backPressureController, ILogger logger)
     {
-        logger.LogInformation("=== Apache Flink 2.0 Pipeline Back Pressure Metrics ===");
+        logger.LogInformation("=== FlinkDotnet 2.0 Pipeline Back Pressure Metrics ===");
 
         var pipelineStatus = backPressureController.GetPipelineStatus();
         logger.LogInformation("Overall Pipeline Pressure Level: {Pressure:F2}", pipelineStatus.OverallPressureLevel);
@@ -417,7 +417,7 @@ public class SimpleRuntimeContext : IRuntimeContext
 
     public SimpleRuntimeContext(string taskName)
     {
-        JobName = "Apache Flink 2.0 Pipeline Example";
+        JobName = "FlinkDotnet 2.0 Pipeline Example";
         TaskName = taskName;
         JobConfiguration = new FlinkDotNet.Core.Abstractions.Models.JobConfiguration();
         StateSnapshotStore = new SimpleStateSnapshotStore();

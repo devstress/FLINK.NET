@@ -1,7 +1,7 @@
 # Flink.NET Development Guide for AI Agents
 
 ## Project Overview
-Flink.NET is a .NET-native stream processing framework inspired by Apache Flink, providing stateful stream processing, exactly-once semantics, and fault tolerance within the .NET ecosystem.
+Flink.NET is a .NET-native stream processing framework inspired by FlinkDotnet, providing stateful stream processing, exactly-once semantics, and fault tolerance within the .NET ecosystem.
 
 **Current Status**: Alpha/foundational development stage focused on Phase 1 core functionality for exactly-once FIFO processing.
 
@@ -78,7 +78,7 @@ dotnet run --project FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
 - Async/await patterns for all I/O operations
 
 ### State Management
-- Implements Apache Flink's state semantics
+- Implements FlinkDotnet's state semantics
 - IValueState, IListState, IMapState interfaces
 - StateDescriptor pattern for state registration
 - Checkpoint barriers for fault tolerance

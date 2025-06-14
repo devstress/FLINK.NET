@@ -1,6 +1,6 @@
 # System Design Overview
 
-Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from Apache Flink's robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
+Flink.NET is architected as a distributed stream processing system designed for scalability, fault tolerance, and exactly-once processing semantics. It draws inspiration from FlinkDotnet's robust architecture, adapting its core components to the .NET ecosystem and a Kubernetes-native deployment model.
 
 ## Key Architectural Components
 
@@ -13,7 +13,7 @@ The system comprises several key interacting components:
     *   Managing local state for stateful operations (see [State Management Overview](./Core-Concepts-State-Management-Overview.md)).
     *   Interacting with external data sinks.
 *   **Connectors (Sources & Sinks):** These are specialized components or libraries responsible for interfacing with external data systems. Sources read data from systems like Apache Kafka, Azure Event Hubs, etc., while Sinks write processed data to databases, APIs, or other messaging systems.
-*   **Durable State Backend:** A persistent, scalable, and highly available storage solution is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics, as detailed in the [Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md). For cloud-native deployments, inspiration is drawn from concepts like Apache Flink 2.0's Disaggregated State Management, which decouples state storage (often using Distributed File Systems like S3 or HDFS, managed by backends like Flink's ForSt) from compute resources and utilizes asynchronous state access. This approach aims to enhance scalability, resource efficiency, and recovery speed, guiding Flink.NET's strategy for robust state handling.
+*   **Durable State Backend:** A persistent, scalable, and highly available storage solution is used to store all processing state and checkpoint metadata. This is crucial for achieving fault tolerance and exactly-once semantics, as detailed in the [Checkpointing Overview](./Core-Concepts-Checkpointing-Overview.md). For cloud-native deployments, inspiration is drawn from concepts like FlinkDotnet 2.0's Disaggregated State Management, which decouples state storage (often using Distributed File Systems like S3 or HDFS, managed by backends like Flink's ForSt) from compute resources and utilizes asynchronous state access. This approach aims to enhance scalability, resource efficiency, and recovery speed, guiding Flink.NET's strategy for robust state handling.
 *   **[Memory Management](./Core-Concepts-Memory-Overview.md):** Understanding how Flink.NET manages memory for JobManagers, TaskManagers, network buffers, and state is crucial for performance and stability. This includes configurations for Kubernetes and local deployments, tuning, and troubleshooting.
 *   **Job Submission & Management API:** A RESTful (and potentially gRPC) API exposed by the JobManager allows users and external systems to submit new processing jobs, monitor their status, manage their lifecycle (e.g., stop, cancel, scale), and inspect checkpoint information.
 

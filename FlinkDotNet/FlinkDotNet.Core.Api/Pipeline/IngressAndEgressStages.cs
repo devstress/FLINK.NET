@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace FlinkDotNet.Core.Api.Pipeline;
 
 /// <summary>
-/// Apache Flink 2.0 style IngressProcessing stage that provides validation 
+/// FlinkDotnet 2.0 style IngressProcessing stage that provides validation 
 /// and preprocessing with bounded buffers and back pressure handling.
 /// </summary>
 public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedRecord<T>>, IOperatorLifecycle, IDisposable
@@ -261,7 +261,7 @@ public class IngressProcessingStage<T> : IMapOperator<KeyedRecord<T>, ProcessedR
 }
 
 /// <summary>
-/// Apache Flink 2.0 style AsyncEgressProcessing stage that handles external I/O
+/// FlinkDotnet 2.0 style AsyncEgressProcessing stage that handles external I/O
 /// with timeout, retry, and Dead Letter Queue (DLQ) support.
 /// </summary>
 public class AsyncEgressProcessingStage<T> : IMapOperator<ProcessedRecord<T>, EgressResult<T>>, IOperatorLifecycle, IDisposable

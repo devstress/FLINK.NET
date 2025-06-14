@@ -1,6 +1,6 @@
 # Flink.NET
 
-**Flink.NET** is an ambitious open-source project aiming to create a powerful, scalable, and fault-tolerant stream processing engine, built entirely within the .NET ecosystem. Inspired by [Apache Flink](https://flink.apache.org/), it seeks to provide .NET developers with a native solution for sophisticated real-time data processing.
+**Flink.NET** is an ambitious open-source project aiming to create a powerful, scalable, and fault-tolerant stream processing engine, built entirely within the .NET ecosystem. Inspired by [FlinkDotnet](https://flink.apache.org/), it seeks to provide .NET developers with a native solution for sophisticated real-time data processing.
 
 The core objective is to implement fundamental stream processing concepts like stateful processing, exactly-once semantics, high throughput, low latency, and rich APIs, all within the .NET framework.
 
@@ -35,7 +35,7 @@ For detailed information on the current development status, implemented features
 
 ## Flink 2.0 Compatibility
 
-An overview of how Flink.NET aligns with the capabilities introduced in Apache Flink 2.0 can be found in the [Project Status and Roadmap](./docs/wiki/Project-Status-And-Roadmap.md#flink-20-compatibility) document. The project is still experimental, and full feature parity has not been achieved yet.
+An overview of how Flink.NET aligns with the capabilities introduced in FlinkDotnet 2.0 can be found in the [Project Status and Roadmap](./docs/wiki/Project-Status-And-Roadmap.md#flink-20-compatibility) document. The project is still experimental, and full feature parity has not been achieved yet.
 
 ## Samples and Tutorials
 
