@@ -103,7 +103,7 @@ if errorlevel 1 (
     set SKIP_RELIABILITY=1
 )
 
-call :check_pwsh
+call :check_powershell
 if errorlevel 1 exit /b 1
 
 echo Prerequisites check completed.
@@ -143,20 +143,20 @@ if %SKIP_SONAR%==0 echo SonarCloud: test-logs\sonarcloud.log
 echo.
 
 REM Start all tests in parallel using simple start command
-start "Unit Tests" cmd /c "pwsh -File scripts\run-local-unit-tests.ps1 > test-logs\unit-tests.log 2>&1 & echo Unit Tests completed > test-logs\unit-tests.done"
+start "Unit Tests" cmd /c "powershell -File scripts\run-local-unit-tests.ps1 > test-logs\unit-tests.log 2>&1 & echo Unit Tests completed > test-logs\unit-tests.done"
 
-start "Integration Tests" cmd /c "pwsh -File scripts\run-integration-tests-in-windows-os.ps1 > test-logs\integration-tests.log 2>&1 & echo Integration Tests completed > test-logs\integration-tests.done"
+start "Integration Tests" cmd /c "powershell -File scripts\run-integration-tests-in-windows-os.ps1 > test-logs\integration-tests.log 2>&1 & echo Integration Tests completed > test-logs\integration-tests.done"
 
 if %SKIP_STRESS%==0 (
-    start "Stress Tests" cmd /c "pwsh -File scripts\run-local-stress-tests.ps1 > test-logs\stress-tests.log 2>&1 & echo Stress Tests completed > test-logs\stress-tests.done"
+    start "Stress Tests" cmd /c "powershell -File scripts\run-local-stress-tests.ps1 > test-logs\stress-tests.log 2>&1 & echo Stress Tests completed > test-logs\stress-tests.done"
 )
 
 if %SKIP_RELIABILITY%==0 (
-    start "Reliability Tests" cmd /c "pwsh -File scripts\run-local-reliability-tests.ps1 > test-logs\reliability-tests.log 2>&1 & echo Reliability Tests completed > test-logs\reliability-tests.done"
+    start "Reliability Tests" cmd /c "powershell -File scripts\run-local-reliability-tests.ps1 > test-logs\reliability-tests.log 2>&1 & echo Reliability Tests completed > test-logs\reliability-tests.done"
 )
 
 if %SKIP_SONAR%==0 (
-    start "SonarCloud" cmd /c "pwsh -File scripts\run-local-sonarcloud.ps1 > test-logs\sonarcloud.log 2>&1 & echo SonarCloud completed > test-logs\sonarcloud.done"
+    start "SonarCloud" cmd /c "powershell -File scripts\run-local-sonarcloud.ps1 > test-logs\sonarcloud.log 2>&1 & echo SonarCloud completed > test-logs\sonarcloud.done"
 )
 
 REM Wait for all tests to complete
@@ -254,15 +254,15 @@ if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
     exit /b 1
 )
 
-:check_pwsh
-where pwsh >NUL 2>&1
+:check_powershell
+where powershell >NUL 2>&1
 if errorlevel 1 (
-    echo [ERROR] PowerShell Core (pwsh) not found. 
-    echo          Please install PowerShell 7+ from: https://github.com/PowerShell/PowerShell
+    echo [ERROR] Windows PowerShell not found. 
+    echo          Please ensure Windows PowerShell is available on your system.
     exit /b 1
 )
-for /f "tokens=*" %%i in ('pwsh -Command "$PSVersionTable.PSVersion.ToString()" 2^>nul') do set PWSH_VERSION=%%i
-echo [OK] PowerShell Core: !PWSH_VERSION!
+for /f "tokens=*" %%i in ('powershell -Command "$PSVersionTable.PSVersion.ToString()" 2^>nul') do set POWERSHELL_VERSION=%%i
+echo [OK] Windows PowerShell: !POWERSHELL_VERSION!
 exit /b 0
 
 :BuildSolution
