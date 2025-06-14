@@ -42,6 +42,7 @@ An overview of how Flink.NET aligns with the capabilities introduced in Flink.Ne
 Explore practical examples to understand Flink.NET's capabilities:
 
 *   **[Local High Throughput Test](./docs/wiki/Sample-Local-High-Throughput-Test.md)**: Demonstrates setting up a local environment and running a high-throughput test.
+*   **[Aspire Local Development Setup](./docs/wiki/Aspire-Local-Development-Setup.md)**: Complete guide for local development with Kafka best practices and 10M message reliability testing.
 
 ## Building and Development Lifecycle
 
@@ -109,6 +110,24 @@ These tests verify:
 ### Stress Tests (High-Throughput Performance Validation)
 
 **Purpose**: Full end-to-end tests that start the complete Aspire orchestration (Redis, Kafka, JobManager, TaskManager) and process large message volumes (1M+ messages) to validate performance and exactly-once processing.
+
+**New Kafka Best Practices Reliability Test**: The reliability test now uses an external Kafka environment and defaults to 10 million messages for comprehensive validation. This test follows Kafka best practices with pre-configured topics and requires the external Kafka environment to be running.
+
+**Setup for Kafka Best Practices Testing**:
+```bash
+# 1. Start development environment with Aspire
+cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+dotnet run
+
+# 2. Run reliability test with 10M messages (default) in separate terminal
+cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
+dotnet test
+
+# 3. Or run with custom message count
+FLINKDOTNET_STANDARD_TEST_MESSAGES=1000000 dotnet test
+```
+
+For complete setup instructions, see [Aspire Local Development Setup](./docs/wiki/Aspire-Local-Development-Setup.md).
 
 **Running Stress Tests on Windows**:
 

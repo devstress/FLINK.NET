@@ -1,0 +1,150 @@
+# Docker Compose for Kafka Development Environment
+# Following Apache Flink.Net best practices for stream processing
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: flink-kafka-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - flink-kafka-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: flink-kafka-broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - flink-kafka-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: flink-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: flink-development
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: true
+    networks:
+      - flink-kafka-network
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: flink-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: |
+      bash -c '
+        echo "Creating Kafka topics for Flink.Net development..."
+        
+        # Business events input topic
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+          --topic business-events \
+          --partitions 8 \
+          --replication-factor 1 \
+          --config retention.ms=604800000 \
+          --config cleanup.policy=delete \
+          --config min.insync.replicas=1
+        
+        # Processed events topic
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+          --topic processed-events \
+          --partitions 8 \
+          --replication-factor 1 \
+          --config retention.ms=86400000 \
+          --config cleanup.policy=delete \
+          --config min.insync.replicas=1
+        
+        # Analytics events topic  
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+          --topic analytics-events \
+          --partitions 4 \
+          --replication-factor 1 \
+          --config retention.ms=2592000000 \
+          --config cleanup.policy=delete \
+          --config min.insync.replicas=1
+        
+        # Dead letter queue topic
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+          --topic dead-letter-queue \
+          --partitions 2 \
+          --replication-factor 1 \
+          --config retention.ms=2592000000 \
+          --config cleanup.policy=delete \
+          --config min.insync.replicas=1
+        
+        # Test data topics for reliability testing
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+          --topic test-input \
+          --partitions 4 \
+          --replication-factor 1 \
+          --config retention.ms=3600000 \
+          --config cleanup.policy=delete
+        
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+          --topic test-output \
+          --partitions 4 \
+          --replication-factor 1 \
+          --config retention.ms=3600000 \
+          --config cleanup.policy=delete
+        
+        echo "Kafka topics created successfully!"
+        kafka-topics --list --bootstrap-server kafka:9092
+      '
+    networks:
+      - flink-kafka-network
+
+volumes:
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
+  kafka-data:
+    driver: local
+
+networks:
+  flink-kafka-network:
+    driver: bridge

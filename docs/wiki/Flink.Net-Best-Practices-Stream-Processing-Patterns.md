@@ -408,6 +408,37 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 5. **Don't Skip Checkpointing**: Critical for production reliability
 6. **Don't Ignore Watermarks**: Essential for event time processing
 
+### 📚 Related Documentation
+
+- **[Flink.Net Back Pressure Implementation](FLINK_NET_BACK_PRESSURE.md)** - Detailed backpressure documentation with Kafka-specific best practices
+- **[Aspire Local Development Setup](Aspire-Local-Development-Setup.md)** - Complete guide for local development with Kafka best practices and 10M message reliability testing
+- **[Kafka Development Environment Setup](../docker-compose.kafka.yml)** - Docker Compose reference (now managed by Aspire)
+- **[KAFKA_SETUP.md](../KAFKA_SETUP.md)** - Comprehensive Kafka setup and configuration guide
+
+## Local Development and Testing
+
+For comprehensive testing of Flink.Net best practices, we provide an integrated development environment through Aspire that includes Kafka best practices:
+
+### Quick Start
+```bash
+# Start complete environment with Aspire (includes Kafka, Redis, UI, etc.)
+cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+dotnet run
+
+# 3. Run reliability tests with 10M messages (in another terminal)
+cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
+dotnet test
+```
+
+### Key Features
+- **✅ 10 Million Message Testing**: Default comprehensive testing scale
+- **✅ Kafka Best Practices**: Pre-configured topics and optimized settings
+- **✅ Aspire Integration**: Full Flink.Net cluster with JobManager and TaskManagers
+- **✅ External Kafka Environment**: Production-like setup with Docker Compose
+- **✅ Real-time Monitoring**: Kafka UI for visual monitoring at http://localhost:8080
+
+See the [Aspire Local Development Setup](Aspire-Local-Development-Setup.md) guide for complete instructions and configuration details.
+
 ## Conclusion
 
 The proposed "Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → Final Sink" pipeline, while functional, **deviates significantly from Flink.Net best practices**. 
