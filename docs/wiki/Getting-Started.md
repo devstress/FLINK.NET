@@ -6,9 +6,9 @@ This guide will walk you through the process of setting up your development envi
 
 *   **.NET SDK:** Ensure you have the .NET SDK (version X.X.X or higher) installed. You can download it from [here](https://dotnet.microsoft.com/download).
 *   **IDE (Optional but Recommended):** An IDE like Visual Studio, JetBrains Rider, or VS Code can greatly improve your development experience.
-*   **FlinkDotnet (for local execution):** To run Flink.NET applications locally, you'll need a local FlinkDotnet cluster.
-    *   Follow the [FlinkDotnet Local Installation Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/).
-    *   Ensure your Flink cluster is running before executing Flink.NET jobs.
+*   **Stream Processing Engine (for local execution):** To run Flink.NET applications locally, you'll need a local stream processing environment.
+    *   Follow the [Stream Processing Local Installation Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/try-flink/local_installation/).
+    *   Ensure your stream processing cluster is running before executing Flink.NET jobs.
 
 ## 1. Create a New .NET Project
 
@@ -113,7 +113,7 @@ To execute this job, Flink.NET needs to know how to communicate with your Flink 
 
 Once your code is ready and the Flink connection is configured:
 
-1.  **Ensure your FlinkDotnet cluster is running.** You can typically start it by navigating to your Flink installation's `bin` directory and running `./start-cluster.sh` (on Linux/macOS) or `start-cluster.bat` (on Windows).
+1.  **Ensure your stream processing cluster is running.** You can typically start it by navigating to your Flink installation's `bin` directory and running `./start-cluster.sh` (on Linux/macOS) or `start-cluster.bat` (on Windows).
 2.  **Run your .NET application:**
 
     ```bash
@@ -136,7 +136,7 @@ Flink.NET provides comprehensive testing capabilities:
 *   **Stress Tests**: For high-throughput performance validation with full orchestration (see [[Sample Local High Throughput Test|Sample-Local-High-Throughput-Test]])
 *   **Local Development**: Use the [[Deployment Local|Deployment-Local]] environment for interactive development and debugging
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Flink DataStream API Programming Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/overview/)
 *   [Fundamental Concepts (Flink Architecture)](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/)

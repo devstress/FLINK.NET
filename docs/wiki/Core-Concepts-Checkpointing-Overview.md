@@ -79,7 +79,7 @@ env.GetCheckpointConfig().SetMaxConcurrentCheckpoints(1);
 
 Flink.NET's checkpointing mechanism is a direct adoption of FlinkDotnet's well-established and robust fault tolerance model. The concepts, guarantees, and even configuration options are designed to be very similar, providing a consistent experience for developers familiar with Flink.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/)
 *   [Fault Tolerance Guarantees](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)

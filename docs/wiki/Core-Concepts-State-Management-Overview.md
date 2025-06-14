@@ -45,7 +45,7 @@ See [[Working with State|Developing-State]] for detailed examples.
 
 Flink.NET's state management is designed to be closely aligned with FlinkDotnet's concepts. The types of state, the use of state descriptors, and the role of state backends are all derived from Flink's battle-tested model. This ensures that .NET developers can leverage Flink's powerful fault tolerance and state consistency features.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Working with State](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/state/)
 *   [State Backends](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/state_backends/)

@@ -96,7 +96,7 @@ Despite careful [[Memory Tuning|Core-Concepts-Memory-Tuning]], Flink.NET applica
 *   **Interplay of JVM and .NET GC:** If Flink.NET runs C# code within a JVM process that also hosts Flink's Java/Scala components, understanding how the two GCs interact (or if they share/compete for resources) will be important.
 *   **Visibility into .NET Heap:** Standard Flink/JVM tools might not give full visibility into the .NET part of the Task Heap. Flink.NET will need to provide guidance or tools for this.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Troubleshooting Memory Issues (Flink Docs - general but relevant)](https://flink.apache.org/ টুডে/2021/02/22/memory-troubleshooting-intro.html) - *Note: This link seems to be a blog post, official docs on troubleshooting might be spread across memory configuration pages.*
 *   [Flink Memory Configuration Guides](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)

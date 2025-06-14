@@ -27,7 +27,7 @@ The Flink.NET TaskManager performs the same fundamental functions as its FlinkDo
 
 Flink.NET ensures that .NET developers can write their logic in C#, and the TaskManager environment is capable of executing this .NET code efficiently as part of a distributed Flink job.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [TaskManager (Flink Architecture)](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#taskmanager)
 *   [Task Execution](https://nightlies.apache.org/flink/flink-docs-stable/docs/internals/task_execution/)

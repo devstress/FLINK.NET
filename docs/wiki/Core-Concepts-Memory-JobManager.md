@@ -1,6 +1,6 @@
 # Core Concepts: JobManager Memory in Flink.NET
 
-The JobManager in Flink.NET, like in FlinkDotnet, is the orchestrator of the application execution. While it doesn't perform the heavy data processing itself (that's the TaskManager's role), its memory configuration is still important for a stable and well-functioning cluster.
+The JobManager in Flink.NET, like in standard stream processing, is the orchestrator of the application execution. While it doesn't perform the heavy data processing itself (that's the TaskManager's role), its memory configuration is still important for a stable and well-functioning cluster.
 
 ## Key Memory Components of the JobManager
 
@@ -26,7 +26,7 @@ The total memory configured for a Flink JobManager process is used for several p
 
 ## Configuring JobManager Memory
 
-JobManager memory in FlinkDotnet is typically configured using options like:
+JobManager memory in Flink.Net is typically configured using options like:
 
 *   `jobmanager.memory.process.size`: Total memory for the JobManager process.
 *   `jobmanager.memory.heap.size`: Explicitly sets the JVM heap size.
@@ -55,14 +55,14 @@ jobmanager.memory.process.size: 1600m # Total process memory
     *   The JobManager's garbage collection pauses are excessively long, impacting its responsiveness.
 *   For High Availability (HA) setups, ensure each JobManager instance (active and standby) is configured with adequate memory.
 
-## Relationship to FlinkDotnet
+## Relationship to Stream Processing Standards
 
-The memory configuration and considerations for the Flink.NET JobManager will closely follow those of the FlinkDotnet JobManager. The underlying Flink runtime within the JobManager is the primary consumer of this memory.
+The memory configuration and considerations for the Flink.NET JobManager follow standard stream processing patterns. The underlying stream processing runtime within the JobManager is the primary consumer of this memory.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [JobManager Memory Configuration Details](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_jobmanager/)
-*   [Flink Configuration Options (for memory-related keys)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/config/)
+*   [Configuration Options (for memory-related keys)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/config/)
 
 ## Next Steps
 

@@ -78,7 +78,7 @@ taskmanager.memory.process.size: 4096m
 
 Flink.NET TaskManagers will operate under the same memory model as FlinkDotnet. The key difference is that the "Task Heap" will be managed by the .NET runtime for C# operator code, rather than solely by the JVM for Java/Scala code.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [TaskManager Memory Configuration (Detailed)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)
 *   [Flink Memory Tuning Guide](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/memory/mem_tuning/)

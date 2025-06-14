@@ -50,7 +50,7 @@ To achieve end-to-end exactly-once semantics in your Flink.NET application, you 
 
 Flink.NET is designed to provide the necessary building blocks and abstractions to enable .NET developers to build applications with exactly-once guarantees by faithfully implementing FlinkDotnet's core fault tolerance mechanisms.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Fault Tolerance Guarantees (Exactly-Once)](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/state/fault_tolerance/)
 *   [Data Sources and Sinks (for transactional capabilities)](https://nightlies.apache.org/flink/flink-docs-stable/docs/connectors/datastream/overview/)

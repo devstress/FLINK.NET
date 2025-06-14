@@ -27,7 +27,7 @@ In Flink.NET, the JobManager is responsible for:
 
 The Flink.NET JobManager fulfills the same conceptual role as the JobManager in FlinkDotnet. Users familiar with Flink's architecture will find the responsibilities and behaviors largely consistent. Flink.NET aims to provide this critical component, enabling .NET developers to benefit from Flink's distributed processing capabilities.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [JobManager (Flink Architecture)](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/flink_architecture/#jobmanager)
 *   [High Availability (HA)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/ha/)

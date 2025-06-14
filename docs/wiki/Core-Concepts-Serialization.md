@@ -100,7 +100,7 @@ public interface ITypeSerializer<T>
 
 See [[Serialization Strategy|Core-Concepts-Serialization-Strategy]] for more on the planned approach.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Flink's Type System and Serialization](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/types_serialization/)
 *   [Custom Serializers (Flink Java/Scala)](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/serialization/custom_serializers/)

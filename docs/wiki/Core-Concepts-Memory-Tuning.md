@@ -2,7 +2,7 @@
 
 Memory tuning is an essential operational aspect of running Flink (and Flink.NET) applications efficiently and reliably. It involves adjusting various memory configurations to optimize performance, prevent OutOfMemoryErrors (OOMs), and ensure good resource utilization.
 
-This page provides general strategies and refers to FlinkDotnet's detailed guides, as Flink.NET will leverage Flink's underlying memory model.
+This page provides general strategies and refers to stream processing best practices, as Flink.NET will leverage Flink's underlying memory model.
 
 ## Goals of Memory Tuning
 
@@ -18,7 +18,7 @@ This page provides general strategies and refers to FlinkDotnet's detailed guide
     *   Know the difference between Task Heap, Framework Heap, Managed Memory, and Network Memory.
 
 2.  **Start with Defaults or Recommended Configurations:**
-    *   FlinkDotnet provides sensible defaults. Use these as a starting point.
+    *   Flink.Net provides sensible defaults. Use these as a starting point.
     *   Refer to the Flink documentation for how to set `taskmanager.memory.process.size` or the more granular `taskmanager.memory.flink.size` and its components (Task Heap, Managed Memory, Network, Framework Heap).
 
 3.  **Monitor Key Metrics:**
@@ -82,14 +82,14 @@ This page provides general strategies and refers to FlinkDotnet's detailed guide
     *   Could be insufficient network buffers.
     *   Could be state backend performance (e.g., RocksDB needing more managed memory or I/O bottlenecks).
 
-## Relationship to FlinkDotnet
+## Relationship to Stream Processing Standards
 
-Memory tuning for Flink.NET is fundamentally Flink memory tuning. The principles and configurations are the same. The main Flink.NET-specific aspect is that the **Task Heap** is where your C# code's memory behavior will be most directly visible and impactful, managed by the .NET GC.
+Memory tuning for Flink.NET follows standard stream processing principles. The configurations and approaches are based on proven patterns. The main Flink.NET-specific aspect is that the **Task Heap** is where your C# code's memory behavior will be most directly visible and impactful, managed by the .NET GC.
 
-**FlinkDotnet References:**
+**External References:**
 
-*   **Flink Memory Tuning Guide (Comprehensive):** [FlinkDotnet Memory Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/memory/mem_tuning/)
-*   [Setting up Flink Memory (Configuration Options)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
+*   **Memory Tuning Guide (Reference):** [Stream Processing Memory Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/memory/mem_tuning/)
+*   [Memory Configuration Options](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
 *   [TaskManager Memory Details](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)
 *   [Network Memory Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/network_mem_tuning/)
 

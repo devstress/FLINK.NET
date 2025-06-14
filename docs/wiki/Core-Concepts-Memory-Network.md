@@ -64,7 +64,7 @@ Flink.NET itself doesn't change how Flink's network memory management works at a
 
 Therefore, when tuning network memory for a Flink.NET job, consider both the general Flink guidelines and the nature of your C# data types and processing logic.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Network Memory Tuning Guide (Flink Docs)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/network_mem_tuning/)
 *   [TaskManager Memory Configuration (for context)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_tm/)

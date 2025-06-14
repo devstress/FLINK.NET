@@ -56,7 +56,7 @@ Flink divides memory management into several key areas, primarily concerning the
 
 Flink.NET will largely adopt FlinkDotnet's memory model. The documentation and understanding of Flink's memory management are directly applicable. Flink.NET's specific contribution will be in detailing how .NET applications fit into this model and any particular configurations or behaviors related to the .NET runtime.
 
-**FlinkDotnet References:**
+**External References:**
 
 *   [Flink Memory Management (General Overview - start here)](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
 *   [JobManager Memory Configuration](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup_jobmanager/)
