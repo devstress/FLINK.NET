@@ -428,7 +428,7 @@ namespace FlinkDotnetStandardReliabilityTest
             }
         }
 
-        private async Task ValidateTestResultsWithDiagnostics(PipelineExecutionResult result, TestExecutionResults testResults, Stopwatch executionStopwatch)
+        private Task ValidateTestResultsWithDiagnostics(PipelineExecutionResult result, TestExecutionResults testResults, Stopwatch executionStopwatch)
         {
             _scenarioLogger.LogGiven("Result validation", 
                 "Pipeline execution results should meet Flink.Net reliability standards");
@@ -523,6 +523,8 @@ namespace FlinkDotnetStandardReliabilityTest
                     _logger.LogInformation($"   {bpEvent}");
                 }
             }
+            
+            return Task.CompletedTask;
         }
     }
 
