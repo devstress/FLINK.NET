@@ -100,253 +100,43 @@ echo Repository: %ROOT%
 echo Timestamp: %DATE% %TIME%
 echo.
 
-REM Check prerequisites in parallel for improved speed
+REM Check prerequisites
 echo === Checking Prerequisites ===
+call :check_dotnet
+if errorlevel 1 call :install_dotnet
+if errorlevel 1 exit /b 1
 
-REM Use PowerShell for parallel prerequisite checking
-powershell -Command "& {
-    Write-Host 'Running prerequisite checks in parallel...'
-    
-    # Start parallel jobs for each prerequisite check
-    $dotnetJob = Start-Job -ScriptBlock {
-        try {
-            where.exe dotnet 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                $version = & dotnet --version 2>$null
-                return @{Success=$true; Tool='dotnet'; Version=$version; Message='✅ .NET SDK: ' + $version}
-            } else {
-                return @{Success=$false; Tool='dotnet'; Message='❌ .NET SDK not found. Please install .NET 8.0 or later.'; Url='https://dotnet.microsoft.com/download'}
-            }
-        } catch {
-            return @{Success=$false; Tool='dotnet'; Message='❌ .NET SDK check failed'; Error=$_.Exception.Message}
-        }
-    }
-    
-    $javaJob = $null
-    if (%SKIP_SONAR% -eq 0) {
-        $javaJob = Start-Job -ScriptBlock {
-            try {
-                where.exe java 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    $versionOutput = & java -version 2>&1
-                    $version = ($versionOutput | Select-String 'version' | Select-Object -First 1).ToString()
-                    if ($version -match '\"([^\"]+)\"') {
-                        $cleanVersion = $matches[1]
-                        return @{Success=$true; Tool='java'; Version=$cleanVersion; Message='✅ Java: ' + $cleanVersion}
-                    } else {
-                        return @{Success=$true; Tool='java'; Version='unknown'; Message='✅ Java: found'}
-                    }
-                } else {
-                    return @{Success=$false; Tool='java'; Message='❌ Java not found.'; Url='https://adoptopenjdk.net/'}
-                }
-            } catch {
-                return @{Success=$false; Tool='java'; Message='❌ Java check failed'; Error=$_.Exception.Message}
-            }
-        }
-    }
-    
-    $dockerJob = $null
-    if (%SKIP_STRESS% -eq 0) {
-        $dockerJob = Start-Job -ScriptBlock {
-            try {
-                # First check if Docker Desktop is installed
-                $dockerDesktopExists = $false
-                $dockerDesktopPath = ""
-                if (Test-Path "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe") {
-                    $dockerDesktopExists = $true
-                    $dockerDesktopPath = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
-                } elseif (Test-Path "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe") {
-                    $dockerDesktopExists = $true
-                    $dockerDesktopPath = "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
-                }
-                
-                if (-not $dockerDesktopExists) {
-                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is not installed'; NeedsInstall=$true}
-                }
-                
-                # Then check if Docker is running
-                & docker info 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    return @{Success=$true; Tool='docker'; Message='✅ Docker Desktop is installed and running'}
-                } else {
-                    # Try to start Docker Desktop
-                    Write-Host "Attempting to start Docker Desktop..."
-                    Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden
-                    
-                    # Wait for Docker to start (max 60 seconds)
-                    $maxWait = 60
-                    $waited = 0
-                    while ($waited -lt $maxWait) {
-                        Start-Sleep -Seconds 5
-                        $waited += 5
-                        & docker info 2>$null
-                        if ($LASTEXITCODE -eq 0) {
-                            return @{Success=$true; Tool='docker'; Message='✅ Docker Desktop started successfully'}
-                        }
-                    }
-                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is installed but failed to start automatically. Please start Docker Desktop manually.'; NeedsInstall=$false}
-                }
-            } catch {
-                return @{Success=$false; Tool='docker'; Message='❌ Docker check failed'; Error=$_.Exception.Message; NeedsInstall=$false}
-            }
-        }
-    }
-    
-    $pwshJob = Start-Job -ScriptBlock {
-        try {
-            where.exe pwsh 2>$null
-            if ($LASTEXITCODE -eq 0) {
-                $version = & pwsh -Command '$PSVersionTable.PSVersion.ToString()' 2>$null
-                return @{Success=$true; Tool='pwsh'; Version=$version; Message='✅ PowerShell Core: ' + $version}
-            } else {
-                return @{Success=$false; Tool='pwsh'; Message='❌ PowerShell Core (pwsh) not found.'; Url='https://github.com/PowerShell/PowerShell'}
-            }
-        } catch {
-            return @{Success=$false; Tool='pwsh'; Message='❌ PowerShell Core check failed'; Error=$_.Exception.Message}
-        }
-    }
-    
-    # Collect all jobs
-    $jobs = @($dotnetJob)
-    if ($javaJob) { $jobs += $javaJob }
-    if ($dockerJob) { $jobs += $dockerJob }
-    $jobs += $pwshJob
-    
-    # Wait for all jobs and collect results
-    $results = @()
-    foreach ($job in $jobs) {
-        $results += Wait-Job $job | Receive-Job
-        Remove-Job $job
-    }
-    
-    # Process results and handle installations
-    $failedTools = @()
-    $skipSonar = %SKIP_SONAR%
-    $skipStress = %SKIP_STRESS%
-    
-    foreach ($result in $results) {
-        Write-Host $result.Message
-        if (-not $result.Success) {
-            if ($result.Tool -eq 'dotnet' -or $result.Tool -eq 'pwsh') {
-                $failedTools += $result.Tool
-            } elseif ($result.Tool -eq 'java') {
-                Write-Host 'WARNING: Java not found. SonarCloud analysis will be skipped.'
-                $skipSonar = 1
-            } elseif ($result.Tool -eq 'docker') {
-                if ($result.NeedsInstall -eq $true) {
-                    Write-Host 'WARNING: Docker Desktop not installed. Will attempt installation.'
-                    $failedTools += 'docker'
-                } else {
-                    Write-Host 'WARNING: Docker not available. Stress tests will be skipped.'
-                    $skipStress = 1
-                }
-            }
-        }
-    }
-    
-    # Update environment variables
-    $env:SKIP_SONAR_UPDATED = $skipSonar
-    $env:SKIP_STRESS_UPDATED = $skipStress
-    
-    # Return failed tools for installation
-    return $failedTools
-}"
-
-REM Get the results from PowerShell execution
-for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_SONAR_UPDATED"') do set SKIP_SONAR=%%i
-for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_STRESS_UPDATED"') do set SKIP_STRESS=%%i
-
-REM Handle tool installations if needed - use PowerShell results instead of redundant checks
-echo.
-echo === Handling Missing Prerequisites ===
-
-REM Check if .NET needs installation (redundant check removed, trusting PowerShell result)
-for /f "tokens=*" %%i in ('powershell -Command "if ((Get-Command dotnet -ErrorAction SilentlyContinue) -eq $null) { 'INSTALL_NEEDED' } else { 'FOUND' }"') do set DOTNET_STATUS=%%i
-if "%DOTNET_STATUS%"=="INSTALL_NEEDED" (
-    call :install_dotnet
-    if errorlevel 1 exit /b 1
-) else (
-    echo ✅ .NET SDK already installed - skipping installation
-)
-
-REM Handle Java installation if needed
-set JAVA_INSTALL_NEEDED=0
 if %SKIP_SONAR%==0 (
-    for /f "tokens=*" %%i in ('powershell -Command "if ((Get-Command java -ErrorAction SilentlyContinue) -eq $null) { 'INSTALL_NEEDED' } else { 'FOUND' }"') do set JAVA_STATUS=%%i
-    if "!JAVA_STATUS!"=="INSTALL_NEEDED" (
-        set JAVA_INSTALL_NEEDED=1
-    ) else (
-        echo ✅ Java already installed - skipping installation
-    )
-) else (
-    echo ⏭️  Java installation skipped (SonarCloud disabled)
-)
-
-REM Handle Docker installation if needed  
-set DOCKER_INSTALL_NEEDED=0
-if %SKIP_STRESS%==0 (
-    REM First check if Docker Desktop is installed
-    if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-        echo ✅ Docker Desktop already installed - skipping installation
-    ) else (
-        if exist "%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe" (
-            echo ✅ Docker Desktop already installed - skipping installation
-        ) else (
-            set DOCKER_INSTALL_NEEDED=1
-        )
-    )
-) else (
-    echo ⏭️  Docker installation skipped (stress tests disabled)
-)
-
-REM Run Java and Docker installations in parallel if both are needed
-if %JAVA_INSTALL_NEEDED%==1 (
-    if %DOCKER_INSTALL_NEEDED%==1 (
-        echo Installing Java and Docker in parallel...
-        REM Start Java installation in background
-        start "Java Installation" /wait cmd /c "call :install_java_background"
-        REM Install Docker in foreground
-        call :install_docker
-        if errorlevel 1 (
-            echo WARNING: Docker installation failed. Stress tests will be skipped.
-            set SKIP_STRESS=1
-        )
-        REM Java installation status will be checked after
-        call :check_java_install_result
-        if errorlevel 1 (
-            echo WARNING: Java installation failed. SonarCloud analysis will be skipped.
-            set SKIP_SONAR=1
-        )
-    ) else (
+    call :check_java
+    if errorlevel 1 (
         call :install_java
         if errorlevel 1 (
             echo WARNING: Java installation failed. SonarCloud analysis will be skipped.
             set SKIP_SONAR=1
         )
     )
-) else if %DOCKER_INSTALL_NEEDED%==1 (
-    call :install_docker
+)
+
+if %SKIP_STRESS%==0 (
+    call :check_docker
     if errorlevel 1 (
-        echo WARNING: Docker installation failed. Stress tests will be skipped.
-        set SKIP_STRESS=1
+        call :install_docker
+        if errorlevel 1 (
+            echo WARNING: Docker installation failed. Stress tests will be skipped.
+            set SKIP_STRESS=1
+        )
     )
 )
 
-REM Handle PowerShell installation if needed
-for /f "tokens=*" %%i in ('powershell -Command "if ((Get-Command pwsh -ErrorAction SilentlyContinue) -eq $null) { 'INSTALL_NEEDED' } else { 'FOUND' }"') do set PWSH_STATUS=%%i
-if "%PWSH_STATUS%"=="INSTALL_NEEDED" (
-    call :install_pwsh
-    if errorlevel 1 exit /b 1
-) else (
-    echo ✅ PowerShell Core already installed - skipping installation
-)
+call :check_pwsh
+if errorlevel 1 call :install_pwsh
+if errorlevel 1 exit /b 1
 
 echo Prerequisites check completed.
 echo.
 
 REM Create output directories for parallel execution  
 if not exist "%ROOT%\workflow-logs" mkdir "%ROOT%\workflow-logs"
-if not exist "%ROOT%\scripts" mkdir "%ROOT%\scripts"
 
 REM Set environment variables
 if not defined SIMULATOR_NUM_MESSAGES set SIMULATOR_NUM_MESSAGES=1000000
@@ -362,42 +152,42 @@ echo Integration Tests: workflow-logs\integration-tests.log
 echo.
 
 REM Start workflows in parallel using PowerShell background jobs
-REM Note: Individual workflow scripts should already exist in scripts/ folder
 powershell -Command "& {
-    Write-Host 'Starting workflows in parallel...'
+    param($skipSonar, $skipStress, $rootPath)
+    
     # Start Unit Tests workflow
     $unitTestsJob = Start-Job -ScriptBlock {
         param($root)
         Set-Location $root
-        & pwsh -File '%ROOT%\scripts\run-unit-tests-workflow.ps1' 2>&1
-    } -ArgumentList '%ROOT%'
+        & pwsh -File ($root + '\scripts\run-local-unit-tests.ps1') 2>&1
+    } -ArgumentList $rootPath
     
     # Start SonarCloud workflow (conditional)
     $sonarJob = $null
-    if (%SKIP_SONAR% -eq 0) {
+    if ($skipSonar -eq 0) {
         $sonarJob = Start-Job -ScriptBlock {
             param($root)
             Set-Location $root
-            & pwsh -File '%ROOT%\scripts\run-sonarcloud-workflow.ps1' 2>&1
-        } -ArgumentList '%ROOT%'
+            & pwsh -File ($root + '\scripts\run-local-sonarcloud.ps1') 2>&1
+        } -ArgumentList $rootPath
     }
     
     # Start Stress Tests workflow (conditional)
     $stressJob = $null
-    if (%SKIP_STRESS% -eq 0) {
+    if ($skipStress -eq 0) {
         $stressJob = Start-Job -ScriptBlock {
             param($root)
             Set-Location $root
-            & pwsh -File '%ROOT%\scripts\run-stress-tests-workflow.ps1' 2>&1
-        } -ArgumentList '%ROOT%'
+            & pwsh -File ($root + '\scripts\run-local-stress-tests.ps1') 2>&1
+        } -ArgumentList $rootPath
     }
     
     # Start Integration Tests workflow
     $integrationJob = Start-Job -ScriptBlock {
         param($root)
         Set-Location $root
-        & pwsh -File '%ROOT%\scripts\run-integration-tests-workflow.ps1' 2>&1
-    } -ArgumentList '%ROOT%'
+        & pwsh -File ($root + '\scripts\run-integration-tests-in-windows-os.ps1') 2>&1
+    } -ArgumentList $rootPath
     
     # Collect all jobs
     $jobs = @($unitTestsJob)
@@ -425,7 +215,7 @@ powershell -Command "& {
                 Remove-Job -Job $job
             }
         }
-        Start-Sleep -Seconds 1  # Reduced from 2 seconds to 1 second for faster monitoring
+        Start-Sleep -Seconds 2
     }
     
     # Report final results
@@ -441,7 +231,7 @@ powershell -Command "& {
         Write-Host \"All workflows completed successfully!\" -ForegroundColor Green
         exit 0
     }
-}"
+}" %SKIP_SONAR% %SKIP_STRESS% "%ROOT%"
 
 set WORKFLOW_EXIT=%ERRORLEVEL%
 
@@ -599,43 +389,6 @@ if %INSTALL_RESULT% neq 0 (
 echo ✅ Docker Desktop installed successfully
 echo Please restart your computer and run this script again
 exit /b 0
-
-:install_java_background
-REM Background Java installation for parallel execution
-echo 🔧 Installing Java 17 (background)...
-echo Downloading Microsoft OpenJDK 17...
-powershell -Command "Invoke-WebRequest -Uri 'https://aka.ms/download-jdk/microsoft-jdk-17.0.7-windows-x64.msi' -OutFile 'openjdk-installer.msi'"
-if errorlevel 1 (
-    echo JAVA_INSTALL_RESULT=DOWNLOAD_FAILED > java_install.result
-    exit /b 1
-)
-echo Running Java installer (this may take a few minutes)...
-msiexec /i openjdk-installer.msi /quiet /norestart
-set INSTALL_RESULT=%ERRORLEVEL%
-del openjdk-installer.msi 2>nul
-if %INSTALL_RESULT% neq 0 (
-    echo JAVA_INSTALL_RESULT=INSTALL_FAILED > java_install.result
-    exit /b 1
-)
-echo JAVA_INSTALL_RESULT=SUCCESS > java_install.result
-echo ✅ Java installed successfully (background)
-exit /b 0
-
-:check_java_install_result
-if not exist java_install.result (
-    echo ❌ Java installation status unknown
-    exit /b 1
-)
-for /f "tokens=2 delims==" %%i in (java_install.result) do set JAVA_RESULT=%%i
-del java_install.result 2>nul
-if "%JAVA_RESULT%"=="SUCCESS" (
-    echo ✅ Java installation completed successfully
-    echo Please restart your command prompt and run this script again
-    exit /b 0
-) else (
-    echo ❌ Java installation failed: %JAVA_RESULT%
-    exit /b 1
-)
 
 :install_pwsh
 echo 🔧 Installing PowerShell Core...
