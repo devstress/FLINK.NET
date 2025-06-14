@@ -6,7 +6,8 @@ REM Workflows executed in parallel:
 REM 1. Unit Tests          - Runs .NET unit tests with coverage collection
 REM 2. SonarCloud Analysis - Builds solutions and performs code analysis  
 REM 3. Stress Tests        - Runs Aspire stress tests with Redis/Kafka
-REM 4. Integration Tests   - Runs Aspire integration tests
+REM 4. Reliability Tests   - Runs Aspire reliability tests with fault tolerance
+REM 5. Integration Tests   - Runs Aspire integration tests
 REM
 REM Usage: run-full-development-lifecycle.cmd [options]
 REM Options:
@@ -35,6 +36,7 @@ echo ✅ Administrator privileges confirmed
 REM Parse command line arguments
 set SKIP_SONAR=0
 set SKIP_STRESS=0
+set SKIP_RELIABILITY=0
 set SHOW_HELP=0
 
 :parse_args
@@ -45,6 +47,11 @@ if "%~1"=="--skip-sonar" (
 )
 if "%~1"=="--skip-stress" (
     set SKIP_STRESS=1
+    shift
+    goto parse_args
+)
+if "%~1"=="--skip-reliability" (
+    set SKIP_RELIABILITY=1
     shift
     goto parse_args
 )
@@ -67,14 +74,16 @@ if %SHOW_HELP%==1 (
     echo   1. Unit Tests          - .NET unit tests with coverage
     echo   2. SonarCloud Analysis - Code analysis and build validation
     echo   3. Stress Tests        - Aspire stress tests with containers
-    echo   4. Integration Tests   - Aspire integration tests
+    echo   4. Reliability Tests   - Aspire reliability tests with fault tolerance
+    echo   5. Integration Tests   - Aspire integration tests
     echo.
     echo Usage: run-full-development-lifecycle.cmd [options]
     echo.
     echo Options:
-    echo   --skip-sonar     Skip SonarCloud analysis ^(useful if no SONAR_TOKEN^)
-    echo   --skip-stress    Skip stress tests ^(useful if Docker unavailable^)
-    echo   --help           Show this help message
+    echo   --skip-sonar         Skip SonarCloud analysis ^(useful if no SONAR_TOKEN^)
+    echo   --skip-stress        Skip stress tests ^(useful if Docker unavailable^)
+    echo   --skip-reliability   Skip reliability tests ^(useful if Docker unavailable^)
+    echo   --help               Show this help message
     echo.
     echo Prerequisites:
     echo   - .NET 8.0 SDK
@@ -83,8 +92,9 @@ if %SHOW_HELP%==1 (
     echo   - PowerShell Core ^(pwsh^)
     echo.
     echo Environment Variables:
-    echo   SONAR_TOKEN              SonarCloud authentication token
-    echo   SIMULATOR_NUM_MESSAGES   Number of messages for stress tests ^(default: 1000000^)
+    echo   SONAR_TOKEN                      SonarCloud authentication token
+    echo   SIMULATOR_NUM_MESSAGES           Number of messages for stress tests ^(default: 1000000^)
+    echo   FLINKDOTNET_STANDARD_TEST_MESSAGES   Number of messages for reliability tests ^(default: 100000^)
     echo.
     exit /b 0
 )
@@ -122,9 +132,17 @@ if %SKIP_STRESS%==0 (
     if errorlevel 1 (
         call :install_docker
         if errorlevel 1 (
-            echo WARNING: Docker installation failed. Stress tests will be skipped.
+            echo WARNING: Docker installation failed. Stress and reliability tests will be skipped.
             set SKIP_STRESS=1
+            set SKIP_RELIABILITY=1
         )
+    )
+)
+
+if %SKIP_RELIABILITY%==0 (
+    if %SKIP_STRESS%==1 (
+        echo WARNING: Docker not available. Reliability tests will be skipped.
+        set SKIP_RELIABILITY=1
     )
 )
 
@@ -140,6 +158,7 @@ if not exist "%ROOT%\workflow-logs" mkdir "%ROOT%\workflow-logs"
 
 REM Set environment variables
 if not defined SIMULATOR_NUM_MESSAGES set SIMULATOR_NUM_MESSAGES=1000000
+if not defined FLINKDOTNET_STANDARD_TEST_MESSAGES set FLINKDOTNET_STANDARD_TEST_MESSAGES=100000
 if not defined MAX_ALLOWED_TIME_MS set MAX_ALLOWED_TIME_MS=1000
 set ASPIRE_ALLOW_UNSECURED_TRANSPORT=true
 
@@ -148,12 +167,14 @@ echo Unit Tests: workflow-logs\unit-tests.log
 echo SonarCloud: workflow-logs\sonarcloud.log
 if %SKIP_STRESS%==0 echo Stress Tests: workflow-logs\stress-tests.log
 if %SKIP_STRESS%==1 echo Stress Tests: SKIPPED (--skip-stress or Docker unavailable)
+if %SKIP_RELIABILITY%==0 echo Reliability Tests: workflow-logs\reliability-tests.log
+if %SKIP_RELIABILITY%==1 echo Reliability Tests: SKIPPED (--skip-reliability or Docker unavailable)
 echo Integration Tests: workflow-logs\integration-tests.log
 echo.
 
 REM Start workflows in parallel using PowerShell background jobs
 powershell -Command "& {
-    param($skipSonar, $skipStress, $rootPath)
+    param($skipSonar, $skipStress, $skipReliability, $rootPath)
     
     # Start Unit Tests workflow
     $unitTestsJob = Start-Job -ScriptBlock {
@@ -182,6 +203,16 @@ powershell -Command "& {
         } -ArgumentList $rootPath
     }
     
+    # Start Reliability Tests workflow (conditional)
+    $reliabilityJob = $null
+    if ($skipReliability -eq 0) {
+        $reliabilityJob = Start-Job -ScriptBlock {
+            param($root)
+            Set-Location $root
+            & pwsh -File ($root + '\scripts\run-local-reliability-tests.ps1') 2>&1
+        } -ArgumentList $rootPath
+    }
+    
     # Start Integration Tests workflow
     $integrationJob = Start-Job -ScriptBlock {
         param($root)
@@ -193,6 +224,7 @@ powershell -Command "& {
     $jobs = @($unitTestsJob)
     if ($sonarJob) { $jobs += $sonarJob }
     if ($stressJob) { $jobs += $stressJob }
+    if ($reliabilityJob) { $jobs += $reliabilityJob }
     $jobs += $integrationJob
     
     # Monitor progress
@@ -231,7 +263,7 @@ powershell -Command "& {
         Write-Host \"All workflows completed successfully!\" -ForegroundColor Green
         exit 0
     }
-}" %SKIP_SONAR% %SKIP_STRESS% "%ROOT%"
+}" %SKIP_SONAR% %SKIP_STRESS% %SKIP_RELIABILITY% "%ROOT%"
 
 set WORKFLOW_EXIT=%ERRORLEVEL%
 
