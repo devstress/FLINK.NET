@@ -408,6 +408,12 @@ enrichedStream.SinkTo(KafkaSink<EnrichedRecord>.Builder()
 5. **Don't Skip Checkpointing**: Critical for production reliability
 6. **Don't Ignore Watermarks**: Essential for event time processing
 
+### 📚 Related Documentation
+
+- **[Flink.Net Back Pressure Implementation](FLINK_NET_BACK_PRESSURE.md)** - Detailed backpressure documentation with Kafka-specific best practices
+- **[Kafka Development Environment Setup](../docker-compose.kafka.yml)** - Docker Compose configuration for local Kafka development  
+- **[Kafka Development Scripts](../scripts/kafka-dev.sh)** - Helper scripts for managing Kafka development environment
+
 ## Conclusion
 
 The proposed "Gateway → KeyGen → IngressProcessing → AsyncEgressProcessing → Final Sink" pipeline, while functional, **deviates significantly from Flink.Net best practices**. 

@@ -480,6 +480,285 @@ var healthStatus = pipelineStatus.OverallPressureLevel switch
 - Adjust monitoring intervals for optimal responsiveness
 - Balance between back pressure sensitivity and stability
 
+### 5. Kafka Design Best Practices
+
+Following Apache Flink best practices, here's how to design Kafka topics and partitions for optimal backpressure handling:
+
+#### Topic Design Strategy
+
+**Recommended Pattern: Input → Processing → Output Topics**
+```
+input-topic (raw data) → processed-topic (validated/enriched) → output-topic (final results)
+```
+
+**Topic Configuration:**
+```yaml
+# Input Topic Configuration
+input-topic:
+  partitions: 8-16        # Based on expected parallelism
+  replication-factor: 3   # For fault tolerance
+  min.insync.replicas: 2  # Consistency guarantee
+  cleanup.policy: delete  # Time-based retention
+  retention.ms: 604800000 # 7 days
+
+# Processing Topic Configuration  
+processed-topic:
+  partitions: 8-16        # Match input topic partitions
+  replication-factor: 3
+  min.insync.replicas: 2
+  cleanup.policy: delete
+  retention.ms: 86400000  # 1 day (faster processing)
+
+# Output Topic Configuration
+output-topic:
+  partitions: 4-8         # Can be fewer for aggregated results
+  replication-factor: 3
+  min.insync.replicas: 2
+  cleanup.policy: delete
+  retention.ms: 2592000000 # 30 days (long-term storage)
+```
+
+#### Partition Strategy
+
+**Key-Based Partitioning (Recommended):**
+```csharp
+// Use business key for consistent partitioning
+var kafkaSource = KafkaSource<BusinessEvent>.Builder()
+    .SetBootstrapServers("kafka:9092")
+    .SetTopics("input-topic")
+    .SetValueOnlyDeserializer(new JsonDeserializationSchema<BusinessEvent>())
+    .Build();
+
+// Partition by business key for stateful processing
+var keyedStream = sourceStream
+    .KeyBy(record => record.CustomerId) // Ensures related events go to same partition
+    .Window(TumblingEventTimeWindows.Of(Time.Minutes(5)));
+```
+
+**Partition Count Guidelines:**
+- **Small clusters (1-3 nodes)**: 4-8 partitions per topic
+- **Medium clusters (4-10 nodes)**: 8-16 partitions per topic  
+- **Large clusters (10+ nodes)**: 16-32 partitions per topic
+- **Rule of thumb**: 2-3 partitions per CPU core available for processing
+
+#### Producer Configuration for Backpressure
+
+```csharp
+var kafkaSink = KafkaSink<ProcessedRecord>.Builder()
+    .SetBootstrapServers("kafka:9092")
+    .SetRecordSerializer(new JsonSerializationSchema<ProcessedRecord>())
+    .SetDeliveryGuarantee(DeliveryGuarantee.ExactlyOnce)
+    .SetTransactionTimeout(Duration.OfMinutes(15))
+    .SetProperty("batch.size", "16384")           // Batch for efficiency
+    .SetProperty("linger.ms", "5")                // Small batching delay
+    .SetProperty("compression.type", "snappy")     // Reduce network load
+    .SetProperty("acks", "all")                   // Wait for all replicas
+    .SetProperty("retries", "3")                  // Retry failed sends
+    .SetProperty("max.in.flight.requests.per.connection", "1") // Ordering guarantee
+    .Build();
+```
+
+#### Consumer Configuration for Backpressure
+
+```csharp
+var kafkaSource = KafkaSource<RawRecord>.Builder()
+    .SetBootstrapServers("kafka:9092")
+    .SetTopics("input-topic")
+    .SetGroupId("flink-processing-group")
+    .SetStartingOffsets(OffsetsInitializer.Earliest())
+    .SetValueOnlyDeserializer(new JsonDeserializationSchema<RawRecord>())
+    .SetProperty("fetch.min.bytes", "1048576")     // 1MB minimum fetch
+    .SetProperty("fetch.max.wait.ms", "500")       // Max wait for batch
+    .SetProperty("max.partition.fetch.bytes", "2097152") // 2MB max per partition
+    .SetProperty("session.timeout.ms", "30000")    // 30s session timeout
+    .SetProperty("heartbeat.interval.ms", "3000")  // 3s heartbeat
+    .SetProperty("enable.auto.commit", "false")    // Flink manages offsets
+    .Build();
+```
+
+#### Standard Flink.Net Pipeline with Kafka
+
+**Complete Example Following Apache Flink Best Practices:**
+```csharp
+public static async Task<JobExecutionResult> CreateKafkaOptimizedPipeline(
+    StreamExecutionEnvironment env)
+{
+    // 1. Kafka Source with proper backpressure configuration
+    var kafkaSource = KafkaSource<BusinessEvent>.Builder()
+        .SetBootstrapServers("kafka:9092")
+        .SetTopics("business-events")
+        .SetGroupId("flink-business-processor")
+        .SetStartingOffsets(OffsetsInitializer.Latest())
+        .SetValueOnlyDeserializer(new JsonDeserializationSchema<BusinessEvent>())
+        .Build();
+
+    DataStream<BusinessEvent> sourceStream = env.FromSource(kafkaSource,
+        WatermarkStrategy.<BusinessEvent>ForBoundedOutOfOrderness(Duration.OfSeconds(30))
+            .WithTimestampAssigner((event, timestamp) => event.EventTime.ToUnixTimeMilliseconds()),
+        "kafka-business-events");
+
+    // 2. Validation and filtering (instead of custom Gateway/IngressProcessing)
+    DataStream<ValidatedEvent> validatedStream = sourceStream
+        .Filter(event => event != null && !string.IsNullOrEmpty(event.CustomerId))
+        .Map(new ValidationMapFunction())
+        .Filter(event => event.IsValid)
+        .Name("validation-stage");
+
+    // 3. Key by customer for stateful processing (instead of custom KeyGen)
+    KeyedStream<ValidatedEvent, string> keyedStream = validatedStream
+        .KeyBy(event => event.CustomerId)
+        .Name("partitioning-by-customer");
+
+    // 4. Windowed processing with state (proper Flink pattern)
+    DataStream<AggregatedEvent> processedStream = keyedStream
+        .Window(TumblingEventTimeWindows.Of(Time.Minutes(5)))
+        .Process(new CustomerEventAggregationFunction())
+        .Name("customer-aggregation");
+
+    // 5. Async external enrichment (instead of custom AsyncEgressProcessing)
+    DataStream<EnrichedEvent> enrichedStream = processedStream
+        .AsyncFunction(new CustomerDataEnrichmentFunction(),
+                      timeout: TimeSpan.FromSeconds(10),
+                      capacity: 100)
+        .Name("customer-enrichment");
+
+    // 6. Multi-destination sinks with proper backpressure
+    
+    // Primary output to processed events topic
+    enrichedStream.SinkTo(KafkaSink<EnrichedEvent>.Builder()
+        .SetBootstrapServers("kafka:9092")
+        .SetRecordSerializer(new JsonSerializationSchema<EnrichedEvent>())
+        .SetDeliveryGuarantee(DeliveryGuarantee.ExactlyOnce)
+        .SetProperty("transaction.timeout.ms", "900000") // 15 minutes
+        .Build())
+        .Name("kafka-enriched-events");
+
+    // Secondary output to analytics topic (aggregated data)
+    enrichedStream
+        .Map(event => new AnalyticsEvent(event.CustomerId, event.TotalValue, event.EventCount))
+        .SinkTo(KafkaSink<AnalyticsEvent>.Builder()
+            .SetBootstrapServers("kafka:9092")
+            .SetRecordSerializer(new JsonSerializationSchema<AnalyticsEvent>())
+            .SetDeliveryGuarantee(DeliveryGuarantee.AtLeastOnce) // Analytics can handle duplicates
+            .Build())
+        .Name("kafka-analytics-events");
+
+    return await env.ExecuteAsync("kafka-optimized-business-pipeline");
+}
+```
+
+#### Backpressure Integration with Kafka
+
+**Automatic Backpressure Handling:**
+- **Kafka Source**: Automatically applies backpressure when downstream operators are slow
+- **Partition Assignment**: Flink manages partition assignment and rebalancing
+- **Offset Management**: Checkpointing ensures exactly-once processing
+- **Credit-Based Flow**: Built-in credit system prevents buffer overflow
+
+**Monitoring Kafka Backpressure:**
+```csharp
+// Monitor Kafka-specific metrics
+var kafkaMetrics = env.GetMetricGroup()
+    .AddGroup("kafka")
+    .Counter("records.consumed")
+    .Meter("records.per.second")
+    .Histogram("processing.latency");
+```
+
+#### Development Environment Setup
+
+**Docker Compose for Kafka Development:**
+```yaml
+# Save as docker-compose.kafka.yml
+version: '3.8'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+```
+
+**Setup Commands:**
+```bash
+# Start Kafka development environment
+docker-compose -f docker-compose.kafka.yml up -d
+
+# Create topics with proper configuration
+docker exec -it kafka kafka-topics --create \
+  --bootstrap-server localhost:9092 \
+  --topic business-events \
+  --partitions 8 \
+  --replication-factor 1 \
+  --config retention.ms=604800000
+
+# Monitor topic and consumer lag
+docker exec -it kafka kafka-consumer-groups --bootstrap-server localhost:9092 \
+  --describe --group flink-business-processor
+```
+
+#### Performance Tuning Guidelines
+
+**Topic Partition Scaling:**
+- Monitor partition CPU usage and consumer lag
+- Scale partitions up if lag consistently increases
+- Use Kafka's partition reassignment for rebalancing
+
+**Producer Backpressure Tuning:**
+```csharp
+// High-throughput configuration
+.SetProperty("batch.size", "65536")      // Larger batches
+.SetProperty("linger.ms", "10")          // More batching time
+.SetProperty("buffer.memory", "67108864") // 64MB send buffer
+
+// Low-latency configuration  
+.SetProperty("batch.size", "1024")       // Smaller batches
+.SetProperty("linger.ms", "0")           // No batching delay
+.SetProperty("compression.type", "none")  // No compression overhead
+```
+
+**Consumer Backpressure Tuning:**
+```csharp
+// High-throughput configuration
+.SetProperty("fetch.min.bytes", "2097152")    // 2MB minimum
+.SetProperty("fetch.max.wait.ms", "1000")     // Wait for larger batches
+.SetProperty("max.poll.records", "1000")      // Process more records per poll
+
+// Low-latency configuration
+.SetProperty("fetch.min.bytes", "1")          // Don't wait for batches
+.SetProperty("fetch.max.wait.ms", "10")       // Minimal wait time
+.SetProperty("max.poll.records", "100")       // Smaller poll batches
+```
+
 ## Comparison with Flink.Net
 
 | Feature | Flink.Net | FLINK.NET Implementation |
@@ -492,6 +771,12 @@ var healthStatus = pipelineStatus.OverallPressureLevel switch
 | Load-Aware Partitioning | ✅ | ✅ Dynamic rebalancing |
 | Dead Letter Queue | ✅ | ✅ Configurable DLQ support |
 | Exponential Backoff | ✅ | ✅ Intelligent retry strategies |
+
+## Related Documentation
+
+- **[Flink.Net Best Practices: Stream Processing Patterns](Flink.Net-Best-Practices-Stream-Processing-Patterns.md)** - Comprehensive guide comparing custom pipeline patterns vs standard Flink.Net approaches
+- **[Kafka Development Environment Setup](../docker-compose.kafka.yml)** - Docker Compose configuration for local Kafka development
+- **[Kafka Development Scripts](../scripts/kafka-dev.sh)** - Helper scripts for managing Kafka development environment
 
 ## Conclusion
 
