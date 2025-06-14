@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace FlinkDotNet.Core.Abstractions.Operators
 {
     /// <summary>
@@ -11,6 +13,8 @@ namespace FlinkDotNet.Core.Abstractions.Operators
     /// <typeparam name="TIn">The type of the input elements.</typeparam>
     /// <typeparam name="TAgg">The type of the accumulator.</typeparam>
     /// <typeparam name="TOut">The type of the output (result) elements.</typeparam>
+    [SuppressMessage("Design", "S2436:Reduce the number of generic parameters", 
+        Justification = "Three generic parameters are required for proper aggregation function type safety: input type, accumulator type, and output type. This matches Flink's RichAggregateFunction design pattern.")]
     public interface IRichAggregateOperator<in TIn, TAgg, out TOut> : IAggregateOperator<TIn, TAgg, TOut>, IOperatorLifecycle
     {
     }

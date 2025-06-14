@@ -137,21 +137,15 @@ namespace FlinkDotNet.Storage.RocksDB
                 // Start statistics collection timer every 10 seconds
                 _statisticsTimer = new Timer(CollectStatistics, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
                 
-                _logger.LogInformation("=== RocksDB Flink.Net State Backend Initialization ===");
-                _logger.LogInformation("RocksDB state backend initialized at {DataDirectory} with {ColumnFamilyCount} column families", 
-                    dataDir, columnFamilyNames.Length);
-                _logger.LogInformation("RocksDB Configuration - WriteBufferSize: {WriteBufferSize}MB, BackgroundJobs: {BackgroundJobs}", 
-                    (_options?.WriteBufferSize ?? _configuration?.WriteBufferSize ?? 64 * 1024 * 1024) / (1024 * 1024), 
-                    _options?.MaxBackgroundJobs ?? _configuration?.MaxBackgroundJobs ?? 4);
-                _logger.LogInformation("Column Families: {ColumnFamilies}", string.Join(", ", columnFamilyNames));
+                var writeBufferSizeMb = (_options?.WriteBufferSize ?? _configuration?.WriteBufferSize ?? 64 * 1024 * 1024) / (1024 * 1024);
+                var backgroundJobs = _options?.MaxBackgroundJobs ?? _configuration?.MaxBackgroundJobs ?? 4;
+                var columnFamiliesList = string.Join(", ", columnFamilyNames);
                 
-                // Enhanced diagnostics for stress testing
-                _logger.LogInformation("=== Flink.Net RocksDB Compatibility Features ===");
-                _logger.LogInformation("- Credit-based flow control integration: Enabled");
-                _logger.LogInformation("- Back pressure monitoring: Enabled");
-                _logger.LogInformation("- Real-time performance metrics: Enabled");
-                _logger.LogInformation("- TaskManager process awareness: Enabled");
-                _logger.LogInformation("=== End RocksDB Initialization ===");
+                _logger.LogInformation("RocksDB Flink.Net State Backend initialized at {DataDirectory} with {ColumnFamilyCount} column families. " +
+                    "Configuration - WriteBufferSize: {WriteBufferSize}MB, BackgroundJobs: {BackgroundJobs}. " +
+                    "Column Families: {ColumnFamilies}. Features enabled: Credit-based flow control, Back pressure monitoring, " +
+                    "Real-time performance metrics, TaskManager process awareness.", 
+                    dataDir, columnFamilyNames.Length, writeBufferSizeMb, backgroundJobs, columnFamiliesList);
             }
             catch (Exception ex)
             {
@@ -287,30 +281,27 @@ namespace FlinkDotNet.Storage.RocksDB
             {
                 var stats = GetStatistics();
                 
-                // Enhanced Flink.Net style comprehensive logging for stress testing
-                _logger.LogInformation("=== RocksDB Performance Metrics (Flink.Net Style) ===");
-                _logger.LogInformation("Memory Usage: {Memory}MB (Block Cache: {BlockCache}MB)", 
-                    stats.MemoryUsage / 1024 / 1024, 
-                    stats.BlockCacheUsageBytes / 1024 / 1024);
-                _logger.LogInformation("Disk Usage: {Disk}MB (Pending Compaction: {PendingCompaction}MB)", 
-                    stats.DiskUsage / 1024 / 1024,
-                    stats.PendingCompactionBytes / 1024 / 1024);
-                _logger.LogInformation("Latency - Write: {WriteLatency}ms, Read: {ReadLatency}ms", 
-                    stats.AverageWriteLatencyMs, stats.AverageReadLatencyMs);
-                _logger.LogInformation("Throughput - Writes: {WritesPerSec}/s, Reads: {ReadsPerSec}/s", 
-                    stats.WritesPerSecond, stats.ReadsPerSecond);
-                _logger.LogInformation("CPU Usage: {CpuUsage}%", stats.CpuUsagePercent);
-                
-                // Additional stress test diagnostics
+                var memoryMb = stats.MemoryUsage / 1024 / 1024;
+                var blockCacheMb = stats.BlockCacheUsageBytes / 1024 / 1024;
+                var diskMb = stats.DiskUsage / 1024 / 1024;
+                var pendingCompactionMb = stats.PendingCompactionBytes / 1024 / 1024;
                 var pressureLevel = CalculateBackPressureLevel(stats);
-                _logger.LogInformation("RocksDB Back Pressure Level: {PressureLevel} ({PressureDescription})", 
+                
+                _logger.LogInformation("RocksDB Performance Metrics - Memory: {Memory}MB (Block Cache: {BlockCache}MB), " +
+                    "Disk: {Disk}MB (Pending Compaction: {PendingCompaction}MB), " +
+                    "Latency - Write: {WriteLatency}ms/Read: {ReadLatency}ms, " +
+                    "Throughput - Writes: {WritesPerSec}/s/Reads: {ReadsPerSec}/s, " +
+                    "CPU: {CpuUsage}%, Back Pressure: {PressureLevel} ({PressureDescription})", 
+                    memoryMb, blockCacheMb, diskMb, pendingCompactionMb,
+                    stats.AverageWriteLatencyMs, stats.AverageReadLatencyMs,
+                    stats.WritesPerSecond, stats.ReadsPerSecond, stats.CpuUsagePercent,
                     pressureLevel, GetPressureDescription(pressureLevel));
                 
                 // Memory pressure warnings for stress testing
                 if (stats.MemoryUsage > 500 * 1024 * 1024) // > 500MB
                 {
                     _logger.LogWarning("⚠️ HIGH MEMORY USAGE: RocksDB using {Memory}MB - consider tuning write buffer size", 
-                        stats.MemoryUsage / 1024 / 1024);
+                        memoryMb);
                 }
                 
                 // Latency warnings for stress testing  
@@ -319,8 +310,6 @@ namespace FlinkDotNet.Storage.RocksDB
                     _logger.LogWarning("⚠️ HIGH WRITE LATENCY: {WriteLatency}ms - may cause back pressure", 
                         stats.AverageWriteLatencyMs);
                 }
-                
-                _logger.LogDebug("=== End RocksDB Metrics ===");
             }
             catch (Exception ex)
             {

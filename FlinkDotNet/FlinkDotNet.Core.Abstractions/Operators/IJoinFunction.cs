@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace FlinkDotNet.Core.Abstractions.Operators
 {
     /// <summary>
@@ -11,6 +13,8 @@ namespace FlinkDotNet.Core.Abstractions.Operators
     /// <typeparam name="TLeft">The type of the elements from the left input stream.</typeparam>
     /// <typeparam name="TRight">The type of the elements from the right input stream.</typeparam>
     /// <typeparam name="TOut">The type of the output elements produced by the join.</typeparam>
+    [SuppressMessage("Design", "S2436:Reduce the number of generic parameters", 
+        Justification = "Three generic parameters are required for proper join function type safety: left input type, right input type, and output type. This matches Flink's JoinFunction design pattern.")]
     public interface IJoinFunction<in TLeft, in TRight, out TOut>
     {
         /// <summary>
