@@ -151,14 +151,17 @@ powershell -Command "& {
             try {
                 # First check if Docker Desktop is installed
                 $dockerDesktopExists = $false
+                $dockerDesktopPath = ""
                 if (Test-Path "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe") {
                     $dockerDesktopExists = $true
+                    $dockerDesktopPath = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
                 } elseif (Test-Path "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe") {
                     $dockerDesktopExists = $true
+                    $dockerDesktopPath = "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
                 }
                 
                 if (-not $dockerDesktopExists) {
-                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is not installed'; Url='https://docker.com/'}
+                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is not installed'; NeedsInstall=$true}
                 }
                 
                 # Then check if Docker is running
@@ -166,10 +169,25 @@ powershell -Command "& {
                 if ($LASTEXITCODE -eq 0) {
                     return @{Success=$true; Tool='docker'; Message='✅ Docker Desktop is installed and running'}
                 } else {
-                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is installed but not running. Please start Docker Desktop.'; Url='https://docker.com/'}
+                    # Try to start Docker Desktop
+                    Write-Host "Attempting to start Docker Desktop..."
+                    Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden
+                    
+                    # Wait for Docker to start (max 60 seconds)
+                    $maxWait = 60
+                    $waited = 0
+                    while ($waited -lt $maxWait) {
+                        Start-Sleep -Seconds 5
+                        $waited += 5
+                        & docker info 2>$null
+                        if ($LASTEXITCODE -eq 0) {
+                            return @{Success=$true; Tool='docker'; Message='✅ Docker Desktop started successfully'}
+                        }
+                    }
+                    return @{Success=$false; Tool='docker'; Message='❌ Docker Desktop is installed but failed to start automatically. Please start Docker Desktop manually.'; NeedsInstall=$false}
                 }
             } catch {
-                return @{Success=$false; Tool='docker'; Message='❌ Docker check failed'; Error=$_.Exception.Message}
+                return @{Success=$false; Tool='docker'; Message='❌ Docker check failed'; Error=$_.Exception.Message; NeedsInstall=$false}
             }
         }
     }
@@ -215,8 +233,13 @@ powershell -Command "& {
                 Write-Host 'WARNING: Java not found. SonarCloud analysis will be skipped.'
                 $skipSonar = 1
             } elseif ($result.Tool -eq 'docker') {
-                Write-Host 'WARNING: Docker not available. Stress tests will be skipped.'
-                $skipStress = 1
+                if ($result.NeedsInstall -eq $true) {
+                    Write-Host 'WARNING: Docker Desktop not installed. Will attempt installation.'
+                    $failedTools += 'docker'
+                } else {
+                    Write-Host 'WARNING: Docker not available. Stress tests will be skipped.'
+                    $skipStress = 1
+                }
             }
         }
     }
@@ -233,30 +256,55 @@ REM Get the results from PowerShell execution
 for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_SONAR_UPDATED"') do set SKIP_SONAR=%%i
 for /f "tokens=*" %%i in ('powershell -Command "$env:SKIP_STRESS_UPDATED"') do set SKIP_STRESS=%%i
 
-REM Handle tool installations if needed (these still need to be sequential due to system requirements)
+REM Handle tool installations if needed - run Java and Docker in parallel when both needed
 call :check_dotnet
 if errorlevel 1 call :install_dotnet
 if errorlevel 1 exit /b 1
 
+REM Start parallel installation jobs for Java and Docker if needed
+set JAVA_INSTALL_NEEDED=0
+set DOCKER_INSTALL_NEEDED=0
+
 if %SKIP_SONAR%==0 (
     call :check_java
-    if errorlevel 1 (
+    if errorlevel 1 set JAVA_INSTALL_NEEDED=1
+)
+
+if %SKIP_STRESS%==0 (
+    call :check_docker
+    if errorlevel 1 set DOCKER_INSTALL_NEEDED=1
+)
+
+REM Run Java and Docker installations in parallel if both are needed
+if %JAVA_INSTALL_NEEDED%==1 (
+    if %DOCKER_INSTALL_NEEDED%==1 (
+        echo Installing Java and Docker in parallel...
+        REM Start Java installation in background
+        start "Java Installation" /wait cmd /c "call :install_java_background"
+        REM Install Docker in foreground
+        call :install_docker
+        if errorlevel 1 (
+            echo WARNING: Docker installation failed. Stress tests will be skipped.
+            set SKIP_STRESS=1
+        )
+        REM Java installation status will be checked after
+        call :check_java_install_result
+        if errorlevel 1 (
+            echo WARNING: Java installation failed. SonarCloud analysis will be skipped.
+            set SKIP_SONAR=1
+        )
+    ) else (
         call :install_java
         if errorlevel 1 (
             echo WARNING: Java installation failed. SonarCloud analysis will be skipped.
             set SKIP_SONAR=1
         )
     )
-)
-
-if %SKIP_STRESS%==0 (
-    call :check_docker
+) else if %DOCKER_INSTALL_NEEDED%==1 (
+    call :install_docker
     if errorlevel 1 (
-        call :install_docker
-        if errorlevel 1 (
-            echo WARNING: Docker installation failed. Stress tests will be skipped.
-            set SKIP_STRESS=1
-        )
+        echo WARNING: Docker installation failed. Stress tests will be skipped.
+        set SKIP_STRESS=1
     )
 )
 
@@ -414,9 +462,11 @@ exit /b 0
 :check_docker
 REM First check if Docker Desktop is installed
 if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+    set "DOCKER_DESKTOP_PATH=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
     echo ✅ Docker Desktop is installed
 ) else (
     if exist "%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe" (
+        set "DOCKER_DESKTOP_PATH=%ProgramFiles(x86)%\Docker\Docker\Docker Desktop.exe"
         echo ✅ Docker Desktop is installed
     ) else (
         echo ❌ Docker Desktop is not installed
@@ -428,7 +478,23 @@ REM Then check if Docker is running
 docker info >NUL 2>&1
 if errorlevel 1 (
     echo ❌ Docker Desktop is installed but not running
-    echo    Please start Docker Desktop before running this script
+    echo    Attempting to start Docker Desktop...
+    start "" "%DOCKER_DESKTOP_PATH%"
+    
+    REM Wait for Docker to start (max 60 seconds)
+    set /a WAIT_COUNT=0
+    :docker_wait_loop
+    timeout /t 5 /nobreak >NUL 2>&1
+    set /a WAIT_COUNT+=5
+    docker info >NUL 2>&1
+    if not errorlevel 1 (
+        echo ✅ Docker Desktop started successfully
+        exit /b 0
+    )
+    if %WAIT_COUNT% lss 60 goto docker_wait_loop
+    
+    echo ❌ Docker Desktop failed to start automatically
+    echo    Please start Docker Desktop manually before running this script
     exit /b 1
 )
 echo ✅ Docker Desktop is running
@@ -504,6 +570,43 @@ if %INSTALL_RESULT% neq 0 (
 echo ✅ Docker Desktop installed successfully
 echo Please restart your computer and run this script again
 exit /b 0
+
+:install_java_background
+REM Background Java installation for parallel execution
+echo 🔧 Installing Java 17 (background)...
+echo Downloading Microsoft OpenJDK 17...
+powershell -Command "Invoke-WebRequest -Uri 'https://aka.ms/download-jdk/microsoft-jdk-17.0.7-windows-x64.msi' -OutFile 'openjdk-installer.msi'"
+if errorlevel 1 (
+    echo JAVA_INSTALL_RESULT=DOWNLOAD_FAILED > java_install.result
+    exit /b 1
+)
+echo Running Java installer (this may take a few minutes)...
+msiexec /i openjdk-installer.msi /quiet /norestart
+set INSTALL_RESULT=%ERRORLEVEL%
+del openjdk-installer.msi 2>nul
+if %INSTALL_RESULT% neq 0 (
+    echo JAVA_INSTALL_RESULT=INSTALL_FAILED > java_install.result
+    exit /b 1
+)
+echo JAVA_INSTALL_RESULT=SUCCESS > java_install.result
+echo ✅ Java installed successfully (background)
+exit /b 0
+
+:check_java_install_result
+if not exist java_install.result (
+    echo ❌ Java installation status unknown
+    exit /b 1
+)
+for /f "tokens=2 delims==" %%i in (java_install.result) do set JAVA_RESULT=%%i
+del java_install.result 2>nul
+if "%JAVA_RESULT%"=="SUCCESS" (
+    echo ✅ Java installation completed successfully
+    echo Please restart your command prompt and run this script again
+    exit /b 0
+) else (
+    echo ❌ Java installation failed: %JAVA_RESULT%
+    exit /b 1
+)
 
 :install_pwsh
 echo 🔧 Installing PowerShell Core...

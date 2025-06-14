@@ -148,6 +148,26 @@ check_docker_running() {
         return 0
     else
         echo "❌ Docker is not running or not accessible"
+        
+        # Try to start Docker Desktop if it exists
+        if command -v "Docker Desktop" &> /dev/null; then
+            echo "   Attempting to start Docker Desktop..."
+            open -a "Docker Desktop" 2>/dev/null || true
+            
+            # Wait for Docker to start (max 60 seconds)
+            local wait_count=0
+            while [[ $wait_count -lt 60 ]]; do
+                sleep 5
+                wait_count=$((wait_count + 5))
+                if docker info &> /dev/null; then
+                    echo "✅ Docker Desktop started successfully"
+                    return 0
+                fi
+            done
+            echo "❌ Docker Desktop failed to start automatically"
+        fi
+        
+        echo "   Please start Docker Desktop manually before running this script"
         return 1
     fi
 }
@@ -194,10 +214,14 @@ check_prerequisites_parallel() {
     # Check Docker (if needed)
     if [[ $SKIP_STRESS -eq 0 ]]; then
         (
-            if check_command docker "Docker" "https://docker.com/" >/dev/null 2>&1 && check_docker_running >/dev/null 2>&1; then
-                echo "success" > "$temp_dir/docker"
+            if check_command docker "Docker" "https://docker.com/" >/dev/null 2>&1; then
+                if check_docker_running >/dev/null 2>&1; then
+                    echo "success" > "$temp_dir/docker"
+                else
+                    echo "fail_start" > "$temp_dir/docker"
+                fi
             else
-                echo "fail" > "$temp_dir/docker"
+                echo "fail_install" > "$temp_dir/docker"
             fi
         ) &
         local docker_pid=$!
@@ -234,9 +258,21 @@ check_prerequisites_parallel() {
     fi
     
     if [[ $SKIP_STRESS -eq 0 ]]; then
-        if ! check_command docker "Docker" "https://docker.com/" || ! check_docker_running; then
-            echo "WARNING: Docker not available. Stress tests will be skipped."
-            SKIP_STRESS=1
+        local docker_result=$(cat "$temp_dir/docker" 2>/dev/null || echo "fail")
+        if [[ "$docker_result" == "success" ]]; then
+            check_command docker "Docker" "https://docker.com/"
+            check_docker_running
+        elif [[ "$docker_result" == "fail_start" ]]; then
+            check_command docker "Docker" "https://docker.com/"
+            if ! check_docker_running; then
+                echo "WARNING: Docker available but not running. Stress tests will be skipped."
+                SKIP_STRESS=1
+            fi
+        else
+            if ! check_command docker "Docker" "https://docker.com/"; then
+                echo "WARNING: Docker not available. Stress tests will be skipped."
+                SKIP_STRESS=1
+            fi
         fi
     fi
     
