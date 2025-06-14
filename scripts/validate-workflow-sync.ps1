@@ -1,13 +1,13 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Validates that run-all-workflows files stay synchronized with GitHub workflow files.
+    Validates that run-full-development-lifecycle files stay synchronized with GitHub workflow files.
 
 .DESCRIPTION
-    This script ensures that scripts/run-all-workflows.cmd and scripts/run-all-workflows.sh remain 
+    This script ensures that run-full-development-lifecycle.cmd and run-full-development-lifecycle.sh remain 
     synchronized with the GitHub Actions workflow files (.github/workflows/*.yml).
     
-    Any changes to GitHub workflows require corresponding updates to the run-all-workflows
+    Any changes to GitHub workflows require corresponding updates to the run-full-development-lifecycle
     files to maintain 100% local/CI alignment.
 
 .PARAMETER Fix
@@ -34,7 +34,7 @@ $ErrorActionPreference = 'Stop'
 $StartTime = Get-Date
 
 Write-Host "=== Workflow Synchronization Validation ===" -ForegroundColor Cyan
-Write-Host "Ensuring run-all-workflows files match GitHub Actions workflows" -ForegroundColor White
+Write-Host "Ensuring run-full-development-lifecycle files match GitHub Actions workflows" -ForegroundColor White
 Write-Host ""
 
 $ValidationResults = @()
@@ -139,7 +139,7 @@ function Check-EnvironmentVariables {
         }
     }
     
-    # Extract environment variables from run-all-workflows
+    # Extract environment variables from run-full-development-lifecycle
     if (Test-Path $RunAllWorkflowsFile) {
         $runAllContent = Get-Content $RunAllWorkflowsFile -Raw
         $runAllContent | Select-String 'set\s+(\w+)=' -AllMatches | ForEach-Object {
@@ -193,7 +193,7 @@ function Check-CommandSequence {
         }
     }
     
-    # Extract key commands from run-all-workflows
+    # Extract key commands from run-full-development-lifecycle
     if (Test-Path $RunAllWorkflowsFile) {
         $runAllContent = Get-Content $RunAllWorkflowsFile -Raw
         
@@ -234,8 +234,8 @@ try {
         ".github/workflows/integration-tests.yml"
     )
     
-    $RunAllWorkflowsCmd = "scripts/run-all-workflows.cmd"
-    $RunAllWorkflowsSh = "scripts/run-all-workflows.sh"
+    $RunAllWorkflowsCmd = "run-full-development-lifecycle.cmd"
+    $RunAllWorkflowsSh = "run-full-development-lifecycle.sh"
     
     # Check that all required files exist
     Write-Host "=== File Existence Check ===" -ForegroundColor Yellow
@@ -251,16 +251,16 @@ try {
     }
     
     if (Test-Path $RunAllWorkflowsCmd) {
-        Add-ValidationResult "scripts/run-all-workflows.cmd" $true "File exists"
+        Add-ValidationResult "run-full-development-lifecycle.cmd" $true "File exists"
     } else {
-        Add-ValidationResult "scripts/run-all-workflows.cmd" $false "File missing"
+        Add-ValidationResult "run-full-development-lifecycle.cmd" $false "File missing"
         $allFilesExist = $false
     }
     
     if (Test-Path $RunAllWorkflowsSh) {
-        Add-ValidationResult "scripts/run-all-workflows.sh" $true "File exists"
+        Add-ValidationResult "run-full-development-lifecycle.sh" $true "File exists"
     } else {
-        Add-ValidationResult "scripts/run-all-workflows.sh" $false "File missing"
+        Add-ValidationResult "run-full-development-lifecycle.sh" $false "File missing"
         $allFilesExist = $false
     }
     
@@ -283,10 +283,10 @@ try {
     }
     
     if ($cmdCoverage.Count -eq $expectedWorkflows.Count) {
-        Add-ValidationResult "scripts/run-all-workflows.cmd Coverage" $true "All 4 workflows covered"
+        Add-ValidationResult "run-full-development-lifecycle.cmd Coverage" $true "All 4 workflows covered"
     } else {
         $missing = $expectedWorkflows | Where-Object { $_ -notin $cmdCoverage }
-        Add-ValidationResult "scripts/run-all-workflows.cmd Coverage" $false "Missing: $($missing -join ', ')"
+        Add-ValidationResult "run-full-development-lifecycle.cmd Coverage" $false "Missing: $($missing -join ', ')"
     }
     
     # Check sh file
@@ -297,10 +297,10 @@ try {
     }
     
     if ($shCoverage.Count -eq $expectedWorkflows.Count) {
-        Add-ValidationResult "scripts/run-all-workflows.sh Coverage" $true "All 4 workflows covered"
+        Add-ValidationResult "run-full-development-lifecycle.sh Coverage" $true "All 4 workflows covered"
     } else {
         $missing = $expectedWorkflows | Where-Object { $_ -notin $shCoverage }
-        Add-ValidationResult "scripts/run-all-workflows.sh Coverage" $false "Missing: $($missing -join ', ')"
+        Add-ValidationResult "run-full-development-lifecycle.sh Coverage" $false "Missing: $($missing -join ', ')"
     }
     
     Write-Host ""
@@ -381,16 +381,16 @@ try {
     
     if ($newestWorkflow.LastWriteTime -gt $cmdMod.LastWriteTime) {
         $timeDiff = ($newestWorkflow.LastWriteTime - $cmdMod.LastWriteTime).TotalHours
-        Add-ValidationResult "Modification Time: CMD" $false "scripts/run-all-workflows.cmd is $($timeDiff.ToString('F1')) hours older than newest workflow"
+        Add-ValidationResult "Modification Time: CMD" $false "run-full-development-lifecycle.cmd is $($timeDiff.ToString('F1')) hours older than newest workflow"
     } else {
-        Add-ValidationResult "Modification Time: CMD" $true "scripts/run-all-workflows.cmd is up to date"
+        Add-ValidationResult "Modification Time: CMD" $true "run-full-development-lifecycle.cmd is up to date"
     }
     
     if ($newestWorkflow.LastWriteTime -gt $shMod.LastWriteTime) {
         $timeDiff = ($newestWorkflow.LastWriteTime - $shMod.LastWriteTime).TotalHours
-        Add-ValidationResult "Modification Time: SH" $false "scripts/run-all-workflows.sh is $($timeDiff.ToString('F1')) hours older than newest workflow"
+        Add-ValidationResult "Modification Time: SH" $false "run-full-development-lifecycle.sh is $($timeDiff.ToString('F1')) hours older than newest workflow"
     } else {
-        Add-ValidationResult "Modification Time: SH" $true "scripts/run-all-workflows.sh is up to date"
+        Add-ValidationResult "Modification Time: SH" $true "run-full-development-lifecycle.sh is up to date"
     }
     
     Write-Host ""
@@ -415,7 +415,7 @@ try {
         Write-Host ""
         Write-Host "=== Recommended Actions ===" -ForegroundColor Yellow
         Write-Host "1. Review GitHub workflow changes in .github/workflows/" -ForegroundColor White
-        Write-Host "2. Update scripts/run-all-workflows.cmd and scripts/run-all-workflows.sh accordingly" -ForegroundColor White
+        Write-Host "2. Update run-full-development-lifecycle.cmd and run-full-development-lifecycle.sh accordingly" -ForegroundColor White
         Write-Host "3. Ensure all environment variables are synchronized" -ForegroundColor White
         Write-Host "4. Verify all dotnet commands match between workflows and scripts" -ForegroundColor White
         Write-Host "5. Re-run this validation script to confirm fixes" -ForegroundColor White
@@ -424,7 +424,7 @@ try {
             Write-Host ""
             Write-Host "=== Auto-Fix Attempt ===" -ForegroundColor Yellow
             Write-Host "Auto-fix capability is not yet implemented." -ForegroundColor Gray
-            Write-Host "Manual updates to run-all-workflows files are required." -ForegroundColor Gray
+            Write-Host "Manual updates to run-full-development-lifecycle files are required." -ForegroundColor Gray
         }
         
         Write-Host ""
@@ -433,7 +433,7 @@ try {
     } else {
         Write-Host ""
         Write-Host "✅ WORKFLOW SYNCHRONIZATION VALIDATION PASSED" -ForegroundColor Green
-        Write-Host "All run-all-workflows files are synchronized with GitHub workflows." -ForegroundColor Green
+        Write-Host "All run-full-development-lifecycle files are synchronized with GitHub workflows." -ForegroundColor Green
         exit 0
     }
     

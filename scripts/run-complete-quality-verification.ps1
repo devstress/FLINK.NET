@@ -1,11 +1,11 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Simplified quality verification script using run-all-workflows as the single source of truth.
+    Simplified quality verification script using run-full-development-lifecycle as the single source of truth.
 
 .DESCRIPTION
     This script provides a simplified quality verification process that delegates to
-    the run-all-workflows scripts. This ensures 100% alignment with CI workflows
+    the run-full-development-lifecycle scripts. This ensures 100% alignment with CI workflows
     and eliminates duplicate enforcement logic.
     
     The verification process includes:
@@ -27,7 +27,7 @@ $StartTime = Get-Date
 
 Write-Host "=== FlinkDotNet Simplified Quality Verification ===" -ForegroundColor Cyan
 Write-Host "Started at: $($StartTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -ForegroundColor White
-Write-Host "Using run-all-workflows as single source of truth!" -ForegroundColor Yellow
+Write-Host "Using run-full-development-lifecycle as single source of truth!" -ForegroundColor Yellow
 
 $VerificationResults = @()
 $TotalSteps = 3
@@ -79,13 +79,13 @@ function Show-Summary {
 try {
     # Step 1: Workflow Synchronization Validation
     Write-Host "`n=== Step 1: Workflow Synchronization Validation ===" -ForegroundColor Yellow
-    Write-Host "Ensuring run-all-workflows files are synchronized with GitHub workflows..." -ForegroundColor White
+    Write-Host "Ensuring run-full-development-lifecycle files are synchronized with GitHub workflows..." -ForegroundColor White
     
     $syncOutput = & ./scripts/validate-workflow-sync.ps1 2>&1
     $syncExitCode = $LASTEXITCODE
     
     if ($syncExitCode -eq 0) {
-        Step-Complete "Workflow Synchronization" $true "run-all-workflows files are synchronized with GitHub workflows"
+        Step-Complete "Workflow Synchronization" $true "run-full-development-lifecycle files are synchronized with GitHub workflows"
     } else {
         Step-Complete "Workflow Synchronization" $false "Synchronization validation failed - check ./scripts/validate-workflow-sync.ps1 output"
     }
@@ -96,12 +96,12 @@ try {
     
     # Detect platform and run appropriate script
     if ($IsWindows -or $env:OS -eq "Windows_NT") {
-        Write-Host "Running Windows version: scripts/run-all-workflows.cmd" -ForegroundColor Gray
-        $workflowOutput = & cmd /c "scripts/run-all-workflows.cmd" 2>&1
+        Write-Host "Running Windows version: run-full-development-lifecycle.cmd" -ForegroundColor Gray
+        $workflowOutput = & cmd /c "run-full-development-lifecycle.cmd" 2>&1
         $workflowExitCode = $LASTEXITCODE
     } else {
-        Write-Host "Running Linux version: ./scripts/run-all-workflows.sh" -ForegroundColor Gray
-        $workflowOutput = & ./scripts/run-all-workflows.sh 2>&1
+        Write-Host "Running Linux version: ./run-full-development-lifecycle.sh" -ForegroundColor Gray
+        $workflowOutput = & ./run-full-development-lifecycle.sh 2>&1
         $workflowExitCode = $LASTEXITCODE
     }
     
@@ -133,7 +133,7 @@ try {
 
     # Success!
     Write-Host "`n🎉 SIMPLIFIED QUALITY VERIFICATION PASSED! 🎉" -ForegroundColor Green
-    Write-Host "All quality requirements met via run-all-workflows execution." -ForegroundColor Green
+    Write-Host "All quality requirements met via run-full-development-lifecycle execution." -ForegroundColor Green
     Write-Host "Code is ready for submission." -ForegroundColor Green
     
 } catch {
@@ -148,7 +148,7 @@ Write-Host "`nCompleted at: $($EndTime.ToString('yyyy-MM-dd HH:mm:ss')) UTC" -Fo
 Write-Host "Total Duration: $(($EndTime - $StartTime).ToString('mm\:ss'))" -ForegroundColor White
 Write-Host ""
 Write-Host "=== Quality Verification Approach ===" -ForegroundColor Cyan
-Write-Host "✅ Simplified enforcement using run-all-workflows as single source of truth" -ForegroundColor Green
+Write-Host "✅ Simplified enforcement using run-full-development-lifecycle as single source of truth" -ForegroundColor Green
 Write-Host "✅ 100% alignment with CI workflows via direct replication" -ForegroundColor Green  
 Write-Host "✅ No duplicate enforcement logic - workflows handle all validation" -ForegroundColor Green
 Write-Host "✅ Automatic synchronization validation prevents drift" -ForegroundColor Green

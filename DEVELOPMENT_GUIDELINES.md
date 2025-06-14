@@ -18,7 +18,7 @@ This document provides comprehensive guidelines for developing and maintaining F
 ./scripts/local-build-analysis.ps1 -SkipSonar
 
 # Unix/Linux systems
-./scripts/build-all-sln.sh
+./build-all.sh
 ```
 
 **Requirements:**

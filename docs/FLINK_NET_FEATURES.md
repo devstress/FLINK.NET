@@ -296,7 +296,7 @@ public static class ServiceUris
 ```
 
 ### 2. Local Build and Analysis Infrastructure
-**Location**: `scripts/local-build-analysis.ps1`, `scripts/build-all-sln.sh`
+**Location**: `scripts/local-build-analysis.ps1`, `build-all.sh`
 
 Development tooling that mirrors CI/CD pipeline:
 
