@@ -144,7 +144,10 @@ public static class Program
         // Set the Redis password to match the Redis infrastructure configuration
         var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
         
-        builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
+        // Check if we should use Kafka source for TaskManager load testing
+        var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        
+        var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
             .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
@@ -156,6 +159,14 @@ public static class Program
             .WaitFor(redis) // Wait for Redis to be ready
             .WaitFor(kafka) // Wait for Kafka to be ready
             .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+            
+        // Enable Kafka source mode for TaskManager load distribution testing if requested
+        if (useKafkaSource)
+        {
+            Console.WriteLine("🔄 STRESS TEST CONFIG: Enabling Kafka source mode for TaskManager load distribution testing");
+            flinkJobSimulator.WithEnvironment("SIMULATOR_USE_KAFKA_SOURCE", "true");
+            flinkJobSimulator.WithEnvironment("SIMULATOR_KAFKA_CONSUMER_GROUP", "flinkdotnet-stress-test-consumer-group");
+        }
     }
 
     private static bool IsRunningInCI()

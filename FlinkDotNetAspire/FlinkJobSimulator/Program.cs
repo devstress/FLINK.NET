@@ -707,6 +707,14 @@ public static class Program
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
+        // Add Kafka producer service if using Kafka source
+        var useKafkaSource = Environment.GetEnvironmentVariable("SIMULATOR_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        if (useKafkaSource)
+        {
+            Console.WriteLine("🔄 KAFKA SOURCE CONFIG: Adding KafkaMessageProducer service for message generation");
+            builder.Services.AddHostedService<KafkaMessageProducer>();
+        }
+        
         var host = builder.Build();
         await host.StartAsync();
         return host;
@@ -821,9 +829,31 @@ public static class Program
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 
-        // Use HighVolumeSourceFunction for reliability in stress tests
-        var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
-        DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
+        // Check if we should use Kafka source instead of high volume source
+        var useKafkaSource = Environment.GetEnvironmentVariable("SIMULATOR_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        
+        DataStream<string> stream;
+        if (useKafkaSource)
+        {
+            Console.WriteLine("🔄 USING APACHE FLINK KAFKA SOURCE with TaskManager load distribution");
+            Console.WriteLine($"📊 CONSUMER GROUP CONFIG: Topic='{kafkaTopic}', Group='flinkdotnet-stress-test-consumer-group'");
+            
+            // Use FlinkKafkaSourceFunction for real Kafka consumer group testing
+            var kafkaSource = new FlinkKafkaSourceFunction();
+            stream = env.AddSource(kafkaSource, "flink-kafka-source-with-load-balancing");
+            
+            Console.WriteLine("✅ Pipeline configured with Apache Flink Kafka Source (TaskManager load distribution enabled)");
+        }
+        else
+        {
+            Console.WriteLine("🔄 USING HIGH VOLUME SOURCE (Redis-based message generation)");
+            
+            // Use HighVolumeSourceFunction for reliability in stress tests
+            var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
+            stream = env.AddSource(source, "high-volume-source-redis-seq");
+            
+            Console.WriteLine("✅ Pipeline configured with High Volume Source (Redis-based)");
+        }
 
         var mapOperator = new SimpleToUpperMapOperator();
         DataStream<string> mappedStream = stream.Map(mapOperator);

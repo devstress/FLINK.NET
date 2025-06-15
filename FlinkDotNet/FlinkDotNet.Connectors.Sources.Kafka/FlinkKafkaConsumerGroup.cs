@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
@@ -61,12 +62,16 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         }
 
         /// <summary>
-        /// Initialize consumer with proper error handling and partition assignment callbacks
+        /// Initialize consumer with proper error handling and partition assignment callbacks.
+        /// Waits for Kafka setup with 1-minute timeout for maximum reliability.
         /// </summary>
         public async Task InitializeAsync(IEnumerable<string> topics)
         {
             if (_consumer != null)
                 throw new InvalidOperationException("Consumer already initialized");
+
+            // Wait for Kafka setup with 1-minute timeout
+            await WaitForKafkaSetupAsync(TimeSpan.FromMinutes(1));
 
             _consumer = new ConsumerBuilder<Ignore, byte[]>(_consumerConfig)
                 .SetErrorHandler(OnError)
@@ -80,6 +85,63 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 string.Join(", ", topics));
             
             await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Wait for Kafka cluster to be ready before attempting consumer operations.
+        /// Implements Apache Flink-style reliability patterns for infrastructure readiness.
+        /// </summary>
+        private async Task WaitForKafkaSetupAsync(TimeSpan timeout)
+        {
+            _logger?.LogInformation("🔄 Waiting for Kafka setup to complete (timeout: {Timeout})...", timeout);
+            var startTime = DateTime.UtcNow;
+            var testConsumerConfig = new ConsumerConfig
+            {
+                BootstrapServers = _consumerConfig.BootstrapServers,
+                GroupId = $"kafka-readiness-check-{Guid.NewGuid()}",
+                EnableAutoCommit = false,
+                AutoOffsetReset = AutoOffsetReset.Latest,
+                SecurityProtocol = _consumerConfig.SecurityProtocol,
+                SessionTimeoutMs = 5000, // Short timeout for readiness check
+                SocketTimeoutMs = 5000    // Short socket timeout
+            };
+
+            var retryCount = 0;
+            const int maxRetries = 12; // 12 retries * 5 seconds = 1 minute
+            
+            while ((DateTime.UtcNow - startTime) < timeout)
+            {
+                retryCount++;
+                try
+                {
+                    using var testConsumer = new ConsumerBuilder<Ignore, byte[]>(testConsumerConfig).Build();
+                    
+                    // Try to subscribe - this will fail if Kafka is not ready
+                    testConsumer.Subscribe("__consumer_offsets"); // Use internal topic for testing
+                    
+                    // If we can subscribe without error, Kafka is ready
+                    _logger?.LogInformation("✅ Kafka setup verified - broker connectivity established after {Elapsed}ms (attempt {Attempt})", 
+                        (DateTime.UtcNow - startTime).TotalMilliseconds, retryCount);
+                    return; // Kafka is ready
+                }
+                catch (Exception ex)
+                {
+                    var elapsed = DateTime.UtcNow - startTime;
+                    _logger?.LogDebug(ex, "⏳ Kafka not ready yet - attempt {Attempt}/{MaxRetries} after {Elapsed}ms: {Error}", 
+                        retryCount, maxRetries, elapsed.TotalMilliseconds, ex.Message);
+                    
+                    if (elapsed >= timeout)
+                    {
+                        _logger?.LogWarning("⚠️ Kafka setup wait timeout ({Timeout}) exceeded, proceeding anyway", timeout);
+                        return; // Proceed even if timeout exceeded to allow fallback mechanisms
+                    }
+                    
+                    // Wait before retry
+                    await Task.Delay(TimeSpan.FromSeconds(5));
+                }
+            }
+            
+            _logger?.LogWarning("⚠️ Kafka setup wait completed with timeout, proceeding with consumer initialization");
         }
 
         /// <summary>
@@ -211,8 +273,31 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         private void OnPartitionsAssigned(IConsumer<Ignore, byte[]> consumer, List<TopicPartition> partitions)
         {
-            _logger?.LogInformation("Partitions assigned: {Partitions}", 
-                string.Join(", ", partitions));
+            var taskManagerId = Environment.GetEnvironmentVariable("TaskManagerId") ?? "Unknown";
+            var processId = Environment.ProcessId;
+            
+            _logger?.LogInformation("📊 TASK MANAGER LOAD DISTRIBUTION: TaskManager {TaskManagerId} (PID: {ProcessId}) assigned {PartitionCount} partitions: {Partitions}", 
+                taskManagerId, processId, partitions.Count, string.Join(", ", partitions));
+            
+            // Enhanced logging for load balancing analysis
+            if (partitions.Count > 0)
+            {
+                var topicGroups = partitions.GroupBy(p => p.Topic);
+                foreach (var topicGroup in topicGroups)
+                {
+                    var topicPartitions = topicGroup.Select(p => p.Partition.Value).OrderBy(p => p).ToArray();
+                    _logger?.LogInformation("📈 TaskManager {TaskManagerId}: Topic '{Topic}' partitions {Partitions} ({Count} out of total available partitions)", 
+                        taskManagerId, topicGroup.Key, string.Join(", ", topicPartitions), topicPartitions.Length);
+                }
+                
+                // Log for monitoring TaskManager utilization
+                _logger?.LogInformation("⚖️ LOAD BALANCING: TaskManager {TaskManagerId} is now actively consuming {PartitionCount} partitions - Load Status: {LoadStatus}", 
+                    taskManagerId, partitions.Count, partitions.Count > 0 ? "ACTIVE" : "IDLE");
+            }
+            else
+            {
+                _logger?.LogInformation("💤 LOAD BALANCING: TaskManager {TaskManagerId} has no partitions assigned - Load Status: IDLE", taskManagerId);
+            }
             
             // Clear previous offset tracking for new assignment
             lock (_offsetLock)
@@ -223,8 +308,10 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         private void OnPartitionsRevoked(IConsumer<Ignore, byte[]> consumer, List<TopicPartitionOffset> partitions)
         {
-            _logger?.LogInformation("Partitions revoked: {Partitions}", 
-                string.Join(", ", partitions));
+            var taskManagerId = Environment.GetEnvironmentVariable("TaskManagerId") ?? "Unknown";
+            
+            _logger?.LogInformation("📤 TASK MANAGER REBALANCING: TaskManager {TaskManagerId} revoked {PartitionCount} partitions: {Partitions}", 
+                taskManagerId, partitions.Count, string.Join(", ", partitions));
             
             // Commit current positions before revocation (if any)
             if (_checkpointedOffsets.Count > 0)
@@ -240,19 +327,22 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                         }
                     }
                     consumer.Commit(offsetsToCommit);
-                    _logger?.LogDebug("Committed offsets before partition revocation");
+                    _logger?.LogDebug("📋 TaskManager {TaskManagerId}: Committed {OffsetCount} offsets before partition revocation", 
+                        taskManagerId, offsetsToCommit.Count);
                 }
                 catch (KafkaException ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to commit offsets during partition revocation");
+                    _logger?.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to commit offsets during partition revocation", taskManagerId);
                 }
             }
         }
 
         private void OnPartitionsLost(IConsumer<Ignore, byte[]> consumer, List<TopicPartitionOffset> partitions)
         {
-            _logger?.LogWarning("Partitions lost: {Partitions}", 
-                string.Join(", ", partitions));
+            var taskManagerId = Environment.GetEnvironmentVariable("TaskManagerId") ?? "Unknown";
+            
+            _logger?.LogWarning("📉 TASK MANAGER FAULT TOLERANCE: TaskManager {TaskManagerId} lost {PartitionCount} partitions: {Partitions}", 
+                taskManagerId, partitions.Count, string.Join(", ", partitions));
             
             // Clear offset tracking for lost partitions
             lock (_offsetLock)
@@ -262,6 +352,9 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                     _checkpointedOffsets.Remove(partition.TopicPartition);
                 }
             }
+            
+            _logger?.LogInformation("🔄 TaskManager {TaskManagerId}: Cleared {PartitionCount} partition offsets due to partition loss", 
+                taskManagerId, partitions.Count);
         }
 
         public void Dispose()

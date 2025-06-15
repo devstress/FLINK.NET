@@ -55,7 +55,11 @@ namespace FlinkJobSimulator
         public void Open(IRuntimeContext context)
         {
             _taskName = context.TaskName;
+            var taskManagerId = Environment.GetEnvironmentVariable("TaskManagerId") ?? "Unknown";
+            var processId = Environment.ProcessId;
+            
             Console.WriteLine($"🔄 KAFKA SOURCE STEP 1: Opening FlinkKafkaSourceFunction with task name: {_taskName}");
+            Console.WriteLine($"📊 TASK MANAGER INFO: TaskManager {taskManagerId} (PID: {processId}) initializing Kafka source");
 
             // Multi-strategy Kafka bootstrap server discovery for maximum reliability
             string? bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
@@ -96,23 +100,28 @@ namespace FlinkJobSimulator
             try
             {
                 Console.WriteLine($"🔄 KAFKA SOURCE STEP 2: Creating FlinkKafkaConsumerGroup for bootstrap servers: {bootstrapServers}");
+                Console.WriteLine($"📊 TASK MANAGER {taskManagerId}: Creating consumer group with timeout wait for Kafka setup");
+                
                 _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig);
                 
-                Console.WriteLine($"🔄 KAFKA SOURCE STEP 3: Initializing and subscribing to topic: '{_topic}'");
+                Console.WriteLine($"🔄 KAFKA SOURCE STEP 3: Initializing and subscribing to topic: '{_topic}' (includes 1-minute Kafka wait)");
+                Console.WriteLine($"📊 TASK MANAGER {taskManagerId}: Subscribing to topic '{_topic}' with group '{_consumerGroupId}'");
+                
                 // Use GetAwaiter().GetResult() to call async method from sync context
                 _consumerGroup.InitializeAsync(new[] { _topic }).GetAwaiter().GetResult();
                 
                 Console.WriteLine($"✅ KAFKA SOURCE STEPS COMPLETED: FlinkKafkaSourceFunction opened successfully");
+                Console.WriteLine($"✅ TASK MANAGER {taskManagerId}: Ready to consume from topic '{_topic}' with load balancing");
                 
                 // Start heartbeat timer for process monitoring
                 _heartbeatTimer = new Timer(_ =>
                 {
-                    Console.WriteLine($"[{_taskName}] ❤️ Kafka source heartbeat - consuming from topic '{_topic}' with group '{_consumerGroupId}'");
+                    Console.WriteLine($"[{_taskName}] ❤️ TaskManager {taskManagerId}: Kafka source heartbeat - consuming from topic '{_topic}' with group '{_consumerGroupId}'");
                 }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ KAFKA SOURCE FAILED: Error opening FlinkKafkaSourceFunction: {ex.Message}");
+                Console.WriteLine($"❌ KAFKA SOURCE FAILED: TaskManager {taskManagerId} error opening FlinkKafkaSourceFunction: {ex.Message}");
                 Console.WriteLine($"❌ Exception details: {ex}");
                 throw;
             }
@@ -120,10 +129,14 @@ namespace FlinkJobSimulator
 
         public void Run(ISourceContext<string> sourceContext)
         {
-            Console.WriteLine($"🔄 Starting Kafka message consumption from topic '{_topic}' with consumer group '{_consumerGroupId}'");
+            var taskManagerId = Environment.GetEnvironmentVariable("TaskManagerId") ?? "Unknown";
+            var processId = Environment.ProcessId;
+            
+            Console.WriteLine($"🔄 TaskManager {taskManagerId} (PID: {processId}): Starting Kafka message consumption from topic '{_topic}' with consumer group '{_consumerGroupId}'");
             
             var messagesConsumed = 0;
             var lastLogTime = DateTime.UtcNow;
+            var lastLoadBalanceLogTime = DateTime.UtcNow;
             
             while (_isRunning && _consumerGroup != null)
             {
@@ -139,12 +152,21 @@ namespace FlinkJobSimulator
                         // Emit the message to downstream operators
                         sourceContext.Collect(messageValue);
                         
-                        // Log consumption progress
+                        // Log consumption progress with TaskManager details
                         if (messagesConsumed % 100 == 0 || (DateTime.UtcNow - lastLogTime).TotalSeconds > 10)
                         {
-                            Console.WriteLine($"[{_taskName}] 📨 Consumed {messagesConsumed} messages from Kafka topic '{_topic}' " +
+                            Console.WriteLine($"📨 TaskManager {taskManagerId}: Consumed {messagesConsumed} messages from Kafka topic '{_topic}' " +
                                             $"(partition: {consumeResult.TopicPartition.Partition}, offset: {consumeResult.Offset})");
                             lastLogTime = DateTime.UtcNow;
+                        }
+                        
+                        // Periodic load balancing status logging
+                        if ((DateTime.UtcNow - lastLoadBalanceLogTime).TotalSeconds > 30)
+                        {
+                            var assignment = _consumerGroup.GetAssignment();
+                            var partitionCount = assignment?.Count ?? 0;
+                            Console.WriteLine($"⚖️ LOAD BALANCE STATUS: TaskManager {taskManagerId} currently assigned {partitionCount} partitions, consumed {messagesConsumed} total messages");
+                            lastLoadBalanceLogTime = DateTime.UtcNow;
                         }
                         
                         // Update checkpoint state
@@ -156,10 +178,10 @@ namespace FlinkJobSimulator
                 }
                 catch (ConsumeException ex)
                 {
-                    Console.WriteLine($"❌ Kafka consume error: {ex.Error.Reason}");
+                    Console.WriteLine($"❌ TaskManager {taskManagerId}: Kafka consume error: {ex.Error.Reason}");
                     if (ex.Error.IsFatal)
                     {
-                        Console.WriteLine($"❌ Fatal Kafka error, stopping consumption: {ex.Error}");
+                        Console.WriteLine($"❌ TaskManager {taskManagerId}: Fatal Kafka error, stopping consumption: {ex.Error}");
                         break;
                     }
                     // For non-fatal errors, continue consuming
@@ -167,12 +189,12 @@ namespace FlinkJobSimulator
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Unexpected error in Kafka consumption: {ex.Message}");
+                    Console.WriteLine($"❌ TaskManager {taskManagerId}: Unexpected error in Kafka consumption: {ex.Message}");
                     Thread.Sleep(1000);
                 }
             }
             
-            Console.WriteLine($"🏁 Kafka source function completed. Total messages consumed: {messagesConsumed}");
+            Console.WriteLine($"🏁 TaskManager {taskManagerId}: Kafka source function completed. Total messages consumed: {messagesConsumed}");
         }
 
         public void Cancel()
