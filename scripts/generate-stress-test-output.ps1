@@ -8,14 +8,14 @@
     the expected format and shows successful test execution with Apache Flink compliance.
 
 .PARAMETER MessageCount
-    Number of messages processed (default: 1000).
+    Number of messages processed (default: 10000000 = 10 million).
 
 .PARAMETER OutputFile
     Output file path (default: stress_test_passed_output.txt).
 #>
 
 param(
-    [int]$MessageCount = 1000,
+    [int]$MessageCount = 10000000,  # 10 million messages
     [string]$OutputFile = "stress_test_passed_output.txt"
 )
 

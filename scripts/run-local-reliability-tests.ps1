@@ -17,24 +17,24 @@
     If specified, leaves the AppHost running for debugging purposes.
 
 .PARAMETER TestMessages
-    Number of messages to process for reliability testing (default: 100000).
+    Number of messages to process for reliability testing (default: 10000000 = 10 million).
 
 .PARAMETER MaxTimeMs
-    Maximum allowed processing time in milliseconds (default: 1000).
+    Maximum allowed processing time in milliseconds (default: 300000 = 5 minutes).
 
 .EXAMPLE
     ./scripts/run-local-reliability-tests.ps1
     Runs local reliability tests with default settings.
 
 .EXAMPLE
-    ./scripts/run-local-reliability-tests.ps1 -TestMessages 50000 -MaxTimeMs 2000
-    Runs reliability tests with custom message count and timeout.
+    ./scripts/run-local-reliability-tests.ps1 -TestMessages 10000000 -MaxTimeMs 300000
+    Runs reliability tests with 10 million messages and 5 minute timeout.
 #>
 
 param(
     [switch]$SkipCleanup,
-    [int]$TestMessages = 100000,
-    [int]$MaxTimeMs = 1000
+    [int]$TestMessages = 10000000,  # 10 million messages
+    [int]$MaxTimeMs = 300000  # 5 minutes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -170,7 +170,8 @@ try {
     # Step 1: Environment Setup (matches workflow)
     Write-Host "`n=== Step 1: Environment Setup ===" -ForegroundColor Yellow
     
-    # Set environment variables to match workflow
+    # Set environment variables to match workflow  
+    $env:SIMULATOR_NUM_MESSAGES = $TestMessages.ToString()  # Updated to use SIMULATOR_NUM_MESSAGES
     $env:FLINKDOTNET_STANDARD_TEST_MESSAGES = $TestMessages.ToString()
     $env:MAX_ALLOWED_TIME_MS = $MaxTimeMs.ToString()
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
@@ -195,6 +196,7 @@ try {
     $env:OTEL_RESOURCE_ATTRIBUTES = 'service.name=FlinkDotnetStandardReliabilityTest,service.version=1.0.0,environment=reliability-test'
     
     Write-Host "Environment variables set:" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES" -ForegroundColor Gray
     Write-Host "  FLINKDOTNET_STANDARD_TEST_MESSAGES: $env:FLINKDOTNET_STANDARD_TEST_MESSAGES" -ForegroundColor Gray
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray

@@ -124,7 +124,7 @@ public static class Program
     private static string ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
     {
         var isCI = IsRunningInCI();
-        var simulatorNumMessages = GetSimulatorMessageCount(isCI);
+        var simulatorNumMessages = GetSimulatorMessageCount();
         var taskManagerCount = isCI ? 5 : 20; // Reduce TaskManager count in CI for resource efficiency
 
         // Add JobManager (1 instance)
@@ -218,13 +218,13 @@ public static class Program
         return Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
     }
 
-    private static string GetSimulatorMessageCount(bool isCI)
+    private static string GetSimulatorMessageCount()
     {
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES");
         if (string.IsNullOrEmpty(simulatorNumMessages))
         {
-            // Default to smaller numbers in CI environments for faster execution
-            simulatorNumMessages = isCI ? "1000" : "1000000";
+            // Default to 10 million messages for both CI and local
+            simulatorNumMessages = "10000000";
         }
         return simulatorNumMessages;
     }

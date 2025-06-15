@@ -17,24 +17,24 @@
     If specified, leaves the AppHost running for debugging purposes.
 
 .PARAMETER MessageCount
-    Number of messages to process (default: 100 for local, 1000000 for CI simulation).
+    Number of messages to process (default: 10000000 = 10 million).
 
 .PARAMETER MaxTimeMs
-    Maximum allowed processing time in milliseconds (default: 10000).
+    Maximum allowed processing time in milliseconds (default: 300000 = 5 minutes).
 
 .EXAMPLE
     ./scripts/run-local-stress-tests.ps1
     Runs local stress tests with default settings.
 
 .EXAMPLE
-    ./scripts/run-local-stress-tests.ps1 -MessageCount 1000000 -MaxTimeMs 10000
-    Simulates CI environment with full message load.
+    ./scripts/run-local-stress-tests.ps1 -MessageCount 10000000 -MaxTimeMs 300000
+    Processes 10 million messages with 5 minute timeout.
 #>
 
 param(
     [switch]$SkipCleanup,
-    [int]$MessageCount = 100,
-    [int]$MaxTimeMs = 10000
+    [int]$MessageCount = 10000000,  # 10 million messages
+    [int]$MaxTimeMs = 300000  # 5 minutes for 10M messages
 )
 
 $ErrorActionPreference = 'Stop'
@@ -303,6 +303,20 @@ try {
     
     Write-Host "AppHost started, waiting 45 seconds for initialization..." -ForegroundColor White
     Start-Sleep -Seconds 45  # Increased for consistency with CI improvements
+
+    # Step 3.5: Start Message Production in Background
+    Write-Host "`n=== Step 3.5: Start Message Production ===" -ForegroundColor Yellow
+    Write-Host "Starting production of $MessageCount messages to Kafka..." -ForegroundColor White
+    
+    $producerJob = Start-Job -ScriptBlock {
+        param($MessageCount, $ScriptPath)
+        Set-Location $using:PWD
+        & $ScriptPath -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
+    } -ArgumentList $MessageCount, "./scripts/produce-10-million-messages.ps1"
+    
+    $global:BackgroundJobs += $producerJob
+    Write-Host "Message producer job started: $($producerJob.Id)" -ForegroundColor Green
+    Write-Host "This will run in parallel with AppHost services" -ForegroundColor Gray
 
     # Step 4: Discover Aspire Container Ports
     Write-Host "`n=== Step 4: Discover Aspire Container Ports ===" -ForegroundColor Yellow
