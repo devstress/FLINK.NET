@@ -16,7 +16,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using FlinkDotNet.JobManager.Models.JobGraph;
 using FlinkDotNet.Common.Constants;
-using Confluent.Kafka; // For IProducer
 using System.Collections; // For DictionaryEntry
 
 namespace FlinkJobSimulator
@@ -605,14 +604,8 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
         
-        // Add service defaults for Aspire integration
-        builder.AddServiceDefaults();
-        
         // Add Redis client using connection string for external Redis instances
         builder.AddRedisClient("redis");
-        
-        // Add Kafka producer using Aspire service discovery
-        builder.AddKafkaProducer<string, string>("kafka");
         
         // Register IDatabase as a singleton service
         builder.Services.AddSingleton<IDatabase>(provider => 
@@ -624,35 +617,9 @@ public static class Program
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
-        // Register the Kafka producer service for Aspire integration
-        builder.Services.AddSingleton<IKafkaProducerService, AspireKafkaProducerService>();
-        
         var host = builder.Build();
         await host.StartAsync();
         return host;
-    }
-    
-    // Service for providing Kafka producer instance from Aspire DI
-    public interface IKafkaProducerService
-    {
-        IProducer<string, string> GetProducer();
-    }
-    
-    // Implementation that uses the Aspire-injected producer
-    public class AspireKafkaProducerService : IKafkaProducerService
-    {
-        private readonly IProducer<string, string> _producer;
-        
-        public AspireKafkaProducerService(IProducer<string, string> producer)
-        {
-            _producer = producer ?? throw new ArgumentNullException(nameof(producer));
-            Console.WriteLine("[AspireKafkaProducerService] Initialized with Aspire-injected Kafka producer");
-        }
-        
-        public IProducer<string, string> GetProducer()
-        {
-            return _producer;
-        }
     }
 
     private static (long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl) GetConfiguration()
@@ -687,7 +654,7 @@ public static class Program
     }
 
     private static StreamExecutionEnvironment SetupFlinkEnvironment(long numMessages, string redisSinkCounterKey, string kafkaTopic, 
-        IDatabase redisDatabase, IConfiguration configuration, IKafkaProducerService kafkaProducerService)
+        IDatabase redisDatabase, IConfiguration configuration)
     {
         // Set static configuration for LocalStreamExecutor compatibility
         HighVolumeSourceFunction.NumberOfMessagesToGenerate = numMessages;
@@ -698,7 +665,6 @@ public static class Program
         RedisIncrementSinkFunction<string>.GlobalRedisDatabase = redisDatabase;
         RedisIncrementSinkFunction<string>.GlobalRedisKey = redisSinkCounterKey;
         KafkaSinkFunction<string>.GlobalKafkaTopic = kafkaTopic;
-        KafkaSinkFunction<string>.GlobalKafkaProducerService = kafkaProducerService;
 
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
@@ -962,7 +928,6 @@ public static class Program
         Console.WriteLine("Retrieving services from DI container...");
         var redisDatabase = host.Services.GetRequiredService<IDatabase>();
         var configuration = host.Services.GetRequiredService<IConfiguration>();
-        var kafkaProducerService = host.Services.GetRequiredService<IKafkaProducerService>();
         Console.WriteLine("Services retrieved successfully");
 
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
@@ -972,7 +937,7 @@ public static class Program
         {
             Console.WriteLine("Setting up Flink environment...");
             var envSetupStartTime = DateTime.UtcNow;
-            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration, kafkaProducerService);
+            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
             var envSetupDuration = DateTime.UtcNow - envSetupStartTime;
             Console.WriteLine($"Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
             

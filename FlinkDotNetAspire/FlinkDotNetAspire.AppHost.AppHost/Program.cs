@@ -66,20 +66,21 @@ public static class Program
 
     private static IResourceBuilder<KafkaServerResource> AddKafkaInfrastructure(IDistributedApplicationBuilder builder)
     {
+        var isCI = IsRunningInCI();
         return builder.AddKafka("kafka")
             .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
-            .WithEnvironment("KAFKA_NUM_PARTITIONS", "4") // Reduced for CI
+            .WithEnvironment("KAFKA_NUM_PARTITIONS", isCI ? "4" : "8") // Reduced for CI
             .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
-            .WithEnvironment("KAFKA_LOG_RETENTION_HOURS", "1") // Reduced for CI
-            .WithEnvironment("KAFKA_LOG_SEGMENT_BYTES", "104857600") // 100MB, reduced for CI
-            .WithEnvironment("KAFKA_MESSAGE_MAX_BYTES", "1048576") // 1MB, reduced for CI
-            .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", "1048576") // 1MB
+            .WithEnvironment("KAFKA_LOG_RETENTION_HOURS", isCI ? "1" : "168") // Reduced for CI
+            .WithEnvironment("KAFKA_LOG_SEGMENT_BYTES", isCI ? "104857600" : "1073741824") // 100MB for CI, 1GB for local
+            .WithEnvironment("KAFKA_MESSAGE_MAX_BYTES", isCI ? "1048576" : "10485760") // 1MB for CI, 10MB for local
+            .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", isCI ? "1048576" : "10485760") // 1MB for CI, 10MB for local
             .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
             .WithEnvironment("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1") // CI compatibility
             .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1") // CI compatibility
             .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MESSAGES", "1000") // Faster flushing for CI
-            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MS", "1000") // Faster flushing
+            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MESSAGES", isCI ? "1000" : "10000") // Faster flushing for CI
+            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MS", isCI ? "1000" : "5000") // Faster flushing for CI
             .PublishAsContainer(); // Ensure Kafka is accessible from host
     }
 
@@ -136,14 +137,12 @@ public static class Program
     {
         builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
-            .WithReference(kafka) // Makes Kafka service binding available
+            .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
-            .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-            .WithEnvironment("UseAspireServiceBindings", "true")
-            .WaitFor(redis);
+            .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
     }
 
     private static bool IsRunningInCI()
@@ -157,7 +156,7 @@ public static class Program
         if (string.IsNullOrEmpty(simulatorNumMessages))
         {
             // Default to smaller numbers in CI environments for faster execution
-            simulatorNumMessages = isCI ? "1000" : "100000";
+            simulatorNumMessages = isCI ? "1000" : "1000000";
         }
         return simulatorNumMessages;
     }
