@@ -10,6 +10,11 @@ namespace FlinkDotNet.Core.Observability
     /// </summary>
     public class FlinkStructuredLogger : IFlinkLogger
     {
+        private const string FlinkOperatorNameKey = "flink.operator.name";
+        private const string FlinkTaskIdKey = "flink.task.id";
+        private const string FlinkJobIdKey = "flink.job.id";
+        private const string FlinkEventTypeKey = "flink.event.type";
+        
         private readonly ILogger _logger;
         private readonly Dictionary<string, object> _baseContext;
 
@@ -24,11 +29,11 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = operatorName,
-                ["flink.task.id"] = taskId,
-                ["flink.job.id"] = GetJobIdFromTask(taskId),
+                [FlinkOperatorNameKey] = operatorName,
+                [FlinkTaskIdKey] = taskId,
+                [FlinkJobIdKey] = GetJobIdFromTask(taskId),
                 ["flink.lifecycle"] = lifecycle,
-                ["flink.event.type"] = "operator_lifecycle"
+                [FlinkEventTypeKey] = "operator_lifecycle"
             }, context);
 
             _logger.Log(level, "Operator {OperatorName} lifecycle event: {Lifecycle} for task {TaskId}. Context: {Context}",
@@ -40,12 +45,12 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = operatorName,
-                ["flink.task.id"] = taskId,
-                ["flink.job.id"] = GetJobIdFromTask(taskId),
+                [FlinkOperatorNameKey] = operatorName,
+                [FlinkTaskIdKey] = taskId,
+                [FlinkJobIdKey] = GetJobIdFromTask(taskId),
                 ["flink.action"] = action,
                 ["flink.record.count"] = recordCount,
-                ["flink.event.type"] = "record_processing"
+                [FlinkEventTypeKey] = "record_processing"
             }, context);
 
             if (processingTime.HasValue)
@@ -62,10 +67,10 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.job.id"] = jobId,
+                [FlinkJobIdKey] = jobId,
                 ["flink.checkpoint.id"] = checkpointId,
                 ["flink.checkpoint.phase"] = phase,
-                ["flink.event.type"] = "checkpoint"
+                [FlinkEventTypeKey] = "checkpoint"
             }, context);
 
             if (duration.HasValue)
@@ -87,12 +92,12 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = operatorName,
-                ["flink.task.id"] = taskId,
-                ["flink.job.id"] = GetJobIdFromTask(taskId),
+                [FlinkOperatorNameKey] = operatorName,
+                [FlinkTaskIdKey] = taskId,
+                [FlinkJobIdKey] = GetJobIdFromTask(taskId),
                 ["flink.backpressure.reason"] = reason,
                 ["flink.backpressure.duration.ms"] = duration.TotalMilliseconds,
-                ["flink.event.type"] = "backpressure"
+                [FlinkEventTypeKey] = "backpressure"
             }, context);
 
             _logger.Log(level, "Backpressure detected in operator {OperatorName}, task {TaskId}: {Reason} for {Duration}ms. Context: {Context}",
@@ -104,13 +109,13 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = operatorName,
-                ["flink.task.id"] = taskId,
-                ["flink.job.id"] = GetJobIdFromTask(taskId),
+                [FlinkOperatorNameKey] = operatorName,
+                [FlinkTaskIdKey] = taskId,
+                [FlinkJobIdKey] = GetJobIdFromTask(taskId),
                 ["flink.action"] = action,
                 ["flink.error.type"] = exception.GetType().Name,
                 ["flink.error.message"] = exception.Message,
-                ["flink.event.type"] = "error"
+                [FlinkEventTypeKey] = "error"
             }, context);
 
             if (exception.StackTrace != null)
@@ -127,13 +132,13 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = operatorName,
-                ["flink.task.id"] = taskId,
-                ["flink.job.id"] = GetJobIdFromTask(taskId),
+                [FlinkOperatorNameKey] = operatorName,
+                [FlinkTaskIdKey] = taskId,
+                [FlinkJobIdKey] = GetJobIdFromTask(taskId),
                 ["flink.metric.name"] = metricName,
                 ["flink.metric.value"] = value,
                 ["flink.metric.unit"] = unit,
-                ["flink.event.type"] = "performance"
+                [FlinkEventTypeKey] = "performance"
             }, context);
 
             _logger.Log(level, "Performance metric {MetricName} for operator {OperatorName}, task {TaskId}: {Value} {Unit}. Context: {Context}",
@@ -144,12 +149,12 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = stateInfo.OperatorName,
-                ["flink.task.id"] = stateInfo.TaskId,
-                ["flink.job.id"] = GetJobIdFromTask(stateInfo.TaskId),
+                [FlinkOperatorNameKey] = stateInfo.OperatorName,
+                [FlinkTaskIdKey] = stateInfo.TaskId,
+                [FlinkJobIdKey] = GetJobIdFromTask(stateInfo.TaskId),
                 ["flink.state.operation"] = stateInfo.Operation,
                 ["flink.state.type"] = stateInfo.StateType,
-                ["flink.event.type"] = "state_operation"
+                [FlinkEventTypeKey] = "state_operation"
             }, stateInfo.Context);
 
             if (stateInfo.Duration.HasValue)
@@ -176,7 +181,7 @@ namespace FlinkDotNet.Core.Observability
                 ["flink.target.task"] = targetTask,
                 ["flink.network.operation"] = operation,
                 ["flink.network.bytes"] = bytesTransferred,
-                ["flink.event.type"] = "network_operation"
+                [FlinkEventTypeKey] = "network_operation"
             }, context);
 
             if (latency.HasValue)
@@ -193,10 +198,10 @@ namespace FlinkDotNet.Core.Observability
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.job.id"] = jobId,
+                [FlinkJobIdKey] = jobId,
                 ["flink.job.name"] = jobName,
                 ["flink.job.event"] = eventName,
-                ["flink.event.type"] = "job_event"
+                [FlinkEventTypeKey] = "job_event"
             }, context);
 
             _logger.Log(level, "Job event {Event} for job {JobName} (ID: {JobId}). Context: {Context}",

@@ -292,7 +292,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 
                 // Log for monitoring TaskManager utilization
                 _logger?.LogInformation("⚖️ LOAD BALANCING: TaskManager {TaskManagerId} is now actively consuming {PartitionCount} partitions - Load Status: {LoadStatus}", 
-                    taskManagerId, partitions.Count, partitions.Count > 0 ? "ACTIVE" : "IDLE");
+                    taskManagerId, partitions.Count, "ACTIVE");
             }
             else
             {

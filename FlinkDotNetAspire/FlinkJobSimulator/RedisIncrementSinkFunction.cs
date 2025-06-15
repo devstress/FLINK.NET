@@ -85,21 +85,40 @@ namespace FlinkJobSimulator
 
         public void Invoke(T record, ISinkContext context)
         {
-            // Log the first few records to verify sink is receiving data
             long currentCount = Interlocked.Read(ref _processedCount);
+            LogRecordProcessing(currentCount, record);
+            
+            if (IsBarrierRecord(record))
+            {
+                return;
+            }
+
+            ProcessRecord(currentCount);
+        }
+
+        private static void LogRecordProcessing(long currentCount, T record)
+        {
+            // Log the first few records to verify sink is receiving data
             if (currentCount < 5)
             {
                 Console.WriteLine($"🔄 REDIS SINK INVOKE: Processing record #{currentCount + 1}: {record}");
             }
-            
+        }
+
+        private bool IsBarrierRecord(T record)
+        {
             if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Redis Sink: {recordString}");
                 // In a real scenario, sink would perform checkpointing actions here.
                 // For this PoC, we just log and don't process it as data.
-                return;
+                return true;
             }
+            return false;
+        }
 
+        private void ProcessRecord(long currentCount)
+        {
             const int maxRetries = 3;
             for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
@@ -107,33 +126,11 @@ namespace FlinkJobSimulator
                 {
                     if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
                     
-                    // 🔄 ENHANCED REDIS SINK LOGGING: Log Redis increment attempts
-                    if (currentCount < 10 || currentCount % LogFrequency == 0)
-                    {
-                        Console.WriteLine($"🔄 REDIS SINK COMM: [{_taskName}] Attempting Redis StringIncrement for record #{currentCount + 1}, key: '{_redisKey}', attempt: {attempt}");
-                    }
-                    
+                    LogRedisAttempt(currentCount, attempt);
                     _redisDb.StringIncrement(_redisKey);
+                    
                     long newCount = Interlocked.Increment(ref _processedCount);
-
-                    if (newCount % LogFrequency == 0)
-                    {
-                        Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {newCount} records.");
-                    }
-                    
-                    // Log first few increments to verify the counter is working
-                    if (newCount <= 5)
-                    {
-                        Console.WriteLine($"✅ REDIS SINK SUCCESS: Record #{newCount} processed and Redis key '{_redisKey}' incremented to {_redisDb.StringGet(_redisKey)}");
-                    }
-                    
-                    // 🔄 ENHANCED REDIS SINK LOGGING: Confirm successful increment
-                    if (newCount <= 10 || newCount % LogFrequency == 0)
-                    {
-                        var currentRedisValue = _redisDb.StringGet(_redisKey);
-                        Console.WriteLine($"✅ REDIS SINK COMM SUCCESS: [{_taskName}] Redis StringIncrement succeeded for record #{newCount}, key '{_redisKey}' now has value: {currentRedisValue}");
-                    }
-                    
+                    LogRedisSuccess(newCount);
                     return; // Success, exit retry loop
                 }
                 catch (Exception ex) when (attempt < maxRetries)
@@ -146,6 +143,36 @@ namespace FlinkJobSimulator
                     Console.WriteLine($"💥 REDIS SINK FATAL: [{_taskName}] All {maxRetries} attempts failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
                     // Don't throw - just log the failure and continue with next record
                 }
+            }
+        }
+
+        private void LogRedisAttempt(long currentCount, int attempt)
+        {
+            // 🔄 ENHANCED REDIS SINK LOGGING: Log Redis increment attempts
+            if (currentCount < 10 || currentCount % LogFrequency == 0)
+            {
+                Console.WriteLine($"🔄 REDIS SINK COMM: [{_taskName}] Attempting Redis StringIncrement for record #{currentCount + 1}, key: '{_redisKey}', attempt: {attempt}");
+            }
+        }
+
+        private void LogRedisSuccess(long newCount)
+        {
+            if (newCount % LogFrequency == 0)
+            {
+                Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {newCount} records.");
+            }
+            
+            // Log first few increments to verify the counter is working
+            if (newCount <= 5 && _redisDb != null)
+            {
+                Console.WriteLine($"✅ REDIS SINK SUCCESS: Record #{newCount} processed and Redis key '{_redisKey}' incremented to {_redisDb.StringGet(_redisKey)}");
+            }
+            
+            // 🔄 ENHANCED REDIS SINK LOGGING: Confirm successful increment
+            if ((newCount <= 10 || newCount % LogFrequency == 0) && _redisDb != null)
+            {
+                var currentRedisValue = _redisDb.StringGet(_redisKey);
+                Console.WriteLine($"✅ REDIS SINK COMM SUCCESS: [{_taskName}] Redis StringIncrement succeeded for record #{newCount}, key '{_redisKey}' now has value: {currentRedisValue}");
             }
         }
 

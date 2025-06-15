@@ -5,7 +5,6 @@ using Confluent.Kafka;
 using Microsoft.Extensions.Configuration; // Required for reading connection string & topic
 using FlinkDotNet.Common.Constants;
 using System.Diagnostics; // For Process.Start
-using System.Linq;
 
 namespace FlinkJobSimulator
 {

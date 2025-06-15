@@ -1158,7 +1158,6 @@ public static class Program
         var metrics = host.Services.GetRequiredService<IFlinkMetrics>();
         var tracing = host.Services.GetRequiredService<IFlinkTracing>();
         var logger = host.Services.GetRequiredService<IFlinkLogger>();
-        var healthMonitor = host.Services.GetRequiredService<IFlinkHealthMonitor>();
         Console.WriteLine("✅ STEP 5 COMPLETED: Services retrieved successfully (including observability services)");
 
         Console.WriteLine("🔄 STEP 6: Loading configuration values...");
@@ -1345,7 +1344,7 @@ public static class Program
         if (isStressTestMode)
         {
             Console.WriteLine("🎯 STRESS TEST MODE: Using TaskManager Kafka Consumer for load distribution");
-            return await ExecuteStressTestWithTaskManagerDistribution(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, metrics, tracing, logger);
+            return await ExecuteStressTestWithTaskManagerDistribution(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, logger);
         }
         else if (isReliabilityTestMode)
         {
@@ -1359,7 +1358,7 @@ public static class Program
         }
     }
 
-    private static async Task<bool> ExecuteStressTestWithTaskManagerDistribution(long numMessages, string redisSinkCounterKey, string kafkaTopic, IDatabase redisDatabase, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
+    private static async Task<bool> ExecuteStressTestWithTaskManagerDistribution(long numMessages, string redisSinkCounterKey, string kafkaTopic, IDatabase redisDatabase, IFlinkLogger logger)
     {
         var jobId = $"stress-test-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
         Console.WriteLine("🎯 === STRESS TEST EXECUTION: All 20 TaskManagers Load Distribution ===");
