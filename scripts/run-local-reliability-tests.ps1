@@ -176,6 +176,11 @@ try {
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
     $env:DOTNET_ENVIRONMENT = 'Development'
     
+    # ✨ RELIABILITY TEST CONFIGURATION: Focus on fault tolerance standards
+    $env:RELIABILITY_TEST_MODE = 'true'
+    $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL = 'high'
+    $env:RELIABILITY_TEST_FAULT_INJECTION_RATE = '0.05' # 5% fault injection for testing
+    
     # ✨ ENHANCED OBSERVABILITY CONFIGURATION (Apache Flink 2.0 Standards)
     $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS = 'true'
     $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING = 'true'
@@ -191,6 +196,9 @@ try {
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray
     Write-Host "  DOTNET_ENVIRONMENT: $env:DOTNET_ENVIRONMENT" -ForegroundColor Gray
+    Write-Host "  🛡️ RELIABILITY_TEST_MODE: $env:RELIABILITY_TEST_MODE (world-class standards)" -ForegroundColor Cyan
+    Write-Host "  🛡️ RELIABILITY_FAULT_TOLERANCE_LEVEL: $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL" -ForegroundColor Cyan
+    Write-Host "  🛡️ RELIABILITY_FAULT_INJECTION_RATE: $env:RELIABILITY_TEST_FAULT_INJECTION_RATE" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_CONSOLE_METRICS: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_CONSOLE_TRACING: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_DETAILED_MONITORING: $env:FLINK_OBSERVABILITY_ENABLE_DETAILED_MONITORING" -ForegroundColor Cyan

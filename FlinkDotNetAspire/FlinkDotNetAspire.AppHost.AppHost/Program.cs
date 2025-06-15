@@ -4,7 +4,12 @@ namespace FlinkDotNetAspire.AppHost.AppHost;
 
 public static class Program
 {
-    private const string KAFKA_INITIALIZATION_SCRIPT = @"
+    private static string GetKafkaInitializationScript()
+    {
+        var isStressTest = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
+        var partitionCount = isStressTest ? 20 : 4; // Use 20 partitions for stress test to utilize all TaskManagers
+        
+        return $@"
                 echo 'Waiting for Kafka to be ready...'
                 max_attempts=30
                 attempt=0
@@ -19,21 +24,25 @@ public static class Program
                 done
                 
                 echo 'Kafka is ready! Creating topics for Flink.Net development...'
+                echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
                 
-                # Create topics with CI-optimized settings (smaller segments, shorter retention)
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions 4 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions 4 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                # Create topics with optimized settings for load distribution
+                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions 4 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
+                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
                 
                 echo 'Kafka topics created successfully!'
                 echo 'Topic list:'
                 kafka-topics --list --bootstrap-server kafka:9092
+                echo 'Kafka topic details:'
+                kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
                 echo 'Kafka initialization completed successfully!'
             ";
+    }
 
     public static async Task Main(string[] args)
     {
@@ -91,8 +100,9 @@ public static class Program
 
     private static IResourceBuilder<ContainerResource> AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
     {
+        var kafkaInitScript = GetKafkaInitializationScript();
         return builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
-            .WithArgs("bash", "-c", KAFKA_INITIALIZATION_SCRIPT)
+            .WithArgs("bash", "-c", kafkaInitScript)
             .WaitFor(kafka);
     }
 

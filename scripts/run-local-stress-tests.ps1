@@ -175,6 +175,10 @@ try {
     $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
     $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
+    # ✨ STRESS TEST CONFIGURATION: Enable all 20 TaskManagers for load sharing
+    $env:STRESS_TEST_MODE = 'true'
+    $env:STRESS_TEST_USE_KAFKA_SOURCE = 'true'
+    
     # ✨ ENHANCED OBSERVABILITY CONFIGURATION (Apache Flink 2.0 Standards)
     $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS = 'true'
     $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING = 'true'
@@ -193,6 +197,8 @@ try {
     Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE" -ForegroundColor Gray
     Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER" -ForegroundColor Gray
     Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC" -ForegroundColor Gray
+    Write-Host "  🎯 STRESS_TEST_MODE: $env:STRESS_TEST_MODE (enables 20-partition load sharing)" -ForegroundColor Cyan
+    Write-Host "  🎯 STRESS_TEST_USE_KAFKA_SOURCE: $env:STRESS_TEST_USE_KAFKA_SOURCE (utilizes all TaskManagers)" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_CONSOLE_METRICS: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_CONSOLE_TRACING: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_DETAILED_MONITORING: $env:FLINK_OBSERVABILITY_ENABLE_DETAILED_MONITORING" -ForegroundColor Cyan
@@ -245,6 +251,10 @@ try {
     if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $envVars["SIMULATOR_REDIS_KEY_SINK_COUNTER"] = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER }
     if ($env:SIMULATOR_KAFKA_TOPIC) { $envVars["SIMULATOR_KAFKA_TOPIC"] = $env:SIMULATOR_KAFKA_TOPIC }
     if ($env:DOTNET_ENVIRONMENT) { $envVars["DOTNET_ENVIRONMENT"] = $env:DOTNET_ENVIRONMENT }
+    
+    # ✨ STRESS TEST SPECIFIC CONFIGURATION
+    if ($env:STRESS_TEST_MODE) { $envVars["STRESS_TEST_MODE"] = $env:STRESS_TEST_MODE }
+    if ($env:STRESS_TEST_USE_KAFKA_SOURCE) { $envVars["STRESS_TEST_USE_KAFKA_SOURCE"] = $env:STRESS_TEST_USE_KAFKA_SOURCE }
     
     # Start the process with output redirection and environment variables
     $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru -Environment $envVars
@@ -488,6 +498,10 @@ try {
                 if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $envVars["SIMULATOR_REDIS_KEY_SINK_COUNTER"] = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER }
                 if ($env:SIMULATOR_KAFKA_TOPIC) { $envVars["SIMULATOR_KAFKA_TOPIC"] = $env:SIMULATOR_KAFKA_TOPIC }
                 if ($env:DOTNET_ENVIRONMENT) { $envVars["DOTNET_ENVIRONMENT"] = $env:DOTNET_ENVIRONMENT }
+                
+                # ✨ STRESS TEST SPECIFIC CONFIGURATION
+                if ($env:STRESS_TEST_MODE) { $envVars["STRESS_TEST_MODE"] = $env:STRESS_TEST_MODE }
+                if ($env:STRESS_TEST_USE_KAFKA_SOURCE) { $envVars["STRESS_TEST_USE_KAFKA_SOURCE"] = $env:STRESS_TEST_USE_KAFKA_SOURCE }
                 
                 $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -NoNewWindow -PassThru -Environment $envVars
                 $global:AppHostPid = $proc.Id
