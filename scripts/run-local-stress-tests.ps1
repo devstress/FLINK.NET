@@ -73,8 +73,27 @@ function Cleanup-Resources {
         $process = Get-Process -Id $global:AppHostPid -ErrorAction SilentlyContinue
         if ($process) {
             Stop-Process -Id $global:AppHostPid -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
+            Start-Sleep -Seconds 5  # Give more time for graceful shutdown
         }
+    }
+    
+    # Clean up Docker containers that may be left running
+    Write-Host "Cleaning up Docker containers..." -ForegroundColor Gray
+    try {
+        # Stop and remove containers from previous runs
+        $containers = docker ps -a --filter "name=redis" --filter "name=kafka" --filter "name=zookeeper" --format "table {{.ID}}"
+        if ($containers -and $containers.Count -gt 1) {  # More than just header
+            Write-Host "Found existing containers, cleaning up..." -ForegroundColor Gray
+            docker stop $(docker ps -a --filter "name=redis" --filter "name=kafka" --filter "name=zookeeper" -q) 2>$null
+            docker rm $(docker ps -a --filter "name=redis" --filter "name=kafka" --filter "name=zookeeper" -q) 2>$null
+        }
+        
+        # Clean up any orphaned containers
+        docker container prune -f 2>$null
+        Write-Host "Docker cleanup completed" -ForegroundColor Gray
+    }
+    catch {
+        Write-Host "Docker cleanup had issues (may be normal): $($_.Exception.Message)" -ForegroundColor DarkGray
     }
     
     # Clean up temp files
@@ -88,6 +107,31 @@ function Cleanup-Resources {
     Write-Host "=== Cleanup Complete ===" -ForegroundColor Yellow
 }
 
+function Initialize-Environment {
+    Write-Host "`n=== Environment Initialization ===" -ForegroundColor Yellow
+    
+    # Clean up any previous run artifacts
+    Write-Host "Cleaning up previous run artifacts..." -ForegroundColor Gray
+    Cleanup-Resources -Force $true
+    
+    # Wait for any ports to be released
+    Write-Host "Waiting for ports to be released..." -ForegroundColor Gray
+    Start-Sleep -Seconds 5
+    
+    # Set essential Aspire environment variables
+    $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
+    $env:DOTNET_ENVIRONMENT = "Development"
+    
+    # Only clear the problematic dashboard URLs to avoid port conflicts
+    # Let Aspire handle port allocation automatically
+    if ($env:ASPNETCORE_URLS) {
+        Write-Host "Clearing ASPNETCORE_URLS to avoid port conflicts" -ForegroundColor Gray
+        $env:ASPNETCORE_URLS = $null
+    }
+    
+    Write-Host "Environment initialization completed" -ForegroundColor Green
+}
+
 # Set up cleanup trap
 trap {
     Write-Host "`n❌ Script failed with error: $_" -ForegroundColor Red
@@ -99,6 +143,9 @@ trap {
 Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Cleanup-Resources -Force $true }
 
 try {
+    # Initialize environment and cleanup previous runs
+    Initialize-Environment
+    
     # Step 1: Environment Setup (matches workflow)
     Write-Host "`n=== Step 1: Environment Setup ===" -ForegroundColor Yellow
     
@@ -251,14 +298,60 @@ try {
     # Step 6: Verification Tests (matches workflow)
     Write-Host "`n=== Step 6: Verification Tests ===" -ForegroundColor Yellow
     
-    # Check if AppHost is still running
+    # Enhanced AppHost process monitoring with detailed diagnostics
+    Write-Host "Checking AppHost process status..." -ForegroundColor Gray
     if (Test-Path apphost.pid) {
         $apphostPid = Get-Content apphost.pid
+        Write-Host "Reading PID from file: $apphostPid" -ForegroundColor Gray
+        
         $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
         if (-not $process) {
-            throw "ERROR: AppHost process (PID $apphostPid) is not running!"
+            Write-Host "❌ AppHost process (PID $apphostPid) is not running!" -ForegroundColor Red
+            
+            # Check if the process exited recently
+            Write-Host "Checking for recent exit information..." -ForegroundColor Gray
+            if (Test-Path apphost.out.log) {
+                Write-Host "Last 20 lines of AppHost output:" -ForegroundColor Gray
+                Get-Content apphost.out.log -Tail 20 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+            }
+            if (Test-Path apphost.err.log) {
+                Write-Host "AppHost error log:" -ForegroundColor Gray
+                Get-Content apphost.err.log | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+            }
+            
+            Write-Host "⚠️  WARNING: AppHost has stopped. Attempting restart..." -ForegroundColor Yellow
+            
+            # Try to restart the AppHost
+            try {
+                $processArgs = @(
+                    'run',
+                    '--no-build',
+                    '--configuration', 'Release',
+                    '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
+                )
+                
+                $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -NoNewWindow -PassThru
+                $global:AppHostPid = $proc.Id
+                $proc.Id | Out-File apphost.pid -Encoding utf8
+                
+                Write-Host "🔄 Restarted AppHost with new PID: $($proc.Id)" -ForegroundColor Green
+                Write-Host "Waiting 30 seconds for restart initialization..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 30
+                
+                # Verify the restart worked
+                $restartedProcess = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+                if (-not $restartedProcess) {
+                    throw "ERROR: AppHost restart failed - process immediately exited!"
+                }
+                Write-Host "✅ AppHost restart successful" -ForegroundColor Green
+            }
+            catch {
+                throw "ERROR: Failed to restart AppHost: $_"
+            }
+        } else {
+            Write-Host "✅ AppHost process (PID $apphostPid) is running" -ForegroundColor Green
+            Write-Host "Process details: $($process.ProcessName) started at $($process.StartTime)" -ForegroundColor Gray
         }
-        Write-Host "✅ AppHost process (PID $apphostPid) is running" -ForegroundColor Green
     } else {
         throw "ERROR: AppHost PID file not found!"
     }
@@ -268,11 +361,27 @@ try {
     Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
     Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
     
+    # Add a small delay to ensure system is stable before verification
+    Write-Host "Allowing 10 seconds for system stabilization..." -ForegroundColor Gray
+    Start-Sleep -Seconds 10
+    
     # Run the actual verification (matches workflow exactly)
+    Write-Host "Starting verification tests..." -ForegroundColor White
     dotnet $verifierDll
     $verificationExitCode = $LASTEXITCODE
     
     if ($verificationExitCode -ne 0) {
+        Write-Host "❌ Verification tests failed with exit code $verificationExitCode" -ForegroundColor Red
+        
+        # Additional debugging output
+        Write-Host "Checking if AppHost is still running after verification..." -ForegroundColor Gray
+        $postTestProcess = Get-Process -Id $global:AppHostPid -ErrorAction SilentlyContinue
+        if ($postTestProcess) {
+            Write-Host "✅ AppHost is still running after verification failure" -ForegroundColor Green
+        } else {
+            Write-Host "❌ AppHost stopped during verification - this may be the cause" -ForegroundColor Red
+        }
+        
         throw "Verification tests FAILED with exit code $verificationExitCode"
     }
     
