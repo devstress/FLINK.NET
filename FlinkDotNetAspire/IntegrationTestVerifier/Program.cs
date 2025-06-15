@@ -1713,13 +1713,17 @@ namespace IntegrationTestVerifier
         private static List<string> ConsumeKafkaMessages(IConsumer<Ignore, string> consumer, int expectedMessages)
         {
             var messagesConsumed = new List<string>();
-            var consumeTimeout = TimeSpan.FromSeconds(30);
+            
+            // Increase timeout for CI environments
+            var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+            var consumeTimeout = TimeSpan.FromSeconds(isCI ? 120 : 30); // 2 minutes in CI, 30 seconds locally
+            
             var stopwatch = Stopwatch.StartNew();
             var lastLogTime = DateTime.UtcNow;
 
             try
             {
-                Console.WriteLine($"Starting to consume messages (timeout: {consumeTimeout.TotalSeconds}s)...");
+                Console.WriteLine($"Starting to consume messages (timeout: {consumeTimeout.TotalSeconds}s, CI: {isCI})...");
                 while (stopwatch.Elapsed < consumeTimeout && messagesConsumed.Count < expectedMessages)
                 {
                     var consumeResult = consumer.Consume(TimeSpan.FromSeconds(5));
