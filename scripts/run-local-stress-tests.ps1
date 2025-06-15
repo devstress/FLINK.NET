@@ -325,6 +325,10 @@ try {
     Write-Host "Expected messages: $MessageCount"
     Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
     
+    # First, wait a bit for FlinkJobSimulator to start after health checks pass
+    Write-Host "⏳ Waiting 30 seconds for FlinkJobSimulator to start and begin processing..."
+    Start-Sleep -Seconds 30
+    
     $maxWaitSeconds = 180  # 3 minutes max wait
     $checkIntervalSeconds = 5
     $expectedMessages = [int]$MessageCount
