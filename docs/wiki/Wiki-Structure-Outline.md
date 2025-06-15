@@ -106,3 +106,11 @@ This document outlines the proposed structure for the Flink.NET GitHub Wiki. The
 *   [Metrics and Monitoring](Advanced-Metrics-Monitoring.md)
 *   [Security](Advanced-Security.md)
 *   **Performance Tuning** (Note: a dedicated [Memory Tuning](Core-Concepts-Memory-Tuning.md) page now exists under Core Concepts. This could be expanded or link to it.)
+
+## 8. Quality Assurance & Testing
+*   [Stress Tests Overview](Stress-Tests-Overview.md)
+  *   *Flink.NET Content:* High-performance load testing, Apache Flink 2.0 compliance validation, TaskManager load distribution
+  *   *Apache Flink Ref:* [Performance Tuning](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/production_ready/), [Monitoring & Metrics](https://nightlies.apache.org/flink/flink-docs-stable/docs/ops/monitoring/)
+*   [Reliability Tests Overview](Reliability-Tests-Overview.md)
+  *   *Flink.NET Content:* Fault tolerance testing, recovery mechanisms, exactly-once processing validation
+  *   *Apache Flink Ref:* [Fault Tolerance](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/), [Checkpointing](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/checkpointing/)
