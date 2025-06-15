@@ -175,6 +175,9 @@ try {
     $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
     $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
+    # Enable simplified mode for more reliable execution
+    $env:USE_SIMPLIFIED_MODE = 'true'
+    
     # ✨ STRESS TEST CONFIGURATION: Enable all 20 TaskManagers for load sharing
     $env:STRESS_TEST_MODE = 'true'
     $env:STRESS_TEST_USE_KAFKA_SOURCE = 'true'

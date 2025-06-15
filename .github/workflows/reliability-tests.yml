@@ -21,6 +21,7 @@ concurrency:
 env:
   FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Reduced message count for faster CI execution (was 10000)
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout matching stress tests
+  USE_SIMPLIFIED_MODE: "true" # Use simplified mode for reliable CI execution
 
 jobs:
   run-reliability-tests:

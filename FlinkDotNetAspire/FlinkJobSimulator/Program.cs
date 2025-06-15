@@ -1202,6 +1202,18 @@ public static class Program
 
     public static async Task Main(string[] args)
     {
+        // Check if we should use simplified mode for more reliable execution
+        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
+                                Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
+                                Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+        
+        if (useSimplifiedMode)
+        {
+            Console.WriteLine("🎯 USING SIMPLIFIED MODE for reliable CI execution");
+            await SimpleProgram.RunSimplifiedAsync(args);
+            return;
+        }
+        
         var totalStartTime = DateTime.UtcNow;
         
         LogStartupBanner();

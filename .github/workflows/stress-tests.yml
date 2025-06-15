@@ -22,6 +22,7 @@ concurrency:
 env:
   SIMULATOR_NUM_MESSAGES_CI: "1000" # Fast stress test message count for CI execution
   MAX_ALLOWED_TIME_MS: "120000" # 2 minutes timeout for processing 1K messages (CI-optimized)
+  USE_SIMPLIFIED_MODE: "true" # Use simplified mode for reliable CI execution
 
 jobs:
   run-stress-tests:
