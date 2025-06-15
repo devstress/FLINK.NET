@@ -891,7 +891,7 @@ namespace FlinkDotNet.Core.Api.Execution
                         var mapMethod = chainedOp.GetType().GetMethod("Map");
                         if (mapMethod != null)
                         {
-                            currentRecord = mapMethod.Invoke(chainedOp, new object[] { currentRecord! });
+                            currentRecord = mapMethod.Invoke(chainedOp, new object[] { currentRecord! }) as T;
                             Console.WriteLine($"[ChainedSourceContext] Processed record through map operator: {currentRecord}");
                         }
                         else
