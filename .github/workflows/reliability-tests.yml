@@ -118,6 +118,17 @@ jobs:
           $maxAttempts = 5
           $delaySeconds = 10
           
+          Write-Host "`n=== Health Check Configuration ===" 
+          Write-Host "Max attempts: $maxAttempts"
+          Write-Host "Delay between attempts: $delaySeconds seconds"
+          Write-Host "Environment variables:"
+          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
+          Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"
+          Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+          Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC"
+          
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
             Write-Host "Starting health check at $(Get-Date -Format 'HH:mm:ss')..."

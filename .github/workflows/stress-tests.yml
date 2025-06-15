@@ -202,6 +202,10 @@ jobs:
         env:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
+          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES_CI }}
+          SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
+          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+          SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
         run: |
           $maxAttempts = 5  # Increased attempts for CI reliability
           $delaySeconds = 10  # Adequate delay for CI environment
@@ -214,6 +218,10 @@ jobs:
           Write-Host "Environment variables:"
           Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
           Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
+          Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"
+          Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+          Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC"
 
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
@@ -468,6 +476,10 @@ jobs:
           Write-Host "Environment variables:"
           Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
           Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
+          Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"
+          Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+          Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC"
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
           & dotnet $verifierDll
           if ($LASTEXITCODE -ne 0) {
