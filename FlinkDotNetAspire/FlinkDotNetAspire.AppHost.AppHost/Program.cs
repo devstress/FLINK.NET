@@ -170,6 +170,14 @@ public static class Program
             .WaitFor(kafka) // Wait for Kafka to be ready
             .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
             
+        // Pass simplified mode flag if set
+        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
+        if (!string.IsNullOrEmpty(useSimplifiedMode))
+        {
+            Console.WriteLine($"🎯 SIMPLIFIED MODE: Enabling simplified mode in FlinkJobSimulator: {useSimplifiedMode}");
+            flinkJobSimulator.WithEnvironment("USE_SIMPLIFIED_MODE", useSimplifiedMode);
+        }
+            
         // Enable Kafka source mode for TaskManager load distribution testing if requested
         if (useKafkaSource)
         {
