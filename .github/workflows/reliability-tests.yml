@@ -19,9 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Reduced message count for faster CI execution (was 10000)
+  SIMULATOR_NUM_MESSAGES: "10000000" # 10 million messages for real reliability testing
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "10000000" # 10 million messages for reliability testing
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout matching stress tests
-  USE_SIMPLIFIED_MODE: "true" # Use simplified mode for reliable CI execution
+  USE_SIMPLIFIED_MODE: "false" # Use full Kafka architecture for real reliability testing
 
 jobs:
   run-reliability-tests:
@@ -152,6 +153,20 @@ jobs:
               Write-Host "❌ Max health check attempts ($maxAttempts) reached. Health checks failed." -ForegroundColor Red
               exit 1
             }
+          }
+
+      - name: Start Message Producer
+        run: |
+          Write-Host "🚀 === STARTING MESSAGE PRODUCER ==="
+          Write-Host "Producing ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages to Kafka..."
+          
+          # Run message producer in background to feed Kafka while FlinkJobSimulator consumes
+          try {
+            & ./scripts/produce-10-million-messages.ps1 -MessageCount ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} -Topic "flinkdotnet.sample.topic"
+            Write-Host "✅ Message producer completed successfully"
+          } catch {
+            Write-Host "❌ Message producer failed: $_"
+            Write-Host "Continuing with test - FlinkJobSimulator may already be processing existing messages"
           }
 
       - name: Wait for FlinkJobSimulator Completion
