@@ -13,7 +13,7 @@ public static class Program
         var redis = builder.AddRedis("redis")
             .PublishAsContainer(); // Ensure Redis is accessible from host
         
-        // Use Aspire's built-in Kafka with custom configuration optimized for CI
+        // Use Aspire's built-in Kafka with proper service bindings and custom configuration optimized for CI
         var kafka = builder.AddKafka("kafka")
             .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
             .WithEnvironment("KAFKA_NUM_PARTITIONS", "4") // Reduced for CI
@@ -104,16 +104,21 @@ public static class Program
         }
 
         // Provide Redis and Kafka connection information to the FlinkJobSimulator
+        // Use Aspire service bindings to get proper connection strings
         // Wait for infrastructure to be ready before starting the simulator
-        builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
+        var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
-            .WithReference(kafka) // Makes "ConnectionStrings__kafka" available (or similar for bootstrap servers)
+            .WithReference(kafka) // Makes Kafka service binding available
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages) // Use environment variable or default
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter") // Redis sink counter key
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id") // Redis global sequence key
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic") // Default Kafka topic
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
             .WaitFor(redis);
+        
+        // Configure the FlinkJobSimulator to use Aspire service bindings for Kafka
+        // This ensures proper port discovery and connection string generation
+        flinkJobSimulator.WithEnvironment("UseAspireServiceBindings", "true");
 
         await builder.Build().RunAsync();
     }

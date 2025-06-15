@@ -17,6 +17,7 @@ namespace FlinkJobSimulator
 
         // Static configuration for LocalStreamExecutor compatibility
         public static string? GlobalKafkaTopic { get; set; }
+        public static Program.IKafkaConnectionProvider? GlobalKafkaConnectionProvider { get; set; }
 
         private static readonly IConfiguration Configuration = new ConfigurationBuilder()
             .AddEnvironmentVariables()
@@ -41,28 +42,48 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            // Priority order for Kafka bootstrap servers (Aspire integration first):
-            // 1. ConnectionStrings__kafka (Aspire service reference)
-            // 2. DOTNET_KAFKA_BOOTSTRAP_SERVERS (for external integration tests)
-            // 3. ServiceUris.KafkaBootstrapServers (default fallback)
+            // Get bootstrap servers using Aspire service discovery first, then fallbacks
+            string? bootstrapServers = null;
             
-            string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
-            if (!string.IsNullOrEmpty(bootstrapServers))
+            // 1. Try to use the global Kafka connection provider (for Aspire service bindings)
+            if (GlobalKafkaConnectionProvider != null)
             {
-                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
+                try
+                {
+                    bootstrapServers = GlobalKafkaConnectionProvider.GetBootstrapServers();
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service provider: {bootstrapServers}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{_taskName}] WARNING: Failed to get Kafka from service provider: {ex.Message}");
+                }
             }
-            else
+            
+            // 2. Fallback to connection string (Aspire service reference)
+            if (string.IsNullOrEmpty(bootstrapServers))
+            {
+                bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+                if (!string.IsNullOrEmpty(bootstrapServers))
+                {
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire connection string: {bootstrapServers}");
+                }
+            }
+            
+            // 3. Fallback to environment variables (external integration tests)
+            if (string.IsNullOrEmpty(bootstrapServers))
             {
                 bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
                 if (!string.IsNullOrEmpty(bootstrapServers))
                 {
-                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from external integration test: {bootstrapServers}");
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from environment variable: {bootstrapServers}");
                 }
-                else
-                {
-                    bootstrapServers = ServiceUris.KafkaBootstrapServers;
-                    Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
-                }
+            }
+            
+            // 4. Final fallback to service constants
+            if (string.IsNullOrEmpty(bootstrapServers))
+            {
+                bootstrapServers = ServiceUris.KafkaBootstrapServers;
+                Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
             }
 
             // Fix IPv6 issue by forcing IPv4 localhost resolution

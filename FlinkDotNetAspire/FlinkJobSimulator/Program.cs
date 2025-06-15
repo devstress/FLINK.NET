@@ -604,8 +604,14 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
         
+        // Add service defaults for Aspire integration
+        builder.AddServiceDefaults();
+        
         // Add Redis client using connection string for external Redis instances
         builder.AddRedisClient("redis");
+        
+        // Add Kafka client using Aspire service discovery
+        builder.AddKafkaProducer<string, string>("kafka");
         
         // Register IDatabase as a singleton service
         builder.Services.AddSingleton<IDatabase>(provider => 
@@ -617,9 +623,45 @@ public static class Program
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
+        // Register a service to provide Kafka bootstrap servers using service bindings
+        builder.Services.AddSingleton<IKafkaConnectionProvider, AspireKafkaConnectionProvider>();
+        
         var host = builder.Build();
         await host.StartAsync();
         return host;
+    }
+    
+    // Interface for Kafka connection provider
+    public interface IKafkaConnectionProvider
+    {
+        string GetBootstrapServers();
+    }
+    
+    // Implementation that uses Aspire service bindings
+    public class AspireKafkaConnectionProvider : IKafkaConnectionProvider
+    {
+        private readonly IConfiguration _configuration;
+        
+        public AspireKafkaConnectionProvider(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
+        
+        public string GetBootstrapServers()
+        {
+            // Try to get Kafka connection from Aspire service binding first
+            var kafkaConnectionString = _configuration.GetConnectionString("kafka");
+            if (!string.IsNullOrEmpty(kafkaConnectionString))
+            {
+                Console.WriteLine($"[AspireKafkaConnectionProvider] Using Kafka from Aspire service binding: {kafkaConnectionString}");
+                return kafkaConnectionString;
+            }
+            
+            // Fallback to environment variables if service binding not available
+            var fallbackBootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] ?? ServiceUris.KafkaBootstrapServers;
+            Console.WriteLine($"[AspireKafkaConnectionProvider] Using fallback Kafka bootstrap servers: {fallbackBootstrapServers}");
+            return fallbackBootstrapServers;
+        }
     }
 
     private static (long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl) GetConfiguration()
@@ -654,7 +696,7 @@ public static class Program
     }
 
     private static StreamExecutionEnvironment SetupFlinkEnvironment(long numMessages, string redisSinkCounterKey, string kafkaTopic, 
-        IDatabase redisDatabase, IConfiguration configuration)
+        IDatabase redisDatabase, IConfiguration configuration, IKafkaConnectionProvider kafkaConnectionProvider)
     {
         // Set static configuration for LocalStreamExecutor compatibility
         HighVolumeSourceFunction.NumberOfMessagesToGenerate = numMessages;
@@ -665,6 +707,7 @@ public static class Program
         RedisIncrementSinkFunction<string>.GlobalRedisDatabase = redisDatabase;
         RedisIncrementSinkFunction<string>.GlobalRedisKey = redisSinkCounterKey;
         KafkaSinkFunction<string>.GlobalKafkaTopic = kafkaTopic;
+        KafkaSinkFunction<string>.GlobalKafkaConnectionProvider = kafkaConnectionProvider;
 
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
@@ -928,6 +971,7 @@ public static class Program
         Console.WriteLine("Retrieving services from DI container...");
         var redisDatabase = host.Services.GetRequiredService<IDatabase>();
         var configuration = host.Services.GetRequiredService<IConfiguration>();
+        var kafkaConnectionProvider = host.Services.GetRequiredService<IKafkaConnectionProvider>();
         Console.WriteLine("Services retrieved successfully");
 
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
@@ -937,7 +981,7 @@ public static class Program
         {
             Console.WriteLine("Setting up Flink environment...");
             var envSetupStartTime = DateTime.UtcNow;
-            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
+            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration, kafkaConnectionProvider);
             var envSetupDuration = DateTime.UtcNow - envSetupStartTime;
             Console.WriteLine($"Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
             
