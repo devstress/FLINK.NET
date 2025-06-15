@@ -55,7 +55,7 @@ jobs:
       - name: Verify PowerShell availability
         run: |
           # Verify Windows PowerShell is available
-          powershell --version
+          powershell -Command "Get-Host | Select-Object Version"
 
       - name: Install .NET Aspire Workload
         run: dotnet workload install aspire
