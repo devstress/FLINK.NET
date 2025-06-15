@@ -97,10 +97,25 @@ jobs:
         run: |
           Write-Host "Discovering actual Aspire container ports after AppHost startup..."
           & ./scripts/discover-aspire-ports.ps1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Port discovery failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
           
           Write-Host "Current environment variables after discovery:"
           Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          
+          # Verify the environment variables were set
+          if (-not $env:DOTNET_REDIS_URL) {
+            Write-Host "❌ DOTNET_REDIS_URL not set by port discovery"
+            exit 1
+          }
+          if (-not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
+            Write-Host "❌ DOTNET_KAFKA_BOOTSTRAP_SERVERS not set by port discovery"
+            exit 1
+          }
+          Write-Host "✅ Port discovery completed successfully"
 
       - name: Infrastructure Health Check
         env:
