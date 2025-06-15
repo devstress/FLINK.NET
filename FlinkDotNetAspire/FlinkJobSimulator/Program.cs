@@ -96,34 +96,58 @@ public class HighVolumeSourceFunction : ISourceFunction<string>, IOperatorLifecy
     public void Open(IRuntimeContext context)
     {
         _taskName = context.TaskName;
-        Console.WriteLine($"[{_taskName}] Opening HighVolumeSourceFunction.");
+        Console.WriteLine($"🔄 SOURCE STEP 1: Opening HighVolumeSourceFunction with task name: {_taskName}");
 
         // If using parameterless constructor, get Redis database from static configuration
         if (_redisDb == null)
         {
+            Console.WriteLine($"🔄 SOURCE STEP 2: Redis database is null, getting from static configuration...");
             _redisDb = GlobalRedisDatabase;
             if (_redisDb == null)
             {
+                Console.WriteLine($"💥 SOURCE STEP 2 FAILED: Redis database not available. GlobalRedisDatabase is null.");
                 throw new InvalidOperationException("Redis database not available. Ensure GlobalRedisDatabase is set before job execution.");
             }
-            Console.WriteLine($"[{_taskName}] Using global Redis database from static configuration.");
+            Console.WriteLine($"✅ SOURCE STEP 2 COMPLETED: Using global Redis database from static configuration.");
+        }
+        else
+        {
+            Console.WriteLine($"✅ SOURCE STEP 2 SKIPPED: Redis database already initialized in constructor.");
         }
 
         try
         {
+            Console.WriteLine($"🔄 SOURCE STEP 3: Testing Redis connection...");
+            _redisDb.Ping(); // Test connection first
+            Console.WriteLine($"✅ SOURCE STEP 3 COMPLETED: Redis connection test successful");
+            
+            Console.WriteLine($"🔄 SOURCE STEP 4: Initializing global sequence Redis key '{_globalSequenceRedisKey}' to 0...");
             _redisDb.StringSet(_globalSequenceRedisKey, "0");
-            Console.WriteLine($"[{_taskName}] Global sequence Redis key '{_globalSequenceRedisKey}' initialized to 0.");
+            Console.WriteLine($"✅ SOURCE STEP 4 COMPLETED: Global sequence Redis key '{_globalSequenceRedisKey}' initialized to 0.");
         }
         catch (RedisConnectionException ex)
         {
-            Console.WriteLine($"[{_taskName}] ERROR: Source could not connect to Redis for sequence generation. Error: {ex.Message}");
+            Console.WriteLine($"💥 SOURCE STEP 3/4 FAILED: Source could not connect to Redis for sequence generation. Error: {ex.Message}");
+            Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
             throw;
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"💥 SOURCE STEP 3/4 FAILED: Unexpected error during Redis initialization. Error: {ex.Message}");
+            Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            throw;
+        }
+        
+        Console.WriteLine($"✅ SOURCE OPEN COMPLETED: HighVolumeSourceFunction opened successfully for task: {_taskName}");
     }
 
     public void Run(ISourceContext<string> ctx)
     {
+        Console.WriteLine($"🔄 SOURCE RUN: Starting synchronous Run() method for task: {_taskName}");
         RunAsync(ctx, CancellationToken.None).GetAwaiter().GetResult();
+        Console.WriteLine($"✅ SOURCE RUN COMPLETED: Synchronous Run() method finished for task: {_taskName}");
     }
 
     private void InjectBarrierIfNeeded(ISourceContext<string> ctx)
@@ -684,78 +708,93 @@ public static class Program
 
     private static async Task CleanRedisStateForFreshTest(IDatabase redisDatabase)
     {
+        Console.WriteLine("🔄 STEP 8.2.1: Getting Redis keys from environment...");
         var globalSequenceKey = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE") ?? "flinkdotnet:global_sequence_id";
         var sinkCounterKey = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_SINK_COUNTER") ?? "flinkdotnet:sample:processed_message_counter";
         var jobErrorKey = "flinkdotnet:job_execution_error";
         
-        Console.WriteLine($"Cleaning Redis keys for fresh test run:");
-        Console.WriteLine($"  - Deleting global sequence key: {globalSequenceKey}");
-        Console.WriteLine($"  - Deleting sink counter key: {sinkCounterKey}");
-        Console.WriteLine($"  - Deleting job error key: {jobErrorKey}");
+        Console.WriteLine($"✅ STEP 8.2.1 COMPLETED: Redis keys identified:");
+        Console.WriteLine($"  - Global sequence key: {globalSequenceKey}");
+        Console.WriteLine($"  - Sink counter key: {sinkCounterKey}");
+        Console.WriteLine($"  - Job error key: {jobErrorKey}");
         
         try
         {
+            Console.WriteLine("🔄 STEP 8.2.2: Testing Redis connection...");
+            // Test Redis connection first
+            await redisDatabase.PingAsync();
+            Console.WriteLine("✅ STEP 8.2.2 COMPLETED: Redis connection test successful");
+            
+            Console.WriteLine("🔄 STEP 8.2.3: Deleting Redis keys...");
             // Delete all test-related keys to ensure fresh state
             var deletedCount = await redisDatabase.KeyDeleteAsync(new RedisKey[] { 
                 globalSequenceKey, 
                 sinkCounterKey, 
                 jobErrorKey 
             });
-            Console.WriteLine($"Successfully deleted {deletedCount} Redis keys");
+            Console.WriteLine($"✅ STEP 8.2.3 COMPLETED: Successfully deleted {deletedCount} Redis keys");
             
+            Console.WriteLine("🔄 STEP 8.2.4: Verifying cleanup...");
             // Verify cleanup
             var remaining = await redisDatabase.StringGetAsync(globalSequenceKey);
             if (remaining.HasValue)
             {
-                Console.WriteLine($"WARNING: Global sequence key still exists with value: {remaining}");
+                Console.WriteLine($"⚠️ STEP 8.2.4 WARNING: Global sequence key still exists with value: {remaining}");
             }
             else
             {
-                Console.WriteLine("✅ Verified: Global sequence key successfully cleared");
+                Console.WriteLine("✅ STEP 8.2.4 COMPLETED: Verified: Global sequence key successfully cleared");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"WARNING: Redis cleanup failed: {ex.Message}");
+            Console.WriteLine($"💥 STEP 8.2 FAILED: Redis cleanup failed: {ex.Message}");
+            Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
             Console.WriteLine("Continuing with test execution...");
         }
     }
 
     private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string jobManagerGrpcUrl, IDatabase redisDatabase)
     {
-        Console.WriteLine("Building JobGraph...");
+        Console.WriteLine("🔄 STEP 8.1: Building JobGraph...");
         JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
-        Console.WriteLine($"JobGraph created with name: {jobGraph.JobName}");
+        Console.WriteLine($"✅ STEP 8.1 COMPLETED: JobGraph created with name: {jobGraph.JobName}");
         Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
 
         // *** CRITICAL FIX: Clean Redis state before each test run ***
+        Console.WriteLine("🔄 STEP 8.2: Starting Redis state cleanup...");
         Console.WriteLine("=== REDIS STATE CLEANUP ===");
         await CleanRedisStateForFreshTest(redisDatabase);
+        Console.WriteLine("✅ STEP 8.2 COMPLETED: Redis state cleanup finished");
         
         // Verify infrastructure
-        Console.WriteLine("Verifying JobManager and TaskManager infrastructure...");
+        Console.WriteLine("🔄 STEP 8.3: Verifying JobManager and TaskManager infrastructure...");
         try 
         {
             await VerifyInfrastructure(jobManagerGrpcUrl);
+            Console.WriteLine("✅ STEP 8.3 COMPLETED: Infrastructure verification finished");
         }
         catch (Exception infraEx)
         {
-            Console.WriteLine($"Infrastructure verification failed: {infraEx.Message}");
+            Console.WriteLine($"⚠️ STEP 8.3 WARNING: Infrastructure verification failed: {infraEx.Message}");
             Console.WriteLine("Proceeding with local execution for integration testing...");
         }
 
         // Execute the job
+        Console.WriteLine("🔄 STEP 8.4: Starting actual job execution using LocalStreamExecutor...");
         Console.WriteLine("Executing job using LocalStreamExecutor for Flink.Net compatibility...");
         var jobExecutionSuccess = false;
         try 
         {
+            Console.WriteLine("🔄 STEP 8.4.1: Calling env.ExecuteLocallyAsync()...");
             await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
-            Console.WriteLine("Job execution completed successfully using LocalStreamExecutor.");
+            Console.WriteLine("✅ STEP 8.4.1 COMPLETED: Job execution completed successfully using LocalStreamExecutor.");
             jobExecutionSuccess = true;
         }
         catch (Exception jobEx)
         {
-            Console.WriteLine($"=== JOB EXECUTION ERROR DETECTED ===");
+            Console.WriteLine($"💥 === JOB EXECUTION ERROR DETECTED IN STEP 8.4.1 ===");
             Console.WriteLine($"Job execution failed: {jobEx.Message}");
             Console.WriteLine($"Exception Type: {jobEx.GetType().Name}");
             Console.WriteLine($"Stack Trace: {jobEx.StackTrace}");
@@ -764,35 +803,42 @@ public static class Program
                 Console.WriteLine($"Inner Exception: {jobEx.InnerException.GetType().Name} - {jobEx.InnerException.Message}");
                 Console.WriteLine($"Inner Stack Trace: {jobEx.InnerException.StackTrace}");
             }
-            Console.WriteLine("=== CRITICAL: Job execution failed - this explains why sinks are not processing ===");
+            Console.WriteLine("💥 CRITICAL: Job execution failed - this explains why sinks are not processing");
             
             // Instead of crashing, mark Redis with a special error indicator
             try
             {
+                Console.WriteLine("🔄 STEP 8.4.2: Marking Redis with job execution error...");
                 await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"{jobEx.GetType().Name}: {jobEx.Message}");
-                Console.WriteLine("Marked Redis with job execution error indicator");
+                Console.WriteLine("✅ STEP 8.4.2 COMPLETED: Marked Redis with job execution error indicator");
             }
             catch (Exception redisEx)
             {
-                Console.WriteLine($"Failed to mark Redis with error: {redisEx.Message}");
+                Console.WriteLine($"💥 STEP 8.4.2 FAILED: Failed to mark Redis with error: {redisEx.Message}");
             }
         }
         
         if (!jobExecutionSuccess)
         {
+            Console.WriteLine("🔄 STEP 8.5: LocalStreamExecutor failed - attempting direct execution fallback...");
             Console.WriteLine("=== ATTEMPTING SIMPLIFIED DIRECT EXECUTION FALLBACK ===");
             Console.WriteLine("LocalStreamExecutor failed - trying direct execution for stress test compatibility");
             
             try
             {
+                Console.WriteLine("🔄 STEP 8.5.1: Starting direct execution...");
                 ExecuteJobDirectly(numMessages, redisDatabase);
-                Console.WriteLine("Direct execution completed successfully");
+                Console.WriteLine("✅ STEP 8.5.1 COMPLETED: Direct execution completed successfully");
             }
             catch (Exception directEx)
             {
-                Console.WriteLine($"Direct execution also failed: {directEx.Message}");
+                Console.WriteLine($"💥 STEP 8.5.1 FAILED: Direct execution also failed: {directEx.Message}");
                 await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"Both LocalStreamExecutor and Direct execution failed: {directEx.Message}");
             }
+        }
+        else
+        {
+            Console.WriteLine("✅ STEP 8.4 COMPLETED: Job execution using LocalStreamExecutor was successful");
         }
     }
 
@@ -896,14 +942,17 @@ public static class Program
     public static async Task Main(string[] args)
     {
         var totalStartTime = DateTime.UtcNow;
+        Console.WriteLine("🚀 === FLINKJOBSIMULATOR MAIN() ENTRY POINT ===");
         Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
         Console.WriteLine($"=== STARTUP DIAGNOSTICS ===");
         Console.WriteLine($"Start Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         Console.WriteLine($"Process ID: {Environment.ProcessId}");
         Console.WriteLine($"Working Directory: {Environment.CurrentDirectory}");
         Console.WriteLine($"Arguments: {string.Join(" ", args)}");
+        Console.WriteLine($"🔄 STEP 1: Main() entry completed - proceeding to environment variable debug");
 
         // Debug: Log all environment variables to understand what Aspire provides
+        Console.WriteLine("🔄 STEP 2: Starting environment variable debug...");
         Console.WriteLine("=== DEBUG: Environment Variables ===");
         foreach (DictionaryEntry env in Environment.GetEnvironmentVariables())
         {
@@ -918,38 +967,40 @@ public static class Program
             }
         }
         Console.WriteLine("=== END DEBUG ===");
+        Console.WriteLine($"🔄 STEP 3: Environment variable debug completed - proceeding to host configuration");
 
-        Console.WriteLine("Starting host configuration...");
+        Console.WriteLine("🔄 STEP 4: Starting host configuration...");
         var hostStartTime = DateTime.UtcNow;
         using var host = await ConfigureAndStartHost(args);
         var hostStartupDuration = DateTime.UtcNow - hostStartTime;
-        Console.WriteLine($"Host configured and started in {hostStartupDuration.TotalMilliseconds:F0}ms");
+        Console.WriteLine($"✅ STEP 4 COMPLETED: Host configured and started in {hostStartupDuration.TotalMilliseconds:F0}ms");
 
-        Console.WriteLine("Retrieving services from DI container...");
+        Console.WriteLine("🔄 STEP 5: Retrieving services from DI container...");
         var redisDatabase = host.Services.GetRequiredService<IDatabase>();
         var configuration = host.Services.GetRequiredService<IConfiguration>();
-        Console.WriteLine("Services retrieved successfully");
+        Console.WriteLine("✅ STEP 5 COMPLETED: Services retrieved successfully");
 
+        Console.WriteLine("🔄 STEP 6: Loading configuration values...");
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
-        Console.WriteLine($"Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
+        Console.WriteLine($"✅ STEP 6 COMPLETED: Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
 
         try
         {
-            Console.WriteLine("Setting up Flink environment...");
+            Console.WriteLine("🔄 STEP 7: Setting up Flink environment...");
             var envSetupStartTime = DateTime.UtcNow;
             var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
             var envSetupDuration = DateTime.UtcNow - envSetupStartTime;
-            Console.WriteLine($"Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
+            Console.WriteLine($"✅ STEP 7 COMPLETED: Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
             
-            Console.WriteLine("Starting job execution...");
+            Console.WriteLine("🔄 STEP 8: Starting job execution...");
             var jobStartTime = DateTime.UtcNow;
             await ExecuteJob(env, numMessages, jobManagerGrpcUrl, redisDatabase);
             var jobDuration = DateTime.UtcNow - jobStartTime;
-            Console.WriteLine($"Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
+            Console.WriteLine($"✅ STEP 8 COMPLETED: Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"=== SIMULATOR ERROR ===");
+            Console.WriteLine($"💥 === SIMULATOR ERROR IN MAIN TRY BLOCK ===");
             Console.WriteLine($"Error Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
             Console.WriteLine($"Error Type: {ex.GetType().Name}");
             Console.WriteLine($"Error Message: {ex.Message}");
@@ -962,19 +1013,20 @@ public static class Program
                 Console.WriteLine($"Inner Message: {ex.InnerException.Message}");
             }
             
-            Console.WriteLine("Continuing despite error for integration test verification.");
+            Console.WriteLine("💥 Continuing despite error for integration test verification.");
         }
 
+        Console.WriteLine("🔄 STEP 9: Main execution completed, final cleanup...");
         Console.WriteLine("Flink Job Simulator finished executing the job.");
         Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
         Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         
         await Task.Delay(TimeSpan.FromSeconds(5));
         var totalDuration = DateTime.UtcNow - totalStartTime;
-        Console.WriteLine($"=== COMPLETION SUMMARY ===");
+        Console.WriteLine($"✅ === COMPLETION SUMMARY ===");
         Console.WriteLine($"Completion Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         Console.WriteLine($"Total Execution Time: {totalDuration.TotalMilliseconds:F0}ms");
-        Console.WriteLine("Keeping process alive for Aspire orchestration...");
+        Console.WriteLine("🔄 STEP 10: Keeping process alive for Aspire orchestration...");
         await Task.Delay(Timeout.Infinite);
     }
 }

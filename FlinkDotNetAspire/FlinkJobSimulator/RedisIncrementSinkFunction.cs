@@ -35,35 +35,63 @@ namespace FlinkJobSimulator
         public void Open(IRuntimeContext context)
         {
             _taskName = context.TaskName;
-            Console.WriteLine($"[{_taskName}] Opening RedisIncrementSinkFunction for key '{_redisKey}'.");
+            Console.WriteLine($"🔄 REDIS SINK STEP 1: Opening RedisIncrementSinkFunction for task: {_taskName}, key: '{_redisKey}'");
 
             // If using parameterless constructor, get Redis database from static configuration
             if (_redisDb == null)
             {
+                Console.WriteLine($"🔄 REDIS SINK STEP 2: Redis database is null, getting from static configuration...");
                 _redisDb = GlobalRedisDatabase;
                 if (_redisDb == null)
                 {
+                    Console.WriteLine($"💥 REDIS SINK STEP 2 FAILED: Redis database not available. GlobalRedisDatabase is null.");
                     throw new InvalidOperationException("Redis database not available. Ensure GlobalRedisDatabase is set before job execution.");
                 }
-                Console.WriteLine($"[{_taskName}] Using global Redis database from static configuration.");
+                Console.WriteLine($"✅ REDIS SINK STEP 2 COMPLETED: Using global Redis database from static configuration.");
+            }
+            else
+            {
+                Console.WriteLine($"✅ REDIS SINK STEP 2 SKIPPED: Redis database already initialized in constructor.");
             }
 
             try
             {
+                Console.WriteLine($"🔄 REDIS SINK STEP 3: Testing Redis connection...");
+                _redisDb.Ping(); // Test connection first
+                Console.WriteLine($"✅ REDIS SINK STEP 3 COMPLETED: Redis connection test successful");
+                
+                Console.WriteLine($"🔄 REDIS SINK STEP 4: Initializing Redis sink counter key '{_redisKey}' to 0...");
                 // Reset the counter key for a fresh run 
                 _redisDb.StringSet(_redisKey, "0");
-                Console.WriteLine($"[{_taskName}] Redis sink counter key '{_redisKey}' initialized to 0.");
+                Console.WriteLine($"✅ REDIS SINK STEP 4 COMPLETED: Redis sink counter key '{_redisKey}' initialized to 0.");
             }
             catch (RedisConnectionException ex)
             {
-                Console.WriteLine($"[{_taskName}] ERROR: Could not initialize Redis key. Error: {ex.Message}");
-                // Further error handling or rethrow if connection is critical
+                Console.WriteLine($"💥 REDIS SINK STEP 3/4 FAILED: Could not initialize Redis key. Error: {ex.Message}");
+                Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
                 throw;
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"💥 REDIS SINK STEP 3/4 FAILED: Unexpected error during Redis initialization. Error: {ex.Message}");
+                Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                throw;
+            }
+            
+            Console.WriteLine($"✅ REDIS SINK OPEN COMPLETED: RedisIncrementSinkFunction opened successfully for task: {_taskName}");
         }
 
         public void Invoke(T record, ISinkContext context)
         {
+            // Log the first few records to verify sink is receiving data
+            long currentCount = Interlocked.Read(ref _processedCount);
+            if (currentCount < 5)
+            {
+                Console.WriteLine($"🔄 REDIS SINK INVOKE: Processing record #{currentCount + 1}: {record}");
+            }
+            
             if (record is string recordString && recordString.StartsWith("BARRIER_"))
             {
                 Console.WriteLine($"[{_taskName}] Received Barrier Marker in Redis Sink: {recordString}");
@@ -79,12 +107,19 @@ namespace FlinkJobSimulator
                 {
                     if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
                     _redisDb.StringIncrement(_redisKey);
-                    long currentCount = Interlocked.Increment(ref _processedCount);
+                    long newCount = Interlocked.Increment(ref _processedCount);
 
-                    if (currentCount % LogFrequency == 0)
+                    if (newCount % LogFrequency == 0)
                     {
-                        Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {currentCount} records.");
+                        Console.WriteLine($"[{_taskName}] Incremented key '{_redisKey}'. Processed {newCount} records.");
                     }
+                    
+                    // Log first few increments to verify the counter is working
+                    if (newCount <= 5)
+                    {
+                        Console.WriteLine($"✅ REDIS SINK SUCCESS: Record #{newCount} processed and Redis key incremented");
+                    }
+                    
                     return; // Success, exit retry loop
                 }
                 catch (Exception ex) when (attempt < maxRetries)
