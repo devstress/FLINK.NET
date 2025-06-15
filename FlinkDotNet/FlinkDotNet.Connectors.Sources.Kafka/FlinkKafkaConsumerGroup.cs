@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
-using FlinkDotNet.Core.Abstractions.Sources;
 
 namespace FlinkDotNet.Connectors.Sources.Kafka
 {
@@ -145,8 +144,9 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             }
             catch (KafkaException ex)
             {
-                _logger?.LogError(ex, "Failed to commit offsets for checkpoint {CheckpointId}", checkpointId);
-                throw; // Rethrow to fail the checkpoint
+                _logger?.LogError(ex, "Failed to commit offsets for checkpoint {CheckpointId}. Kafka error: {ErrorCode} - {ErrorReason}", 
+                    checkpointId, ex.Error.Code, ex.Error.Reason);
+                throw new InvalidOperationException($"Checkpoint {checkpointId} failed due to Kafka offset commit failure: {ex.Error.Code} - {ex.Error.Reason}", ex);
             }
             
             await Task.CompletedTask;

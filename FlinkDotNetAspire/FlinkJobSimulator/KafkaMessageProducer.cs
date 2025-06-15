@@ -43,7 +43,7 @@ namespace FlinkJobSimulator
             
             try
             {
-                await InitializeProducer();
+                InitializeProducer();
                 await ProduceMessages(stoppingToken);
             }
             catch (Exception ex)
@@ -57,7 +57,7 @@ namespace FlinkJobSimulator
             }
         }
 
-        private async Task InitializeProducer()
+        private Task InitializeProducer()
         {
             // Multi-strategy Kafka bootstrap server discovery
             string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
@@ -96,6 +96,7 @@ namespace FlinkJobSimulator
             _producer = new ProducerBuilder<Null, string>(config).Build();
             
             _logger.LogInformation("✅ Kafka producer created successfully");
+            return Task.CompletedTask;
         }
 
         private async Task ProduceMessages(CancellationToken stoppingToken)

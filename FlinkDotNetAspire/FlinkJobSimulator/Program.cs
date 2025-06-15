@@ -707,9 +707,6 @@ public static class Program
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
-        // TODO: Add Kafka message producer as a hosted service for Kafka consumer demos
-        // builder.Services.AddHostedService<KafkaMessageProducer>();
-        
         var host = builder.Build();
         await host.StartAsync();
         return host;
@@ -825,7 +822,6 @@ public static class Program
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 
         // Use HighVolumeSourceFunction for reliability in stress tests
-        // TODO: Future enhancement - switch to FlinkKafkaSourceFunction for Kafka consumer group demo
         var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
         DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
 
