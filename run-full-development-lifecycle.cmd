@@ -44,7 +44,7 @@ if not "%~1"=="" (
     exit /b 1
 )
 
-REM Check if PowerShell is available
+REM Check if PowerShell is available (prefer pwsh, fallback to powershell)
 where pwsh >NUL 2>&1
 if errorlevel 1 (
     where powershell >NUL 2>&1
@@ -57,8 +57,8 @@ if errorlevel 1 (
     powershell -ExecutionPolicy Bypass -File "%ROOT%\run-full-development-lifecycle.ps1" %PS_ARGS%
 ) else (
     REM Use PowerShell Core (preferred)
-    echo [INFO] Using PowerShell Core...
-    pwsh -File "%ROOT%\run-full-development-lifecycle.ps1" %PS_ARGS%
+    echo [INFO] Using PowerShell Core (pwsh)...
+    pwsh -ExecutionPolicy Bypass -File "%ROOT%\run-full-development-lifecycle.ps1" %PS_ARGS%
 )
 
 set "EXIT_CODE=%ERRORLEVEL%"

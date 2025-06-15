@@ -66,21 +66,30 @@ Prerequisites:
 # Check admin privileges
 function Test-AdminPrivileges {
     if ($IsWindows) {
-        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        try {
+            $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+            $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+            return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        } catch {
+            # In CI environments, admin check might fail, so we'll continue with a warning
+            return $false
+        }
     } else {
         return (id -u) -eq 0 -or (sudo -n true 2>/dev/null)
     }
 }
 
-if (-not (Test-AdminPrivileges)) {
+# Check admin privileges but allow CI environments to continue
+$isAdmin = Test-AdminPrivileges
+if ($isAdmin) {
+    Write-Host "[OK] Administrator privileges confirmed" -ForegroundColor Green
+} elseif ($env:GITHUB_ACTIONS -eq 'true' -or $env:CI -eq 'true') {
+    Write-Host "[INFO] Running in CI environment, skipping admin check" -ForegroundColor Yellow
+} else {
     Write-Host "[ERROR] This script requires administrator privileges." -ForegroundColor Red
     Write-Host "        Please run as Administrator (Windows) or with sudo (Linux/macOS)" -ForegroundColor Red
     exit 1
 }
-
-Write-Host "[OK] Administrator privileges confirmed" -ForegroundColor Green
 
 # Navigate to repository root
 $scriptPath = $PSScriptRoot

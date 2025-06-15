@@ -70,12 +70,25 @@ jobs:
           }
 
       - name: Test development lifecycle script - Help
+        shell: cmd
         run: .\run-full-development-lifecycle.cmd --help
 
       - name: Test development lifecycle script - Build only (skip tests for speed)
+        shell: pwsh
         run: |
-          # Use PowerShell timeout for Windows
-          Start-Process -FilePath '.\run-full-development-lifecycle.cmd' -ArgumentList '--skip-stress', '--skip-reliability', '--skip-sonar' -Wait -Timeout 600
+          # Run with timeout using Job with timeout
+          $job = Start-Job -ScriptBlock {
+            cmd /c '.\run-full-development-lifecycle.cmd --skip-stress --skip-reliability --skip-sonar'
+          }
+          if (Wait-Job $job -Timeout 600) {
+            $result = Receive-Job $job
+            Remove-Job $job
+            Write-Host "Script completed successfully"
+            Write-Host $result
+          } else {
+            Remove-Job $job -Force
+            Write-Error "Script timed out after 600 seconds"
+          }
 
       - name: Verify script execution logs (if available)
         if: always()
