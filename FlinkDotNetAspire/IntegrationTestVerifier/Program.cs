@@ -1662,6 +1662,15 @@ namespace IntegrationTestVerifier
         private static void LogRedisConnectionError(Exception ex)
         {
             Console.WriteLine($"❌ Redis connection failed: {ex.GetType().Name}: {ex.Message}");
+            
+            // Specific handling for authentication errors
+            if (ex.Message.Contains("NOAUTH") || ex.Message.Contains("Authentication"))
+            {
+                Console.WriteLine($"   🔐 Redis authentication error detected");
+                Console.WriteLine($"   💡 Recommendation: Check Redis password configuration or disable authentication for CI");
+                Console.WriteLine($"   🛠️  This may be resolved by configuring Redis with empty password for testing");
+            }
+            
             if (ex.InnerException != null)
             {
                 Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
@@ -2110,6 +2119,13 @@ namespace IntegrationTestVerifier
             options.SyncTimeout = isCI ? 30000 : 15000;    // 30s for CI, 15s for local
             options.AbortOnConnectFail = false; // Don't abort on first connection failure
             options.ConnectRetry = 3; // Retry connection attempts
+            
+            // For CI environments, ensure password is empty to prevent authentication issues
+            if (isCI && !connectionString.Contains("password"))
+            {
+                options.Password = ""; // Explicitly set empty password for CI
+            }
+            
             return options;
         }
 
