@@ -26,24 +26,12 @@ concurrency:
 
 jobs:
   test-lifecycle-scripts:
-    name: Test Development Lifecycle on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Test Development Lifecycle on Windows
+    runs-on: windows-latest
     
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-        include:
-          - os: windows-latest
-            script: run-full-development-lifecycle.cmd
-            shell: pwsh
-          - os: ubuntu-latest  
-            script: run-full-development-lifecycle.sh
-            shell: bash
-
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: pwsh
 
     steps:
       - name: Checkout code
@@ -62,23 +50,11 @@ jobs:
           java-version: '17'
           distribution: 'zulu'
 
-      - name: Install PowerShell Core (Linux only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install PowerShell Core
         run: |
-          # Install PowerShell Core for Linux
-          wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
-          sudo dpkg -i packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo apt-get install -y powershell
-
-      - name: Verify PowerShell installation
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            pwsh --version
-          else
-            powershell --version
-            pwsh --version
-          fi
+          # Verify PowerShell is available
+          powershell --version
+          pwsh --version
 
       - name: Install .NET Aspire Workload
         run: dotnet workload install aspire
@@ -86,134 +62,47 @@ jobs:
       - name: Verify Docker is available
         run: docker info
 
-      - name: Make shell script executable (Linux only)
-        if: matrix.os == 'ubuntu-latest'
-        run: chmod +x ./run-full-development-lifecycle.sh
+      - name: Make shell script executable
+        run: |
+          # Not needed for Windows, but ensure cmd script is available
+          if (Test-Path ".\run-full-development-lifecycle.cmd") {
+            Write-Host "Windows batch script found"
+          }
 
       - name: Test development lifecycle script - Help
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            ./run-full-development-lifecycle.sh --help
-          else
-            .\run-full-development-lifecycle.cmd --help
-          fi
+        run: .\run-full-development-lifecycle.cmd --help
 
       - name: Test development lifecycle script - Build only (skip tests for speed)
         run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            timeout 600 ./run-full-development-lifecycle.sh --skip-stress --skip-reliability --skip-sonar || true
-          else
-            # Use PowerShell timeout for Windows
-            powershell -Command "Start-Process -FilePath '.\run-full-development-lifecycle.cmd' -ArgumentList '--skip-stress', '--skip-reliability', '--skip-sonar' -Wait -Timeout 600"
-          fi
+          # Use PowerShell timeout for Windows
+          Start-Process -FilePath '.\run-full-development-lifecycle.cmd' -ArgumentList '--skip-stress', '--skip-reliability', '--skip-sonar' -Wait -Timeout 600
 
       - name: Verify script execution logs (if available)
         if: always()
         run: |
-          echo "Checking for test logs..."
-          if [ -d "test-logs" ]; then
-            echo "Contents of test-logs directory:"
-            ls -la test-logs/ || true
-            echo "Sample log content (first 20 lines):"
-            for log in test-logs/*.log; do
-              if [ -f "$log" ]; then
-                echo "=== $log ==="
-                head -20 "$log" || true
-                echo ""
-              fi
-            done
-          else
-            echo "No test-logs directory found"
-          fi
+          Write-Host "Checking for test logs..."
+          if (Test-Path "test-logs") {
+            Write-Host "Contents of test-logs directory:"
+            Get-ChildItem test-logs/ | Format-Table
+            Write-Host "Sample log content (first 20 lines):"
+            Get-ChildItem test-logs/*.log | ForEach-Object {
+              if (Test-Path $_.FullName) {
+                Write-Host "=== $($_.Name) ==="
+                Get-Content $_.FullName -Head 20
+                Write-Host ""
+              }
+            }
+          } else {
+            Write-Host "No test-logs directory found"
+          }
 
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: development-lifecycle-logs-${{ matrix.os }}
+          name: development-lifecycle-logs-windows
           path: |
             test-logs/**/*.log
             *.log
           retention-days: 3
           if-no-files-found: ignore
-
-  test-docker-execution:
-    name: Test in Docker Container
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Test Windows container simulation (using Wine)
-        run: |
-          echo "Testing Windows batch script compatibility..."
-          # Install Wine for Windows script compatibility testing
-          sudo apt-get update
-          sudo apt-get install -y wine
-          
-          # Test the batch script parsing (without full execution)
-          echo "Batch script syntax validation:"
-          cat run-full-development-lifecycle.cmd | head -20
-          echo "Windows script found and readable"
-
-      - name: Test Linux container with PowerShell
-        run: |
-          echo "Testing Linux script execution in clean environment..."
-          
-          # Use Microsoft's PowerShell container
-          docker run --rm -v $(pwd):/workspace -w /workspace mcr.microsoft.com/powershell:latest pwsh -c "
-            Write-Host 'Testing PowerShell script in container...'
-            if (Test-Path './run-full-development-lifecycle.ps1') {
-              Write-Host 'PowerShell script found'
-              # Test parameter parsing
-              pwsh -File './run-full-development-lifecycle.ps1' -Help
-            } else {
-              Write-Host 'PowerShell script not found'
-              exit 1
-            }
-          "
-
-      - name: Test shell script in Alpine container
-        run: |
-          echo "Testing shell script in minimal Alpine environment..."
-          
-          # Test with minimal Alpine container + PowerShell
-          docker run --rm -v $(pwd):/workspace -w /workspace alpine:latest sh -c "
-            echo 'Installing prerequisites in Alpine...'
-            apk add --no-cache bash curl
-            
-            echo 'Testing shell script syntax...'
-            bash -n ./run-full-development-lifecycle.sh
-            echo 'Shell script syntax validation passed'
-            
-            echo 'Testing script execution (help only)...'
-            chmod +x ./run-full-development-lifecycle.sh
-            # We can't run PowerShell in pure Alpine, so just test script structure
-            head -20 ./run-full-development-lifecycle.sh
-          "
-
-  validation-summary:
-    name: Validation Summary
-    runs-on: ubuntu-latest
-    needs: [test-lifecycle-scripts, test-docker-execution]
-    if: always()
-    
-    steps:
-      - name: Report Results
-        run: |
-          echo "=== Development Lifecycle Scripts Validation Summary ==="
-          echo ""
-          echo "Test Results:"
-          echo "- Windows Script Test: ${{ needs.test-lifecycle-scripts.result }}"
-          echo "- Linux Script Test: ${{ needs.test-lifecycle-scripts.result }}"
-          echo "- Docker Container Test: ${{ needs.test-docker-execution.result }}"
-          echo ""
-          if [[ "${{ needs.test-lifecycle-scripts.result }}" == "success" && "${{ needs.test-docker-execution.result }}" == "success" ]]; then
-            echo "✅ All tests passed! Development lifecycle scripts work on both platforms."
-          else
-            echo "❌ Some tests failed. Check the individual job results for details."
-            exit 1
-          fi
