@@ -205,9 +205,6 @@ namespace FlinkDotNet.Core.Api.Streaming
                 name,
                 sinkFunction);
 
-            // Add to environment's list of transformations
-            this.Environment.AddTransformation(sinkTransformation);
-
             // Link current transformation to this new sink transformation
             this.Transformation.AddDownstreamTransformation(sinkTransformation, ShuffleMode.Forward);
         }

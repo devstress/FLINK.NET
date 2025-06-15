@@ -220,7 +220,7 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             return Task.Run(async () =>
             {
-                Console.WriteLine($"[LocalStreamExecutor] Starting source vertex: {vertex.Name}");
+                Console.WriteLine($"[LocalStreamExecutor] Starting source vertex: {vertex.Name} with {operatorInstance.ChainedOperators.Count} chained operators");
                 
                 try
                 {
@@ -230,9 +230,31 @@ namespace FlinkDotNet.Core.Api.Execution
                         lifecycle.Open(operatorInstance.RuntimeContext);
                     }
 
-                    // Create source context that routes data to output channels
+                    // Open chained operators
+                    foreach (var chainedOp in operatorInstance.ChainedOperators)
+                    {
+                        if (chainedOp is IOperatorLifecycle chainedLifecycle && operatorInstance.RuntimeContext != null)
+                        {
+                            chainedLifecycle.Open(operatorInstance.RuntimeContext);
+                        }
+                    }
+
+                    // Create source context that either routes to output channels OR processes through chained operators
                     var outputChannels = GetOutputChannelsForVertex(vertex, jobGraph);
-                    var sourceContext = new LocalSourceContext(outputChannels, cancellationToken);
+                    ISourceContext<string> sourceContext;
+                    
+                    if (operatorInstance.ChainedOperators.Count > 0)
+                    {
+                        // Use chained processing context
+                        sourceContext = new ChainedSourceContext(operatorInstance.ChainedOperators, outputChannels, cancellationToken);
+                        Console.WriteLine($"[LocalStreamExecutor] Using chained source context with {operatorInstance.ChainedOperators.Count} chained operators");
+                    }
+                    else
+                    {
+                        // Use regular output channel context
+                        sourceContext = new LocalSourceContext(outputChannels, cancellationToken);
+                        Console.WriteLine($"[LocalStreamExecutor] Using regular source context with {outputChannels.Count} output channels");
+                    }
 
                     // Run the source
                     if (operatorInstance.Operator is ISourceFunction<string> stringSource)
@@ -269,6 +291,15 @@ namespace FlinkDotNet.Core.Api.Execution
                 }
                 finally
                 {
+                    // Close chained operators
+                    foreach (var chainedOp in operatorInstance.ChainedOperators)
+                    {
+                        if (chainedOp is IOperatorLifecycle chainedLifecycle)
+                        {
+                            chainedLifecycle.Close();
+                        }
+                    }
+                    
                     // Close the operator
                     if (operatorInstance.Operator is IOperatorLifecycle lifecycle)
                     {
@@ -400,7 +431,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return channels;
         }
 
-        private static async Task RunSourceUsingReflection(object sourceInstance, LocalSourceContext sourceContext)
+        private static async Task RunSourceUsingReflection(object sourceInstance, ISourceContext<string> sourceContext)
         {
             // Find and invoke Run method using reflection
             var runMethod = sourceInstance.GetType().GetMethod("Run");
@@ -818,6 +849,103 @@ namespace FlinkDotNet.Core.Api.Execution
         {
             return new SimpleMapState<TK, TV>();
         }
+    }
+
+    internal class ChainedSourceContext : ISourceContext<string>
+    {
+        private readonly List<object> _chainedOperators;
+        private readonly List<ConcurrentQueue<object>> _outputChannels;
+        private long _totalCollected = 0;
+
+        public ChainedSourceContext(List<object> chainedOperators, List<ConcurrentQueue<object>> outputChannels, CancellationToken cancellationToken)
+        {
+            _chainedOperators = chainedOperators;
+            _outputChannels = outputChannels;
+        }
+
+        public void Collect(string record)
+        {
+            ProcessThroughChain(record);
+        }
+
+        private void ProcessThroughChain(string record)
+        {
+            object currentRecord = record;
+            
+            // Process through each chained operator
+            foreach (var chainedOp in _chainedOperators)
+            {
+                try
+                {
+                    if (chainedOp is ISinkFunction<string> sinkFunction && currentRecord is string stringRecord)
+                    {
+                        // Terminal sink - process and don't continue chain
+                        var sinkContext = new LocalSinkContext();
+                        sinkFunction.Invoke(stringRecord, sinkContext);
+                        Console.WriteLine($"[ChainedSourceContext] Processed record through sink: {stringRecord}");
+                        return; // Sink is terminal, don't send to output channels
+                    }
+                    else if (chainedOp != null)
+                    {
+                        // Try to find and invoke Map or other transformation methods
+                        var mapMethod = chainedOp.GetType().GetMethod("Map");
+                        if (mapMethod != null)
+                        {
+                            currentRecord = mapMethod.Invoke(chainedOp, new object[] { currentRecord! });
+                            Console.WriteLine($"[ChainedSourceContext] Processed record through map operator: {currentRecord}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[ChainedSourceContext] WARNING: Unknown chained operator type: {chainedOp.GetType().Name}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ChainedSourceContext] ERROR processing record through chained operator: {ex.Message}");
+                    throw;
+                }
+            }
+            
+            // If we reach here and have output channels, send to them
+            if (_outputChannels.Count > 0 && currentRecord != null)
+            {
+                foreach (var channel in _outputChannels)
+                {
+                    channel.Enqueue(currentRecord);
+                }
+            }
+            
+            var collected = Interlocked.Increment(ref _totalCollected);
+            if (collected % 10000 == 0) // Log every 10,000 records for production use
+            {
+                Console.WriteLine($"[ChainedSourceContext] Processed record #{collected}");
+            }
+        }
+
+        public Task CollectAsync(string record)
+        {
+            Collect(record);
+            return Task.CompletedTask;
+        }
+
+        public void CollectWithTimestamp(string record, long timestamp)
+        {
+            Collect(record);
+        }
+
+        public Task CollectWithTimestampAsync(string record, long timestamp)
+        {
+            Collect(record);
+            return Task.CompletedTask;
+        }
+
+        public void EmitWatermark(FlinkDotNet.Core.Abstractions.Windowing.Watermark watermark)
+        {
+            // Not implemented for local execution
+        }
+
+        public long ProcessingTime => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
     internal class LocalSourceContext : ISourceContext<string>
