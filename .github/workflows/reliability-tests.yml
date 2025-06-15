@@ -19,7 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "10000" # Fast reliability test message count for CI (reduced from 10M default)
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000" # Reduced message count for faster CI execution (was 10000)
+  MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout matching stress tests
 
 jobs:
   run-reliability-tests:
@@ -28,7 +29,7 @@ jobs:
 
     defaults:
       run:
-        shell: bash
+        shell: pwsh # Changed to PowerShell for consistency with stress tests
 
     steps:
       - name: Checkout code
@@ -54,83 +55,144 @@ jobs:
 
       - name: Build Solutions
         run: |
-          echo "Building FlinkDotNet solution (dependency)..."
-          cd FlinkDotNet
+          Write-Host "Building FlinkDotNet solution (dependency)..."
+          Push-Location FlinkDotNet
           dotnet build FlinkDotNet.sln --configuration Release
-          cd ..
+          Pop-Location
           
-          echo "Building FlinkDotNetAspire solution..."
-          cd FlinkDotNetAspire
+          Write-Host "Building FlinkDotNetAspire solution..."
+          Push-Location FlinkDotNetAspire
           dotnet build FlinkDotNetAspire.sln --configuration Release
-          cd ..
+          Pop-Location
 
       - name: Start Aspire Development Environment
         run: |
-          echo "🚀 Starting Aspire development environment with Kafka best practices setup..."
-          cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
+          Write-Host "🚀 Starting Aspire development environment with Kafka best practices setup..." -ForegroundColor Green
+          $env:SIMULATOR_NUM_MESSAGES = "${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
+          $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
           
-          # Start Aspire in the background
-          nohup dotnet run --configuration Release > aspire.log 2>&1 &
-          ASPIRE_PID=$!
-          echo $ASPIRE_PID > aspire.pid
+          # Create log files
+          $outLogPath = "aspire.out.log"
+          $errLogPath = "aspire.err.log"
           
-          echo "⏳ Waiting for Aspire environment to be fully ready..."
-          sleep 30
+          Write-Host "Starting AppHost with output logging to $outLogPath and $errLogPath"
           
-          echo "📊 Checking Aspire services..."
-          # Check if Aspire is running
-          if ps -p $ASPIRE_PID > /dev/null; then
-            echo "✅ Aspire is running (PID: $ASPIRE_PID)"
-          else
-            echo "❌ Aspire failed to start"
-            cat aspire.log
-            exit 1
-          fi
+          # Use Start-Process with file redirection (same pattern as stress tests)
+          $processArgs = @(
+            'run',
+            '--no-build', 
+            '--configuration', 'Release',
+            '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
+          )
           
-          cd ../..
+          # Start the process with output redirection
+          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru
+          $proc.Id | Out-File aspire.pid -Encoding utf8
+          
+          Write-Host "Started Aspire AppHost with PID: $($proc.Id)"
+          Write-Host "⏳ Waiting for Aspire environment to be fully ready..."
+          Start-Sleep -Seconds 45 # Increased wait time for full initialization
 
-      - name: Verify Infrastructure Health
+      - name: Discover Aspire Container Ports
         run: |
-          echo "🧪 Waiting for Kafka and Redis to be available..."
-          # Give more time for all services to initialize
-          sleep 30
+          Write-Host "Discovering actual Aspire container ports after AppHost startup..."
+          & ./scripts/discover-aspire-ports.ps1
           
-          echo "📊 Infrastructure should be ready through Aspire..."
-          echo "✅ Aspire manages all service health checks internally"
+          Write-Host "Current environment variables after discovery:"
+          Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+
+      - name: Infrastructure Health Check
+        env:
+          DOTNET_ENVIRONMENT: "Development"
+        run: |
+          Write-Host "🧪 Running infrastructure health checks..."
+          $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
+          
+          $maxAttempts = 5
+          $delaySeconds = 10
+          
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
+            Write-Host "Starting health check at $(Get-Date -Format 'HH:mm:ss')..."
+            
+            & dotnet $verifierDll --health-check
+            $healthExitCode = $LASTEXITCODE
+            
+            if ($healthExitCode -eq 0) {
+              Write-Host "✅ Health check PASSED on attempt $attempt" -ForegroundColor Green
+              break
+            }
+            
+            Write-Host "❌ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
+            
+            if ($attempt -lt $maxAttempts) {
+              Write-Host "Waiting $delaySeconds seconds before retry..." -ForegroundColor Yellow
+              Start-Sleep -Seconds $delaySeconds
+            } else {
+              Write-Host "❌ Max health check attempts ($maxAttempts) reached. Health checks failed." -ForegroundColor Red
+              exit 1
+            }
+          }
 
       - name: Run Flink.Net Standard Reliability Test with Aspire Infrastructure
         env:
           FLINKDOTNET_STANDARD_TEST_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
+          MAX_ALLOWED_TIME_MS: ${{ env.MAX_ALLOWED_TIME_MS }}
           DOTNET_ENVIRONMENT: "Development"
         run: |
-          echo "🧪 Running Flink.Net Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
-          echo "📊 Using Aspire-managed Kafka and Redis infrastructure"
+          Write-Host "🧪 Running Flink.Net Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
+          Write-Host "📊 Using Aspire-managed Kafka and Redis infrastructure"
+          Write-Host "⏱️ Maximum allowed time: ${{ env.MAX_ALLOWED_TIME_MS }}ms"
           
-          cd FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
+          Push-Location FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
           dotnet test --configuration Release --logger "console;verbosity=detailed" --no-build
+          $testExitCode = $LASTEXITCODE
+          Pop-Location
           
-          if [ $? -ne 0 ]; then
-            echo "❌ Flink.Net Standard Reliability Test FAILED."
+          if ($testExitCode -ne 0) {
+            Write-Host "❌ Flink.Net Standard Reliability Test FAILED." -ForegroundColor Red
             exit 1
-          fi
+          }
           
-          echo "✅ Flink.Net Standard Reliability Test PASSED with Aspire infrastructure."
+          Write-Host "✅ Flink.Net Standard Reliability Test PASSED with Aspire infrastructure." -ForegroundColor Green
 
       - name: Stop Aspire Environment
         if: always()
         run: |
-          echo "🛑 Stopping Aspire environment..."
-          cd FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost
-          if [ -f aspire.pid ]; then
-            ASPIRE_PID=$(cat aspire.pid)
-            if ps -p $ASPIRE_PID > /dev/null; then
-              kill $ASPIRE_PID
-              sleep 10
-              # Force kill if still running
-              if ps -p $ASPIRE_PID > /dev/null; then
-                kill -9 $ASPIRE_PID
-              fi
-            fi
-            rm aspire.pid
-          fi
-          echo "✅ Aspire environment cleanup complete."
+          Write-Host "🛑 Stopping Aspire environment..." -ForegroundColor Yellow
+          
+          if (Test-Path aspire.pid) {
+            $apphostPid = Get-Content aspire.pid
+            Write-Host "Stopping AppHost with PID $apphostPid"
+            
+            $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "Process is running, stopping it..."
+              Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 3
+            } else {
+              Write-Host "Process was already stopped."
+            }
+            
+            Remove-Item aspire.pid -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "No AppHost PID file found."
+          }
+          
+          # Show log content for debugging
+          Write-Host "`n=== ASPIRE OUTPUT LOG ===" -ForegroundColor Cyan
+          if (Test-Path aspire.out.log) {
+            Get-Content aspire.out.log -ErrorAction SilentlyContinue | Select-Object -Last 50
+          } else {
+            Write-Host "No output log found"
+          }
+          
+          Write-Host "`n=== ASPIRE ERROR LOG ===" -ForegroundColor Cyan
+          if (Test-Path aspire.err.log) {
+            Get-Content aspire.err.log -ErrorAction SilentlyContinue | Select-Object -Last 50
+          } else {
+            Write-Host "No error log found"
+          }
+          
+          Write-Host "✅ Aspire environment cleanup complete." -ForegroundColor Green

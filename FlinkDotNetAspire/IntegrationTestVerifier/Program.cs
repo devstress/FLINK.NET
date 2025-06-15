@@ -1967,9 +1967,18 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"--- End Sample Messages ---");
         }
 
-        private static async Task<bool> WaitForRedisAsync(string connectionString, int maxAttempts = 2, int delaySeconds = 5)
+        private static async Task<bool> WaitForRedisAsync(string connectionString, int maxAttempts = 5, int delaySeconds = 10)
         {
+            // Increase timeouts for CI environments
+            var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+            if (isCI)
+            {
+                maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                delaySeconds = Math.Max(delaySeconds, 15); // At least 15 seconds delay in CI
+            }
+            
             Console.WriteLine($"WaitForRedisAsync: connectionString='{connectionString}', maxAttempts={maxAttempts}, delaySeconds={delaySeconds}");
+            Console.WriteLine($"CI Environment: {isCI}");
             
             for (int i = 0; i < maxAttempts; i++)
             {
@@ -1980,9 +1989,10 @@ namespace IntegrationTestVerifier
                     
                     // Increase connection timeout for CI environments
                     var options = ConfigurationOptions.Parse(connectionString);
-                    options.ConnectTimeout = 15000; // 15 seconds instead of default 5 seconds
-                    options.SyncTimeout = 15000;    // 15 seconds for operations
+                    options.ConnectTimeout = isCI ? 30000 : 15000; // 30s for CI, 15s for local
+                    options.SyncTimeout = isCI ? 30000 : 15000;    // 30s for CI, 15s for local
                     options.AbortOnConnectFail = false; // Don't abort on first connection failure
+                    options.ConnectRetry = 3; // Retry connection attempts
                     
                     using var redis = await ConnectionMultiplexer.ConnectAsync(options);
                     stopwatch.Stop();
@@ -1991,11 +2001,21 @@ namespace IntegrationTestVerifier
                     {
                         Console.WriteLine($"✅ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
                         
-                        // Test basic operation
+                        // Test basic operation with timeout
                         var db = redis.GetDatabase();
-                        await db.PingAsync();
-                        Console.WriteLine("✅ Redis ping successful");
-                        return true;
+                        var pingTask = db.PingAsync();
+                        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(isCI ? 30 : 10));
+                        var completedTask = await Task.WhenAny(pingTask, timeoutTask);
+                        
+                        if (completedTask == pingTask)
+                        {
+                            Console.WriteLine("✅ Redis ping successful");
+                            return true;
+                        }
+                        else
+                        {
+                            Console.WriteLine("❌ Redis ping timed out");
+                        }
                     }
                     else
                     {
@@ -2022,9 +2042,18 @@ namespace IntegrationTestVerifier
             return false;
         }
 
-        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 2, int delaySeconds = 5)
+        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 5, int delaySeconds = 10)
         {
+            // Increase timeouts for CI environments
+            var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+            if (isCI)
+            {
+                maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                delaySeconds = Math.Max(delaySeconds, 15); // At least 15 seconds delay in CI
+            }
+            
             Console.WriteLine($"      🔍 Testing Kafka connectivity: bootstrapServers='{bootstrapServers}', maxAttempts={maxAttempts}, delaySeconds={delaySeconds}");
+            Console.WriteLine($"      CI Environment: {isCI}");
             
             // Fix IPv6 issue by forcing IPv4 localhost resolution
             var cleanBootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
@@ -2037,8 +2066,8 @@ namespace IntegrationTestVerifier
             { 
                 BootstrapServers = cleanBootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
-                SocketTimeoutMs = 10000, // 10 seconds timeout
-                ApiVersionRequestTimeoutMs = 10000 // 10 seconds for API version requests
+                SocketTimeoutMs = isCI ? 30000 : 10000, // 30s for CI, 10s for local
+                ApiVersionRequestTimeoutMs = isCI ? 30000 : 10000 // 30s for CI, 10s for local
             };
             
             for (int i = 0; i < maxAttempts; i++)
@@ -2049,7 +2078,8 @@ namespace IntegrationTestVerifier
                     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                     
                     using var admin = new AdminClientBuilder(adminConfig).Build();
-                    var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                    var metadataTimeout = TimeSpan.FromSeconds(isCI ? 45 : 15); // 45s for CI, 15s for local
+                    var metadata = admin.GetMetadata(metadataTimeout);
                     stopwatch.Stop();
                     
                     if (metadata.Topics != null)
