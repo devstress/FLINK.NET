@@ -1019,6 +1019,31 @@ public static class Program
     {
         var totalStartTime = DateTime.UtcNow;
         
+        LogStartupBanner();
+        LogEnvironmentVariables();
+
+        Console.WriteLine("🔄 STEP 4: Starting host configuration...");
+        var hostStartTime = DateTime.UtcNow;
+        using var host = await ConfigureAndStartHost(args);
+        var hostStartupDuration = DateTime.UtcNow - hostStartTime;
+        Console.WriteLine($"✅ STEP 4 COMPLETED: Host configured and started in {hostStartupDuration.TotalMilliseconds:F0}ms");
+
+        Console.WriteLine("🔄 STEP 5: Retrieving services from DI container...");
+        var redisDatabase = host.Services.GetRequiredService<IDatabase>();
+        var configuration = host.Services.GetRequiredService<IConfiguration>();
+        Console.WriteLine("✅ STEP 5 COMPLETED: Services retrieved successfully");
+
+        Console.WriteLine("🔄 STEP 6: Loading configuration values...");
+        var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
+        Console.WriteLine($"✅ STEP 6 COMPLETED: Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
+
+        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration);
+        
+        await FinalizeAndKeepAlive(totalStartTime, redisSinkCounterKey, kafkaTopic, redisDatabase, jobExecutionSuccess);
+    }
+
+    private static void LogStartupBanner()
+    {
         // Simple, prominent start logging for debugging workflow issues
         Console.WriteLine("🌟 ===================================================");
         Console.WriteLine("🌟 FLINKJOBSIMULATOR IS STARTING");
@@ -1031,9 +1056,11 @@ public static class Program
         Console.WriteLine($"Start Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         Console.WriteLine($"Process ID: {Environment.ProcessId}");
         Console.WriteLine($"Working Directory: {Environment.CurrentDirectory}");
-        Console.WriteLine($"Arguments: {string.Join(" ", args)}");
         Console.WriteLine($"🔄 STEP 1: Main() entry completed - proceeding to environment variable debug");
+    }
 
+    private static void LogEnvironmentVariables()
+    {
         // Debug: Log all environment variables to understand what Aspire provides
         Console.WriteLine("🔄 STEP 2: Starting environment variable debug...");
         Console.WriteLine("=== DEBUG: Environment Variables ===");
@@ -1051,23 +1078,10 @@ public static class Program
         }
         Console.WriteLine("=== END DEBUG ===");
         Console.WriteLine($"🔄 STEP 3: Environment variable debug completed - proceeding to host configuration");
+    }
 
-        Console.WriteLine("🔄 STEP 4: Starting host configuration...");
-        var hostStartTime = DateTime.UtcNow;
-        using var host = await ConfigureAndStartHost(args);
-        var hostStartupDuration = DateTime.UtcNow - hostStartTime;
-        Console.WriteLine($"✅ STEP 4 COMPLETED: Host configured and started in {hostStartupDuration.TotalMilliseconds:F0}ms");
-
-        Console.WriteLine("🔄 STEP 5: Retrieving services from DI container...");
-        var redisDatabase = host.Services.GetRequiredService<IDatabase>();
-        var configuration = host.Services.GetRequiredService<IConfiguration>();
-        Console.WriteLine("✅ STEP 5 COMPLETED: Services retrieved successfully");
-
-        Console.WriteLine("🔄 STEP 6: Loading configuration values...");
-        var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
-        Console.WriteLine($"✅ STEP 6 COMPLETED: Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
-
-        bool jobExecutionSuccess = false;
+    private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration)
+    {
         try
         {
             Console.WriteLine("🔄 STEP 7: Setting up Flink environment...");
@@ -1081,38 +1095,55 @@ public static class Program
             await ExecuteJob(env, numMessages, jobManagerGrpcUrl, redisDatabase);
             var jobDuration = DateTime.UtcNow - jobStartTime;
             Console.WriteLine($"✅ STEP 8 COMPLETED: Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
-            jobExecutionSuccess = true;
+            return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"💥 === SIMULATOR ERROR IN MAIN TRY BLOCK ===");
-            Console.WriteLine($"Error Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
-            Console.WriteLine($"Error Type: {ex.GetType().Name}");
-            Console.WriteLine($"Error Message: {ex.Message}");
-            Console.WriteLine($"Stack Trace:");
-            Console.WriteLine(ex.StackTrace);
-            
-            if (ex.InnerException != null)
-            {
-                Console.WriteLine($"Inner Exception: {ex.InnerException.GetType().Name}");
-                Console.WriteLine($"Inner Message: {ex.InnerException.Message}");
-            }
-            
-            Console.WriteLine("💥 CONTINUING DESPITE ERROR - FlinkJobSimulator will remain alive for Aspire orchestration");
-            Console.WriteLine("💥 Marking Redis with job execution error to help diagnostics");
-            
-            // Mark Redis with error to help diagnostics and prevent infinite waiting
-            try
-            {
-                await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"Main execution failed: {ex.GetType().Name} - {ex.Message}");
-                Console.WriteLine("✅ Successfully marked Redis with job execution error for diagnostics");
-            }
-            catch (Exception redisEx)
-            {
-                Console.WriteLine($"💥 Could not mark Redis with error: {redisEx.Message}");
-            }
+            await HandleJobExecutionError(ex, redisDatabase);
+            return false;
+        }
+    }
+
+    private static async Task HandleJobExecutionError(Exception ex, IDatabase redisDatabase)
+    {
+        Console.WriteLine($"💥 === SIMULATOR ERROR IN MAIN TRY BLOCK ===");
+        Console.WriteLine($"Error Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"Error Type: {ex.GetType().Name}");
+        Console.WriteLine($"Error Message: {ex.Message}");
+        Console.WriteLine($"Stack Trace:");
+        Console.WriteLine(ex.StackTrace);
+        
+        if (ex.InnerException != null)
+        {
+            Console.WriteLine($"Inner Exception: {ex.InnerException.GetType().Name}");
+            Console.WriteLine($"Inner Message: {ex.InnerException.Message}");
         }
         
+        Console.WriteLine("💥 CONTINUING DESPITE ERROR - FlinkJobSimulator will remain alive for Aspire orchestration");
+        Console.WriteLine("💥 Marking Redis with job execution error to help diagnostics");
+        
+        // Mark Redis with error to help diagnostics and prevent infinite waiting
+        try
+        {
+            await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"Main execution failed: {ex.GetType().Name} - {ex.Message}");
+            Console.WriteLine("✅ Successfully marked Redis with job execution error for diagnostics");
+        }
+        catch (Exception redisEx)
+        {
+            Console.WriteLine($"💥 Could not mark Redis with error: {redisEx.Message}");
+        }
+    }
+
+    private static async Task FinalizeAndKeepAlive(DateTime totalStartTime, string redisSinkCounterKey, string kafkaTopic, IDatabase redisDatabase, bool jobExecutionSuccess)
+    {
+        LogJobExecutionResult(jobExecutionSuccess);
+        await MarkCompletionStatus(redisDatabase, jobExecutionSuccess);
+        LogCompletionSummary(totalStartTime, jobExecutionSuccess, redisSinkCounterKey, kafkaTopic);
+        await KeepProcessAlive();
+    }
+
+    private static void LogJobExecutionResult(bool jobExecutionSuccess)
+    {
         // Additional diagnostic logging for job success/failure
         if (jobExecutionSuccess)
         {
@@ -1124,12 +1155,10 @@ public static class Program
             Console.WriteLine("❌ === JOB EXECUTION FAILED ===");
             Console.WriteLine("FlinkJobSimulator failed during job execution but will continue running");
         }
+    }
 
-        Console.WriteLine("🔄 STEP 9: Main execution completed, final cleanup...");
-        Console.WriteLine("Flink Job Simulator finished executing the job.");
-        Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
-        Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
-        
+    private static async Task MarkCompletionStatus(IDatabase redisDatabase, bool jobExecutionSuccess)
+    {
         // Always mark completion status in Redis for workflow coordination
         try
         {
@@ -1148,8 +1177,15 @@ public static class Program
         {
             Console.WriteLine($"💥 Could not mark Redis with completion status: {statusEx.Message}");
         }
+    }
+
+    private static void LogCompletionSummary(DateTime totalStartTime, bool jobExecutionSuccess, string redisSinkCounterKey, string kafkaTopic)
+    {
+        Console.WriteLine("🔄 STEP 9: Main execution completed, final cleanup...");
+        Console.WriteLine("Flink Job Simulator finished executing the job.");
+        Console.WriteLine($"Job completed. Check Redis key '{redisSinkCounterKey}' and Kafka topic '{kafkaTopic}' for results.");
+        Console.WriteLine("Job Simulator completed successfully. Allowing time for async operations to complete...");
         
-        await Task.Delay(TimeSpan.FromSeconds(5));
         var totalDuration = DateTime.UtcNow - totalStartTime;
         Console.WriteLine($"✅ === COMPLETION SUMMARY ===");
         Console.WriteLine($"Completion Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
@@ -1165,6 +1201,11 @@ public static class Program
         Console.WriteLine($"🏁 JOB SUCCESS: {jobExecutionSuccess}");
         Console.WriteLine("🏁 PROCESS WILL REMAIN ALIVE FOR ASPIRE ORCHESTRATION");
         Console.WriteLine("🏁 ===================================================");
+    }
+
+    private static async Task KeepProcessAlive()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5));
         
         // CRITICAL: Keep process alive indefinitely for Aspire orchestration
         Console.WriteLine("🔄 STEP 11: Starting infinite wait loop to keep process alive...");

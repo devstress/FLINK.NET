@@ -1110,37 +1110,15 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"   📋 Scenario: Flink.Net performance standards compliance");
             
             var actualTimeMs = verificationStopwatch.ElapsedMilliseconds;
-            var timingPassed = actualTimeMs <= config.MaxAllowedTimeMs;
-            var memoryPassed = analysis.PredictedRequirements.MemorySafetyMarginPercent > 10;
-            var cpuPassed = analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80);
-            
-            var actualThroughput = config.ExpectedMessages / Math.Max(1.0, actualTimeMs / 1000.0);
-            
-            // Make throughput requirements more reasonable for small workloads
-            // For small message counts (<1000), focus on execution time rather than throughput
-            // For larger workloads, require at least 25% of predicted throughput (reduced from 50%)
-            bool throughputPassed;
-            if (config.ExpectedMessages < 1000)
-            {
-                // For small workloads, throughput validation is less critical - focus on completion
-                throughputPassed = timingPassed; // If it completed within time, throughput is acceptable
-                Console.WriteLine($"   🚀 Throughput (small workload): {actualThroughput:N0} msg/sec (validation based on timing)");
-            }
-            else
-            {
-                var requiredThroughput = analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.25; // Reduced to 25%
-                throughputPassed = actualThroughput >= requiredThroughput;
-                Console.WriteLine($"   🚀 Throughput: {actualThroughput:N0} msg/sec (required: {requiredThroughput:N0}) ({(throughputPassed ? "PASS" : "FAIL")})");
-            }
+            var performanceChecks = EvaluatePerformanceMetrics(actualTimeMs, config, analysis);
+            var throughputPassed = ValidateThroughputRequirements(actualTimeMs, config, analysis);
             
             testCoordinator.LogWhen("Performance measurement", 
-                $"Measured: {actualTimeMs:N0}ms execution, {actualThroughput:N0} msg/sec throughput");
+                $"Measured: {actualTimeMs:N0}ms execution, {performanceChecks.ActualThroughput:N0} msg/sec throughput");
             
-            Console.WriteLine($"   ⏰ Execution Time: {actualTimeMs:N0}ms / {config.MaxAllowedTimeMs:N0}ms limit ({(timingPassed ? "PASS" : "FAIL")})");
-            Console.WriteLine($"   💾 Memory Safety: {analysis.PredictedRequirements.MemorySafetyMarginPercent:F1}% margin ({(memoryPassed ? "PASS" : "FAIL")})");
-            Console.WriteLine($"   ⚡ CPU Utilization: {analysis.PerformanceMetrics.PeakCpuPercent:F1}% peak ({(cpuPassed ? "PASS" : "FAIL")})");
+            LogPerformanceResults(performanceChecks, throughputPassed);
             
-            bool allPassed = timingPassed && memoryPassed && cpuPassed && throughputPassed;
+            bool allPassed = performanceChecks.TimingPassed && performanceChecks.MemoryPassed && performanceChecks.CpuPassed && throughputPassed;
             
             if (allPassed)
             {
@@ -1148,16 +1126,76 @@ namespace IntegrationTestVerifier
             }
             else
             {
-                var failedAreas = new List<string>();
-                if (!timingPassed) failedAreas.Add("execution time");
-                if (!memoryPassed) failedAreas.Add("memory safety");
-                if (!cpuPassed) failedAreas.Add("CPU utilization");
-                if (!throughputPassed) failedAreas.Add("throughput");
-                
-                testCoordinator.LogScenarioFailure($"Performance requirements failed: {string.Join(", ", failedAreas)}");
+                ReportPerformanceFailures(performanceChecks, throughputPassed, testCoordinator);
             }
             
             return allPassed;
+        }
+
+        private struct PerformanceChecks
+        {
+            public bool TimingPassed { get; init; }
+            public bool MemoryPassed { get; init; }
+            public bool CpuPassed { get; init; }
+            public double ActualThroughput { get; init; }
+        }
+
+        private static PerformanceChecks EvaluatePerformanceMetrics(long actualTimeMs, BddTestConfiguration config, ResourceAnalysis analysis)
+        {
+            var timingPassed = actualTimeMs <= config.MaxAllowedTimeMs;
+            var memoryPassed = analysis.PredictedRequirements.MemorySafetyMarginPercent > 10;
+            var cpuPassed = analysis.PerformanceMetrics.PeakCpuPercent < (analysis.SystemSpec.CpuCores * 80);
+            var actualThroughput = config.ExpectedMessages / Math.Max(1.0, actualTimeMs / 1000.0);
+            
+            return new PerformanceChecks
+            {
+                TimingPassed = timingPassed,
+                MemoryPassed = memoryPassed,
+                CpuPassed = cpuPassed,
+                ActualThroughput = actualThroughput
+            };
+        }
+
+        private static bool ValidateThroughputRequirements(long actualTimeMs, BddTestConfiguration config, ResourceAnalysis analysis)
+        {
+            var actualThroughput = config.ExpectedMessages / Math.Max(1.0, actualTimeMs / 1000.0);
+            
+            // Make throughput requirements more reasonable for small workloads
+            // For small message counts (<1000), focus on execution time rather than throughput
+            // For larger workloads, require at least 25% of predicted throughput (reduced from 50%)
+            if (config.ExpectedMessages < 1000)
+            {
+                // For small workloads, throughput validation is less critical - focus on completion
+                var timingPassed = actualTimeMs <= config.MaxAllowedTimeMs;
+                Console.WriteLine($"   🚀 Throughput (small workload): {actualThroughput:N0} msg/sec (validation based on timing)");
+                return timingPassed; // If it completed within time, throughput is acceptable
+            }
+            else
+            {
+                var requiredThroughput = analysis.PredictedRequirements.PredictedThroughputMsgPerSec * 0.25; // Reduced to 25%
+                var throughputPassed = actualThroughput >= requiredThroughput;
+                Console.WriteLine($"   🚀 Throughput: {actualThroughput:N0} msg/sec (required: {requiredThroughput:N0}) ({(throughputPassed ? "PASS" : "FAIL")})");
+                return throughputPassed;
+            }
+        }
+
+        private static void LogPerformanceResults(PerformanceChecks checks, bool throughputPassed)
+        {
+            Console.WriteLine($"   ⏰ Execution Time: ({(checks.TimingPassed ? "PASS" : "FAIL")})");
+            Console.WriteLine($"   💾 Memory Safety: {(checks.MemoryPassed ? "PASS" : "FAIL")}");
+            Console.WriteLine($"   ⚡ CPU Utilization: {(checks.CpuPassed ? "PASS" : "FAIL")}");
+            Console.WriteLine($"   🚀 Throughput: ({(throughputPassed ? "PASS" : "FAIL")})");
+        }
+
+        private static void ReportPerformanceFailures(PerformanceChecks checks, bool throughputPassed, BddTestCoordinator testCoordinator)
+        {
+            var failedAreas = new List<string>();
+            if (!checks.TimingPassed) failedAreas.Add("execution time");
+            if (!checks.MemoryPassed) failedAreas.Add("memory safety");
+            if (!checks.CpuPassed) failedAreas.Add("CPU utilization");
+            if (!throughputPassed) failedAreas.Add("throughput");
+            
+            testCoordinator.LogScenarioFailure($"Performance requirements failed: {string.Join(", ", failedAreas)}");
         }
         
         private static void LogBddFinalAssessment(BddVerificationResults results, BddTestCoordinator testCoordinator)
@@ -2132,60 +2170,11 @@ namespace IntegrationTestVerifier
             {
                 if (connectionString.StartsWith("redis://"))
                 {
-                    // Parse Redis URI format: redis://:password@host:port
-                    var uri = new Uri(connectionString);
-                    options.EndPoints.Add(uri.Host, uri.Port);
-                    
-                    // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
-                    if (!string.IsNullOrEmpty(uri.UserInfo))
-                    {
-                        var userInfo = uri.UserInfo;
-                        if (userInfo.Contains(':'))
-                        {
-                            // Format: redis://user:password@host:port or redis://:password@host:port
-                            var password = userInfo.Split(':')[1];
-                            if (!string.IsNullOrEmpty(password))
-                            {
-                                options.Password = password;
-                                Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
-                            }
-                        }
-                        else
-                        {
-                            // Format: redis://password@host:port (no colon, treat as password)
-                            options.Password = userInfo;
-                            Console.WriteLine($"Redis: Extracted password from URI without colon (length: {userInfo.Length})");
-                        }
-                    }
-                    
-                    Console.WriteLine($"Redis: Parsed URI - Host: {uri.Host}, Port: {uri.Port}");
+                    ParseRedisUri(connectionString, options);
                 }
                 else
                 {
-                    // Try standard parsing for comma-separated format: host:port,password=...
-                    try
-                    {
-                        options = ConfigurationOptions.Parse(connectionString);
-                        Console.WriteLine("Redis: Using standard ConfigurationOptions.Parse");
-                    }
-                    catch
-                    {
-                        // If standard parsing fails, try manual parsing for formats like "localhost:32768,password=..."
-                        var parts = connectionString.Split(',');
-                        if (parts.Length > 0)
-                        {
-                            options.EndPoints.Add(parts[0]);
-                            for (int i = 1; i < parts.Length; i++)
-                            {
-                                var part = parts[i].Trim();
-                                if (part.StartsWith("password="))
-                                {
-                                    options.Password = part.Substring("password=".Length);
-                                }
-                            }
-                        }
-                        Console.WriteLine("Redis: Using manual parsing for non-standard format");
-                    }
+                    ParseStandardConnectionString(connectionString, options);
                 }
             }
             catch (Exception ex)
@@ -2195,6 +2184,87 @@ namespace IntegrationTestVerifier
                 options.EndPoints.Add("localhost", 6379);
             }
             
+            ConfigureRedisConnectionSettings(options, isCI);
+            
+            return options;
+        }
+
+        private static void ParseRedisUri(string connectionString, ConfigurationOptions options)
+        {
+            // Parse Redis URI format: redis://:password@host:port
+            var uri = new Uri(connectionString);
+            options.EndPoints.Add(uri.Host, uri.Port);
+            
+            // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                ExtractPasswordFromUserInfo(uri.UserInfo, options);
+            }
+            
+            Console.WriteLine($"Redis: Parsed URI - Host: {uri.Host}, Port: {uri.Port}");
+        }
+
+        private static void ExtractPasswordFromUserInfo(string userInfo, ConfigurationOptions options)
+        {
+            if (userInfo.Contains(':'))
+            {
+                // Format: redis://user:password@host:port or redis://:password@host:port
+                var password = userInfo.Split(':')[1];
+                if (!string.IsNullOrEmpty(password))
+                {
+                    options.Password = password;
+                    Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
+                }
+            }
+            else
+            {
+                // Format: redis://password@host:port (no colon, treat as password)
+                options.Password = userInfo;
+                Console.WriteLine($"Redis: Extracted password from URI without colon (length: {userInfo.Length})");
+            }
+        }
+
+        private static void ParseStandardConnectionString(string connectionString, ConfigurationOptions options)
+        {
+            // Try standard parsing for comma-separated format: host:port,password=...
+            try
+            {
+                var parsed = ConfigurationOptions.Parse(connectionString);
+                // Copy parsed configuration to the options object
+                foreach (var endpoint in parsed.EndPoints)
+                {
+                    options.EndPoints.Add(endpoint);
+                }
+                options.Password = parsed.Password;
+                Console.WriteLine("Redis: Using standard ConfigurationOptions.Parse");
+            }
+            catch
+            {
+                ParseManualConnectionString(connectionString, options);
+            }
+        }
+
+        private static void ParseManualConnectionString(string connectionString, ConfigurationOptions options)
+        {
+            // If standard parsing fails, try manual parsing for formats like "localhost:32768,password=..."
+            var parts = connectionString.Split(',');
+            if (parts.Length > 0)
+            {
+                options.EndPoints.Add(parts[0]);
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    var part = parts[i].Trim();
+                    if (part.StartsWith("password="))
+                    {
+                        options.Password = part.Substring("password=".Length);
+                    }
+                }
+            }
+            Console.WriteLine("Redis: Using manual parsing for non-standard format");
+        }
+
+        private static void ConfigureRedisConnectionSettings(ConfigurationOptions options, bool isCI)
+        {
             // Set connection parameters optimized for reliability and CI environments
             options.ConnectTimeout = isCI ? 60000 : 30000; // 60s for CI, 30s for local
             options.SyncTimeout = isCI ? 60000 : 30000;    // 60s for CI, 30s for local  
@@ -2204,8 +2274,6 @@ namespace IntegrationTestVerifier
             options.AllowAdmin = true; // Allow admin commands if needed
             
             Console.WriteLine($"Redis: Configuration - ConnectTimeout: {options.ConnectTimeout}ms, AbortOnConnectFail: {options.AbortOnConnectFail}");
-            
-            return options;
         }
 
         private static async Task<bool> TestRedisPingAsync(ConnectionMultiplexer redis, bool isCI)
