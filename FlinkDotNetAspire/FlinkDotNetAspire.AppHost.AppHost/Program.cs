@@ -60,19 +60,8 @@ public static class Program
 
     private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
     {
-        var isCI = IsRunningInCI();
-        
-        var redis = builder.AddRedis("redis");
-        
-        // For CI environments, configure Redis to not require authentication
-        if (isCI)
-        {
-            // Add environment variables to disable authentication for CI testing
-            redis.WithEnvironment("REDIS_PASSWORD", "")  // Set empty password
-                 .WithEnvironment("ALLOW_EMPTY_PASSWORD", "yes");  // Allow empty passwords
-        }
-        
-        return redis.PublishAsContainer(); // Ensure Redis is accessible from host
+        return builder.AddRedis("redis")
+            .PublishAsContainer(); // Ensure Redis is accessible from host
     }
 
     private static IResourceBuilder<KafkaServerResource> AddKafkaInfrastructure(IDistributedApplicationBuilder builder)

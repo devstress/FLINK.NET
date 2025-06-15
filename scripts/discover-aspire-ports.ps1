@@ -119,33 +119,59 @@ function Get-RedisConnectionInfo {
             }
 
             # Test the connection before returning
-            Write-Host "Testing Redis connection at $connectionString..." -ForegroundColor Yellow
+            Write-Host "Testing Redis connection at localhost:$redisPort..." -ForegroundColor Yellow
             try {
-                # Simple connection test using redis-cli if available in container
+                # Test Redis connection with redis-cli ping
                 $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
                 if ($testResult -eq "PONG") {
-                    Write-Host "Redis connection test successful" -ForegroundColor Green
+                    Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                    $connectionString = "localhost:$redisPort"  # Ensure no password in connection string
                 } elseif ($testResult -match "NOAUTH") {
-                    Write-Host "Redis requires authentication - modifying connection for CI compatibility" -ForegroundColor Yellow
-                    # For CI environments, try to disable authentication or use appropriate connection
+                    Write-Host "Redis requires authentication - attempting to discover password or disable auth" -ForegroundColor Yellow
+                    # Try different approaches for CI compatibility
+                    $authHandled = $false
+                    
+                    # Approach 1: Try with empty password (some Redis configurations)
                     try {
-                        # Try to disable authentication by setting a blank password
-                        docker exec $containerId redis-cli -p 6379 CONFIG SET requirepass "" 2>/dev/null
-                        $testResult2 = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+                        $testResult2 = docker exec $containerId redis-cli -p 6379 -a "" ping 2>/dev/null
                         if ($testResult2 -eq "PONG") {
-                            Write-Host "Redis authentication disabled successfully for CI testing" -ForegroundColor Green
-                            $connectionString = "localhost:$redisPort"  # Update connection string without password
-                        } else {
-                            Write-Host "Could not disable Redis authentication, proceeding with discovered connection" -ForegroundColor Yellow
+                            Write-Host "Redis accepts empty password" -ForegroundColor Green
+                            $connectionString = "localhost:$redisPort,password="
+                            $authHandled = $true
                         }
                     } catch {
-                        Write-Host "Could not modify Redis authentication, proceeding with discovered connection" -ForegroundColor Yellow
+                        # Continue to next approach
+                    }
+                    
+                    # Approach 2: Try to disable authentication (for CI environments only)
+                    if (-not $authHandled -and ($env:CI -eq "true" -or $env:GITHUB_ACTIONS -eq "true")) {
+                        try {
+                            # Try to get current password and disable auth
+                            $currentAuth = docker exec $containerId redis-cli -p 6379 CONFIG GET requirepass 2>/dev/null
+                            if ($currentAuth) {
+                                docker exec $containerId redis-cli -p 6379 CONFIG SET requirepass "" 2>/dev/null
+                                $testResult3 = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+                                if ($testResult3 -eq "PONG") {
+                                    Write-Host "Redis authentication disabled successfully for CI testing" -ForegroundColor Green
+                                    $connectionString = "localhost:$redisPort"
+                                    $authHandled = $true
+                                }
+                            }
+                        } catch {
+                            # Continue to next approach
+                        }
+                    }
+                    
+                    # Approach 3: Use default connection and let the application handle auth
+                    if (-not $authHandled) {
+                        Write-Host "Could not resolve Redis authentication automatically - using basic connection" -ForegroundColor Yellow
+                        $connectionString = "localhost:$redisPort"
                     }
                 } else {
-                    Write-Host "Redis connection test inconclusive but proceeding" -ForegroundColor Yellow
+                    Write-Host "Redis connection test inconclusive: '$testResult' - proceeding with discovered connection" -ForegroundColor Yellow
                 }
             } catch {
-                Write-Host "Redis connection test failed, but proceeding with discovered port" -ForegroundColor Yellow
+                Write-Host "Redis connection test failed with error: $_ - proceeding with discovered port" -ForegroundColor Yellow
             }
 
             return @{
