@@ -628,8 +628,26 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
         
-        // Add Redis client using connection string for external Redis instances
-        builder.AddRedisClient("redis");
+        // Configure Redis client with enhanced URI parsing to handle password extraction
+        builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
+        {
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            var connectionString = configuration.GetConnectionString("redis");
+            
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                Console.WriteLine("💥 REDIS CONFIG ERROR: No Redis connection string found in configuration");
+                throw new InvalidOperationException("Redis connection string not found");
+            }
+            
+            Console.WriteLine($"🔄 REDIS CONFIG: Using connection string format: {(connectionString.StartsWith("redis://") ? "Redis URI" : "Standard")}");
+            
+            var options = CreateRedisConfigurationOptions(connectionString);
+            var connectionMultiplexer = ConnectionMultiplexer.Connect(options);
+            
+            Console.WriteLine($"✅ REDIS CONFIG: Connection established successfully");
+            return connectionMultiplexer;
+        });
         
         // Register IDatabase as a singleton service
         builder.Services.AddSingleton<IDatabase>(provider => 
@@ -644,6 +662,64 @@ public static class Program
         var host = builder.Build();
         await host.StartAsync();
         return host;
+    }
+
+    private static StackExchange.Redis.ConfigurationOptions CreateRedisConfigurationOptions(string connectionString)
+    {
+        if (connectionString.StartsWith("redis://"))
+        {
+            // Parse Redis URI format manually to handle password extraction properly
+            var uri = new Uri(connectionString);
+            var options = new StackExchange.Redis.ConfigurationOptions();
+            options.EndPoints.Add(uri.Host, uri.Port);
+            
+            // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var userInfo = uri.UserInfo;
+                if (userInfo.Contains(':'))
+                {
+                    // Format: redis://user:password@host:port or redis://:password@host:port
+                    var password = userInfo.Split(':')[1];
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        options.Password = password;
+                        Console.WriteLine($"🔐 REDIS CONFIG: Extracted password from URI (length: {password.Length})");
+                    }
+                    else
+                    {
+                        options.Password = ""; // Empty password
+                        Console.WriteLine("🔐 REDIS CONFIG: Using empty password from URI");
+                    }
+                }
+                else
+                {
+                    // Format: redis://password@host:port (no colon, treat as password)
+                    options.Password = userInfo;
+                    Console.WriteLine($"🔐 REDIS CONFIG: Extracted password from URI without colon (length: {userInfo.Length})");
+                }
+            }
+            else
+            {
+                // No credentials in URI
+                options.Password = "";
+                Console.WriteLine("🔐 REDIS CONFIG: No password specified in URI, using empty password");
+            }
+            
+            // Set optimal connection parameters
+            options.ConnectTimeout = 15000;
+            options.SyncTimeout = 15000;
+            options.AbortOnConnectFail = false;
+            options.ConnectRetry = 3;
+            
+            return options;
+        }
+        else
+        {
+            // Fall back to standard parsing for non-URI formats
+            Console.WriteLine("🔄 REDIS CONFIG: Using standard ConfigurationOptions.Parse for non-URI connection string");
+            return StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
+        }
     }
 
     private static (long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl) GetConfiguration()
