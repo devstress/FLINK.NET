@@ -1123,6 +1123,13 @@ public static class Program
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
         Console.WriteLine($"✅ STEP 6 COMPLETED: Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
 
+        // 🔄 STEP 6.5: Infrastructure Readiness Wait - Give Kafka and Redis time to fully start
+        Console.WriteLine("🔄 STEP 6.5: Waiting for infrastructure to be fully ready...");
+        var infrastructureWaitTime = TimeSpan.FromSeconds(10);
+        Console.WriteLine($"⏳ Waiting {infrastructureWaitTime.TotalSeconds}s for Kafka and Redis to stabilize...");
+        await Task.Delay(infrastructureWaitTime);
+        Console.WriteLine("✅ STEP 6.5 COMPLETED: Infrastructure wait period completed");
+
         // 🔄 ENHANCED PROCESS LOGGING: Confirm FlinkJobSimulator is running and discoverable
         LogProcessDiscoveryInfo();
 
@@ -1167,6 +1174,12 @@ public static class Program
         }
         Console.WriteLine("=== END DEBUG ===");
         Console.WriteLine($"🔄 STEP 3: Environment variable debug completed - proceeding to host configuration");
+        
+        // 🔍 SPECIFIC KAFKA CONNECTION STRING DEBUGGING
+        var kafkaConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__kafka");
+        Console.WriteLine($"🔍 CRITICAL DEBUG: ConnectionStrings__kafka = '{kafkaConnectionString}'");
+        var dotnetKafkaBootstrap = Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS");
+        Console.WriteLine($"🔍 CRITICAL DEBUG: DOTNET_KAFKA_BOOTSTRAP_SERVERS = '{dotnetKafkaBootstrap}'");
     }
 
     private static void LogProcessDiscoveryInfo()

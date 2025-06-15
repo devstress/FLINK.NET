@@ -41,22 +41,26 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            // Priority order for Kafka bootstrap servers (Aspire integration first):
-            // 1. ConnectionStrings__kafka (Aspire service reference)
-            // 2. DOTNET_KAFKA_BOOTSTRAP_SERVERS (for external integration tests)
+            // Priority order for Kafka bootstrap servers (external integration tests first for reliability):
+            // 1. DOTNET_KAFKA_BOOTSTRAP_SERVERS (for external integration tests - most reliable)
+            // 2. ConnectionStrings__kafka (Aspire service reference)
             // 3. ServiceUris.KafkaBootstrapServers (default fallback)
             
-            string? bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+            string? bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+            Console.WriteLine($"[{_taskName}] 🔍 DEBUG: DOTNET_KAFKA_BOOTSTRAP_SERVERS = '{bootstrapServers}'");
+            
             if (!string.IsNullOrEmpty(bootstrapServers))
             {
-                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
+                Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from external integration test: {bootstrapServers}");
             }
             else
             {
-                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+                bootstrapServers = Configuration?["ConnectionStrings__kafka"];
+                Console.WriteLine($"[{_taskName}] 🔍 DEBUG: ConnectionStrings__kafka = '{bootstrapServers}'");
+                
                 if (!string.IsNullOrEmpty(bootstrapServers))
                 {
-                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from external integration test: {bootstrapServers}");
+                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
                 }
                 else
                 {
@@ -85,18 +89,40 @@ namespace FlinkJobSimulator
                 // CompressionType = CompressionType.Snappy, // Or Lz4, Gzip
             };
 
-            try
+            // Retry logic for Kafka connection with exponential backoff
+            var maxRetries = 5;
+            var currentRetry = 0;
+            var baseDelay = TimeSpan.FromSeconds(2);
+            
+            while (currentRetry < maxRetries)
             {
-                _producer = new ProducerBuilder<Null, T>(config).Build();
-                Console.WriteLine($"[{_taskName}] Kafka producer created for bootstrap servers: {bootstrapServers}. Topic: {_topic}");
-                
-                // Try to create the topic if it doesn't exist (synchronously for Open method)
-                EnsureTopicExistsAsync(bootstrapServers).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Could not create Kafka producer. Error: {ex.Message}");
-                throw; // Rethrow to indicate failure to open
+                try
+                {
+                    Console.WriteLine($"[{_taskName}] Attempt {currentRetry + 1}/{maxRetries} - Creating Kafka producer for bootstrap servers: {bootstrapServers}");
+                    _producer = new ProducerBuilder<Null, T>(config).Build();
+                    Console.WriteLine($"[{_taskName}] ✅ Kafka producer created successfully for topic '{_topic}'");
+                    
+                    // Try to create the topic if it doesn't exist (synchronously for Open method)
+                    EnsureTopicExistsAsync(bootstrapServers).GetAwaiter().GetResult();
+                    Console.WriteLine($"[{_taskName}] ✅ Kafka topic '{_topic}' verified/created successfully");
+                    return; // Success, exit retry loop
+                }
+                catch (Exception ex)
+                {
+                    currentRetry++;
+                    var delay = TimeSpan.FromMilliseconds(baseDelay.TotalMilliseconds * Math.Pow(2, currentRetry - 1));
+                    
+                    Console.WriteLine($"[{_taskName}] ❌ Kafka connection attempt {currentRetry}/{maxRetries} failed: {ex.Message}");
+                    
+                    if (currentRetry >= maxRetries)
+                    {
+                        Console.WriteLine($"[{_taskName}] 💥 FATAL: All Kafka connection attempts failed. This will cause FlinkJobSimulator to fail startup.");
+                        throw new InvalidOperationException($"Failed to connect to Kafka after {maxRetries} attempts: {ex.Message}", ex);
+                    }
+                    
+                    Console.WriteLine($"[{_taskName}] ⏳ Waiting {delay.TotalSeconds:F1}s before retry {currentRetry + 1}...");
+                    Thread.Sleep(delay);
+                }
             }
         }
 

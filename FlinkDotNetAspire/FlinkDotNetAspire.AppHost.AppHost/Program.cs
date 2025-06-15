@@ -44,7 +44,7 @@ public static class Program
         var kafka = AddKafkaInfrastructure(builder);
         
         // Add Kafka initialization container
-        AddKafkaInitialization(builder, kafka);
+        var kafkaInit = AddKafkaInitialization(builder, kafka);
         
         // Add Kafka UI for local development only
         AddKafkaUIForLocalDevelopment(builder, kafka);
@@ -53,7 +53,7 @@ public static class Program
         var simulatorNumMessages = ConfigureFlinkCluster(builder);
         
         // Add and configure FlinkJobSimulator
-        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages);
+        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages, kafkaInit);
 
         await builder.Build().RunAsync();
     }
@@ -89,9 +89,9 @@ public static class Program
             .PublishAsContainer(); // Ensure Kafka is accessible from host
     }
 
-    private static void AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
+    private static IResourceBuilder<ContainerResource> AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
     {
-        builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
+        return builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
             .WithArgs("bash", "-c", KAFKA_INITIALIZATION_SCRIPT)
             .WaitFor(kafka);
     }
@@ -138,7 +138,8 @@ public static class Program
     private static void ConfigureFlinkJobSimulator(IDistributedApplicationBuilder builder, 
         IResourceBuilder<RedisResource> redis, 
         IResourceBuilder<KafkaServerResource> kafka, 
-        string simulatorNumMessages)
+        string simulatorNumMessages,
+        IResourceBuilder<ContainerResource> kafkaInit)
     {
         // Set the Redis password to match the Redis infrastructure configuration
         var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
@@ -151,7 +152,10 @@ public static class Program
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
             .WithEnvironment("SIMULATOR_REDIS_PASSWORD", redisPassword) // Add password for FlinkJobSimulator
-            .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+            .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+            .WaitFor(redis) // Wait for Redis to be ready
+            .WaitFor(kafka) // Wait for Kafka to be ready
+            .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
     }
 
     private static bool IsRunningInCI()
