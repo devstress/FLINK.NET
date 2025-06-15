@@ -1,5 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Confluent.Kafka;
 using FlinkDotNet.Connectors.Sources.Kafka;
 using FlinkDotNet.Core.Abstractions.Sources;

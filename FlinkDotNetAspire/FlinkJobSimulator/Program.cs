@@ -960,7 +960,7 @@ public static class Program
         BuildJobGraph(env, context, observability);
         await CleanRedisState(context, observability);
         await VerifyInfrastructureConnection(context, observability);
-        await ExecuteJobWithFallback(env, context, observability);
+        await ExecuteJobWithFallback(env, context);
     }
 
     private static void BuildJobGraph(StreamExecutionEnvironment env, JobExecutionContext context, ObservabilityServices observability)
@@ -1011,7 +1011,7 @@ public static class Program
         }
     }
 
-    private static async Task ExecuteJobWithFallback(StreamExecutionEnvironment env, JobExecutionContext context, ObservabilityServices observability)
+    private static async Task ExecuteJobWithFallback(StreamExecutionEnvironment env, JobExecutionContext context)
     {
         Console.WriteLine("🔄 STEP 8.4: Starting actual job execution using LocalStreamExecutor...");
         Console.WriteLine("Executing job using LocalStreamExecutor for Flink.Net compatibility...");
