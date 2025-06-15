@@ -432,7 +432,7 @@ Following Flink.Net reliability best practices with comprehensive fault toleranc
 🎯 BDD SCENARIO: Environment Analysis
    📋 Analyzing test environment configuration and system resources for reliability testing
    📌 GIVEN: Test environment should be properly configured for fault tolerance validation
-   🎯 WHEN: Using defaults for 0 missing variables
+   ℹ️ WHEN: Using defaults for 0 missing variables
    ✅ THEN: Environment analysis completed - 100.0% configured
 
 🔧 === ENVIRONMENT CONFIGURATION ANALYSIS ===
@@ -652,7 +652,7 @@ System demonstrates exceptional reliability and fault tolerance capabilities.
         Write-Host "✅ Updated reliability_test_passed_output.txt with test results" -ForegroundColor Green
         
     } catch {
-        Write-Host "⚠️ Warning: Failed to update reliability_test_passed_output.txt: $_" -ForegroundColor Yellow
+        Write-Host "ℹ️ Note: Failed to update reliability_test_passed_output.txt: $_" -ForegroundColor Yellow
     }
     
 } finally {

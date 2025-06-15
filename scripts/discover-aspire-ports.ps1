@@ -292,12 +292,15 @@ docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}"
 
 # Wait a bit for containers to stabilize if just started
 if ($env:CI -eq "true" -or $env:GITHUB_ACTIONS -eq "true") {
-    Write-Host "CI environment detected, waiting additional 10 seconds for container stabilization..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 10
+    Write-Host "CI environment detected, waiting additional 15 seconds for container stabilization..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 15
+} else {
+    Write-Host "Local environment detected, waiting 5 seconds for container stabilization..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 5
 }
 
-$redisInfo = Get-RedisConnectionInfo -MaxRetries 5 -DelaySeconds 3
-$kafkaPort = Get-KafkaPort -MaxRetries 5 -DelaySeconds 3
+$redisInfo = Get-RedisConnectionInfo -MaxRetries 8 -DelaySeconds 5
+$kafkaPort = Get-KafkaPort -MaxRetries 8 -DelaySeconds 5
 
 Write-Host ""
 Write-Host "=== Discovery Results ===" -ForegroundColor Cyan

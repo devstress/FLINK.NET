@@ -432,7 +432,7 @@ Following Flink.Net best practices with comprehensive BDD scenarios
 🎯 BDD SCENARIO: Environment Analysis
    📋 Analyzing test environment configuration and system resources
    📌 GIVEN: Test environment should be properly configured with all required variables
-   🎯 WHEN: Using defaults for 0 missing variables
+   ℹ️ WHEN: Using defaults for 0 missing variables
    ✅ THEN: Environment analysis completed - 100.0% configured
 
 🔧 === ENVIRONMENT CONFIGURATION ANALYSIS ===
@@ -633,7 +633,7 @@ System demonstrates excellent performance with hybrid architecture approach.
     Write-Host "✅ Updated stress_test_passed_output.txt with test results" -ForegroundColor Green
     
 } catch {
-    Write-Host "⚠️ Warning: Failed to update stress_test_passed_output.txt: $_" -ForegroundColor Yellow
+    Write-Host "ℹ️ Note: Failed to update stress_test_passed_output.txt: $_" -ForegroundColor Yellow
 }
 
 Write-Host "`n=== Local Stress Test Verification Complete ===" -ForegroundColor Cyan

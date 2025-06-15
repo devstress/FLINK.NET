@@ -68,6 +68,7 @@ jobs:
           Pop-Location
 
       - name: Start Aspire AppHost
+        timeout-minutes: 8
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES_CI }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
@@ -169,10 +170,10 @@ jobs:
           $errorJob.Id | Out-File apphost.error.job -Encoding utf8
           
           Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
-          Write-Host "AppHost started, waiting 45 seconds for Redis/Kafka container initialization and Aspire service bindings..."
+          Write-Host "AppHost started, waiting 60 seconds for Redis/Kafka container initialization and Aspire service bindings..."
           
-          # Increased startup time for Aspire service binding setup
-          Start-Sleep -Seconds 45
+          # Increased startup time for Aspire service binding setup and CI environment stability
+          Start-Sleep -Seconds 60
           
           # Add container diagnostics
           Write-Host "`n=== Container Diagnostics ==="
@@ -189,6 +190,7 @@ jobs:
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
 
       - name: Health Check Loop
+        timeout-minutes: 10
         env:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
@@ -242,6 +244,7 @@ jobs:
           }
 
       - name: Run Verification Tests
+        timeout-minutes: 15
         env:
           # SIMULATOR_NUM_MESSAGES needs to be the same as used by the job simulator.
           SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES_CI }}
