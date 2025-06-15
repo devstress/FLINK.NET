@@ -44,21 +44,21 @@ if not "%~1"=="" (
     exit /b 1
 )
 
-REM Check if PowerShell is available (prefer pwsh, fallback to powershell)
-where pwsh >NUL 2>&1
+REM Check if PowerShell is available (prefer Windows PowerShell over PowerShell Core)
+where powershell >NUL 2>&1
 if errorlevel 1 (
-    where powershell >NUL 2>&1
+    where pwsh >NUL 2>&1
     if errorlevel 1 (
-        echo [ERROR] PowerShell not found. Please install PowerShell 7+ or Windows PowerShell.
+        echo [ERROR] PowerShell not found. Please install Windows PowerShell or PowerShell 7+.
         exit /b 1
     )
-    REM Use Windows PowerShell as fallback
+    REM Use PowerShell Core as fallback
+    echo [INFO] Using PowerShell Core (pwsh) as fallback...
+    pwsh -ExecutionPolicy Bypass -File "%ROOT%\run-full-development-lifecycle.ps1" %PS_ARGS%
+) else (
+    REM Use Windows PowerShell (preferred)
     echo [INFO] Using Windows PowerShell...
     powershell -ExecutionPolicy Bypass -File "%ROOT%\run-full-development-lifecycle.ps1" %PS_ARGS%
-) else (
-    REM Use PowerShell Core (preferred)
-    echo [INFO] Using PowerShell Core (pwsh)...
-    pwsh -ExecutionPolicy Bypass -File "%ROOT%\run-full-development-lifecycle.ps1" %PS_ARGS%
 )
 
 set "EXIT_CODE=%ERRORLEVEL%"

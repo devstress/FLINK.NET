@@ -31,7 +31,7 @@ jobs:
     
     defaults:
       run:
-        shell: pwsh
+        shell: powershell
 
     steps:
       - name: Checkout code
@@ -50,11 +50,10 @@ jobs:
           java-version: '17'
           distribution: 'zulu'
 
-      - name: Install PowerShell Core
+      - name: Verify PowerShell availability
         run: |
-          # Verify PowerShell is available
+          # Verify Windows PowerShell is available
           powershell --version
-          pwsh --version
 
       - name: Install .NET Aspire Workload
         run: dotnet workload install aspire
@@ -74,7 +73,7 @@ jobs:
         run: .\run-full-development-lifecycle.cmd --help
 
       - name: Test development lifecycle script - Build only (skip tests for speed)
-        shell: pwsh
+        shell: powershell
         run: |
           # Run with timeout using Job with timeout
           $job = Start-Job -ScriptBlock {

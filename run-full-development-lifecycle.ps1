@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+#!/usr/bin/env powershell
 <#
 .SYNOPSIS
     Complete Development Lifecycle Runner with Parallel Execution and Progress Tracking
@@ -21,10 +21,10 @@
     Show help message
 
 .EXAMPLE
-    pwsh ./run-full-development-lifecycle.ps1
+    powershell ./run-full-development-lifecycle.ps1
     
 .EXAMPLE
-    pwsh ./run-full-development-lifecycle.ps1 -SkipSonar -SkipStress
+    powershell ./run-full-development-lifecycle.ps1 -SkipSonar -SkipStress
 #>
 
 param(
@@ -113,7 +113,7 @@ function Test-Command($command, $name, $url = $null) {
             'dotnet' { & dotnet --version 2>$null }
             'java' { (& java -version 2>&1)[0] -replace '.*"([^"]*)".*', '$1' }
             'docker' { (& docker --version 2>$null) -replace '.*version ([^,]*),.*', '$1' }
-            'pwsh' { $PSVersionTable.PSVersion.ToString() }
+            'powershell' { $PSVersionTable.PSVersion.ToString() }
             default { "found" }
         }
         Write-Host "[OK] $name : $version" -ForegroundColor Green
@@ -155,7 +155,7 @@ if (-not $SkipStress -or -not $SkipReliability) {
     }
 }
 
-$pwshOk = Test-Command 'pwsh' 'PowerShell'
+$powershellOk = Test-Command 'powershell' 'PowerShell'
 Write-Host "Prerequisites check completed." -ForegroundColor White
 Write-Host ""
 
@@ -244,7 +244,7 @@ foreach ($config in $testConfigs) {
             
             # Handle different script types
             if ($scriptPath.EndsWith('.ps1')) {
-                & pwsh -File $scriptPath *>&1 | Tee-Object -FilePath $logPath
+                & powershell -File $scriptPath *>&1 | Tee-Object -FilePath $logPath
             } elseif ($scriptPath.EndsWith('.sh')) {
                 if ($IsWindows) {
                     # Use WSL or bash if available on Windows
