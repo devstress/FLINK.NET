@@ -256,18 +256,21 @@ function Get-KafkaPort {
             try {
                 # Try to check if the port is responding
                 $tcpClient = New-Object System.Net.Sockets.TcpClient
-                $tcpClient.ConnectAsync("127.0.0.1", $kafkaPort).Wait(5000)
-                if ($tcpClient.Connected) {
+                $connectTask = $tcpClient.ConnectAsync("127.0.0.1", $kafkaPort)
+                $taskCompleted = $connectTask.Wait(5000)
+                if ($taskCompleted -and $tcpClient.Connected) {
                     Write-Host "Kafka port $kafkaPort is accessible" -ForegroundColor Green
                     $tcpClient.Close()
                 } else {
                     Write-Host "Kafka port $kafkaPort connection test inconclusive but proceeding" -ForegroundColor Yellow
                 }
+                $tcpClient.Dispose()
             } catch {
                 Write-Host "Kafka connection test failed, but proceeding with discovered port" -ForegroundColor Yellow
             }
             
-            return $kafkaPort
+            # Ensure we return a clean integer port value to avoid tuple issues
+            return [int]$kafkaPort
         } catch {
             Write-Host "Error in Kafka discovery attempt $retry : $_" -ForegroundColor Red
             if ($retry -lt $MaxRetries) {
@@ -313,8 +316,10 @@ if ($redisInfo) {
 
 if ($kafkaPort) {
     Write-Host "✅ Kafka discovered on port: $kafkaPort" -ForegroundColor Green
-    $env:DOTNET_KAFKA_PORT = $kafkaPort.ToString()
-    $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS = "localhost:$kafkaPort"
+    # Ensure kafkaPort is treated as an integer to avoid tuple issues
+    $kafkaPortInt = [int]$kafkaPort
+    $env:DOTNET_KAFKA_PORT = $kafkaPortInt.ToString()
+    $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS = "localhost:$kafkaPortInt"
 } else {
     Write-Host "❌ Kafka port not discovered" -ForegroundColor Red
     return 1
@@ -328,9 +333,9 @@ Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVER
 # Export for GitHub Actions if in CI
 if ($env:GITHUB_ENV) {
     "DOTNET_REDIS_PORT=$($redisInfo.Port)" | Out-File -FilePath $env:GITHUB_ENV -Append
-    "DOTNET_KAFKA_PORT=$kafkaPort" | Out-File -FilePath $env:GITHUB_ENV -Append
+    "DOTNET_KAFKA_PORT=$([int]$kafkaPort)" | Out-File -FilePath $env:GITHUB_ENV -Append
     "DOTNET_REDIS_URL=$($redisInfo.ConnectionString)" | Out-File -FilePath $env:GITHUB_ENV -Append
-    "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:$kafkaPort" | Out-File -FilePath $env:GITHUB_ENV -Append
+    "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:$([int]$kafkaPort)" | Out-File -FilePath $env:GITHUB_ENV -Append
 }
 
 Write-Host "Port discovery completed successfully!" -ForegroundColor Green
