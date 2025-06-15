@@ -24,6 +24,40 @@ using System.Diagnostics; // For Activity and tracing
 
 namespace FlinkJobSimulator
 {
+/// <summary>
+/// Contains common execution context parameters for Flink job execution methods.
+/// Reduces parameter count from 9 to 3 by grouping related parameters.
+/// </summary>
+public record JobExecutionContext(
+    long NumMessages,
+    string RedisSinkCounterKey,
+    string KafkaTopic,
+    string JobManagerGrpcUrl,
+    IDatabase RedisDatabase,
+    IConfiguration? Configuration = null
+);
+
+/// <summary>
+/// Contains observability services for Flink job execution.
+/// Groups metrics, tracing, and logging into a single parameter object.
+/// </summary>
+public record ObservabilityServices(
+    IFlinkMetrics Metrics,
+    IFlinkTracing Tracing,
+    IFlinkLogger Logger
+);
+
+/// <summary>
+/// Result of job progress monitoring containing current state and next actions.
+/// Helps reduce cognitive complexity in monitoring logic.
+/// </summary>
+public record MonitorResult(
+    long CurrentCount,
+    TimeSpan Elapsed,
+    bool ShouldLog,
+    bool ShouldExit
+);
+
 // Helper classes are defined below in this file.
 
 // Counting Sink Function (remains from previous step, not directly used in Main anymore but kept for now)
@@ -921,58 +955,68 @@ public static class Program
         }
     }
 
-    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
+    private static async Task ExecuteJob(StreamExecutionEnvironment env, JobExecutionContext context, ObservabilityServices observability)
+    {
+        BuildJobGraph(env, context, observability);
+        await CleanRedisState(context, observability);
+        await VerifyInfrastructureConnection(context, observability);
+        await ExecuteJobWithFallback(env, context, observability);
+    }
+
+    private static void BuildJobGraph(StreamExecutionEnvironment env, JobExecutionContext context, ObservabilityServices observability)
     {
         Console.WriteLine("🔄 STEP 8.1: Building JobGraph...");
-        using var jobGraphActivity = tracing.StartOperatorSpan("JobGraphBuilder", "job-graph", null);
+        using var jobGraphActivity = observability.Tracing.StartOperatorSpan("JobGraphBuilder", "job-graph", null);
         
-        JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
+        JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{context.NumMessages}");
         Console.WriteLine($"✅ STEP 8.1 COMPLETED: JobGraph created with name: {jobGraph.JobName}");
         Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
         
-        logger.LogOperatorLifecycle(LogLevel.Information, "JobGraphBuilder", "job-graph", "completed");
+        observability.Logger.LogOperatorLifecycle(LogLevel.Information, "JobGraphBuilder", "job-graph", "completed");
+    }
 
-        // *** CRITICAL FIX: Clean Redis state before each test run ***
+    private static async Task CleanRedisState(JobExecutionContext context, ObservabilityServices observability)
+    {
         Console.WriteLine("🔄 STEP 8.2: Starting Redis state cleanup...");
         Console.WriteLine("=== REDIS STATE CLEANUP ===");
-        using var cleanupActivity = tracing.StartStateOperationSpan("RedisCleanup", "state-cleanup", "cleanup");
-        await CleanRedisStateForFreshTest(redisDatabase);
+        using var cleanupActivity = observability.Tracing.StartStateOperationSpan("RedisCleanup", "state-cleanup", "cleanup");
+        await CleanRedisStateForFreshTest(context.RedisDatabase);
         Console.WriteLine("✅ STEP 8.2 COMPLETED: Redis state cleanup finished");
-        logger.LogStateOperation(LogLevel.Information, new StateOperationInfo
+        observability.Logger.LogStateOperation(LogLevel.Information, new StateOperationInfo
         {
             OperatorName = "RedisCleanup",
             TaskId = "state-cleanup",
             Operation = "cleanup",
             StateType = "redis"
         });
-        
-        // Verify infrastructure
+    }
+
+    private static async Task VerifyInfrastructureConnection(JobExecutionContext context, ObservabilityServices observability)
+    {
         Console.WriteLine("🔄 STEP 8.3: Verifying JobManager and TaskManager infrastructure...");
-        using var infraActivity = tracing.StartNetworkSpan("InfraVerifier", "JobManager", "health_check");
+        using var infraActivity = observability.Tracing.StartNetworkSpan("InfraVerifier", "JobManager", "health_check");
         try 
         {
-            await VerifyInfrastructure(jobManagerGrpcUrl);
+            await VerifyInfrastructure(context.JobManagerGrpcUrl);
             Console.WriteLine("✅ STEP 8.3 COMPLETED: Infrastructure verification finished");
-            logger.LogNetworkOperation(LogLevel.Information, "InfraVerifier", "JobManager", "health_check");
+            observability.Logger.LogNetworkOperation(LogLevel.Information, "InfraVerifier", "JobManager", "health_check");
         }
         catch (Exception infraEx)
         {
             Console.WriteLine($"⚠️ STEP 8.3 WARNING: Infrastructure verification failed: {infraEx.Message}");
             Console.WriteLine("Proceeding with local execution for integration testing...");
-            metrics.RecordError("InfraVerifier", "JobManager", infraEx.GetType().Name);
-            logger.LogError("InfraVerifier", "JobManager", infraEx, "health_check");
-            tracing.RecordSpanError(infraEx, "Infrastructure verification failed");
+            observability.Metrics.RecordError("InfraVerifier", "JobManager", infraEx.GetType().Name);
+            observability.Logger.LogError("InfraVerifier", "JobManager", infraEx, "health_check");
+            observability.Tracing.RecordSpanError(infraEx, "Infrastructure verification failed");
         }
+    }
 
-        // Execute the job
+    private static async Task ExecuteJobWithFallback(StreamExecutionEnvironment env, JobExecutionContext context, ObservabilityServices observability)
+    {
         Console.WriteLine("🔄 STEP 8.4: Starting actual job execution using LocalStreamExecutor...");
         Console.WriteLine("Executing job using LocalStreamExecutor for Flink.Net compatibility...");
         
-        // 🔄 ENHANCED JOB EXECUTION LOGGING: Track source and sink initialization
-        Console.WriteLine("🔄 ENHANCED LOGGING: Preparing to start job execution...");
-        Console.WriteLine($"🔄 Expected to process {numMessages} messages");
-        Console.WriteLine($"🔄 Redis sink counter key: '{redisSinkCounterKey}'");
-        Console.WriteLine($"🔄 Kafka topic: '{kafkaTopic}'");
+        LogJobExecutionStart(context);
         
         var jobExecutionSuccess = false;
         try 
@@ -980,10 +1024,10 @@ public static class Program
             Console.WriteLine("🔄 STEP 8.4.1: Calling env.ExecuteLocallyAsync()...");
             Console.WriteLine("🔄 ENHANCED LOGGING: Job execution starting now - monitor for source and sink activity...");
             
-            var jobTask = env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
+            var jobTask = env.ExecuteLocallyAsync($"DualSinkSimJob-{context.NumMessages}", CancellationToken.None);
             
             // Add periodic monitoring during job execution
-            var monitoringTask = MonitorJobProgressAsync(redisDatabase, redisSinkCounterKey, numMessages);
+            var monitoringTask = MonitorJobProgressAsync(context.RedisDatabase, context.RedisSinkCounterKey, context.NumMessages);
             
             await Task.WhenAll(jobTask, monitoringTask);
             
@@ -992,51 +1036,70 @@ public static class Program
         }
         catch (Exception jobEx)
         {
-            Console.WriteLine($"💥 === JOB EXECUTION ERROR DETECTED IN STEP 8.4.1 ===");
-            Console.WriteLine($"Job execution failed: {jobEx.Message}");
-            Console.WriteLine($"Exception Type: {jobEx.GetType().Name}");
-            Console.WriteLine($"Stack Trace: {jobEx.StackTrace}");
-            if (jobEx.InnerException != null)
-            {
-                Console.WriteLine($"Inner Exception: {jobEx.InnerException.GetType().Name} - {jobEx.InnerException.Message}");
-                Console.WriteLine($"Inner Stack Trace: {jobEx.InnerException.StackTrace}");
-            }
-            Console.WriteLine("💥 CRITICAL: Job execution failed - this explains why sinks are not processing");
-            
-            // Instead of crashing, mark Redis with a special error indicator
-            try
-            {
-                Console.WriteLine("🔄 STEP 8.4.2: Marking Redis with job execution error...");
-                await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"{jobEx.GetType().Name}: {jobEx.Message}");
-                Console.WriteLine("✅ STEP 8.4.2 COMPLETED: Marked Redis with job execution error indicator");
-            }
-            catch (Exception redisEx)
-            {
-                Console.WriteLine($"💥 STEP 8.4.2 FAILED: Failed to mark Redis with error: {redisEx.Message}");
-            }
+            await HandleJobExecutionError(jobEx, context);
         }
         
         if (!jobExecutionSuccess)
         {
-            Console.WriteLine("🔄 STEP 8.5: LocalStreamExecutor failed - attempting direct execution fallback...");
-            Console.WriteLine("=== ATTEMPTING SIMPLIFIED DIRECT EXECUTION FALLBACK ===");
-            Console.WriteLine("LocalStreamExecutor failed - trying direct execution for stress test compatibility");
-            
-            try
-            {
-                Console.WriteLine("🔄 STEP 8.5.1: Starting direct execution...");
-                ExecuteJobDirectly(numMessages, redisDatabase);
-                Console.WriteLine("✅ STEP 8.5.1 COMPLETED: Direct execution completed successfully");
-            }
-            catch (Exception directEx)
-            {
-                Console.WriteLine($"💥 STEP 8.5.1 FAILED: Direct execution also failed: {directEx.Message}");
-                await redisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"Both LocalStreamExecutor and Direct execution failed: {directEx.Message}");
-            }
+            await ExecuteDirectFallback(context);
         }
         else
         {
             Console.WriteLine("✅ STEP 8.4 COMPLETED: Job execution using LocalStreamExecutor was successful");
+        }
+    }
+
+    private static void LogJobExecutionStart(JobExecutionContext context)
+    {
+        Console.WriteLine("🔄 ENHANCED JOB EXECUTION LOGGING: Track source and sink initialization");
+        Console.WriteLine("🔄 ENHANCED LOGGING: Preparing to start job execution...");
+        Console.WriteLine($"🔄 Expected to process {context.NumMessages} messages");
+        Console.WriteLine($"🔄 Redis sink counter key: '{context.RedisSinkCounterKey}'");
+        Console.WriteLine($"🔄 Kafka topic: '{context.KafkaTopic}'");
+    }
+
+    private static async Task HandleJobExecutionError(Exception jobEx, JobExecutionContext context)
+    {
+        Console.WriteLine($"💥 === JOB EXECUTION ERROR DETECTED IN STEP 8.4.1 ===");
+        Console.WriteLine($"Job execution failed: {jobEx.Message}");
+        Console.WriteLine($"Exception Type: {jobEx.GetType().Name}");
+        Console.WriteLine($"Stack Trace: {jobEx.StackTrace}");
+        if (jobEx.InnerException != null)
+        {
+            Console.WriteLine($"Inner Exception: {jobEx.InnerException.GetType().Name} - {jobEx.InnerException.Message}");
+            Console.WriteLine($"Inner Stack Trace: {jobEx.InnerException.StackTrace}");
+        }
+        Console.WriteLine("💥 CRITICAL: Job execution failed - this explains why sinks are not processing");
+        
+        // Instead of crashing, mark Redis with a special error indicator
+        try
+        {
+            Console.WriteLine("🔄 STEP 8.4.2: Marking Redis with job execution error...");
+            await context.RedisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"{jobEx.GetType().Name}: {jobEx.Message}");
+            Console.WriteLine("✅ STEP 8.4.2 COMPLETED: Marked Redis with job execution error indicator");
+        }
+        catch (Exception redisEx)
+        {
+            Console.WriteLine($"💥 STEP 8.4.2 FAILED: Failed to mark Redis with error: {redisEx.Message}");
+        }
+    }
+
+    private static async Task ExecuteDirectFallback(JobExecutionContext context)
+    {
+        Console.WriteLine("🔄 STEP 8.5: LocalStreamExecutor failed - attempting direct execution fallback...");
+        Console.WriteLine("=== ATTEMPTING SIMPLIFIED DIRECT EXECUTION FALLBACK ===");
+        Console.WriteLine("LocalStreamExecutor failed - trying direct execution for stress test compatibility");
+        
+        try
+        {
+            Console.WriteLine("🔄 STEP 8.5.1: Starting direct execution...");
+            ExecuteJobDirectly(context.NumMessages, context.RedisDatabase);
+            Console.WriteLine("✅ STEP 8.5.1 COMPLETED: Direct execution completed successfully");
+        }
+        catch (Exception directEx)
+        {
+            Console.WriteLine($"💥 STEP 8.5.1 FAILED: Direct execution also failed: {directEx.Message}");
+            await context.RedisDatabase.StringSetAsync("flinkdotnet:job_execution_error", $"Both LocalStreamExecutor and Direct execution failed: {directEx.Message}");
         }
     }
 
@@ -1174,7 +1237,9 @@ public static class Program
         // 🔄 ENHANCED PROCESS LOGGING: Confirm FlinkJobSimulator is running and discoverable
         LogProcessDiscoveryInfo();
 
-        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration, metrics, tracing, logger);
+        var context = new JobExecutionContext(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration);
+        var observability = new ObservabilityServices(metrics, tracing, logger);
+        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(context, observability);
         
         await FinalizeAndKeepAlive(totalStartTime, redisSinkCounterKey, kafkaTopic, redisDatabase, jobExecutionSuccess);
     }
@@ -1277,45 +1342,19 @@ public static class Program
             {
                 await Task.Delay(TimeSpan.FromSeconds(5));
                 
-                try
+                var monitorResult = await CheckJobProgress(redisDatabase, redisSinkCounterKey, expectedMessages, startTime, lastCount, lastLogTime);
+                
+                if (monitorResult.ShouldLog)
                 {
-                    var currentCountStr = await redisDatabase.StringGetAsync(redisSinkCounterKey);
-                    var currentCount = (long)(currentCountStr.HasValue ? currentCountStr : 0);
-                    var elapsed = DateTime.UtcNow - startTime;
-                    var progressPercent = expectedMessages > 0 ? (double)currentCount / expectedMessages * 100 : 0;
-                    
-                    // Log progress every 30 seconds or when count changes significantly
-                    if (DateTime.UtcNow - lastLogTime > TimeSpan.FromSeconds(30) || 
-                        currentCount - lastCount >= 1000 ||
-                        currentCount == 0 && elapsed.TotalSeconds > 10)
-                    {
-                        Console.WriteLine($"📊 JOB MONITOR: {elapsed.TotalSeconds:F0}s - Redis counter '{redisSinkCounterKey}': {currentCount}/{expectedMessages} ({progressPercent:F1}%)");
-                        lastLogTime = DateTime.UtcNow;
-                        lastCount = currentCount;
-                        
-                        if (currentCount == 0 && elapsed.TotalSeconds > 30)
-                        {
-                            Console.WriteLine($"⚠️ JOB MONITOR WARNING: No messages processed after {elapsed.TotalSeconds:F0}s - job may not be running");
-                        }
-                    }
-                    
-                    // Exit monitoring when job completes
-                    if (currentCount >= expectedMessages)
-                    {
-                        Console.WriteLine($"✅ JOB MONITOR: Job completed - processed {currentCount} messages in {elapsed.TotalSeconds:F1}s");
-                        break;
-                    }
-                    
-                    // Exit monitoring after reasonable time limit
-                    if (elapsed.TotalSeconds > 300) // 5 minutes
-                    {
-                        Console.WriteLine($"⏰ JOB MONITOR: Stopping monitoring after {elapsed.TotalSeconds:F0}s - final count: {currentCount}");
-                        break;
-                    }
+                    LogProgressUpdate(monitorResult, redisSinkCounterKey, expectedMessages);
+                    lastLogTime = DateTime.UtcNow;
+                    lastCount = monitorResult.CurrentCount;
                 }
-                catch (Exception ex)
+                
+                if (monitorResult.ShouldExit)
                 {
-                    Console.WriteLine($"🚨 JOB MONITOR ERROR: {ex.Message}");
+                    LogMonitoringExit(monitorResult, startTime);
+                    break;
                 }
             }
         }
@@ -1325,13 +1364,69 @@ public static class Program
         }
     }
 
-    private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
+    private static async Task<MonitorResult> CheckJobProgress(IDatabase redisDatabase, string redisSinkCounterKey, long expectedMessages, DateTime startTime, long lastCount, DateTime lastLogTime)
+    {
+        try
+        {
+            var currentCountStr = await redisDatabase.StringGetAsync(redisSinkCounterKey);
+            var currentCount = (long)(currentCountStr.HasValue ? currentCountStr : 0);
+            var elapsed = DateTime.UtcNow - startTime;
+            
+            var shouldLog = ShouldLogProgress(elapsed, lastLogTime, currentCount, lastCount);
+            var shouldExit = ShouldExitMonitoring(currentCount, expectedMessages, elapsed);
+            
+            return new MonitorResult(currentCount, elapsed, shouldLog, shouldExit);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"🚨 JOB MONITOR ERROR: {ex.Message}");
+            return new MonitorResult(0, DateTime.UtcNow - startTime, false, false);
+        }
+    }
+
+    private static bool ShouldLogProgress(TimeSpan elapsed, DateTime lastLogTime, long currentCount, long lastCount)
+    {
+        return DateTime.UtcNow - lastLogTime > TimeSpan.FromSeconds(30) || 
+               currentCount - lastCount >= 1000 ||
+               (currentCount == 0 && elapsed.TotalSeconds > 10);
+    }
+
+    private static bool ShouldExitMonitoring(long currentCount, long expectedMessages, TimeSpan elapsed)
+    {
+        return currentCount >= expectedMessages || elapsed.TotalSeconds > 300;
+    }
+
+    private static void LogProgressUpdate(MonitorResult result, string redisSinkCounterKey, long expectedMessages)
+    {
+        var progressPercent = expectedMessages > 0 ? (double)result.CurrentCount / expectedMessages * 100 : 0;
+        Console.WriteLine($"📊 JOB MONITOR: {result.Elapsed.TotalSeconds:F0}s - Redis counter '{redisSinkCounterKey}': {result.CurrentCount}/{expectedMessages} ({progressPercent:F1}%)");
+        
+        if (result.CurrentCount == 0 && result.Elapsed.TotalSeconds > 30)
+        {
+            Console.WriteLine($"⚠️ JOB MONITOR WARNING: No messages processed after {result.Elapsed.TotalSeconds:F0}s - job may not be running");
+        }
+    }
+
+    private static void LogMonitoringExit(MonitorResult result, DateTime startTime)
+    {
+        var elapsed = DateTime.UtcNow - startTime;
+        if (result.ShouldExit && result.CurrentCount > 0) // Job completed successfully
+        {
+            Console.WriteLine($"✅ JOB MONITOR: Job completed - processed {result.CurrentCount} messages in {elapsed.TotalSeconds:F1}s");
+        }
+        else // Time limit reached or other reason
+        {
+            Console.WriteLine($"⏰ JOB MONITOR: Stopping monitoring after {elapsed.TotalSeconds:F0}s - final count: {result.CurrentCount}");
+        }
+    }
+
+    private static async Task<bool> ExecuteJobWithErrorHandling(JobExecutionContext context, ObservabilityServices observability)
     {
         // ✨ START JOB-LEVEL TRACING
-        using var jobActivity = tracing.StartOperatorSpan("FlinkJobSimulator", "main-job", null);
+        using var jobActivity = observability.Tracing.StartOperatorSpan("FlinkJobSimulator", "main-job", null);
         var jobId = $"job-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
         
-        logger.LogJobEvent(LogLevel.Information, jobId, "FlinkJobSimulator", "job_started");
+        observability.Logger.LogJobEvent(LogLevel.Information, jobId, "FlinkJobSimulator", "job_started");
         
         // ✨ DETECT EXECUTION MODE
         var isStressTestMode = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
@@ -1344,28 +1439,28 @@ public static class Program
         if (isStressTestMode)
         {
             Console.WriteLine("🎯 STRESS TEST MODE: Using TaskManager Kafka Consumer for load distribution");
-            return await ExecuteStressTestWithTaskManagerDistribution(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, logger);
+            return await ExecuteStressTestWithTaskManagerDistribution(context, observability.Logger);
         }
         else if (isReliabilityTestMode)
         {
             Console.WriteLine("🛡️ RELIABILITY TEST MODE: Using fault tolerance patterns");
-            return await ExecuteReliabilityTestWithFaultTolerance(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration, metrics, tracing, logger);
+            return await ExecuteReliabilityTestWithFaultTolerance(context, observability);
         }
         else
         {
             Console.WriteLine("🔄 STANDARD MODE: Using traditional LocalStreamExecutor");
-            return await ExecuteStandardJob(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration, metrics, tracing, logger);
+            return await ExecuteStandardJob(context, observability);
         }
     }
 
-    private static async Task<bool> ExecuteStressTestWithTaskManagerDistribution(long numMessages, string redisSinkCounterKey, string kafkaTopic, IDatabase redisDatabase, IFlinkLogger logger)
+    private static async Task<bool> ExecuteStressTestWithTaskManagerDistribution(JobExecutionContext context, IFlinkLogger logger)
     {
         var jobId = $"stress-test-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
         Console.WriteLine("🎯 === STRESS TEST EXECUTION: All 20 TaskManagers Load Distribution ===");
         Console.WriteLine($"🎯 Job ID: {jobId}");
-        Console.WriteLine($"🎯 Expected Messages: {numMessages}");
-        Console.WriteLine($"🎯 Redis Counter Key: {redisSinkCounterKey}");
-        Console.WriteLine($"🎯 Kafka Topic: {kafkaTopic} (20 partitions for load distribution)");
+        Console.WriteLine($"🎯 Expected Messages: {context.NumMessages}");
+        Console.WriteLine($"🎯 Redis Counter Key: {context.RedisSinkCounterKey}");
+        Console.WriteLine($"🎯 Kafka Topic: {context.KafkaTopic} (20 partitions for load distribution)");
         
         try
         {
@@ -1384,13 +1479,13 @@ public static class Program
                 try
                 {
                     // Check Redis counter to see progress
-                    var currentCount = await redisDatabase.StringGetAsync(redisSinkCounterKey);
+                    var currentCount = await context.RedisDatabase.StringGetAsync(context.RedisSinkCounterKey);
                     if (currentCount.HasValue && long.TryParse(currentCount, out var count))
                     {
-                        var progress = (double)count / numMessages * 100;
-                        Console.WriteLine($"🎯 STRESS TEST PROGRESS: {count}/{numMessages} messages processed ({progress:F1}%)");
+                        var progress = (double)count / context.NumMessages * 100;
+                        Console.WriteLine($"🎯 STRESS TEST PROGRESS: {count}/{context.NumMessages} messages processed ({progress:F1}%)");
                         
-                        if (count >= numMessages)
+                        if (count >= context.NumMessages)
                         {
                             Console.WriteLine("✅ STRESS TEST: Target message count reached!");
                             completed = true;
@@ -1433,12 +1528,12 @@ public static class Program
         }
     }
 
-    private static async Task<bool> ExecuteReliabilityTestWithFaultTolerance(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
+    private static async Task<bool> ExecuteReliabilityTestWithFaultTolerance(JobExecutionContext context, ObservabilityServices observability)
     {
         var jobId = $"reliability-test-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
         Console.WriteLine("🛡️ === RELIABILITY TEST EXECUTION: Fault Tolerance Validation ===");
         Console.WriteLine($"🛡️ Job ID: {jobId}");
-        Console.WriteLine($"🛡️ Expected Messages: {numMessages}");
+        Console.WriteLine($"🛡️ Expected Messages: {context.NumMessages}");
         Console.WriteLine($"🛡️ Fault Injection Rate: 5%");
         Console.WriteLine($"🛡️ Focus: Error recovery, state preservation, load balancing resilience");
         
@@ -1446,40 +1541,40 @@ public static class Program
         {
             // Set up Flink environment with enhanced fault tolerance
             Console.WriteLine("🛡️ Setting up Flink environment with enhanced fault tolerance...");
-            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
+            var env = SetupFlinkEnvironment(context.NumMessages, context.RedisSinkCounterKey, context.KafkaTopic, context.RedisDatabase, context.Configuration!);
             
             // Execute with fault tolerance monitoring
             Console.WriteLine("🛡️ Starting fault-tolerant job execution...");
-            await ExecuteJob(env, numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, metrics, tracing, logger);
+            await ExecuteJob(env, context, observability);
             
             Console.WriteLine("✅ RELIABILITY TEST EXECUTION: Completed successfully with fault tolerance validation");
-            logger.LogJobEvent(LogLevel.Information, jobId, "ReliabilityTest", "completed_with_fault_tolerance");
+            observability.Logger.LogJobEvent(LogLevel.Information, jobId, "ReliabilityTest", "completed_with_fault_tolerance");
             return true;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"❌ RELIABILITY TEST EXECUTION FAILED: {ex.Message}");
-            logger.LogError("ReliabilityTest", jobId, ex, "execution_failed");
+            observability.Logger.LogError("ReliabilityTest", jobId, ex, "execution_failed");
             
             // In reliability test, we should attempt recovery
             Console.WriteLine("🛡️ RELIABILITY TEST: Attempting fault recovery...");
             try
             {
-                ExecuteJobDirectly(numMessages, redisDatabase);
+                ExecuteJobDirectly(context.NumMessages, context.RedisDatabase);
                 Console.WriteLine("✅ RELIABILITY TEST: Recovery successful");
-                logger.LogJobEvent(LogLevel.Information, jobId, "ReliabilityTest", "recovered_after_failure");
+                observability.Logger.LogJobEvent(LogLevel.Information, jobId, "ReliabilityTest", "recovered_after_failure");
                 return true;
             }
             catch (Exception recoveryEx)
             {
                 Console.WriteLine($"❌ RELIABILITY TEST: Recovery failed: {recoveryEx.Message}");
-                logger.LogError("ReliabilityTest", jobId, recoveryEx, "recovery_failed");
+                observability.Logger.LogError("ReliabilityTest", jobId, recoveryEx, "recovery_failed");
                 return false;
             }
         }
     }
 
-    private static async Task<bool> ExecuteStandardJob(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
+    private static async Task<bool> ExecuteStandardJob(JobExecutionContext context, ObservabilityServices observability)
     {
         var jobId = $"standard-job-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
         
@@ -1487,42 +1582,42 @@ public static class Program
         {
             Console.WriteLine("🔄 STEP 7: Setting up Flink environment...");
             var envSetupStartTime = DateTime.UtcNow;
-            var env = SetupFlinkEnvironment(numMessages, redisSinkCounterKey, kafkaTopic, redisDatabase, configuration);
+            var env = SetupFlinkEnvironment(context.NumMessages, context.RedisSinkCounterKey, context.KafkaTopic, context.RedisDatabase, context.Configuration!);
             var envSetupDuration = DateTime.UtcNow - envSetupStartTime;
             Console.WriteLine($"✅ STEP 7 COMPLETED: Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
             
             // Log performance metric
-            logger.LogPerformance(LogLevel.Information, "FlinkJobSimulator", "main-job", 
+            observability.Logger.LogPerformance(LogLevel.Information, "FlinkJobSimulator", "main-job", 
                 "environment_setup_time", envSetupDuration.TotalMilliseconds, "ms");
             
             Console.WriteLine("🔄 STEP 8: Starting job execution...");
             var jobStartTime = DateTime.UtcNow;
-            await ExecuteJob(env, numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, metrics, tracing, logger);
+            await ExecuteJob(env, context, observability);
             var jobDuration = DateTime.UtcNow - jobStartTime;
             Console.WriteLine($"✅ STEP 8 COMPLETED: Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
             
             // Record job completion metrics
-            metrics.RecordCheckpointDuration(jobId, jobDuration);
-            logger.LogPerformance(LogLevel.Information, "FlinkJobSimulator", "main-job", 
+            observability.Metrics.RecordCheckpointDuration(jobId, jobDuration);
+            observability.Logger.LogPerformance(LogLevel.Information, "FlinkJobSimulator", "main-job", 
                 "job_execution_time", jobDuration.TotalMilliseconds, "ms");
-            logger.LogJobEvent(LogLevel.Information, jobId, "FlinkJobSimulator", "job_completed");
+            observability.Logger.LogJobEvent(LogLevel.Information, jobId, "FlinkJobSimulator", "job_completed");
             
             return true;
         }
         catch (Exception ex)
         {
             // Record error metrics and logs
-            metrics.RecordError("FlinkJobSimulator", "main-job", ex.GetType().Name);
-            logger.LogError("FlinkJobSimulator", "main-job", ex, "job_execution");
-            tracing.RecordSpanError(ex, "Job execution failed");
+            observability.Metrics.RecordError("FlinkJobSimulator", "main-job", ex.GetType().Name);
+            observability.Logger.LogError("FlinkJobSimulator", "main-job", ex, "job_execution");
+            observability.Tracing.RecordSpanError(ex, "Job execution failed");
             
-            await HandleJobExecutionError(ex, redisDatabase);
-            logger.LogJobEvent(LogLevel.Error, jobId, "FlinkJobSimulator", "job_failed");
+            await HandleStandardJobExecutionError(ex, context.RedisDatabase);
+            observability.Logger.LogJobEvent(LogLevel.Error, jobId, "FlinkJobSimulator", "job_failed");
             return false;
         }
     }
 
-    private static async Task HandleJobExecutionError(Exception ex, IDatabase redisDatabase)
+    private static async Task HandleStandardJobExecutionError(Exception ex, IDatabase redisDatabase)
     {
         Console.WriteLine($"💥 === SIMULATOR ERROR IN MAIN TRY BLOCK ===");
         Console.WriteLine($"Error Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
