@@ -4,35 +4,7 @@ namespace FlinkDotNetAspire.AppHost.AppHost;
 
 public static class Program
 {
-    public static async Task Main(string[] args)
-    {
-        var builder = DistributedApplication.CreateBuilder(args);
-
-        // Add resources with Aspire's default dynamic port allocation
-        // Don't force specific ports - let Aspire handle port management
-        var redis = builder.AddRedis("redis")
-            .PublishAsContainer(); // Ensure Redis is accessible from host
-        
-        // Use Aspire's built-in Kafka with proper service bindings and custom configuration optimized for CI
-        var kafka = builder.AddKafka("kafka")
-            .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
-            .WithEnvironment("KAFKA_NUM_PARTITIONS", "4") // Reduced for CI
-            .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
-            .WithEnvironment("KAFKA_LOG_RETENTION_HOURS", "1") // Reduced for CI
-            .WithEnvironment("KAFKA_LOG_SEGMENT_BYTES", "104857600") // 100MB, reduced for CI
-            .WithEnvironment("KAFKA_MESSAGE_MAX_BYTES", "1048576") // 1MB, reduced for CI
-            .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", "1048576") // 1MB
-            .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
-            .WithEnvironment("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MESSAGES", "1000") // Faster flushing for CI
-            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MS", "1000") // Faster flushing
-            .PublishAsContainer(); // Ensure Kafka is accessible from host
-
-        // Add Kafka topic initialization container with better error handling and CI compatibility
-        builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
-            .WithArgs("bash", "-c", @"
+    private const string KAFKA_INITIALIZATION_SCRIPT = @"
                 echo 'Waiting for Kafka to be ready...'
                 max_attempts=30
                 attempt=0
@@ -61,11 +33,66 @@ public static class Program
                 echo 'Topic list:'
                 kafka-topics --list --bootstrap-server kafka:9092
                 echo 'Kafka initialization completed successfully!'
-            ")
-            .WaitFor(kafka);
+            ";
 
-        // Add Kafka UI for visual monitoring and management - disabled in CI for performance
-        var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+    public static async Task Main(string[] args)
+    {
+        var builder = DistributedApplication.CreateBuilder(args);
+
+        // Add Redis and Kafka infrastructure
+        var redis = AddRedisInfrastructure(builder);
+        var kafka = AddKafkaInfrastructure(builder);
+        
+        // Add Kafka initialization container
+        AddKafkaInitialization(builder, kafka);
+        
+        // Add Kafka UI for local development only
+        AddKafkaUIForLocalDevelopment(builder, kafka);
+
+        // Configure Flink cluster based on environment
+        var simulatorNumMessages = ConfigureFlinkCluster(builder);
+        
+        // Add and configure FlinkJobSimulator
+        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages);
+
+        await builder.Build().RunAsync();
+    }
+
+    private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
+    {
+        return builder.AddRedis("redis")
+            .PublishAsContainer(); // Ensure Redis is accessible from host
+    }
+
+    private static IResourceBuilder<KafkaServerResource> AddKafkaInfrastructure(IDistributedApplicationBuilder builder)
+    {
+        return builder.AddKafka("kafka")
+            .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
+            .WithEnvironment("KAFKA_NUM_PARTITIONS", "4") // Reduced for CI
+            .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
+            .WithEnvironment("KAFKA_LOG_RETENTION_HOURS", "1") // Reduced for CI
+            .WithEnvironment("KAFKA_LOG_SEGMENT_BYTES", "104857600") // 100MB, reduced for CI
+            .WithEnvironment("KAFKA_MESSAGE_MAX_BYTES", "1048576") // 1MB, reduced for CI
+            .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", "1048576") // 1MB
+            .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
+            .WithEnvironment("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1") // CI compatibility
+            .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1") // CI compatibility
+            .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1") // CI compatibility
+            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MESSAGES", "1000") // Faster flushing for CI
+            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MS", "1000") // Faster flushing
+            .PublishAsContainer(); // Ensure Kafka is accessible from host
+    }
+
+    private static void AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
+    {
+        builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
+            .WithArgs("bash", "-c", KAFKA_INITIALIZATION_SCRIPT)
+            .WaitFor(kafka);
+    }
+
+    private static void AddKafkaUIForLocalDevelopment(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
+    {
+        var isCI = IsRunningInCI();
         if (!isCI)
         {
             builder.AddContainer("kafka-ui", "provectuslabs/kafka-ui", "latest")
@@ -76,24 +103,20 @@ public static class Program
                 .PublishAsContainer()
                 .WaitFor(kafka);
         }
+    }
 
-        // Set up message count based on environment - smaller for CI
-        var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES");
-        if (string.IsNullOrEmpty(simulatorNumMessages))
-        {
-            // Default to smaller numbers in CI environments for faster execution
-            simulatorNumMessages = isCI ? "1000" : "100000";
-        }
+    private static string ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
+    {
+        var isCI = IsRunningInCI();
+        var simulatorNumMessages = GetSimulatorMessageCount(isCI);
+        var taskManagerCount = isCI ? 5 : 20; // Reduce TaskManager count in CI for resource efficiency
 
-        // Reduce TaskManager count in CI for resource efficiency
-        var taskManagerCount = isCI ? 5 : 20;
-
-        // Add JobManager (1 instance) - Using project for GitHub Actions compatibility
+        // Add JobManager (1 instance)
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
-        // Add TaskManagers - Using projects for GitHub Actions compatibility
+        // Add TaskManagers
         for (int i = 1; i <= taskManagerCount; i++)
         {
             builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
@@ -103,23 +126,39 @@ public static class Program
                 .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", jobManager.GetEndpoint("https"));
         }
 
-        // Provide Redis and Kafka connection information to the FlinkJobSimulator
-        // Use Aspire service bindings to get proper connection strings
-        // Wait for infrastructure to be ready before starting the simulator
-        var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
+        return simulatorNumMessages;
+    }
+
+    private static void ConfigureFlinkJobSimulator(IDistributedApplicationBuilder builder, 
+        IResourceBuilder<RedisResource> redis, 
+        IResourceBuilder<KafkaServerResource> kafka, 
+        string simulatorNumMessages)
+    {
+        builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
             .WithReference(kafka) // Makes Kafka service binding available
-            .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages) // Use environment variable or default
-            .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter") // Redis sink counter key
-            .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id") // Redis global sequence key
-            .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic") // Default Kafka topic
+            .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
+            .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
+            .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
+            .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+            .WithEnvironment("UseAspireServiceBindings", "true")
             .WaitFor(redis);
-        
-        // Configure the FlinkJobSimulator to use Aspire service bindings for Kafka
-        // This ensures proper port discovery and connection string generation
-        flinkJobSimulator.WithEnvironment("UseAspireServiceBindings", "true");
+    }
 
-        await builder.Build().RunAsync();
+    private static bool IsRunningInCI()
+    {
+        return Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+    }
+
+    private static string GetSimulatorMessageCount(bool isCI)
+    {
+        var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES");
+        if (string.IsNullOrEmpty(simulatorNumMessages))
+        {
+            // Default to smaller numbers in CI environments for faster execution
+            simulatorNumMessages = isCI ? "1000" : "100000";
+        }
+        return simulatorNumMessages;
     }
 }
