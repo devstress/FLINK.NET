@@ -108,6 +108,31 @@ All optimizations maintain full backward compatibility:
 - Same error handling behavior
 - Same output format
 
+## Continuous Integration Testing
+
+### GitHub Workflow Validation
+
+A dedicated GitHub workflow (`test-development-lifecycle.yml`) validates the development lifecycle scripts on both Windows and Linux platforms:
+
+**Features:**
+- Matrix strategy testing on `windows-latest` and `ubuntu-latest`
+- Cross-platform PowerShell compatibility testing
+- Docker container execution validation
+- Prerequisites verification (dotnet, java, docker, powershell)
+- Syntax validation and help command testing
+
+**Test Coverage:**
+- Windows batch script (`run-full-development-lifecycle.cmd`)
+- Linux shell script (`run-full-development-lifecycle.sh`) 
+- Shared PowerShell core (`run-full-development-lifecycle.ps1`)
+- Docker containerized environments
+- Both PowerShell Core and Windows PowerShell
+
+**Execution:**
+- Triggers on changes to lifecycle scripts or workflow file
+- Uses skip flags to avoid expensive full test runs during validation
+- Provides comprehensive logs and artifacts for debugging
+
 ## Usage
 
 No changes to usage patterns are required:
