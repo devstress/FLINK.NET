@@ -93,9 +93,19 @@ jobs:
           Write-Host "⏳ Waiting for Aspire environment and service bindings to be fully ready..."
           Start-Sleep -Seconds 60 # Increased wait time for full Aspire service binding initialization
 
+      - name: Discover Aspire Container Ports
+        run: |
+          Write-Host "Discovering actual Aspire container ports after AppHost startup..."
+          & ./scripts/discover-aspire-ports.ps1
+          
+          Write-Host "Current environment variables after discovery:"
+          Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+
       - name: Infrastructure Health Check
         env:
           DOTNET_ENVIRONMENT: "Development"
+          # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
         run: |
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
@@ -131,9 +141,12 @@ jobs:
           FLINKDOTNET_STANDARD_TEST_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
           MAX_ALLOWED_TIME_MS: ${{ env.MAX_ALLOWED_TIME_MS }}
           DOTNET_ENVIRONMENT: "Development"
+          # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
         run: |
           Write-Host "🧪 Running Flink.Net Standard Reliability Test with ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages..."
-          Write-Host "📊 Using Aspire-managed Kafka and Redis infrastructure"
+          Write-Host "📊 Environment variables:"
+          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
           Write-Host "⏱️ Maximum allowed time: ${{ env.MAX_ALLOWED_TIME_MS }}ms"
           
           Push-Location FlinkDotNetAspire/FlinkDotnetStandardReliabilityTest
