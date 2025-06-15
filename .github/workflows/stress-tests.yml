@@ -206,6 +206,7 @@ jobs:
           SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
+          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
           $maxAttempts = 5  # Increased attempts for CI reliability
           $delaySeconds = 10  # Adequate delay for CI environment
@@ -457,6 +458,7 @@ jobs:
           SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
+          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
           # Check if AppHost is still running
           if (Test-Path apphost.pid) {

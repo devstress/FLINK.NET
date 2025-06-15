@@ -111,6 +111,7 @@ jobs:
           SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
+          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
@@ -157,6 +158,7 @@ jobs:
           DOTNET_ENVIRONMENT: "Development"
           SIMULATOR_NUM_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
           Write-Host "🕐 Waiting for FlinkJobSimulator to complete message processing..."
           Write-Host "Expected messages: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
@@ -170,8 +172,8 @@ jobs:
           $completed = $false
           while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
             try {
-              # Use redis-cli to check the counter value
-              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+              # Use redis-cli to check the counter value with password authentication
+              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
               $counterValue = Invoke-Expression $redisCommand 2>$null
               
               if ($counterValue -match '^\d+$') {
