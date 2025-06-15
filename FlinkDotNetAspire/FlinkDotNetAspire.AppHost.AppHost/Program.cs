@@ -154,36 +154,62 @@ public static class Program
         // Set the Redis password to match the Redis infrastructure configuration
         var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
         
+        // Check if we should use simplified mode
+        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
+                               Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
+                               Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+        
         // Check if we should use Kafka source for TaskManager load testing
         var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
         
+        Console.WriteLine($"🔍 APPHOST CONFIG: USE_SIMPLIFIED_MODE={Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")}");
+        Console.WriteLine($"🔍 APPHOST CONFIG: CI={Environment.GetEnvironmentVariable("CI")}");
+        Console.WriteLine($"🔍 APPHOST CONFIG: GITHUB_ACTIONS={Environment.GetEnvironmentVariable("GITHUB_ACTIONS")}");
+        Console.WriteLine($"🔍 APPHOST CONFIG: Final useSimplifiedMode: {useSimplifiedMode}");
+        Console.WriteLine($"🔍 APPHOST CONFIG: useKafkaSource: {useKafkaSource}");
+        
         var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
-            .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
             .WithEnvironment("SIMULATOR_REDIS_PASSWORD", redisPassword) // Add password for FlinkJobSimulator
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-            .WaitFor(redis) // Wait for Redis to be ready
-            .WaitFor(kafka) // Wait for Kafka to be ready
-            .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+            .WaitFor(redis); // Always wait for Redis since we need it even in simplified mode
             
-        // Pass simplified mode flag if set
-        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
-        if (!string.IsNullOrEmpty(useSimplifiedMode))
+        // Only add Kafka dependencies if not in simplified mode
+        if (!useSimplifiedMode)
         {
-            Console.WriteLine($"🎯 SIMPLIFIED MODE: Enabling simplified mode in FlinkJobSimulator: {useSimplifiedMode}");
-            flinkJobSimulator.WithEnvironment("USE_SIMPLIFIED_MODE", useSimplifiedMode);
+            Console.WriteLine("🔄 STANDARD MODE: Adding Kafka dependencies");
+            flinkJobSimulator
+                .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
+                .WaitFor(kafka) // Wait for Kafka to be ready
+                .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+        }
+        else
+        {
+            Console.WriteLine("🎯 SIMPLIFIED MODE: Skipping Kafka dependencies for reliable execution");
         }
             
-        // Enable Kafka source mode for TaskManager load distribution testing if requested
-        if (useKafkaSource)
+        // Pass simplified mode flag if set
+        var useSimplifiedModeEnv = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
+        if (!string.IsNullOrEmpty(useSimplifiedModeEnv))
+        {
+            Console.WriteLine($"🎯 SIMPLIFIED MODE: Enabling simplified mode in FlinkJobSimulator: {useSimplifiedModeEnv}");
+            flinkJobSimulator.WithEnvironment("USE_SIMPLIFIED_MODE", useSimplifiedModeEnv);
+        }
+            
+        // Enable Kafka source mode for TaskManager load distribution testing if requested (only in non-simplified mode)
+        if (useKafkaSource && !useSimplifiedMode)
         {
             Console.WriteLine("🔄 STRESS TEST CONFIG: Enabling Kafka source mode for TaskManager load distribution testing");
             flinkJobSimulator.WithEnvironment("SIMULATOR_USE_KAFKA_SOURCE", "true");
             flinkJobSimulator.WithEnvironment("SIMULATOR_KAFKA_CONSUMER_GROUP", "flinkdotnet-stress-test-consumer-group");
+        }
+        else if (useKafkaSource && useSimplifiedMode)
+        {
+            Console.WriteLine("🎯 SIMPLIFIED MODE: Kafka source mode requested but disabled due to simplified mode");
         }
     }
 
