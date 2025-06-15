@@ -72,23 +72,14 @@ jobs:
 
       - name: Test development lifecycle script - Help
         run: |
-          powershell -ExecutionPolicy Bypass -File ".\run-full-development-lifecycle.ps1" -Help
+          Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+          .\run-full-development-lifecycle.ps1 -Help
 
       - name: Test development lifecycle script - Build only (skip tests for speed)
         run: |
-          # Run directly with PowerShell with timeout
-          $job = Start-Job -ScriptBlock {
-            powershell -ExecutionPolicy Bypass -File ".\run-full-development-lifecycle.ps1" -SkipStress -SkipReliability -SkipSonar
-          }
-          if (Wait-Job $job -Timeout 600) {
-            $result = Receive-Job $job
-            Remove-Job $job
-            Write-Host "Script completed successfully"
-            if ($result) { Write-Host $result }
-          } else {
-            Remove-Job $job -Force
-            Write-Error "Script timed out after 600 seconds"
-          }
+          # Run directly with PowerShell (no background job needed in CI)
+          Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+          .\run-full-development-lifecycle.ps1 -SkipStress -SkipReliability -SkipSonar
 
       - name: Verify script execution logs (if available)
         if: always()
