@@ -13,6 +13,7 @@ using FlinkDotNet.Core.Abstractions.Models;
 using FlinkDotNet.Core.Abstractions.Models.State;
 using FlinkDotNet.Core.Abstractions.Storage;
 using FlinkDotNet.Core.Abstractions.Windowing;
+using FlinkDotNet.Common.Constants;
 using StackExchange.Redis;
 using System.Diagnostics;
 using System.Collections.Concurrent;
@@ -91,8 +92,8 @@ namespace FlinkDotnetStandardReliabilityTest
             _output = output;
             
             // Get connection strings from environment (set by Aspire port discovery) or use defaults
-            _redisConnectionString = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL") ?? "localhost:6379";
-            _kafkaBootstrapServers = Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
+            _redisConnectionString = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL") ?? ServiceUris.RedisConnectionString;
+            _kafkaBootstrapServers = Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS") ?? ServiceUris.KafkaBootstrapServers;
             
             // Configure comprehensive logging with BDD scenario tracking
             var loggerFactory = LoggerFactory.Create(builder =>
@@ -183,14 +184,14 @@ namespace FlinkDotnetStandardReliabilityTest
             {
                 // Verify Redis connectivity
                 _scenarioLogger.LogGiven("Redis connectivity check", 
-                    "Redis should be running on localhost:6379 from docker-compose.kafka.yml");
+                    "Redis should be accessible using Aspire port discovery or default configuration");
                 await VerifyRedisConnectivity(_redisConnectionString);
                 _scenarioLogger.LogThen("Redis connectivity check", 
                     "Redis connection verified successfully");
                 
                 // Verify Kafka connectivity
                 _scenarioLogger.LogGiven("Kafka connectivity check", 
-                    "Kafka should be running on localhost:9092 from docker-compose.kafka.yml");
+                    "Kafka should be accessible using Aspire port discovery or default configuration");
                 await VerifyKafkaConnectivity(_kafkaBootstrapServers);
                 _scenarioLogger.LogThen("Kafka connectivity check", 
                     "Kafka connection verified successfully");

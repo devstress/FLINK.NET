@@ -6,6 +6,7 @@ using FlinkDotNet.Core.Api.Pipeline;
 using StackExchange.Redis;
 using Confluent.Kafka;
 using System.Text.Json;
+using FlinkDotNet.Common.Constants;
 
 namespace FlinkBackPressureDemo;
 
@@ -56,8 +57,8 @@ public class Program
         return Host.CreateDefaultBuilder(args)
             .ConfigureServices((context, services) =>
             {
-                // Add Redis (using Aspire pattern if available, otherwise localhost)
-                var redisConnectionString = context.Configuration.GetConnectionString("redis") ?? "localhost:6379";
+                // Add Redis (using Aspire environment variables if available, otherwise localhost)
+                var redisConnectionString = context.Configuration.GetConnectionString("redis") ?? ServiceUris.RedisConnectionString;
                 services.AddSingleton<IConnectionMultiplexer>(provider =>
                 {
                     var configuration = ConfigurationOptions.Parse(redisConnectionString);
@@ -69,8 +70,8 @@ public class Program
                     return connectionMultiplexer.GetDatabase();
                 });
 
-                // Add Kafka producer
-                var kafkaBootstrapServers = context.Configuration["Kafka:BootstrapServers"] ?? "localhost:9092";
+                // Add Kafka producer (using Aspire environment variables if available, otherwise localhost)
+                var kafkaBootstrapServers = context.Configuration["Kafka:BootstrapServers"] ?? ServiceUris.KafkaBootstrapServers;
                 services.AddSingleton<IProducer<string, string>>(provider =>
                 {
                     var config = new ProducerConfig
