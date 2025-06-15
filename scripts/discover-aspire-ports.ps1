@@ -111,11 +111,12 @@ function Get-RedisConnectionInfo {
                 }
             }
 
-            # Build connection string based on Aspire/StackExchange.Redis format
+            # Build connection string based on Redis URI format for better compatibility
             if ($redisPassword) {
-                $connectionString = "localhost:$redisPort,password=$redisPassword"
+                $connectionString = "redis://:$redisPassword@localhost:$redisPort"
             } else {
-                $connectionString = "localhost:$redisPort"
+                # Use Redis URI format with empty credentials for CI compatibility
+                $connectionString = "redis://:@localhost:$redisPort"
             }
 
             # Test the connection before returning
@@ -125,7 +126,7 @@ function Get-RedisConnectionInfo {
                 $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
                 if ($testResult -eq "PONG") {
                     Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
-                    $connectionString = "localhost:$redisPort"  # Ensure no password in connection string
+                    $connectionString = "redis://:@localhost:$redisPort"  # Use Redis URI format consistently
                 } elseif ($testResult -match "NOAUTH") {
                     Write-Host "Redis requires authentication - attempting to discover password or disable auth" -ForegroundColor Yellow
                     # Try different approaches for CI compatibility
@@ -136,7 +137,7 @@ function Get-RedisConnectionInfo {
                         $testResult2 = docker exec $containerId redis-cli -p 6379 -a "" ping 2>/dev/null
                         if ($testResult2 -eq "PONG") {
                             Write-Host "Redis accepts empty password" -ForegroundColor Green
-                            $connectionString = "localhost:$redisPort,password="
+                            $connectionString = "redis://:@localhost:$redisPort"
                             $authHandled = $true
                         }
                     } catch {
@@ -153,7 +154,7 @@ function Get-RedisConnectionInfo {
                                 $testResult3 = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
                                 if ($testResult3 -eq "PONG") {
                                     Write-Host "Redis authentication disabled successfully for CI testing" -ForegroundColor Green
-                                    $connectionString = "localhost:$redisPort"
+                                    $connectionString = "redis://:@localhost:$redisPort"
                                     $authHandled = $true
                                 }
                             }
@@ -162,10 +163,10 @@ function Get-RedisConnectionInfo {
                         }
                     }
                     
-                    # Approach 3: Use default connection and let the application handle auth
+                    # Approach 3: Use Redis URI format with empty credentials and let the application handle auth
                     if (-not $authHandled) {
-                        Write-Host "Could not resolve Redis authentication automatically - using basic connection" -ForegroundColor Yellow
-                        $connectionString = "localhost:$redisPort"
+                        Write-Host "Could not resolve Redis authentication automatically - using Redis URI format with empty credentials" -ForegroundColor Yellow
+                        $connectionString = "redis://:@localhost:$redisPort"
                     }
                 } else {
                     Write-Host "Redis connection test inconclusive: '$testResult' - proceeding with discovered connection" -ForegroundColor Yellow
