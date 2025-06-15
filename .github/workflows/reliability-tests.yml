@@ -141,6 +141,55 @@ jobs:
             }
           }
 
+      - name: Wait for FlinkJobSimulator Completion
+        env:
+          DOTNET_ENVIRONMENT: "Development"
+          SIMULATOR_NUM_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
+          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+        run: |
+          Write-Host "🕐 Waiting for FlinkJobSimulator to complete message processing..."
+          Write-Host "Expected messages: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
+          Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+          
+          $maxWaitSeconds = 300  # 5 minutes max wait for reliability test
+          $checkIntervalSeconds = 5
+          $expectedMessages = [int]"${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
+          $waitStartTime = Get-Date
+          
+          $completed = $false
+          while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
+            try {
+              # Use redis-cli to check the counter value
+              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+              $counterValue = Invoke-Expression $redisCommand 2>$null
+              
+              if ($counterValue -match '^\d+$') {
+                $currentCount = [int]$counterValue
+                Write-Host "Current message count: $currentCount / $expectedMessages"
+                
+                if ($currentCount -ge $expectedMessages) {
+                  Write-Host "✅ FlinkJobSimulator completed! Messages processed: $currentCount"
+                  $completed = $true
+                } else {
+                  $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
+                  Write-Host "⏳ Waiting... (${remainingSeconds:F0}s remaining)"
+                  Start-Sleep -Seconds $checkIntervalSeconds
+                }
+              } else {
+                Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
+                Start-Sleep -Seconds $checkIntervalSeconds
+              }
+            } catch {
+              Write-Host "⏳ Waiting for Redis to be accessible... ($($_.Exception.Message))"
+              Start-Sleep -Seconds $checkIntervalSeconds
+            }
+          }
+          
+          if (-not $completed) {
+            Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
+            exit 1
+          }
+
       - name: Run Flink.Net Standard Reliability Test with Aspire Infrastructure
         env:
           FLINKDOTNET_STANDARD_TEST_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
