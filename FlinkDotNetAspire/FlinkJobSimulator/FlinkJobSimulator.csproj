@@ -15,6 +15,7 @@
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Connectors.Sinks.Console\FlinkDotNet.Connectors.Sinks.Console.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.JobManager\FlinkDotNet.JobManager.csproj" />
     <ProjectReference Include="..\..\FlinkDotNet\FlinkDotNet.Common.Constants\FlinkDotNet.Common.Constants.csproj" />
+    <ProjectReference Include="..\FlinkDotNetAspire.AppHost.ServiceDefaults\FlinkDotNetAspire.AppHost.ServiceDefaults.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.31.1" />
@@ -24,9 +25,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Aspire.StackExchange.Redis" Version="9.3.1" />
+    <PackageReference Include="Aspire.Confluent.Kafka" Version="9.3.1" />
     <PackageReference Include="Confluent.Kafka" Version="2.10.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- Assuming jobmanager_internal.proto is in FlinkDotNet/FlinkDotNet.JobManager/Protos -->

@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SIMULATOR_NUM_MESSAGES_CI: "1000" # Fast stress test message count for 5-minute execution
-  MAX_ALLOWED_TIME_MS: "290000" # 4 minutes 50 seconds timeout for processing 1K messages
+  SIMULATOR_NUM_MESSAGES_CI: "1000" # Fast stress test message count for CI execution
+  MAX_ALLOWED_TIME_MS: "120000" # 2 minutes timeout for processing 1K messages (CI-optimized)
 
 jobs:
   run-stress-tests:
@@ -169,10 +169,10 @@ jobs:
           $errorJob.Id | Out-File apphost.error.job -Encoding utf8
           
           Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
-          Write-Host "AppHost started, waiting 10 seconds for Redis/Kafka container initialization..."
+          Write-Host "AppHost started, waiting 45 seconds for Redis/Kafka container initialization and Aspire service bindings..."
           
-          # Faster startup in CI for quick testing  
-          Start-Sleep -Seconds 10
+          # Increased startup time for Aspire service binding setup
+          Start-Sleep -Seconds 45
           
           # Add container diagnostics
           Write-Host "`n=== Container Diagnostics ==="
@@ -188,19 +188,16 @@ jobs:
           Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
 
-
-      # The AppHost binds Redis and Kafka to dynamically discovered ports.
-      # The environment variables are set by the port discovery script.
       - name: Health Check Loop
         env:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
         run: |
-          $maxAttempts = 2  # Fast health checks for quick testing
-          $delaySeconds = 5  # Reduced delay for faster execution
+          $maxAttempts = 5  # Increased attempts for CI reliability
+          $delaySeconds = 10  # Adequate delay for CI environment
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
-          Write-Host "`n=== Health Check Configuration ==="
+          Write-Host "`n=== Health Check Configuration ===" 
           Write-Host "Max attempts: $maxAttempts"
           Write-Host "Delay between attempts: $delaySeconds seconds"
           Write-Host "Total max time: $($maxAttempts * $delaySeconds) seconds"
@@ -267,8 +264,9 @@ jobs:
           }
 
           echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES_CI }}..."
-          Write-Host "DOTNET_REDIS_URL from env: $env:DOTNET_REDIS_URL"
-          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS from env: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "Environment variables:"
+          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
           & dotnet $verifierDll
           if ($LASTEXITCODE -ne 0) {

@@ -13,6 +13,7 @@ using FlinkDotNet.Core.Abstractions.Models;
 using FlinkDotNet.Core.Abstractions.Models.State;
 using FlinkDotNet.Core.Abstractions.Storage;
 using FlinkDotNet.Core.Abstractions.Windowing;
+using FlinkDotNet.Common.Constants;
 using StackExchange.Redis;
 using System.Diagnostics;
 using System.Collections.Concurrent;
@@ -77,9 +78,9 @@ namespace FlinkDotnetStandardReliabilityTest
         private readonly ITestOutputHelper _output;
         private readonly ILogger<FlinkDotnetStandardReliabilityTest> _logger;
         
-        // External Kafka environment connections (using docker-compose.kafka.yml)
-        private readonly string _redisConnectionString = "localhost:6379";
-        private readonly string _kafkaBootstrapServers = "localhost:9092";
+        // External Kafka environment connections - use Aspire discovered ports or defaults
+        private readonly string _redisConnectionString;
+        private readonly string _kafkaBootstrapServers;
         
         // Test configuration and diagnostics
         private readonly ReliabilityTestConfiguration _config;
@@ -89,6 +90,10 @@ namespace FlinkDotnetStandardReliabilityTest
         public FlinkDotnetStandardReliabilityTest(ITestOutputHelper output)
         {
             _output = output;
+            
+            // Get connection strings from environment (set by Aspire port discovery) or use defaults
+            _redisConnectionString = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL") ?? ServiceUris.RedisConnectionString;
+            _kafkaBootstrapServers = Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS") ?? ServiceUris.KafkaBootstrapServers;
             
             // Configure comprehensive logging with BDD scenario tracking
             var loggerFactory = LoggerFactory.Create(builder =>
@@ -108,7 +113,7 @@ namespace FlinkDotnetStandardReliabilityTest
             {
                 MessageCount = GetMessageCountFromEnvironment(), // Support CI/local testing
                 ParallelSourceInstances = Environment.ProcessorCount, // Align with CPU cores
-                ExpectedProcessingTimeMs = 900_000, // 15 minutes for 10M message comprehensive testing
+                ExpectedProcessingTimeMs = GetExpectedProcessingTimeMs(GetMessageCountFromEnvironment()), // Dynamic timeout
                 FailureToleranceRate = 0.001, // 0.1% failure tolerance (Flink.Net standard)
                 CheckpointInterval = TimeSpan.FromSeconds(5), // Faster checkpoints
                 EnableExactlyOnceSemantics = true, // Enable for production-like testing
@@ -119,7 +124,10 @@ namespace FlinkDotnetStandardReliabilityTest
             
             // Log test initialization with BDD context
             _scenarioLogger.LogScenarioStart("Test Initialization", 
-                $"Configuring Flink.Net reliability test with {_config.MessageCount:N0} messages using external Kafka environment");
+                $"Configuring Flink.Net reliability test with {_config.MessageCount:N0} messages, timeout {_config.ExpectedProcessingTimeMs:N0}ms");
+            
+            _logger.LogInformation("Using connection strings: Redis={RedisConnectionString}, Kafka={KafkaBootstrapServers}", 
+                _redisConnectionString, _kafkaBootstrapServers);
         }
 
         private long GetMessageCountFromEnvironment()
@@ -130,6 +138,39 @@ namespace FlinkDotnetStandardReliabilityTest
                 return count;
             }
             return 10_000_000; // Default for comprehensive testing with Kafka best practices
+        }
+
+        private long GetExpectedProcessingTimeMs(long messageCount)
+        {
+            // Check if timeout is explicitly set via environment (from CI workflows)
+            var envTimeoutMs = Environment.GetEnvironmentVariable("MAX_ALLOWED_TIME_MS");
+            if (long.TryParse(envTimeoutMs, out var explicitTimeout) && explicitTimeout > 0)
+            {
+                return explicitTimeout;
+            }
+            
+            // Calculate appropriate timeout based on message count and environment
+            var isCI = Environment.GetEnvironmentVariable("CI") == "true" || 
+                       Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+            
+            // Base processing rate: 1000 messages per second in CI, 10000 in local
+            var baseProcessingRate = isCI ? 1000.0 : 10000.0;
+            
+            // Calculate expected time with safety margin
+            var expectedSeconds = messageCount / baseProcessingRate;
+            var safetyMultiplier = isCI ? 3.0 : 2.0; // More margin in CI
+            var totalSeconds = expectedSeconds * safetyMultiplier;
+            
+            // Minimum timeout (for very small message counts)
+            var minimumTimeoutMs = isCI ? 300_000 : 60_000; // 5 minutes CI, 1 minute local
+            
+            // Maximum timeout (prevent runaway tests)
+            var maximumTimeoutMs = isCI ? 600_000 : 1_800_000; // 10 minutes CI, 30 minutes local
+            
+            var calculatedTimeoutMs = (long)(totalSeconds * 1000);
+            var finalTimeoutMs = Math.Max(minimumTimeoutMs, Math.Min(maximumTimeoutMs, calculatedTimeoutMs));
+            
+            return finalTimeoutMs;
         }
 
         public async Task InitializeAsync()
@@ -143,14 +184,14 @@ namespace FlinkDotnetStandardReliabilityTest
             {
                 // Verify Redis connectivity
                 _scenarioLogger.LogGiven("Redis connectivity check", 
-                    "Redis should be running on localhost:6379 from docker-compose.kafka.yml");
+                    "Redis should be accessible using Aspire port discovery or default configuration");
                 await VerifyRedisConnectivity(_redisConnectionString);
                 _scenarioLogger.LogThen("Redis connectivity check", 
                     "Redis connection verified successfully");
                 
                 // Verify Kafka connectivity
                 _scenarioLogger.LogGiven("Kafka connectivity check", 
-                    "Kafka should be running on localhost:9092 from docker-compose.kafka.yml");
+                    "Kafka should be accessible using Aspire port discovery or default configuration");
                 await VerifyKafkaConnectivity(_kafkaBootstrapServers);
                 _scenarioLogger.LogThen("Kafka connectivity check", 
                     "Kafka connection verified successfully");

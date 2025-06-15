@@ -1614,6 +1614,15 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"      💡 This indicates Redis container is not accessible or misconfigured");
         }
 
+        private static void LogRedisConnectionError(Exception ex)
+        {
+            Console.WriteLine($"❌ Redis connection failed: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            }
+        }
+
         private static bool VerifyKafkaAsync(string bootstrapServers, string topic, int expectedMessages)
         {
             Console.WriteLine($"\n   🔗 Connecting to Kafka ({bootstrapServers})...");
@@ -1713,13 +1722,17 @@ namespace IntegrationTestVerifier
         private static List<string> ConsumeKafkaMessages(IConsumer<Ignore, string> consumer, int expectedMessages)
         {
             var messagesConsumed = new List<string>();
-            var consumeTimeout = TimeSpan.FromSeconds(30);
+            
+            // Increase timeout for CI environments
+            var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+            var consumeTimeout = TimeSpan.FromSeconds(isCI ? 120 : 30); // 2 minutes in CI, 30 seconds locally
+            
             var stopwatch = Stopwatch.StartNew();
             var lastLogTime = DateTime.UtcNow;
 
             try
             {
-                Console.WriteLine($"Starting to consume messages (timeout: {consumeTimeout.TotalSeconds}s)...");
+                Console.WriteLine($"Starting to consume messages (timeout: {consumeTimeout.TotalSeconds}s, CI: {isCI})...");
                 while (stopwatch.Elapsed < consumeTimeout && messagesConsumed.Count < expectedMessages)
                 {
                     var consumeResult = consumer.Consume(TimeSpan.FromSeconds(5));
@@ -1967,120 +1980,186 @@ namespace IntegrationTestVerifier
             Console.WriteLine($"--- End Sample Messages ---");
         }
 
-        private static async Task<bool> WaitForRedisAsync(string connectionString, int maxAttempts = 2, int delaySeconds = 5)
+        private static async Task<bool> WaitForRedisAsync(string connectionString, int maxAttempts = 5, int delaySeconds = 10)
         {
-            Console.WriteLine($"WaitForRedisAsync: connectionString='{connectionString}', maxAttempts={maxAttempts}, delaySeconds={delaySeconds}");
+            var (adjustedMaxAttempts, adjustedDelaySeconds, isCI) = GetCIAdjustedParameters(maxAttempts, delaySeconds);
             
-            for (int i = 0; i < maxAttempts; i++)
+            Console.WriteLine($"WaitForRedisAsync: connectionString='{connectionString}', maxAttempts={adjustedMaxAttempts}, delaySeconds={adjustedDelaySeconds}");
+            Console.WriteLine($"CI Environment: {isCI}");
+            
+            for (int i = 0; i < adjustedMaxAttempts; i++)
             {
-                try
-                {
-                    Console.WriteLine($"Redis attempt {i + 1}/{maxAttempts}: Connecting to {connectionString}");
-                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                    
-                    // Increase connection timeout for CI environments
-                    var options = ConfigurationOptions.Parse(connectionString);
-                    options.ConnectTimeout = 15000; // 15 seconds instead of default 5 seconds
-                    options.SyncTimeout = 15000;    // 15 seconds for operations
-                    options.AbortOnConnectFail = false; // Don't abort on first connection failure
-                    
-                    using var redis = await ConnectionMultiplexer.ConnectAsync(options);
-                    stopwatch.Stop();
-                    
-                    if (redis.IsConnected)
-                    {
-                        Console.WriteLine($"✅ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
-                        
-                        // Test basic operation
-                        var db = redis.GetDatabase();
-                        await db.PingAsync();
-                        Console.WriteLine("✅ Redis ping successful");
-                        return true;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"❌ Redis connection established but not connected (took {stopwatch.ElapsedMilliseconds}ms)");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"❌ Redis connection failed: {ex.GetType().Name}: {ex.Message}");
-                    if (ex.InnerException != null)
-                    {
-                        Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
-                    }
-                }
+                var success = await TryRedisConnectionAsync(connectionString, i + 1, adjustedMaxAttempts, isCI);
+                if (success)
+                    return true;
                 
-                if (i < maxAttempts - 1)
+                if (i < adjustedMaxAttempts - 1)
                 {
-                    Console.WriteLine($"Waiting {delaySeconds} seconds before next Redis attempt...");
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                    Console.WriteLine($"Waiting {adjustedDelaySeconds} seconds before next Redis attempt...");
+                    await Task.Delay(TimeSpan.FromSeconds(adjustedDelaySeconds));
                 }
             }
             
-            Console.WriteLine($"❌ Redis connection failed after {maxAttempts} attempts");
+            Console.WriteLine($"❌ Redis connection failed after {adjustedMaxAttempts} attempts");
             return false;
         }
 
-        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 2, int delaySeconds = 5)
+        private static (int maxAttempts, int delaySeconds, bool isCI) GetCIAdjustedParameters(int maxAttempts, int delaySeconds)
         {
-            Console.WriteLine($"      🔍 Testing Kafka connectivity: bootstrapServers='{bootstrapServers}', maxAttempts={maxAttempts}, delaySeconds={delaySeconds}");
+            var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+            if (isCI)
+            {
+                maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                delaySeconds = Math.Max(delaySeconds, 15); // At least 15 seconds delay in CI
+            }
+            return (maxAttempts, delaySeconds, isCI);
+        }
+
+        private static async Task<bool> TryRedisConnectionAsync(string connectionString, int attempt, int maxAttempts, bool isCI)
+        {
+            try
+            {
+                Console.WriteLine($"Redis attempt {attempt}/{maxAttempts}: Connecting to {connectionString}");
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                
+                var options = CreateRedisOptions(connectionString, isCI);
+                
+                using var redis = await ConnectionMultiplexer.ConnectAsync(options);
+                stopwatch.Stop();
+                
+                if (redis.IsConnected)
+                {
+                    Console.WriteLine($"✅ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
+                    return await TestRedisPingAsync(redis, isCI);
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Redis connection established but not connected (took {stopwatch.ElapsedMilliseconds}ms)");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogRedisConnectionError(ex);
+            }
             
-            // Fix IPv6 issue by forcing IPv4 localhost resolution
+            return false;
+        }
+
+        private static ConfigurationOptions CreateRedisOptions(string connectionString, bool isCI)
+        {
+            var options = ConfigurationOptions.Parse(connectionString);
+            options.ConnectTimeout = isCI ? 30000 : 15000; // 30s for CI, 15s for local
+            options.SyncTimeout = isCI ? 30000 : 15000;    // 30s for CI, 15s for local
+            options.AbortOnConnectFail = false; // Don't abort on first connection failure
+            options.ConnectRetry = 3; // Retry connection attempts
+            return options;
+        }
+
+        private static async Task<bool> TestRedisPingAsync(ConnectionMultiplexer redis, bool isCI)
+        {
+            var db = redis.GetDatabase();
+            var pingTask = db.PingAsync();
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(isCI ? 30 : 10));
+            var completedTask = await Task.WhenAny(pingTask, timeoutTask);
+            
+            if (completedTask == pingTask)
+            {
+                Console.WriteLine("✅ Redis ping successful");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("❌ Redis ping timed out");
+                return false;
+            }
+        }
+
+        private static bool WaitForKafka(string bootstrapServers, int maxAttempts = 5, int delaySeconds = 10)
+        {
+            var (adjustedMaxAttempts, adjustedDelaySeconds, isCI) = GetCIAdjustedParameters(maxAttempts, delaySeconds);
+            
+            Console.WriteLine($"      🔍 Testing Kafka connectivity: bootstrapServers='{bootstrapServers}', maxAttempts={adjustedMaxAttempts}, delaySeconds={adjustedDelaySeconds}");
+            Console.WriteLine($"      CI Environment: {isCI}");
+            
+            var cleanBootstrapServers = FixKafkaIPv6Issues(bootstrapServers);
+            var adminConfig = CreateKafkaAdminConfig(cleanBootstrapServers, isCI);
+            
+            for (int i = 0; i < adjustedMaxAttempts; i++)
+            {
+                var success = TryKafkaConnection(cleanBootstrapServers, adminConfig, i + 1, adjustedMaxAttempts, isCI);
+                if (success)
+                    return true;
+                
+                if (i < adjustedMaxAttempts - 1)
+                {
+                    Console.WriteLine($"      ⏳ Waiting {adjustedDelaySeconds} seconds before next Kafka attempt...");
+                    Thread.Sleep(TimeSpan.FromSeconds(adjustedDelaySeconds));
+                }
+            }
+            
+            Console.WriteLine($"      ❌ Kafka connection failed after {adjustedMaxAttempts} attempts");
+            return false;
+        }
+
+        private static string FixKafkaIPv6Issues(string bootstrapServers)
+        {
             var cleanBootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
             if (cleanBootstrapServers != bootstrapServers)
             {
                 Console.WriteLine($"      🔧 Fixed IPv6 issue: Using {cleanBootstrapServers} instead of {bootstrapServers}");
             }
-            
-            var adminConfig = new AdminClientConfig 
+            return cleanBootstrapServers;
+        }
+
+        private static AdminClientConfig CreateKafkaAdminConfig(string bootstrapServers, bool isCI)
+        {
+            return new AdminClientConfig 
             { 
-                BootstrapServers = cleanBootstrapServers,
+                BootstrapServers = bootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
-                SocketTimeoutMs = 10000, // 10 seconds timeout
-                ApiVersionRequestTimeoutMs = 10000 // 10 seconds for API version requests
+                SocketTimeoutMs = isCI ? 30000 : 10000, // 30s for CI, 10s for local
+                ApiVersionRequestTimeoutMs = isCI ? 30000 : 10000 // 30s for CI, 10s for local
             };
-            
-            for (int i = 0; i < maxAttempts; i++)
+        }
+
+        private static bool TryKafkaConnection(string bootstrapServers, AdminClientConfig adminConfig, int attempt, int maxAttempts, bool isCI)
+        {
+            try
             {
-                try
-                {
-                    Console.WriteLine($"      ⏳ Kafka attempt {i + 1}/{maxAttempts}: Connecting to {cleanBootstrapServers}");
-                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                    
-                    using var admin = new AdminClientBuilder(adminConfig).Build();
-                    var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
-                    stopwatch.Stop();
-                    
-                    if (metadata.Topics != null)
-                    {
-                        Console.WriteLine($"      ✅ Kafka connection successful in {stopwatch.ElapsedMilliseconds}ms");
-                        Console.WriteLine($"      📊 Found {metadata.Topics.Count} topics, {metadata.Brokers.Count} brokers");
-                        return true;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"      ❌ Kafka metadata retrieved but no topics found (took {stopwatch.ElapsedMilliseconds}ms)");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"      ❌ Kafka connection failed: {ex.GetType().Name}: {ex.Message}");
-                    if (ex.InnerException != null)
-                    {
-                        Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
-                    }
-                }
+                Console.WriteLine($"      ⏳ Kafka attempt {attempt}/{maxAttempts}: Connecting to {bootstrapServers}");
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 
-                if (i < maxAttempts - 1)
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                var metadataTimeout = TimeSpan.FromSeconds(isCI ? 45 : 15); // 45s for CI, 15s for local
+                var metadata = admin.GetMetadata(metadataTimeout);
+                stopwatch.Stop();
+                
+                if (metadata.Topics != null)
                 {
-                    Console.WriteLine($"      ⏳ Waiting {delaySeconds} seconds before next Kafka attempt...");
-                    Thread.Sleep(TimeSpan.FromSeconds(delaySeconds));
+                    Console.WriteLine($"      ✅ Kafka connection successful in {stopwatch.ElapsedMilliseconds}ms");
+                    Console.WriteLine($"      📊 Found {metadata.Topics.Count} topics, {metadata.Brokers.Count} brokers");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"      ❌ Kafka metadata retrieved but no topics found (took {stopwatch.ElapsedMilliseconds}ms)");
                 }
             }
+            catch (Exception ex)
+            {
+                LogKafkaConnectionError(ex);
+            }
             
-            Console.WriteLine($"      ❌ Kafka connection failed after {maxAttempts} attempts");
             return false;
+        }
+
+        private static void LogKafkaConnectionError(Exception ex)
+        {
+            Console.WriteLine($"      ❌ Kafka connection failed: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            }
         }
     }
 }
