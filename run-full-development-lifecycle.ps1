@@ -65,17 +65,22 @@ Prerequisites:
 
 # Check admin privileges
 function Test-AdminPrivileges {
-    if ($IsWindows) {
-        try {
-            $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-            $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-            return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-        } catch {
-            # In CI environments, admin check might fail, so we'll continue with a warning
-            return $false
+    try {
+        if ($IsWindows) {
+            try {
+                $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+                $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+                return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            } catch {
+                # In CI environments, admin check might fail, so we'll continue with a warning
+                return $false
+            }
+        } else {
+            return (id -u) -eq 0 -or (sudo -n true 2>/dev/null)
         }
-    } else {
-        return (id -u) -eq 0 -or (sudo -n true 2>/dev/null)
+    } catch {
+        # If any part of the admin check fails, assume we're in a restricted environment
+        return $false
     }
 }
 
@@ -83,7 +88,7 @@ function Test-AdminPrivileges {
 $isAdmin = Test-AdminPrivileges
 if ($isAdmin) {
     Write-Host "[OK] Administrator privileges confirmed" -ForegroundColor Green
-} elseif ($env:GITHUB_ACTIONS -eq 'true' -or $env:CI -eq 'true') {
+} elseif ($env:GITHUB_ACTIONS -eq 'true' -or $env:CI -eq 'true' -or $env:RUNNER_OS) {
     Write-Host "[INFO] Running in CI environment, skipping admin check" -ForegroundColor Yellow
 } else {
     Write-Host "[ERROR] This script requires administrator privileges." -ForegroundColor Red
@@ -243,21 +248,28 @@ foreach ($config in $testConfigs) {
             Set-Location $rootPath
             
             # Handle different script types
-            if ($scriptPath.EndsWith('.ps1')) {
-                & powershell -File $scriptPath *>&1 | Tee-Object -FilePath $logPath
-            } elseif ($scriptPath.EndsWith('.sh')) {
-                if ($IsWindows) {
-                    # Use WSL or bash if available on Windows
-                    try {
-                        & bash $scriptPath *>&1 | Tee-Object -FilePath $logPath
-                    } catch {
-                        throw "Bash/WSL not available for .sh script execution on Windows"
+            try {
+                if ($scriptPath.EndsWith('.ps1')) {
+                    # Use simple redirection for better compatibility
+                    & powershell -ExecutionPolicy Bypass -File $scriptPath 2>&1 | Out-File -FilePath $logPath -Encoding UTF8
+                } elseif ($scriptPath.EndsWith('.sh')) {
+                    if ($IsWindows) {
+                        # Use WSL or bash if available on Windows
+                        try {
+                            & bash $scriptPath 2>&1 | Out-File -FilePath $logPath -Encoding UTF8
+                        } catch {
+                            throw "Bash/WSL not available for .sh script execution on Windows"
+                        }
+                    } else {
+                        & bash $scriptPath 2>&1 | Out-File -FilePath $logPath -Encoding UTF8
                     }
                 } else {
-                    & bash $scriptPath *>&1 | Tee-Object -FilePath $logPath
+                    throw "Unsupported script type: $scriptPath"
                 }
-            } else {
-                throw "Unsupported script type: $scriptPath"
+            } catch {
+                $errorMsg = "Error executing $scriptPath : $_"
+                $errorMsg | Out-File -FilePath $logPath -Encoding UTF8
+                throw $errorMsg
             }
         } -ArgumentList $config.Script, $logPath, $rootPath
         
@@ -331,9 +343,13 @@ while (-not $allCompleted) {
     $allCompleted = $true
     $activeJobs = 0
     
-    # Clear screen every 10 refreshes for better visibility
-    if ($refreshCount % 10 -eq 0) {
-        Clear-Host
+    # Clear screen every 10 refreshes for better visibility (but not in CI)
+    if ($refreshCount % 10 -eq 0 -and -not ($env:GITHUB_ACTIONS -eq 'true' -or $env:CI -eq 'true')) {
+        try {
+            Clear-Host
+        } catch {
+            # Ignore clear host errors in non-interactive environments
+        }
         Write-Host "================================================================" -ForegroundColor Cyan
         Write-Host "   Complete Development Lifecycle - Real-time Progress" -ForegroundColor Cyan
         Write-Host "================================================================" -ForegroundColor Cyan
