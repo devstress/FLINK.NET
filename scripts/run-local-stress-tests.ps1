@@ -170,12 +170,19 @@ try {
     $env:MAX_ALLOWED_TIME_MS = $MaxTimeMs.ToString()
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
     $env:DOTNET_ENVIRONMENT = 'Development'
+    $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE = 'flinkdotnet:global_sequence_id'
+    $env:SIMULATOR_REDIS_KEY_SINK_COUNTER = 'flinkdotnet:sample:processed_message_counter'
+    $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
+    $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
     Write-Host "Environment variables set:" -ForegroundColor Gray
     Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES" -ForegroundColor Gray
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray
     Write-Host "  DOTNET_ENVIRONMENT: $env:DOTNET_ENVIRONMENT" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC" -ForegroundColor Gray
 
     # Step 2: Build Solutions (matches workflow) 
     Write-Host "`n=== Step 2: Build Solutions ===" -ForegroundColor Yellow
@@ -311,8 +318,98 @@ try {
         }
     }
 
-    # Step 6: Verification Tests (matches workflow)
-    Write-Host "`n=== Step 6: Verification Tests ===" -ForegroundColor Yellow
+    # Step 6: Wait for FlinkJobSimulator Completion (matches workflow)
+    Write-Host "`n=== Step 6: Wait for FlinkJobSimulator Completion ===" -ForegroundColor Yellow
+    
+    Write-Host "🕐 Waiting for FlinkJobSimulator to complete message processing..."
+    Write-Host "Expected messages: $MessageCount"
+    Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+    
+    $maxWaitSeconds = 180  # 3 minutes max wait
+    $checkIntervalSeconds = 5
+    $expectedMessages = [int]$MessageCount
+    $waitStartTime = Get-Date
+    
+    $completed = $false
+    $completionReason = "Unknown"
+    
+    while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
+        try {
+            # Check completion status first
+            $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
+            $completionStatus = Invoke-Expression $statusCommand 2>$null
+            
+            if ($completionStatus -eq "SUCCESS") {
+                Write-Host "✅ FlinkJobSimulator reported SUCCESS completion status"
+                $completed = $true
+                $completionReason = "Success"
+                break
+            } elseif ($completionStatus -eq "FAILED") {
+                Write-Host "❌ FlinkJobSimulator reported FAILED completion status"
+                $completed = $true
+                $completionReason = "Failed"
+                break
+            }
+            
+            # Check for execution errors
+            $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
+            $errorValue = Invoke-Expression $errorCommand 2>$null
+            if ($errorValue -and $errorValue -ne "(nil)") {
+                Write-Host "❌ Found job execution error in Redis: $errorValue"
+                $completed = $true
+                $completionReason = "Error"
+                break
+            }
+            
+            # Check message counter progress
+            $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+            $counterValue = Invoke-Expression $redisCommand 2>$null
+            
+            if ($counterValue -match '^\d+$') {
+                $currentCount = [int]$counterValue
+                Write-Host "📊 Current message count: $currentCount / $expectedMessages"
+                
+                if ($currentCount -ge $expectedMessages) {
+                    Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
+                    $completed = $true
+                    $completionReason = "MessageCountReached"
+                    break
+                } else {
+                    $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
+                    $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
+                    Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                }
+            } else {
+                Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
+            }
+            
+            Start-Sleep -Seconds $checkIntervalSeconds
+        } catch {
+            Write-Host "⏳ Waiting for Redis to be accessible... ($($_.Exception.Message))"
+            Start-Sleep -Seconds $checkIntervalSeconds
+        }
+    }
+    
+    # Report final status
+    Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
+    Write-Host "Completion reason: $completionReason"
+    Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
+    
+    if (-not $completed) {
+        Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
+        throw "FlinkJobSimulator completion timeout"
+    }
+    
+    # Check final success condition
+    if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached") {
+        Write-Host "✅ FlinkJobSimulator completed successfully!"
+    } else {
+        Write-Host "❌ FlinkJobSimulator completed with issues: $completionReason"
+        throw "FlinkJobSimulator execution failed"
+    }
+
+    # Step 7: Verification Tests (matches workflow)
+    Write-Host "`n=== Step 7: Verification Tests ===" -ForegroundColor Yellow
     
     # Enhanced AppHost process monitoring with detailed diagnostics
     Write-Host "Checking AppHost process status..." -ForegroundColor Gray
@@ -404,7 +501,7 @@ try {
     Write-Host "✅ Verification tests PASSED" -ForegroundColor Green
 
     # Step 7: Final Results
-    Write-Host "`n=== Step 7: Final Results ===" -ForegroundColor Yellow
+    Write-Host "`n=== Step 8: Final Results ===" -ForegroundColor Yellow
     Write-Host "✅ Local stress test verification PASSED" -ForegroundColor Green
     Write-Host "✅ All components working correctly:" -ForegroundColor Green
     Write-Host "  ✅ Port discovery successful" -ForegroundColor Green

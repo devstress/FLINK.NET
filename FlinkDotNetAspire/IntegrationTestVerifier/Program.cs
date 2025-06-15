@@ -1024,7 +1024,18 @@ namespace IntegrationTestVerifier
             {
                 testCoordinator.LogWhen("Redis connection", "Establishing connection to Redis container");
                 
-                using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
+                // Use the enhanced Redis connection options instead of direct string connection
+                var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+                var options = CreateRedisOptions(connectionString, isCI);
+                
+                // Give Redis a moment to be ready after job completion in CI environments
+                if (isCI)
+                {
+                    Console.WriteLine("   🕐 Waiting for Redis to stabilize after job completion...");
+                    await Task.Delay(2000); // 2-second stabilization delay for CI
+                }
+                
+                using var redis = await ConnectionMultiplexer.ConnectAsync(options);
                 if (!redis.IsConnected)
                 {
                     testCoordinator.LogScenarioFailure("Failed to establish Redis connection");
@@ -2115,60 +2126,84 @@ namespace IntegrationTestVerifier
 
         private static ConfigurationOptions CreateRedisOptions(string connectionString, bool isCI)
         {
-            // Parse Redis URI format manually to handle password extraction properly
             var options = new ConfigurationOptions();
             
-            if (connectionString.StartsWith("redis://"))
+            try
             {
-                // Parse Redis URI format: redis://:password@host:port
-                var uri = new Uri(connectionString);
-                options.EndPoints.Add(uri.Host, uri.Port);
-                
-                // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
-                if (!string.IsNullOrEmpty(uri.UserInfo))
+                if (connectionString.StartsWith("redis://"))
                 {
-                    var userInfo = uri.UserInfo;
-                    if (userInfo.Contains(':'))
+                    // Parse Redis URI format: redis://:password@host:port
+                    var uri = new Uri(connectionString);
+                    options.EndPoints.Add(uri.Host, uri.Port);
+                    
+                    // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
+                    if (!string.IsNullOrEmpty(uri.UserInfo))
                     {
-                        // Format: redis://user:password@host:port or redis://:password@host:port
-                        var password = userInfo.Split(':')[1];
-                        if (!string.IsNullOrEmpty(password))
+                        var userInfo = uri.UserInfo;
+                        if (userInfo.Contains(':'))
                         {
-                            options.Password = password;
-                            Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
+                            // Format: redis://user:password@host:port or redis://:password@host:port
+                            var password = userInfo.Split(':')[1];
+                            if (!string.IsNullOrEmpty(password))
+                            {
+                                options.Password = password;
+                                Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
+                            }
                         }
                         else
                         {
-                            options.Password = ""; // Empty password
-                            Console.WriteLine("Redis: Using empty password from URI");
+                            // Format: redis://password@host:port (no colon, treat as password)
+                            options.Password = userInfo;
+                            Console.WriteLine($"Redis: Extracted password from URI without colon (length: {userInfo.Length})");
                         }
                     }
-                    else
-                    {
-                        // Format: redis://password@host:port (no colon, treat as password)
-                        options.Password = userInfo;
-                        Console.WriteLine($"Redis: Extracted password from URI without colon (length: {userInfo.Length})");
-                    }
+                    
+                    Console.WriteLine($"Redis: Parsed URI - Host: {uri.Host}, Port: {uri.Port}");
                 }
                 else
                 {
-                    // No credentials in URI
-                    options.Password = "";
-                    Console.WriteLine("Redis: No password specified in URI, using empty password");
+                    // Try standard parsing for comma-separated format: host:port,password=...
+                    try
+                    {
+                        options = ConfigurationOptions.Parse(connectionString);
+                        Console.WriteLine("Redis: Using standard ConfigurationOptions.Parse");
+                    }
+                    catch
+                    {
+                        // If standard parsing fails, try manual parsing for formats like "localhost:32768,password=..."
+                        var parts = connectionString.Split(',');
+                        if (parts.Length > 0)
+                        {
+                            options.EndPoints.Add(parts[0]);
+                            for (int i = 1; i < parts.Length; i++)
+                            {
+                                var part = parts[i].Trim();
+                                if (part.StartsWith("password="))
+                                {
+                                    options.Password = part.Substring("password=".Length);
+                                }
+                            }
+                        }
+                        Console.WriteLine("Redis: Using manual parsing for non-standard format");
+                    }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // Fall back to standard parsing for non-URI formats
-                options = ConfigurationOptions.Parse(connectionString);
-                Console.WriteLine("Redis: Using standard ConfigurationOptions.Parse for non-URI connection string");
+                Console.WriteLine($"Redis: Error parsing connection string '{connectionString}': {ex.Message}");
+                // Fallback to basic localhost configuration
+                options.EndPoints.Add("localhost", 6379);
             }
             
-            // Set connection parameters optimized for CI environments
-            options.ConnectTimeout = isCI ? 30000 : 15000; // 30s for CI, 15s for local
-            options.SyncTimeout = isCI ? 30000 : 15000;    // 30s for CI, 15s for local
-            options.AbortOnConnectFail = false; // Don't abort on first connection failure
-            options.ConnectRetry = 3; // Retry connection attempts
+            // Set connection parameters optimized for reliability and CI environments
+            options.ConnectTimeout = isCI ? 60000 : 30000; // 60s for CI, 30s for local
+            options.SyncTimeout = isCI ? 60000 : 30000;    // 60s for CI, 30s for local  
+            options.AbortOnConnectFail = false; // Critical: Don't abort on first connection failure
+            options.ConnectRetry = 5; // More retry attempts
+            options.KeepAlive = 30; // Keep connection alive
+            options.AllowAdmin = true; // Allow admin commands if needed
+            
+            Console.WriteLine($"Redis: Configuration - ConnectTimeout: {options.ConnectTimeout}ms, AbortOnConnectFail: {options.AbortOnConnectFail}");
             
             return options;
         }
