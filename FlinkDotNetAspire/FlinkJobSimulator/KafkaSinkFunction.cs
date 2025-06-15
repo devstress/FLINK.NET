@@ -3,13 +3,12 @@ using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Operators; // For IOperatorLifecycle
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration; // Required for reading connection string & topic
-using FlinkDotNet.Common.Constants;
 
 namespace FlinkJobSimulator
 {
     public class KafkaSinkFunction<T> : ISinkFunction<T>, IOperatorLifecycle where T : class // Assuming T will be string for this sample
     {
-        private IProducer<Null, T>? _producer;
+        private IProducer<string, T>? _producer;
         private readonly string _topic;
         private string _taskName = nameof(KafkaSinkFunction<T>);
         private long _processedCount = 0;
@@ -17,7 +16,7 @@ namespace FlinkJobSimulator
 
         // Static configuration for LocalStreamExecutor compatibility
         public static string? GlobalKafkaTopic { get; set; }
-        public static Program.IKafkaConnectionProvider? GlobalKafkaConnectionProvider { get; set; }
+        public static Program.IKafkaProducerService? GlobalKafkaProducerService { get; set; }
 
         private static readonly IConfiguration Configuration = new ConfigurationBuilder()
             .AddEnvironmentVariables()
@@ -42,89 +41,61 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            // Get bootstrap servers using Aspire service discovery first, then fallbacks
-            string? bootstrapServers = null;
-            
-            // 1. Try to use the global Kafka connection provider (for Aspire service bindings)
-            if (GlobalKafkaConnectionProvider != null)
+            // Use the Aspire-injected producer from DI container
+            if (GlobalKafkaProducerService != null)
             {
                 try
                 {
-                    bootstrapServers = GlobalKafkaConnectionProvider.GetBootstrapServers();
-                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service provider: {bootstrapServers}");
+                    var originalProducer = GlobalKafkaProducerService.GetProducer();
+                    
+                    // Cast to the appropriate type since Aspire gives us IProducer<string, string>
+                    // but we need IProducer<string, T>
+                    if (originalProducer is IProducer<string, T> typedProducer)
+                    {
+                        _producer = typedProducer;
+                        Console.WriteLine($"[{_taskName}] Using Aspire-injected Kafka producer for topic '{_topic}'");
+                    }
+                    else
+                    {
+                        // For string types, we can safely cast
+                        if (typeof(T) == typeof(string))
+                        {
+                            _producer = (IProducer<string, T>)originalProducer;
+                            Console.WriteLine($"[{_taskName}] Using Aspire-injected Kafka producer (cast to string type) for topic '{_topic}'");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"Aspire producer type mismatch. Expected IProducer<string, {typeof(T).Name}>, got {originalProducer.GetType().Name}");
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[{_taskName}] WARNING: Failed to get Kafka from service provider: {ex.Message}");
+                    Console.WriteLine($"[{_taskName}] ERROR: Failed to get Kafka producer from Aspire service: {ex.Message}");
+                    throw; // Rethrow to indicate failure to open
                 }
             }
-            
-            // 2. Fallback to connection string (Aspire service reference)
-            if (string.IsNullOrEmpty(bootstrapServers))
+            else
             {
-                bootstrapServers = Configuration?["ConnectionStrings__kafka"];
-                if (!string.IsNullOrEmpty(bootstrapServers))
-                {
-                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire connection string: {bootstrapServers}");
-                }
-            }
-            
-            // 3. Fallback to environment variables (external integration tests)
-            if (string.IsNullOrEmpty(bootstrapServers))
-            {
-                bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
-                if (!string.IsNullOrEmpty(bootstrapServers))
-                {
-                    Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from environment variable: {bootstrapServers}");
-                }
-            }
-            
-            // 4. Final fallback to service constants
-            if (string.IsNullOrEmpty(bootstrapServers))
-            {
-                bootstrapServers = ServiceUris.KafkaBootstrapServers;
-                Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                Console.WriteLine($"[{_taskName}] ERROR: GlobalKafkaProducerService not available. Aspire injection failed.");
+                throw new InvalidOperationException("Kafka producer service not available. Ensure Aspire DI is properly configured.");
             }
 
-            // Fix IPv6 issue by forcing IPv4 localhost resolution
-            var cleanBootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
-            if (cleanBootstrapServers != bootstrapServers)
+            // Verify the producer is working
+            if (_producer == null)
             {
-                Console.WriteLine($"[{_taskName}] Fixed IPv6 issue: Using {cleanBootstrapServers} instead of {bootstrapServers}");
-                bootstrapServers = cleanBootstrapServers;
+                Console.WriteLine($"[{_taskName}] ERROR: Kafka producer is null after initialization");
+                throw new InvalidOperationException("Kafka producer initialization failed");
             }
-
-            var config = new ProducerConfig
-            {
-                BootstrapServers = bootstrapServers,
-                SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
-                SocketTimeoutMs = 10000 // 10 seconds timeout
-                // Add other producer configurations if needed, e.g., Acks, Retries, etc.
-                // For high throughput, consider:
-                // LingerMs = 5, // Time to wait for more messages before sending a batch
-                // BatchNumMessages = 10000, // Number of messages to batch
-                // CompressionType = CompressionType.Snappy, // Or Lz4, Gzip
-            };
-
-            try
-            {
-                _producer = new ProducerBuilder<Null, T>(config).Build();
-                Console.WriteLine($"[{_taskName}] Kafka producer created for bootstrap servers: {bootstrapServers}. Topic: {_topic}");
-                
-                // Try to create the topic if it doesn't exist (synchronously for Open method)
-                EnsureTopicExistsAsync(bootstrapServers).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{_taskName}] ERROR: Could not create Kafka producer. Error: {ex.Message}");
-                throw; // Rethrow to indicate failure to open
-            }
+            
+            Console.WriteLine($"[{_taskName}] Kafka producer successfully initialized for topic: {_topic}");
         }
 
         public void Invoke(T record, ISinkContext context)
         {
             if (_producer == null)
             {
+                Console.WriteLine($"[{_taskName}] WARNING: Kafka producer is null, skipping message");
                 return;
             }
 
@@ -145,7 +116,7 @@ namespace FlinkJobSimulator
                 try
                 {
                     if (_producer == null) throw new InvalidOperationException("Kafka producer not initialized");
-                    var message = new Message<Null, T> { Value = record };
+                    var message = new Message<string, T> { Value = record };
                     _producer.Produce(_topic, message, (deliveryReport) =>
                     {
                         if (deliveryReport.Error.Code != ErrorCode.NoError)
@@ -157,11 +128,11 @@ namespace FlinkJobSimulator
                     long currentCount = Interlocked.Increment(ref _processedCount);
                     if (currentCount % LogFrequency == 0)
                     {
-                        Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}'.");
+                        Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}' using Aspire producer.");
                     }
                     return; // Success, exit retry loop
                 }
-                catch (ProduceException<Null, T> e) when (attempt < maxRetries)
+                catch (ProduceException<string, T> e) when (attempt < maxRetries)
                 {
                     Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
                     Thread.Sleep(100 * attempt);
@@ -179,64 +150,17 @@ namespace FlinkJobSimulator
             }
         }
 
-        private async Task EnsureTopicExistsAsync(string bootstrapServers)
-        {
-            try
-            {
-                var adminConfig = new AdminClientConfig 
-                { 
-                    BootstrapServers = bootstrapServers, // Already cleaned to use IPv4 in calling method
-                    SecurityProtocol = SecurityProtocol.Plaintext, // Explicitly set to plaintext for local testing
-                    SocketTimeoutMs = 10000, // 10 seconds timeout
-                    ApiVersionRequestTimeoutMs = 10000
-                };
-                using var admin = new AdminClientBuilder(adminConfig).Build();
-                
-                Console.WriteLine($"[{_taskName}] Connecting to Kafka admin at {bootstrapServers} to check topic '{_topic}'...");
-                
-                // Check if topic exists
-                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
-                var topicExists = metadata.Topics.Any(t => t.Topic == _topic);
-                
-                if (!topicExists)
-                {
-                    Console.WriteLine($"[{_taskName}] Topic '{_topic}' does not exist. Creating it...");
-                    
-                    var topicSpec = new Confluent.Kafka.Admin.TopicSpecification
-                    {
-                        Name = _topic,
-                        NumPartitions = 1,
-                        ReplicationFactor = 1
-                    };
-
-                    await admin.CreateTopicsAsync(new[] { topicSpec });
-                    Console.WriteLine($"[{_taskName}] Topic '{_topic}' created successfully.");
-                    
-                    // Wait a bit for topic to be fully available
-                    await Task.Delay(2000);
-                }
-                else
-                {
-                    Console.WriteLine($"[{_taskName}] Topic '{_topic}' already exists.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[{_taskName}] WARNING: Could not create/verify topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
-                Console.WriteLine($"[{_taskName}] Continuing anyway - topic may be auto-created on first message or may already exist.");
-                // Don't throw - let the producer try to work anyway
-            }
-        }
-
         public void Close()
         {
-            Console.WriteLine($"[{_taskName}] Closing KafkaSinkFunction. Total records attempted for Kafka topic '{_topic}': {_processedCount}.");
+            Console.WriteLine($"[{_taskName}] Closing KafkaSinkFunction. Total records processed for Kafka topic '{_topic}': {_processedCount}.");
+            
+            // Flush the producer but don't dispose it since it's managed by Aspire DI
             try
             {
                 if (_producer != null)
                 {
-                    Console.WriteLine($"[{_taskName}] Flushing Kafka producer before closing...");
-                    _producer.Flush(TimeSpan.FromSeconds(30)); // Increased flush timeout for large message volumes
+                    Console.WriteLine($"[{_taskName}] Flushing Aspire-managed Kafka producer before closing...");
+                    _producer.Flush(TimeSpan.FromSeconds(10)); // Reduced flush timeout since producer will be reused
                     Console.WriteLine($"[{_taskName}] Kafka producer flush completed.");
                 }
             }
@@ -244,8 +168,9 @@ namespace FlinkJobSimulator
             {
                  Console.WriteLine($"[{_taskName}] ERROR: Exception during Kafka producer flush: {ex.Message}");
             }
-            _producer?.Dispose();
-            Console.WriteLine($"[{_taskName}] Kafka producer disposed.");
+            
+            // Don't dispose the producer - it's managed by Aspire DI container
+            Console.WriteLine($"[{_taskName}] Kafka sink closed (producer remains managed by Aspire).");
         }
     }
 }
