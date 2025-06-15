@@ -942,6 +942,13 @@ public static class Program
     public static async Task Main(string[] args)
     {
         var totalStartTime = DateTime.UtcNow;
+        
+        // Simple, prominent start logging for debugging workflow issues
+        Console.WriteLine("🌟 ===================================================");
+        Console.WriteLine("🌟 FLINKJOBSIMULATOR IS STARTING");
+        Console.WriteLine($"🌟 START TIME: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine("🌟 ===================================================");
+        
         Console.WriteLine("🚀 === FLINKJOBSIMULATOR MAIN() ENTRY POINT ===");
         Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
         Console.WriteLine($"=== STARTUP DIAGNOSTICS ===");
@@ -1027,6 +1034,14 @@ public static class Program
         Console.WriteLine($"Completion Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         Console.WriteLine($"Total Execution Time: {totalDuration.TotalMilliseconds:F0}ms");
         Console.WriteLine("🔄 STEP 10: Keeping process alive for Aspire orchestration...");
+        
+        // Simple, prominent end logging for debugging workflow issues
+        Console.WriteLine("🏁 ===================================================");
+        Console.WriteLine("🏁 FLINKJOBSIMULATOR HAS ENDED");
+        Console.WriteLine($"🏁 END TIME: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"🏁 TOTAL DURATION: {totalDuration.TotalMilliseconds:F0}ms");
+        Console.WriteLine("🏁 ===================================================");
+        
         await Task.Delay(Timeout.Infinite);
     }
 }
