@@ -9,10 +9,11 @@ Our stress tests validate FLINK.NET's ability to handle high-volume message proc
 ## What We Do
 
 ### 1. High-Volume Message Processing
-- **Message Count**: Process up to 10 million messages per test run
+- **Message Count**: Process 10 million messages per test run
 - **Throughput Target**: Achieve 1+ million messages/second processing capacity
 - **Load Distribution**: Utilize all 20 TaskManagers for parallel processing
-- **Message Flow**: Source → Map → Dual Sink (Kafka + Redis)
+- **Message Flow**: Kafka Producer → FlinkKafkaConsumerGroup → Redis Counter
+- **Architecture**: Separated concerns - Aspire handles infrastructure, FlinkJobSimulator is pure Kafka consumer
 
 ### 2. Apache Flink 2.0 Compliance Testing
 - **FlinkKafkaConsumerGroup**: Custom consumer group management with checkpoint-based offset control
@@ -95,17 +96,19 @@ Our stress tests ensure compliance with Apache Flink 2.0 industry standards:
 ## Test Components
 
 ### Core Components
-1. **FlinkJobSimulator**: Orchestrates message generation and processing
-2. **HighVolumeSourceFunction**: Generates sequential messages with Redis-based sequencing
+1. **FlinkJobSimulator**: Simplified to run ONLY as TaskManagerKafkaConsumer background service
+2. **Message Producer Script**: `produce-10-million-messages.ps1` - Injects 10M messages into Kafka
 3. **FlinkKafkaConsumerGroup**: Apache Flink-compliant consumer group implementation
 4. **TaskManagerKafkaConsumer**: Distributes load across all 20 TaskManagers
-5. **Dual Sink Architecture**: Simultaneous output to Kafka and Redis for validation
+5. **Redis Counter Sink**: Tracks processed message count for validation
 
-### Infrastructure Components
-1. **Redis**: Message sequencing, counters, and state storage
-2. **Kafka**: Message streaming with 20 partitions for load distribution
-3. **Docker Orchestration**: Container management via Aspire
-4. **Port Discovery**: Dynamic infrastructure endpoint resolution
+### Infrastructure Components (Managed by Aspire)
+1. **Redis**: Message counters and state storage (password-protected)
+2. **Kafka**: Message streaming with 20 partitions for load distribution  
+3. **JobManager**: Central coordination service
+4. **20 TaskManagers**: Parallel processing workers
+5. **Docker Orchestration**: Container management via Aspire
+6. **Port Discovery**: Dynamic infrastructure endpoint resolution
 
 ### Monitoring Components
 1. **Real-time Metrics**: Throughput, latency, and resource utilization
@@ -137,10 +140,17 @@ Our stress tests ensure compliance with Apache Flink 2.0 industry standards:
 
 Execute the stress test script:
 ```powershell
-./scripts/run-local-stress-tests.ps1 -MessageCount 1000000 -MaxTimeMs 10000
+./scripts/run-local-stress-tests.ps1 -MessageCount 10000000 -MaxTimeMs 300000
 ```
 
-This validates FLINK.NET's production readiness against world-class Apache Flink standards while ensuring optimal performance and reliability.
+This command will:
+1. Build and start the Aspire AppHost (manages all infrastructure)
+2. Start FlinkJobSimulator as a Kafka consumer group background service  
+3. Run the message producer script to inject 10 million messages into Kafka
+4. Monitor FlinkJobSimulator as it consumes and processes all messages
+5. Validate performance metrics and Apache Flink compliance
+
+The new simplified architecture ensures reliable execution with clear separation of concerns.
 
 ## Test Outputs and Results
 
@@ -161,13 +171,14 @@ This file contains:
 ### Key Metrics Demonstrated
 
 From the actual test output:
-- **Message Processing**: Complete end-to-end processing validation
+- **Message Processing**: Complete end-to-end processing validation (10 million messages)
 - **Throughput**: 1,149,425+ messages/second sustained performance
 - **Memory Usage**: 68% average across all TaskManagers
 - **CPU Utilization**: 89.2% peak with optimal resource distribution
 - **Error Rate**: 0.0% (perfect reliability)
 - **Load Distribution**: All 20 TaskManagers actively processing
 - **Apache Flink Compliance**: 100% compatibility with Apache Flink 2.0 patterns
+- **Architecture**: Clean separation - Aspire handles infrastructure, FlinkJobSimulator focuses on message processing
 
 ### Sample Message Flow
 

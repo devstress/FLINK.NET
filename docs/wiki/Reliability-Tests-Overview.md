@@ -9,10 +9,12 @@ Our reliability tests validate FLINK.NET's ability to maintain data processing i
 ## What We Do
 
 ### 1. Fault Tolerance Testing
+- **Message Volume**: 10 million messages for comprehensive reliability validation
 - **Fault Injection Rate**: 5% controlled failure injection across all processing stages
 - **Error Recovery**: Automatic retry mechanisms with exponential backoff
-- **State Preservation**: Checkpoint-based state recovery during failures
+- **State Preservation**: Redis-based state tracking and recovery validation
 - **Data Consistency**: Exactly-once processing guarantees under failure conditions
+- **Architecture**: Clean separation ensures infrastructure failures don't affect core processing logic
 
 ### 2. Apache Flink 2.0 Reliability Standards
 - **StreamExecutionEnvironment.GetExecutionEnvironment()**: Standard Apache Flink initialization patterns
@@ -188,8 +190,18 @@ Our reliability tests validate FLINK.NET's ability to maintain data processing i
 
 Execute the reliability test script:
 ```powershell
-./scripts/run-local-reliability-tests.ps1 -TestMessages 100000 -MaxTimeMs 1000
+./scripts/run-local-reliability-tests.ps1 -TestMessages 10000000 -MaxTimeMs 300000
 ```
+
+This command will:
+1. Build and start the Aspire AppHost with enhanced fault tolerance settings
+2. Start FlinkJobSimulator as a resilient Kafka consumer group background service
+3. Run the message producer script to inject 10 million messages into Kafka
+4. Inject controlled faults (5% failure rate) during message processing
+5. Monitor FlinkJobSimulator's automatic recovery and fault tolerance mechanisms
+6. Validate zero data loss and exactly-once processing guarantees
+
+The new simplified architecture provides better fault isolation and recovery capabilities.
 
 Or run the test project directly:
 ```bash
