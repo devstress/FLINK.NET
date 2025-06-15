@@ -158,13 +158,13 @@ namespace FlinkJobSimulator
             catch (ProduceException<Null, string> ex)
             {
                 _logger.LogError(ex, "Failed to produce message to topic '{Topic}' at partition {Partition}: {Error}", 
-                    _topic, ex.DeliveryResult?.Partition?.Value ?? -1, ex.Error.Reason);
+                    _topic, ex.DeliveryResult?.Partition ?? new Partition(-1), ex.Error.Reason);
                 throw new InvalidOperationException($"Kafka message production failed: {ex.Error.Reason}", ex);
             }
             catch (OperationCanceledException ex)
             {
                 _logger.LogInformation(ex, "Message production cancelled. Produced {MessagesProduced} messages", messagesProduced);
-                throw;
+                throw new OperationCanceledException($"Kafka message production was cancelled after producing {messagesProduced} messages", ex);
             }
         }
 

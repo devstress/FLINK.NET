@@ -5,7 +5,7 @@ using FlinkDotNet.Core.Abstractions.Checkpointing;
 using FlinkDotNet.Connectors.Sources.Kafka;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace FlinkJobSimulator
 {
@@ -133,67 +133,104 @@ namespace FlinkJobSimulator
             
             Console.WriteLine($"🔄 TaskManager {taskManagerId} (PID: {processId}): Starting Kafka message consumption from topic '{_topic}' with consumer group '{_consumerGroupId}'");
             
-            var messagesConsumed = 0;
-            var lastLogTime = DateTime.UtcNow;
-            var lastLoadBalanceLogTime = DateTime.UtcNow;
+            var consumptionState = new ConsumptionState { TaskManagerId = taskManagerId };
             
             while (_isRunning && _consumerGroup != null)
             {
                 try
                 {
-                    var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromSeconds(1));
-                    
-                    if (consumeResult?.Message?.Value != null)
-                    {
-                        messagesConsumed++;
-                        var messageValue = Encoding.UTF8.GetString(consumeResult.Message.Value);
-                        
-                        // Emit the message to downstream operators
-                        sourceContext.Collect(messageValue);
-                        
-                        // Log consumption progress with TaskManager details
-                        if (messagesConsumed % 100 == 0 || (DateTime.UtcNow - lastLogTime).TotalSeconds > 10)
-                        {
-                            Console.WriteLine($"📨 TaskManager {taskManagerId}: Consumed {messagesConsumed} messages from Kafka topic '{_topic}' " +
-                                            $"(partition: {consumeResult.TopicPartition.Partition}, offset: {consumeResult.Offset})");
-                            lastLogTime = DateTime.UtcNow;
-                        }
-                        
-                        // Periodic load balancing status logging
-                        if ((DateTime.UtcNow - lastLoadBalanceLogTime).TotalSeconds > 30)
-                        {
-                            var assignment = _consumerGroup.GetAssignment();
-                            var partitionCount = assignment?.Count ?? 0;
-                            Console.WriteLine($"⚖️ LOAD BALANCE STATUS: TaskManager {taskManagerId} currently assigned {partitionCount} partitions, consumed {messagesConsumed} total messages");
-                            lastLoadBalanceLogTime = DateTime.UtcNow;
-                        }
-                        
-                        // Update checkpoint state
-                        lock (_checkpointLock)
-                        {
-                            _checkpointState[consumeResult.TopicPartition] = consumeResult.Offset.Value;
-                        }
-                    }
+                    ProcessSingleKafkaMessage(sourceContext, consumptionState);
                 }
                 catch (ConsumeException ex)
                 {
-                    Console.WriteLine($"❌ TaskManager {taskManagerId}: Kafka consume error: {ex.Error.Reason}");
-                    if (ex.Error.IsFatal)
-                    {
-                        Console.WriteLine($"❌ TaskManager {taskManagerId}: Fatal Kafka error, stopping consumption: {ex.Error}");
-                        break;
-                    }
-                    // For non-fatal errors, continue consuming
-                    Thread.Sleep(1000);
+                    if (HandleConsumeException(ex, taskManagerId)) break;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ TaskManager {taskManagerId}: Unexpected error in Kafka consumption: {ex.Message}");
-                    Thread.Sleep(1000);
+                    HandleGeneralException(ex, taskManagerId);
                 }
             }
             
-            Console.WriteLine($"🏁 TaskManager {taskManagerId}: Kafka source function completed. Total messages consumed: {messagesConsumed}");
+            Console.WriteLine($"🏁 TaskManager {taskManagerId}: Kafka source function completed. Total messages consumed: {consumptionState.MessagesConsumed}");
+        }
+
+        private void ProcessSingleKafkaMessage(ISourceContext<string> sourceContext, ConsumptionState state)
+        {
+            var consumeResult = _consumerGroup?.ConsumeMessage(TimeSpan.FromSeconds(1));
+            
+            if (consumeResult?.Message?.Value != null)
+            {
+                ProcessValidMessage(sourceContext, consumeResult, state);
+                UpdateCheckpointState(consumeResult);
+            }
+        }
+
+        private void ProcessValidMessage(ISourceContext<string> sourceContext, ConsumeResult<Ignore, byte[]> consumeResult, ConsumptionState state)
+        {
+            state.MessagesConsumed++;
+            var messageValue = Encoding.UTF8.GetString(consumeResult.Message?.Value ?? Array.Empty<byte>());
+            
+            // Emit the message to downstream operators
+            sourceContext.Collect(messageValue);
+            
+            LogConsumptionProgress(consumeResult, state);
+            LogLoadBalanceStatus(state);
+        }
+
+        private void LogConsumptionProgress(ConsumeResult<Ignore, byte[]> consumeResult, ConsumptionState state)
+        {
+            if (state.MessagesConsumed % 100 == 0 || (DateTime.UtcNow - state.LastLogTime).TotalSeconds > 10)
+            {
+                Console.WriteLine($"📨 TaskManager {state.TaskManagerId}: Consumed {state.MessagesConsumed} messages from Kafka topic '{_topic}' " +
+                                $"(partition: {consumeResult.TopicPartition.Partition}, offset: {consumeResult.Offset})");
+                state.LastLogTime = DateTime.UtcNow;
+            }
+        }
+
+        private void LogLoadBalanceStatus(ConsumptionState state)
+        {
+            if ((DateTime.UtcNow - state.LastLoadBalanceLogTime).TotalSeconds > 30)
+            {
+                var assignment = _consumerGroup?.GetAssignment();
+                var partitionCount = assignment?.Count ?? 0;
+                Console.WriteLine($"⚖️ LOAD BALANCE STATUS: TaskManager {state.TaskManagerId} currently assigned {partitionCount} partitions, consumed {state.MessagesConsumed} total messages");
+                state.LastLoadBalanceLogTime = DateTime.UtcNow;
+            }
+        }
+
+        private void UpdateCheckpointState(ConsumeResult<Ignore, byte[]> consumeResult)
+        {
+            lock (_checkpointLock)
+            {
+                _checkpointState[consumeResult.TopicPartition] = consumeResult.Offset.Value;
+            }
+        }
+
+        private static bool HandleConsumeException(ConsumeException ex, string taskManagerId)
+        {
+            Console.WriteLine($"❌ TaskManager {taskManagerId}: Kafka consume error: {ex.Error.Reason}");
+            if (ex.Error.IsFatal)
+            {
+                Console.WriteLine($"❌ TaskManager {taskManagerId}: Fatal Kafka error, stopping consumption: {ex.Error}");
+                return true;
+            }
+            // For non-fatal errors, continue consuming
+            Thread.Sleep(1000);
+            return false;
+        }
+
+        private static void HandleGeneralException(Exception ex, string taskManagerId)
+        {
+            Console.WriteLine($"❌ TaskManager {taskManagerId}: Unexpected error in Kafka consumption: {ex.Message}");
+            Thread.Sleep(1000);
+        }
+
+        private sealed class ConsumptionState
+        {
+            public string TaskManagerId { get; set; } = "Unknown";
+            public int MessagesConsumed { get; set; }
+            public DateTime LastLogTime { get; set; } = DateTime.UtcNow;
+            public DateTime LastLoadBalanceLogTime { get; set; } = DateTime.UtcNow;
         }
 
         public void Cancel()
