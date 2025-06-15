@@ -10,6 +10,9 @@ namespace FlinkDotNet.Core.Observability
     /// </summary>
     public class FlinkTracingCollector : IFlinkTracing
     {
+        private const string FlinkJobIdKey = "flink.job.id";
+        private const string FlinkComponentTypeKey = "flink.component.type";
+        
         private readonly ActivitySource _activitySource;
         private readonly ILogger<FlinkTracingCollector> _logger;
         private readonly string _serviceName;
@@ -29,8 +32,8 @@ namespace FlinkDotNet.Core.Observability
             {
                 activity.SetTag("flink.operator.name", operatorName);
                 activity.SetTag("flink.task.id", taskId);
-                activity.SetTag("flink.job.id", GetJobIdFromTask(taskId));
-                activity.SetTag("flink.component.type", "operator");
+                activity.SetTag(FlinkJobIdKey, GetJobIdFromTask(taskId));
+                activity.SetTag(FlinkComponentTypeKey, "operator");
                 activity.SetTag("service.name", _serviceName);
                 
                 if (!string.IsNullOrEmpty(parentSpanId))
@@ -53,8 +56,8 @@ namespace FlinkDotNet.Core.Observability
                 activity.SetTag("flink.operator.name", operatorName);
                 activity.SetTag("flink.task.id", taskId);
                 activity.SetTag("flink.record.id", recordId);
-                activity.SetTag("flink.job.id", GetJobIdFromTask(taskId));
-                activity.SetTag("flink.component.type", "record_processing");
+                activity.SetTag(FlinkJobIdKey, GetJobIdFromTask(taskId));
+                activity.SetTag(FlinkComponentTypeKey, "record_processing");
 
                 _logger.LogTrace("Started record processing span for {OperatorName}, task {TaskId}, record {RecordId}", 
                     operatorName, taskId, recordId);
@@ -68,9 +71,9 @@ namespace FlinkDotNet.Core.Observability
             var activity = _activitySource.StartActivity("checkpoint.coordination");
             if (activity != null)
             {
-                activity.SetTag("flink.job.id", jobId);
+                activity.SetTag(FlinkJobIdKey, jobId);
                 activity.SetTag("flink.checkpoint.id", checkpointId);
-                activity.SetTag("flink.component.type", "checkpoint");
+                activity.SetTag(FlinkComponentTypeKey, "checkpoint");
 
                 _logger.LogInformation("Started checkpoint span for job {JobId}, checkpoint {CheckpointId}", 
                     jobId, checkpointId);
@@ -87,8 +90,8 @@ namespace FlinkDotNet.Core.Observability
                 activity.SetTag("flink.operator.name", operatorName);
                 activity.SetTag("flink.task.id", taskId);
                 activity.SetTag("flink.state.operation", operation);
-                activity.SetTag("flink.job.id", GetJobIdFromTask(taskId));
-                activity.SetTag("flink.component.type", "state");
+                activity.SetTag(FlinkJobIdKey, GetJobIdFromTask(taskId));
+                activity.SetTag(FlinkComponentTypeKey, "state");
 
                 _logger.LogTrace("Started state operation span for {OperatorName}, task {TaskId}, operation {Operation}", 
                     operatorName, taskId, operation);
@@ -105,7 +108,7 @@ namespace FlinkDotNet.Core.Observability
                 activity.SetTag("flink.source.task", sourceTask);
                 activity.SetTag("flink.target.task", targetTask);
                 activity.SetTag("flink.network.direction", direction);
-                activity.SetTag("flink.component.type", "network");
+                activity.SetTag(FlinkComponentTypeKey, "network");
 
                 _logger.LogTrace("Started network span from {SourceTask} to {TargetTask}, direction {Direction}", 
                     sourceTask, targetTask, direction);

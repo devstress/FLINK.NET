@@ -10,6 +10,10 @@ namespace FlinkDotNet.Core.Observability
     /// </summary>
     public class FlinkMetricsCollector : IFlinkMetrics
     {
+        private const string OperatorNameKey = "operator_name";
+        private const string TaskIdKey = "task_id";
+        private const string JobIdKey = "job_id";
+        
         private readonly Meter _meter;
         private readonly ILogger<FlinkMetricsCollector> _logger;
         private readonly Counter<long> _recordsInCounter;
@@ -103,9 +107,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _recordsInCounter.Add(1, tags);
@@ -117,9 +121,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _recordsOutCounter.Add(1, tags);
@@ -131,9 +135,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _bytesInCounter.Add(bytes, tags);
@@ -145,9 +149,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _bytesOutCounter.Add(bytes, tags);
@@ -159,9 +163,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _latencyHistogram.Record(latency.TotalMilliseconds, tags);
@@ -173,9 +177,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _backpressureCounter.Add((long)backpressureTime.TotalMilliseconds, tags);
@@ -187,7 +191,7 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("job_id", jobId)
+                new(JobIdKey, jobId)
             };
 
             _checkpointDurationHistogram.Record(duration.TotalMilliseconds, tags);
@@ -199,7 +203,7 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("job_id", jobId)
+                new(JobIdKey, jobId)
             };
 
             _checkpointSizeCounter.Add(sizeBytes, tags);
@@ -211,9 +215,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _restartsCounter.Add(1, tags);
@@ -225,9 +229,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId)),
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId)),
                 new("error_type", errorType)
             };
 
@@ -240,9 +244,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _queueSizeGauge.Record(queueSize, tags);
@@ -254,9 +258,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _watermarkLagHistogram.Record(lag.TotalMilliseconds, tags);
@@ -268,9 +272,9 @@ namespace FlinkDotNet.Core.Observability
         {
             var tags = new KeyValuePair<string, object?>[]
             {
-                new("operator_name", operatorName),
-                new("task_id", taskId),
-                new("job_id", GetJobIdFromTask(taskId))
+                new(OperatorNameKey, operatorName),
+                new(TaskIdKey, taskId),
+                new(JobIdKey, GetJobIdFromTask(taskId))
             };
 
             _stateSizeGauge.Record(sizeBytes, tags);

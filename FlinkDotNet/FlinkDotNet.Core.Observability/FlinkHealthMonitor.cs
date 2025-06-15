@@ -10,6 +10,8 @@ namespace FlinkDotNet.Core.Observability
     /// </summary>
     public class FlinkHealthMonitor : IFlinkHealthMonitor
     {
+        private const string MemoryUsageMbKey = "memory_usage_mb";
+        
         private readonly ILogger<FlinkHealthMonitor> _logger;
         private readonly Dictionary<string, Func<CancellationToken, Task<FlinkHealthCheckResult>>> _customHealthChecks;
 
@@ -41,7 +43,7 @@ namespace FlinkDotNet.Core.Observability
                     {
                         ["operator_name"] = operatorName,
                         ["task_id"] = taskId,
-                        ["memory_usage_mb"] = Random.Shared.Next(50, 200), // Simulated
+                        [MemoryUsageMbKey] = Random.Shared.Next(50, 200), // Simulated
                         ["cpu_usage_percent"] = Random.Shared.Next(10, 80), // Simulated
                         ["error_rate_percent"] = Random.Shared.Next(0, 5), // Simulated
                         ["avg_latency_ms"] = Random.Shared.Next(1, 100) // Simulated
@@ -284,7 +286,7 @@ namespace FlinkDotNet.Core.Observability
                     
                     var healthData = new Dictionary<string, object>
                     {
-                        ["memory_usage_mb"] = totalMemoryMB,
+                        [MemoryUsageMbKey] = totalMemoryMB,
                         ["working_set_mb"] = process.WorkingSet64 / (1024 * 1024),
                         ["cpu_time_ms"] = process.TotalProcessorTime.TotalMilliseconds,
                         ["thread_count"] = process.Threads.Count,
@@ -440,7 +442,7 @@ namespace FlinkDotNet.Core.Observability
 
         private static FlinkHealthStatus DetermineResourceHealth(Dictionary<string, object> data)
         {
-            var memoryUsage = (long)data["memory_usage_mb"];
+            var memoryUsage = (long)data[MemoryUsageMbKey];
             var threadCount = (int)data["thread_count"];
 
             if (memoryUsage > 1000 || threadCount > 200)
