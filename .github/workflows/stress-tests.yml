@@ -248,6 +248,10 @@ jobs:
           DOTNET_ENVIRONMENT: "Development"
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
           MAX_ALLOWED_TIME_MS: ${{ env.MAX_ALLOWED_TIME_MS }}
+          # These environment variables must match those set in AppHost for FlinkJobSimulator
+          SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
+          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+          SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
         run: |
           # Check if AppHost is still running
           if (Test-Path apphost.pid) {

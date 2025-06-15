@@ -106,6 +106,11 @@ jobs:
         env:
           DOTNET_ENVIRONMENT: "Development"
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
+          # These environment variables must match those set in AppHost for FlinkJobSimulator
+          SIMULATOR_NUM_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
+          SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
+          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+          SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
         run: |
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
