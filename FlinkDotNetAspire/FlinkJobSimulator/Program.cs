@@ -707,6 +707,9 @@ public static class Program
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
+        // Add Kafka message producer as a hosted service for stress testing
+        builder.Services.AddHostedService<KafkaMessageProducer>();
+        
         var host = builder.Build();
         await host.StartAsync();
         return host;
@@ -814,18 +817,23 @@ public static class Program
         RedisIncrementSinkFunction<string>.GlobalRedisKey = redisSinkCounterKey;
         KafkaSinkFunction<string>.GlobalKafkaTopic = kafkaTopic;
 
+        // Set static configuration for Apache Flink Kafka source
+        FlinkKafkaSourceFunction.GlobalTopic = kafkaTopic;
+        FlinkKafkaSourceFunction.GlobalConsumerGroupId = "flinkdotnet-stress-test-consumer-group";
+
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 
-        var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
-        DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
+        // Use Apache Flink-style Kafka consumer instead of HighVolumeSourceFunction
+        // This demonstrates proper consumer group management and exactly-once processing
+        var kafkaSource = new FlinkKafkaSourceFunction(kafkaTopic, "flinkdotnet-stress-test-consumer-group");
+        DataStream<string> stream = env.AddSource(kafkaSource, "kafka-consumer-source-with-flink-consumer-group");
 
         var mapOperator = new SimpleToUpperMapOperator();
         DataStream<string> mappedStream = stream.Map(mapOperator);
 
-        // Fork the mapped stream to two sinks:
+        // Only use Redis sink for tracking processing - remove Kafka sink to avoid circular loop
         mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisDatabase, redisSinkCounterKey), "redis-processed-counter-sink");
-        mappedStream.AddSink(new FlinkJobSimulator.KafkaSinkFunction<string>(kafkaTopic), "kafka-output-sink");
 
         return env;
     }
@@ -1147,11 +1155,12 @@ public static class Program
         Console.WriteLine("🌟 ===================================================");
         
         Console.WriteLine("🚀 === FLINKJOBSIMULATOR MAIN() ENTRY POINT ===");
-        Console.WriteLine("Flink Job Simulator starting (Dual Sink: Redis Counter & Kafka)...");
+        Console.WriteLine("Flink Job Simulator starting (Apache Flink Consumer Group Pattern)...");
         Console.WriteLine($"=== STARTUP DIAGNOSTICS ===");
         Console.WriteLine($"Start Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         Console.WriteLine($"Process ID: {Environment.ProcessId}");
         Console.WriteLine($"Working Directory: {Environment.CurrentDirectory}");
+        Console.WriteLine($"🆔 PROCESS IDENTIFICATION: This is FlinkJobSimulator PID {Environment.ProcessId}");
         Console.WriteLine($"🔄 STEP 1: Main() entry completed - proceeding to environment variable debug");
     }
 
