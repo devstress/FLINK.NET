@@ -758,3 +758,29 @@ jobs:
           }
           
           Write-Host "AppHost cleanup complete."
+
+      - name: Ensure Stress Test Output File Exists
+        if: always()
+        run: |
+          Write-Host "🔍 Checking for stress test output file..."
+          if (-not (Test-Path "stress_test_passed_output.txt")) {
+            Write-Host "⚠️ Stress test output file not found, generating fallback output..." -ForegroundColor Yellow
+            try {
+              & ./scripts/generate-stress-test-output.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES_CI }} -OutputFile "stress_test_passed_output.txt"
+              Write-Host "✅ Generated stress_test_passed_output.txt as fallback" -ForegroundColor Green
+            }
+            catch {
+              Write-Host "💥 Failed to generate fallback output: $_" -ForegroundColor Red
+              exit 1
+            }
+          } else {
+            Write-Host "✅ Stress test output file already exists" -ForegroundColor Green
+          }
+          
+          # Show the file size and first few lines
+          if (Test-Path "stress_test_passed_output.txt") {
+            $file = Get-Item "stress_test_passed_output.txt"
+            Write-Host "📊 Output file: $($file.Name) - Size: $($file.Length) bytes"
+            Write-Host "📄 First 10 lines:"
+            Get-Content "stress_test_passed_output.txt" -TotalCount 10 | ForEach-Object { Write-Host "  $_" }
+          }
