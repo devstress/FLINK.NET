@@ -264,16 +264,36 @@ public async Task RunAsync(ISourceContext<string> ctx, CancellationToken cancell
             try
             {
                 if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
+                
+                // 🔄 ENHANCED REDIS LOGGING: Log Redis communication attempts
+                if (messageIndex < 10 || messageIndex % 50000 == 0)
+                {
+                    Console.WriteLine($"🔄 REDIS COMM: [{_taskName}] Attempting Redis StringIncrement for message {messageIndex + 1}, key: '{_globalSequenceRedisKey}', attempt: {attempt}");
+                }
+                
                 long currentSequenceId = await _redisDb.StringIncrementAsync(_globalSequenceRedisKey);
+                
+                // 🔄 ENHANCED REDIS LOGGING: Confirm successful Redis operation
+                if (messageIndex < 10 || messageIndex % 50000 == 0)
+                {
+                    Console.WriteLine($"✅ REDIS SUCCESS: [{_taskName}] Redis StringIncrement succeeded for message {messageIndex + 1}, got sequence ID: {currentSequenceId}");
+                }
+                
                 await EmitMessageAsync(ctx, currentSequenceId, emittedCount + 1);
                 return true;
             }
             catch (Exception ex) when (attempt < maxRetries)
             {
+                // 🚨 ENHANCED REDIS LOGGING: Log Redis communication failures
+                Console.WriteLine($"🚨 REDIS FAILURE: [{_taskName}] Redis StringIncrement failed for message {messageIndex + 1}, key: '{_globalSequenceRedisKey}', attempt: {attempt}/{maxRetries}");
+                Console.WriteLine($"🚨 REDIS ERROR TYPE: {ex.GetType().Name}");
+                Console.WriteLine($"🚨 REDIS ERROR MSG: {ex.Message}");
+                
                 await HandleRetryableException(ex, messageIndex, attempt, maxRetries);
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"💥 REDIS FATAL: [{_taskName}] Redis StringIncrement failed permanently for message {messageIndex + 1}, key: '{_globalSequenceRedisKey}'");
                 return HandleFinalException(ex, messageIndex, emittedCount);
             }
         }
@@ -831,7 +851,7 @@ public static class Program
         }
     }
 
-    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string jobManagerGrpcUrl, IDatabase redisDatabase)
+    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase)
     {
         Console.WriteLine("🔄 STEP 8.1: Building JobGraph...");
         JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
@@ -860,11 +880,26 @@ public static class Program
         // Execute the job
         Console.WriteLine("🔄 STEP 8.4: Starting actual job execution using LocalStreamExecutor...");
         Console.WriteLine("Executing job using LocalStreamExecutor for Flink.Net compatibility...");
+        
+        // 🔄 ENHANCED JOB EXECUTION LOGGING: Track source and sink initialization
+        Console.WriteLine("🔄 ENHANCED LOGGING: Preparing to start job execution...");
+        Console.WriteLine($"🔄 Expected to process {numMessages} messages");
+        Console.WriteLine($"🔄 Redis sink counter key: '{redisSinkCounterKey}'");
+        Console.WriteLine($"🔄 Kafka topic: '{kafkaTopic}'");
+        
         var jobExecutionSuccess = false;
         try 
         {
             Console.WriteLine("🔄 STEP 8.4.1: Calling env.ExecuteLocallyAsync()...");
-            await env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
+            Console.WriteLine("🔄 ENHANCED LOGGING: Job execution starting now - monitor for source and sink activity...");
+            
+            var jobTask = env.ExecuteLocallyAsync($"DualSinkSimJob-{numMessages}", CancellationToken.None);
+            
+            // Add periodic monitoring during job execution
+            var monitoringTask = MonitorJobProgressAsync(redisDatabase, redisSinkCounterKey, numMessages);
+            
+            await Task.WhenAll(jobTask, monitoringTask);
+            
             Console.WriteLine("✅ STEP 8.4.1 COMPLETED: Job execution completed successfully using LocalStreamExecutor.");
             jobExecutionSuccess = true;
         }
@@ -1037,6 +1072,9 @@ public static class Program
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
         Console.WriteLine($"✅ STEP 6 COMPLETED: Configuration loaded: {numMessages} messages, Redis key: '{redisSinkCounterKey}', Kafka topic: '{kafkaTopic}', JobManager URL: '{jobManagerGrpcUrl}'");
 
+        // 🔄 ENHANCED PROCESS LOGGING: Confirm FlinkJobSimulator is running and discoverable
+        LogProcessDiscoveryInfo();
+
         var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration);
         
         await FinalizeAndKeepAlive(totalStartTime, redisSinkCounterKey, kafkaTopic, redisDatabase, jobExecutionSuccess);
@@ -1080,6 +1118,107 @@ public static class Program
         Console.WriteLine($"🔄 STEP 3: Environment variable debug completed - proceeding to host configuration");
     }
 
+    private static void LogProcessDiscoveryInfo()
+    {
+        Console.WriteLine("🔍 === ENHANCED PROCESS DISCOVERY LOGGING ===");
+        Console.WriteLine($"🔍 Process ID: {Environment.ProcessId}");
+        Console.WriteLine($"🔍 Process Name: {System.Diagnostics.Process.GetCurrentProcess().ProcessName}");
+        Console.WriteLine($"🔍 Main Module: {System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "Unknown"}");
+        Console.WriteLine($"🔍 Working Directory: {Environment.CurrentDirectory}");
+        Console.WriteLine($"🔍 Start Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        
+        // Check if this process should be discoverable as FlinkJobSimulator
+        var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+        var mainModuleFileName = currentProcess.MainModule?.FileName ?? "";
+        if (mainModuleFileName.Contains("FlinkJobSimulator", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"✅ PROCESS DISCOVERY: This process SHOULD be discoverable as FlinkJobSimulator");
+            Console.WriteLine($"✅ Module contains 'FlinkJobSimulator': {mainModuleFileName}");
+        }
+        else
+        {
+            Console.WriteLine($"⚠️ PROCESS DISCOVERY: This process may NOT be discoverable as FlinkJobSimulator");
+            Console.WriteLine($"⚠️ Module does NOT contain 'FlinkJobSimulator': {mainModuleFileName}");
+        }
+        
+        // Log all running dotnet processes for comparison
+        Console.WriteLine($"🔍 Current .NET processes running:");
+        var dotnetProcesses = System.Diagnostics.Process.GetProcessesByName("dotnet");
+        foreach (var proc in dotnetProcesses)
+        {
+            try
+            {
+                Console.WriteLine($"🔍   PID {proc.Id}: {proc.MainModule?.FileName ?? "Unknown"} - Working Set: {proc.WorkingSet64 / 1024 / 1024:F1}MB");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"🔍   PID {proc.Id}: Access denied - {ex.Message}");
+            }
+        }
+        Console.WriteLine("🔍 === END PROCESS DISCOVERY LOGGING ===");
+    }
+
+    private static async Task MonitorJobProgressAsync(IDatabase redisDatabase, string redisSinkCounterKey, long expectedMessages)
+    {
+        Console.WriteLine("🔄 ENHANCED MONITORING: Starting job progress monitoring...");
+        var startTime = DateTime.UtcNow;
+        var lastCount = 0L;
+        var lastLogTime = startTime;
+        
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                
+                try
+                {
+                    var currentCountStr = await redisDatabase.StringGetAsync(redisSinkCounterKey);
+                    var currentCount = (long)(currentCountStr.HasValue ? currentCountStr : 0);
+                    var elapsed = DateTime.UtcNow - startTime;
+                    var progressPercent = expectedMessages > 0 ? (double)currentCount / expectedMessages * 100 : 0;
+                    
+                    // Log progress every 30 seconds or when count changes significantly
+                    if (DateTime.UtcNow - lastLogTime > TimeSpan.FromSeconds(30) || 
+                        currentCount - lastCount >= 1000 ||
+                        currentCount == 0 && elapsed.TotalSeconds > 10)
+                    {
+                        Console.WriteLine($"📊 JOB MONITOR: {elapsed.TotalSeconds:F0}s - Redis counter '{redisSinkCounterKey}': {currentCount}/{expectedMessages} ({progressPercent:F1}%)");
+                        lastLogTime = DateTime.UtcNow;
+                        lastCount = currentCount;
+                        
+                        if (currentCount == 0 && elapsed.TotalSeconds > 30)
+                        {
+                            Console.WriteLine($"⚠️ JOB MONITOR WARNING: No messages processed after {elapsed.TotalSeconds:F0}s - job may not be running");
+                        }
+                    }
+                    
+                    // Exit monitoring when job completes
+                    if (currentCount >= expectedMessages)
+                    {
+                        Console.WriteLine($"✅ JOB MONITOR: Job completed - processed {currentCount} messages in {elapsed.TotalSeconds:F1}s");
+                        break;
+                    }
+                    
+                    // Exit monitoring after reasonable time limit
+                    if (elapsed.TotalSeconds > 300) // 5 minutes
+                    {
+                        Console.WriteLine($"⏰ JOB MONITOR: Stopping monitoring after {elapsed.TotalSeconds:F0}s - final count: {currentCount}");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"🚨 JOB MONITOR ERROR: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"💥 JOB MONITOR FATAL: {ex.Message}");
+        }
+    }
+
     private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration)
     {
         try
@@ -1092,7 +1231,7 @@ public static class Program
             
             Console.WriteLine("🔄 STEP 8: Starting job execution...");
             var jobStartTime = DateTime.UtcNow;
-            await ExecuteJob(env, numMessages, jobManagerGrpcUrl, redisDatabase);
+            await ExecuteJob(env, numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase);
             var jobDuration = DateTime.UtcNow - jobStartTime;
             Console.WriteLine($"✅ STEP 8 COMPLETED: Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
             return true;
@@ -1211,20 +1350,28 @@ public static class Program
         Console.WriteLine("🔄 STEP 11: Starting infinite wait loop to keep process alive...");
         Console.WriteLine("FlinkJobSimulator will now wait indefinitely to support Aspire orchestration");
         
+        // 🔄 ENHANCED PROCESS LOGGING: Add frequent heartbeat for debugging
+        Console.WriteLine("💓 ENHANCED HEARTBEAT: Starting periodic heartbeat logging every 30 seconds for debugging");
+        
         try 
         {
-            await Task.Delay(Timeout.Infinite);
+            // Use a more frequent heartbeat for debugging instead of infinite delay
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30));
+                Console.WriteLine($"💓 HEARTBEAT: FlinkJobSimulator alive at {DateTime.UtcNow:HH:mm:ss} UTC - PID: {Environment.ProcessId}");
+            }
         }
         catch (Exception waitEx)
         {
-            Console.WriteLine($"💥 Infinite wait interrupted: {waitEx.Message}");
+            Console.WriteLine($"💥 Heartbeat loop interrupted: {waitEx.Message}");
             Console.WriteLine("🔄 Attempting alternative wait mechanism...");
             
             // Fallback: Manual infinite loop if Task.Delay fails
             while (true)
             {
-                await Task.Delay(TimeSpan.FromMinutes(5));
-                Console.WriteLine($"🕐 FlinkJobSimulator heartbeat: {DateTime.UtcNow:HH:mm:ss} - Still alive for Aspire");
+                await Task.Delay(TimeSpan.FromMinutes(1));
+                Console.WriteLine($"💓 FALLBACK HEARTBEAT: FlinkJobSimulator alive at {DateTime.UtcNow:HH:mm:ss} UTC - PID: {Environment.ProcessId}");
             }
         }
     }

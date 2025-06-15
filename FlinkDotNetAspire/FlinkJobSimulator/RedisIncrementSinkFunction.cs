@@ -106,6 +106,13 @@ namespace FlinkJobSimulator
                 try
                 {
                     if (_redisDb == null) throw new InvalidOperationException("Redis database not initialized");
+                    
+                    // 🔄 ENHANCED REDIS SINK LOGGING: Log Redis increment attempts
+                    if (currentCount < 10 || currentCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"🔄 REDIS SINK COMM: [{_taskName}] Attempting Redis StringIncrement for record #{currentCount + 1}, key: '{_redisKey}', attempt: {attempt}");
+                    }
+                    
                     _redisDb.StringIncrement(_redisKey);
                     long newCount = Interlocked.Increment(ref _processedCount);
 
@@ -117,19 +124,26 @@ namespace FlinkJobSimulator
                     // Log first few increments to verify the counter is working
                     if (newCount <= 5)
                     {
-                        Console.WriteLine($"✅ REDIS SINK SUCCESS: Record #{newCount} processed and Redis key incremented");
+                        Console.WriteLine($"✅ REDIS SINK SUCCESS: Record #{newCount} processed and Redis key '{_redisKey}' incremented to {_redisDb.StringGet(_redisKey)}");
+                    }
+                    
+                    // 🔄 ENHANCED REDIS SINK LOGGING: Confirm successful increment
+                    if (newCount <= 10 || newCount % LogFrequency == 0)
+                    {
+                        var currentRedisValue = _redisDb.StringGet(_redisKey);
+                        Console.WriteLine($"✅ REDIS SINK COMM SUCCESS: [{_taskName}] Redis StringIncrement succeeded for record #{newCount}, key '{_redisKey}' now has value: {currentRedisValue}");
                     }
                     
                     return; // Success, exit retry loop
                 }
                 catch (Exception ex) when (attempt < maxRetries)
                 {
-                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
+                    Console.WriteLine($"🚨 REDIS SINK FAILURE: [{_taskName}] Retry {attempt}/{maxRetries} failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
                     Thread.Sleep(50 * attempt); // Progressive backoff: 50ms, 100ms, 150ms
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
+                    Console.WriteLine($"💥 REDIS SINK FATAL: [{_taskName}] All {maxRetries} attempts failed for Redis key '{_redisKey}': {ex.GetType().Name} - {ex.Message}");
                     // Don't throw - just log the failure and continue with next record
                 }
             }

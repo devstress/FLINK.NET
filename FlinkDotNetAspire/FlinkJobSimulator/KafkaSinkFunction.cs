@@ -104,7 +104,15 @@ namespace FlinkJobSimulator
         {
             if (_producer == null)
             {
+                Console.WriteLine($"💥 KAFKA SINK ERROR: [{_taskName}] Producer is null - cannot send message to topic '{_topic}'");
                 return;
+            }
+
+            // 🔄 ENHANCED KAFKA LOGGING: Log message reception
+            long currentCount = Interlocked.Read(ref _processedCount);
+            if (currentCount < 10 || currentCount % LogFrequency == 0)
+            {
+                Console.WriteLine($"🔄 KAFKA SINK INVOKE: [{_taskName}] Received message #{currentCount + 1} for topic '{_topic}': {record}");
             }
 
             if (record is string recordString && recordString.StartsWith("BARRIER_"))
@@ -124,35 +132,58 @@ namespace FlinkJobSimulator
                 try
                 {
                     if (_producer == null) throw new InvalidOperationException("Kafka producer not initialized");
+                    
+                    // 🔄 ENHANCED KAFKA LOGGING: Log Kafka produce attempts
+                    long currentCount = Interlocked.Read(ref _processedCount);
+                    if (currentCount < 10 || currentCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"🔄 KAFKA COMM: [{_taskName}] Attempting to produce message #{currentCount + 1} to topic '{_topic}', attempt: {attempt}");
+                    }
+                    
                     var message = new Message<Null, T> { Value = record };
                     _producer.Produce(_topic, message, (deliveryReport) =>
                     {
                         if (deliveryReport.Error.Code != ErrorCode.NoError)
                         {
-                            Console.WriteLine($"[{_taskName}] ERROR: Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
+                            Console.WriteLine($"💥 KAFKA DELIVERY ERROR: [{_taskName}] Failed to deliver message to Kafka topic '{_topic}': {deliveryReport.Error.Reason}");
+                        }
+                        else
+                        {
+                            // 🔄 ENHANCED KAFKA LOGGING: Confirm successful delivery
+                            if (currentCount < 10 || currentCount % LogFrequency == 0)
+                            {
+                                Console.WriteLine($"✅ KAFKA DELIVERY SUCCESS: [{_taskName}] Message delivered to topic '{_topic}', partition: {deliveryReport.Partition}, offset: {deliveryReport.Offset}");
+                            }
                         }
                     });
 
-                    long currentCount = Interlocked.Increment(ref _processedCount);
-                    if (currentCount % LogFrequency == 0)
+                    long newCount = Interlocked.Increment(ref _processedCount);
+                    if (newCount % LogFrequency == 0)
                     {
-                        Console.WriteLine($"[{_taskName}] Produced {currentCount} records to Kafka topic '{_topic}'.");
+                        Console.WriteLine($"[{_taskName}] Produced {newCount} records to Kafka topic '{_topic}'.");
                     }
+                    
+                    // 🔄 ENHANCED KAFKA LOGGING: Confirm produce call success
+                    if (newCount <= 10 || newCount % LogFrequency == 0)
+                    {
+                        Console.WriteLine($"✅ KAFKA COMM SUCCESS: [{_taskName}] Kafka produce call succeeded for message #{newCount} to topic '{_topic}' (awaiting delivery confirmation)");
+                    }
+                    
                     return; // Success, exit retry loop
                 }
                 catch (ProduceException<Null, T> e) when (attempt < maxRetries)
                 {
-                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
+                    Console.WriteLine($"🚨 KAFKA FAILURE: [{_taskName}] Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {e.Message} [Code: {e.Error.Code}]");
                     Thread.Sleep(100 * attempt);
                 }
                 catch (Exception ex) when (attempt < maxRetries)
                 {
-                    Console.WriteLine($"[{_taskName}] WARNING: Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                    Console.WriteLine($"🚨 KAFKA FAILURE: [{_taskName}] Retry {attempt}/{maxRetries} failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
                     Thread.Sleep(100 * attempt);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[{_taskName}] ERROR: All {maxRetries} attempts failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
+                    Console.WriteLine($"💥 KAFKA FATAL: [{_taskName}] All {maxRetries} attempts failed for Kafka topic '{_topic}': {ex.GetType().Name} - {ex.Message}");
                     return;
                 }
             }
