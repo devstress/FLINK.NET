@@ -170,36 +170,80 @@ jobs:
           $waitStartTime = Get-Date
           
           $completed = $false
+          $completionReason = "Unknown"
+          
           while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
             try {
+              # Check completion status first
+              $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_completion_status`""
+              $completionStatus = Invoke-Expression $statusCommand 2>$null
+              
+              if ($completionStatus -eq "SUCCESS") {
+                Write-Host "✅ FlinkJobSimulator reported SUCCESS completion status"
+                $completed = $true
+                $completionReason = "Success"
+                break
+              } elseif ($completionStatus -eq "FAILED") {
+                Write-Host "❌ FlinkJobSimulator reported FAILED completion status"
+                $completed = $true
+                $completionReason = "Failed"
+                break
+              }
+              
+              # Check for execution errors
+              $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_execution_error`""
+              $errorValue = Invoke-Expression $errorCommand 2>$null
+              if ($errorValue -and $errorValue -ne "(nil)") {
+                Write-Host "❌ Found job execution error in Redis: $errorValue"
+                $completed = $true
+                $completionReason = "Error"
+                break
+              }
+              
               # Use redis-cli to check the counter value with password authentication
               $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
               $counterValue = Invoke-Expression $redisCommand 2>$null
               
               if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
-                Write-Host "Current message count: $currentCount / $expectedMessages"
+                Write-Host "📊 Current message count: $currentCount / $expectedMessages"
                 
                 if ($currentCount -ge $expectedMessages) {
-                  Write-Host "✅ FlinkJobSimulator completed! Messages processed: $currentCount"
+                  Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
                   $completed = $true
+                  $completionReason = "MessageCountReached"
+                  break
                 } else {
                   $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
-                  Write-Host "⏳ Waiting... (${remainingSeconds:F0}s remaining)"
-                  Start-Sleep -Seconds $checkIntervalSeconds
+                  $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
+                  Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
                 }
               } else {
                 Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
-                Start-Sleep -Seconds $checkIntervalSeconds
               }
+              
+              Start-Sleep -Seconds $checkIntervalSeconds
             } catch {
               Write-Host "⏳ Waiting for Redis to be accessible... ($($_.Exception.Message))"
               Start-Sleep -Seconds $checkIntervalSeconds
             }
           }
           
+          # Report final status
+          Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
+          Write-Host "Completion reason: $completionReason"
+          Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
+          
           if (-not $completed) {
             Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
+            exit 1
+          }
+          
+          # Check final success condition
+          if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached") {
+            Write-Host "✅ FlinkJobSimulator completed successfully!"
+          } else {
+            Write-Host "❌ FlinkJobSimulator completed with issues: $completionReason"
             exit 1
           }
 

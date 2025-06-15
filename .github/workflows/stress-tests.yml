@@ -290,22 +290,60 @@ jobs:
           $flinkProcesses = @()
           
           if ($allDotnetProcesses) {
-            Write-Host "Found $($allDotnetProcesses.Count) dotnet processes - checking command lines..."
+            Write-Host "Found $($allDotnetProcesses.Count) dotnet processes - checking for FlinkJobSimulator..."
             foreach ($proc in $allDotnetProcesses) {
               try {
-                # Try to get command line using WMI for more detailed process info
-                $wmiProcess = Get-WmiObject -Class Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
-                if ($wmiProcess -and $wmiProcess.CommandLine -like "*FlinkJobSimulator*") {
+                # Try multiple approaches to detect FlinkJobSimulator processes
+                $isFlinkProcess = $false
+                
+                # Approach 1: Try WMI command line check (if permissions allow)
+                try {
+                  $wmiProcess = Get-WmiObject -Class Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
+                  if ($wmiProcess -and $wmiProcess.CommandLine -like "*FlinkJobSimulator*") {
+                    $isFlinkProcess = $true
+                    Write-Host "  ✅ Found FlinkJobSimulator via WMI: PID $($proc.Id), Command: $($wmiProcess.CommandLine)"
+                  }
+                } catch {
+                  # WMI failed, continue with other approaches
+                }
+                
+                # Approach 2: Check if process is running FlinkJobSimulator.dll by checking working directory
+                if (-not $isFlinkProcess) {
+                  try {
+                    $procInfo = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+                    if ($procInfo -and $procInfo.Path -and $procInfo.Path -like "*FlinkJobSimulator*") {
+                      $isFlinkProcess = $true
+                      Write-Host "  ✅ Found FlinkJobSimulator via process path: PID $($proc.Id), Path: $($procInfo.Path)"
+                    }
+                  } catch {
+                    # Ignore path check failures
+                  }
+                }
+                
+                # Approach 3: Check if process modules include FlinkJobSimulator
+                if (-not $isFlinkProcess) {
+                  try {
+                    $modules = Get-Process -Id $proc.Id -Module -ErrorAction SilentlyContinue
+                    if ($modules -and ($modules | Where-Object { $_.ModuleName -like "*FlinkJobSimulator*" })) {
+                      $isFlinkProcess = $true
+                      Write-Host "  ✅ Found FlinkJobSimulator via loaded modules: PID $($proc.Id)"
+                    }
+                  } catch {
+                    # Ignore module check failures
+                  }
+                }
+                
+                if ($isFlinkProcess) {
                   $flinkProcesses += [PSCustomObject]@{
                     PID = $proc.Id
                     Name = $proc.ProcessName
-                    CommandLine = $wmiProcess.CommandLine
+                    CommandLine = "FlinkJobSimulator detected"
                   }
-                  Write-Host "  Found FlinkJobSimulator: PID $($proc.Id), Command: $($wmiProcess.CommandLine)"
+                } else {
+                  Write-Host "  📋 Dotnet process PID $($proc.Id): Not FlinkJobSimulator"
                 }
               } catch {
-                # Fallback: just check process name and basic info
-                Write-Host "  PID $($proc.Id): Could not get command line (Access denied/WMI error)"
+                Write-Host "  ⚠️ PID $($proc.Id): Error during detection: $_"
               }
             }
           }
@@ -328,22 +366,32 @@ jobs:
             $flinkProcesses | ForEach-Object { Write-Host "  PID: $($_.PID), Name: $($_.Name)" }
           } else {
             Write-Host "❌ No FlinkJobSimulator processes found"
-            Write-Host "🔍 Debugging: Listing all dotnet processes for analysis:"
+            Write-Host "🔍 Debugging: Analyzing all dotnet processes..."
             if ($allDotnetProcesses) {
               $allDotnetProcesses | ForEach-Object { 
                 try {
-                  $wmiProcess = Get-WmiObject -Class Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue
-                  if ($wmiProcess) {
-                    Write-Host "    PID $($_.Id): $($wmiProcess.CommandLine)"
-                  } else {
-                    Write-Host "    PID $($_.Id): Command line not accessible"
-                  }
+                  Write-Host "    PID $($_.Id): $($_.ProcessName) - Working Set: $([math]::Round($_.WorkingSet64 / 1MB, 2))MB"
                 } catch {
-                  Write-Host "    PID $($_.Id): WMI query failed"
+                  Write-Host "    PID $($_.Id): Basic info not accessible"
                 }
               }
             } else {
               Write-Host "    No dotnet processes found at all"
+            }
+            
+            # Additional check: Look for any recent process exits or crashes
+            Write-Host "🔍 Checking for any process creation/exit events..."
+            try {
+              # Check if FlinkJobSimulator.dll output exists (indicating it started building)
+              $flinkDllPath = "./FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll"
+              if (Test-Path $flinkDllPath) {
+                $dllInfo = Get-Item $flinkDllPath
+                Write-Host "    ✅ FlinkJobSimulator.dll exists (modified: $($dllInfo.LastWriteTime))"
+              } else {
+                Write-Host "    ❌ FlinkJobSimulator.dll not found - build may have failed"
+              }
+            } catch {
+              Write-Host "    ⚠️ Could not check FlinkJobSimulator.dll: $_"
             }
           }
           
@@ -429,124 +477,118 @@ jobs:
           $waitStartTime = Get-Date
           
           $completed = $false
+          $completionReason = "Unknown"
+          
           while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
             try {
-              # Use redis-cli to check the counter value
-              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+              # Check completion status first
+              $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
+              $completionStatus = Invoke-Expression $statusCommand 2>$null
+              
+              if ($completionStatus -eq "SUCCESS") {
+                Write-Host "✅ FlinkJobSimulator reported SUCCESS completion status"
+                $completed = $true
+                $completionReason = "Success"
+                break
+              } elseif ($completionStatus -eq "FAILED") {
+                Write-Host "❌ FlinkJobSimulator reported FAILED completion status"
+                $completed = $true
+                $completionReason = "Failed"
+                break
+              }
+              
+              # Check for execution errors
+              $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
+              $errorValue = Invoke-Expression $errorCommand 2>$null
+              if ($errorValue -and $errorValue -ne "(nil)") {
+                Write-Host "❌ Found job execution error in Redis: $errorValue"
+                $completed = $true
+                $completionReason = "Error"
+                break
+              }
+              
+              # Check message counter progress
+              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
               $counterValue = Invoke-Expression $redisCommand 2>$null
               
               if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
-                Write-Host "Current message count: $currentCount / $expectedMessages"
+                Write-Host "📊 Current message count: $currentCount / $expectedMessages"
                 
                 if ($currentCount -ge $expectedMessages) {
-                  Write-Host "✅ FlinkJobSimulator completed! Messages processed: $currentCount"
+                  Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
                   $completed = $true
+                  $completionReason = "MessageCountReached"
+                  break
                 } else {
                   $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
-                  Write-Host "⏳ Waiting... (${remainingSeconds:F0}s remaining)"
-                  Start-Sleep -Seconds $checkIntervalSeconds
+                  $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
+                  Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
                 }
               } else {
                 Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
-                
-                # Also check if there are any error markers in Redis
-                try {
-                  $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"flinkdotnet:job_execution_error`""
-                  $errorValue = Invoke-Expression $errorCommand 2>$null
-                  if ($errorValue -and $errorValue -ne "(nil)") {
-                    Write-Host "❌ Found job execution error in Redis: $errorValue"
-                    Write-Host "FlinkJobSimulator appears to have encountered an error during startup"
-                    exit 1
-                  }
-                } catch {
-                  # Ignore Redis error check failures
-                }
-                
-                Start-Sleep -Seconds $checkIntervalSeconds
               }
+              
+              # Check if AppHost/FlinkJobSimulator process is still alive
+              if (Test-Path apphost.pid) {
+                $apphostPid = Get-Content apphost.pid
+                $apphostProcess = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
+                if (-not $apphostProcess) {
+                  Write-Host "💥 AppHost process (PID $apphostPid) has terminated unexpectedly!"
+                  $completed = $true
+                  $completionReason = "AppHostTerminated"
+                  break
+                }
+              } else {
+                Write-Host "💥 AppHost PID file not found - process may have crashed"
+                $completed = $true
+                $completionReason = "AppHostPidMissing"
+                break
+              }
+              
+              Start-Sleep -Seconds $checkIntervalSeconds
             } catch {
               Write-Host "⏳ Waiting for Redis to be accessible... ($($_.Exception.Message))"
               Start-Sleep -Seconds $checkIntervalSeconds
             }
           }
           
+          # Report final status
+          Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
+          Write-Host "Completion reason: $completionReason"
+          Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
+          
           if (-not $completed) {
             Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
-            Write-Host "Final diagnostic check..."
+            Write-Host "⏰ TIMEOUT REACHED - Final diagnostic check..."
             
-            # Final Redis check
+            # Final comprehensive check
             try {
-              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
-              $finalCounterValue = Invoke-Expression $redisCommand 2>$null
-              Write-Host "Final Redis counter value: $finalCounterValue"
+              $finalCounterCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+              $finalCounterValue = Invoke-Expression $finalCounterCommand 2>$null
+              Write-Host "📊 Final Redis counter value: $finalCounterValue"
               
-              $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"flinkdotnet:job_execution_error`""
-              $finalErrorValue = Invoke-Expression $errorCommand 2>$null
+              $finalStatusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
+              $finalStatusValue = Invoke-Expression $finalStatusCommand 2>$null
+              Write-Host "📊 Final completion status: $finalStatusValue"
+              
+              $finalErrorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
+              $finalErrorValue = Invoke-Expression $finalErrorCommand 2>$null
               if ($finalErrorValue -and $finalErrorValue -ne "(nil)") {
-                Write-Host "Final error marker: $finalErrorValue"
+                Write-Host "📊 Final error marker: $finalErrorValue"
               }
             } catch {
-              Write-Host "Could not perform final Redis check: $($_.Exception.Message)"
+              Write-Host "💥 Could not perform final Redis check: $($_.Exception.Message)"
             }
             
-            Write-Host "Attempting to run FlinkJobSimulator directly as a fallback..."
-            
-            # Try to run FlinkJobSimulator directly to test if it can work independently
-            try {
-              Write-Host "Setting up environment for direct FlinkJobSimulator execution..."
-              
-              # Set up connection strings for direct execution
-              $redisPort = $env:DOTNET_REDIS_PORT
-              $kafkaPort = $env:DOTNET_KAFKA_PORT
-              if ($redisPort -and $kafkaPort) {
-                $env:ConnectionStrings__redis = "localhost:$redisPort"
-                $env:ConnectionStrings__kafka = "localhost:$kafkaPort"
-                
-                Write-Host "Environment setup:"
-                Write-Host "  ConnectionStrings__redis: $env:ConnectionStrings__redis"
-                Write-Host "  ConnectionStrings__kafka: $env:ConnectionStrings__kafka"
-                Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
-                
-                Write-Host "Starting FlinkJobSimulator directly..."
-                $directArgs = @(
-                  './FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll'
-                )
-                
-                # Run directly with timeout
-                $directProcess = Start-Process -FilePath 'dotnet' -ArgumentList $directArgs -NoNewWindow -PassThru
-                Write-Host "Direct FlinkJobSimulator started with PID: $($directProcess.Id)"
-                
-                # Wait for direct execution to complete (shorter timeout)
-                $directWaitSeconds = 60
-                $directCompleted = $directProcess.WaitForExit($directWaitSeconds * 1000)
-                
-                if ($directCompleted) {
-                  Write-Host "✅ Direct FlinkJobSimulator execution completed"
-                  
-                  # Check if it actually processed messages
-                  $directCheckCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:latest' | Select-Object -First 1) redis-cli get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
-                  $directCounterValue = Invoke-Expression $directCheckCommand 2>$null
-                  if ($directCounterValue -match '^\d+$' -and [int]$directCounterValue -gt 0) {
-                    Write-Host "✅ Direct execution succeeded! Messages processed: $directCounterValue"
-                    return  # Success, exit this script
-                  } else {
-                    Write-Host "❌ Direct execution completed but no messages were processed"
-                  }
-                } else {
-                  Write-Host "❌ Direct FlinkJobSimulator execution timed out after $directWaitSeconds seconds"
-                  if (-not $directProcess.HasExited) {
-                    $directProcess.Kill()
-                    Write-Host "Killed direct FlinkJobSimulator process"
-                  }
-                }
-              } else {
-                Write-Host "❌ Could not get Redis/Kafka ports for direct execution"
-              }
-            } catch {
-              Write-Host "❌ Direct FlinkJobSimulator execution failed: $($_.Exception.Message)"
-            }
-            
+            exit 1
+          }
+          
+          # Check final success condition
+          if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached") {
+            Write-Host "✅ FlinkJobSimulator completed successfully!"
+          } else {
+            Write-Host "❌ FlinkJobSimulator completed with issues: $completionReason"
             exit 1
           }
 
