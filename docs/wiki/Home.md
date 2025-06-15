@@ -56,6 +56,13 @@ For production-ready applications, follow our comprehensive best practices guide
 * **[[Flink.Net Back Pressure|FLINK_NET_BACK_PRESSURE]]** - Credit-based flow control and back pressure handling
 * **[[RocksDB State Backend|Core-Concepts-RocksDB-State-Backend]]** - Enterprise-grade state management
 
+## Quality Assurance & Testing
+
+Our comprehensive testing infrastructure ensures world-class quality standards:
+
+* **[[Stress Tests Overview|Stress-Tests-Overview]]** - High-performance load testing with Apache Flink 2.0 compliance
+* **[[Reliability Tests Overview|Reliability-Tests-Overview]]** - Fault tolerance and recovery testing for world-class reliability
+
 ### Recommended Pipeline Pattern
 
 Follow the Flink.Net standard pattern for optimal performance:

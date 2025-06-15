@@ -4,7 +4,12 @@ namespace FlinkDotNetAspire.AppHost.AppHost;
 
 public static class Program
 {
-    private const string KAFKA_INITIALIZATION_SCRIPT = @"
+    private static string GetKafkaInitializationScript()
+    {
+        var isStressTest = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
+        var partitionCount = isStressTest ? 20 : 4; // Use 20 partitions for stress test to utilize all TaskManagers
+        
+        return $@"
                 echo 'Waiting for Kafka to be ready...'
                 max_attempts=30
                 attempt=0
@@ -19,21 +24,25 @@ public static class Program
                 done
                 
                 echo 'Kafka is ready! Creating topics for Flink.Net development...'
+                echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
                 
-                # Create topics with CI-optimized settings (smaller segments, shorter retention)
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions 4 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions 4 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                # Create topics with optimized settings for load distribution
+                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions 4 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
+                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
                 
                 echo 'Kafka topics created successfully!'
                 echo 'Topic list:'
                 kafka-topics --list --bootstrap-server kafka:9092
+                echo 'Kafka topic details:'
+                kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
                 echo 'Kafka initialization completed successfully!'
             ";
+    }
 
     public static async Task Main(string[] args)
     {
@@ -44,7 +53,7 @@ public static class Program
         var kafka = AddKafkaInfrastructure(builder);
         
         // Add Kafka initialization container
-        AddKafkaInitialization(builder, kafka);
+        var kafkaInit = AddKafkaInitialization(builder, kafka);
         
         // Add Kafka UI for local development only
         AddKafkaUIForLocalDevelopment(builder, kafka);
@@ -53,7 +62,7 @@ public static class Program
         var simulatorNumMessages = ConfigureFlinkCluster(builder);
         
         // Add and configure FlinkJobSimulator
-        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages);
+        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages, kafkaInit);
 
         await builder.Build().RunAsync();
     }
@@ -89,10 +98,11 @@ public static class Program
             .PublishAsContainer(); // Ensure Kafka is accessible from host
     }
 
-    private static void AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
+    private static IResourceBuilder<ContainerResource> AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
     {
-        builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
-            .WithArgs("bash", "-c", KAFKA_INITIALIZATION_SCRIPT)
+        var kafkaInitScript = GetKafkaInitializationScript();
+        return builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0")
+            .WithArgs("bash", "-c", kafkaInitScript)
             .WaitFor(kafka);
     }
 
@@ -138,12 +148,16 @@ public static class Program
     private static void ConfigureFlinkJobSimulator(IDistributedApplicationBuilder builder, 
         IResourceBuilder<RedisResource> redis, 
         IResourceBuilder<KafkaServerResource> kafka, 
-        string simulatorNumMessages)
+        string simulatorNumMessages,
+        IResourceBuilder<ContainerResource> kafkaInit)
     {
         // Set the Redis password to match the Redis infrastructure configuration
         var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
         
-        builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
+        // Check if we should use Kafka source for TaskManager load testing
+        var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        
+        var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
             .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
@@ -151,7 +165,18 @@ public static class Program
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
             .WithEnvironment("SIMULATOR_REDIS_PASSWORD", redisPassword) // Add password for FlinkJobSimulator
-            .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
+            .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
+            .WaitFor(redis) // Wait for Redis to be ready
+            .WaitFor(kafka) // Wait for Kafka to be ready
+            .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+            
+        // Enable Kafka source mode for TaskManager load distribution testing if requested
+        if (useKafkaSource)
+        {
+            Console.WriteLine("🔄 STRESS TEST CONFIG: Enabling Kafka source mode for TaskManager load distribution testing");
+            flinkJobSimulator.WithEnvironment("SIMULATOR_USE_KAFKA_SOURCE", "true");
+            flinkJobSimulator.WithEnvironment("SIMULATOR_KAFKA_CONSUMER_GROUP", "flinkdotnet-stress-test-consumer-group");
+        }
     }
 
     private static bool IsRunningInCI()

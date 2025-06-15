@@ -227,7 +227,9 @@ namespace FlinkDotnetStandardReliabilityTest
         {
             try
             {
-                using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
+                // Use enhanced Redis connection options for better reliability
+                var options = CreateRedisConfigurationOptions(connectionString);
+                using var redis = await ConnectionMultiplexer.ConnectAsync(options);
                 var db = redis.GetDatabase();
                 await db.PingAsync();
                 _logger.LogDebug("Redis connectivity verification passed");
@@ -236,6 +238,82 @@ namespace FlinkDotnetStandardReliabilityTest
             {
                 throw new InvalidOperationException($"Redis connectivity verification failed: {ex.Message}", ex);
             }
+        }
+
+        private ConfigurationOptions CreateRedisConfigurationOptions(string connectionString)
+        {
+            var options = new ConfigurationOptions();
+            
+            try
+            {
+                if (connectionString.StartsWith("redis://"))
+                {
+                    // Parse Redis URI format: redis://:password@host:port
+                    var uri = new Uri(connectionString);
+                    options.EndPoints.Add(uri.Host, uri.Port);
+                    
+                    // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
+                    if (!string.IsNullOrEmpty(uri.UserInfo))
+                    {
+                        var userInfo = uri.UserInfo;
+                        if (userInfo.Contains(':'))
+                        {
+                            // Format: redis://user:password@host:port or redis://:password@host:port
+                            var password = userInfo.Split(':')[1];
+                            if (!string.IsNullOrEmpty(password))
+                            {
+                                options.Password = password;
+                            }
+                        }
+                        else
+                        {
+                            // Format: redis://password@host:port (no colon, treat as password)
+                            options.Password = userInfo;
+                        }
+                    }
+                }
+                else
+                {
+                    // Try standard parsing for comma-separated format: host:port,password=...
+                    try
+                    {
+                        options = ConfigurationOptions.Parse(connectionString);
+                    }
+                    catch
+                    {
+                        // If standard parsing fails, try manual parsing for formats like "localhost:32768,password=..."
+                        var parts = connectionString.Split(',');
+                        if (parts.Length > 0)
+                        {
+                            options.EndPoints.Add(parts[0]);
+                            for (int i = 1; i < parts.Length; i++)
+                            {
+                                var part = parts[i].Trim();
+                                if (part.StartsWith("password="))
+                                {
+                                    options.Password = part.Substring("password=".Length);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Error parsing Redis connection string '{connectionString}': {ex.Message}");
+                // Fallback to basic localhost configuration
+                options.EndPoints.Add("localhost", 6379);
+            }
+            
+            // Set connection parameters optimized for reliability and test environments
+            options.ConnectTimeout = 60000; // 60s timeout
+            options.SyncTimeout = 60000;    // 60s timeout  
+            options.AbortOnConnectFail = false; // Critical: Don't abort on first connection failure
+            options.ConnectRetry = 5; // More retry attempts
+            options.KeepAlive = 30; // Keep connection alive
+            options.AllowAdmin = true; // Allow admin commands if needed
+            
+            return options;
         }
 
         private async Task VerifyKafkaConnectivity(string bootstrapServers)
