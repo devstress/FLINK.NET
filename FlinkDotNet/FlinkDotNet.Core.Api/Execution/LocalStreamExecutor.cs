@@ -241,7 +241,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }, cancellationToken);
         }
 
-        private void OpenOperators(OperatorInstance operatorInstance)
+        private static void OpenOperators(OperatorInstance operatorInstance)
         {
             // Open the operator
             if (operatorInstance.Operator is IOperatorLifecycle lifecycle && operatorInstance.RuntimeContext != null)
@@ -259,7 +259,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private void CloseOperators(OperatorInstance operatorInstance)
+        private static void CloseOperators(OperatorInstance operatorInstance)
         {
             // Close chained operators
             foreach (var chainedOp in operatorInstance.ChainedOperators)
@@ -296,7 +296,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private async Task ExecuteSourceFunction(object? operatorObject, ISourceContext<string> sourceContext, CancellationToken cancellationToken)
+        private static async Task ExecuteSourceFunction(object? operatorObject, ISourceContext<string> sourceContext, CancellationToken cancellationToken)
         {
             // Run the source
             if (operatorObject is ISourceFunction<string> stringSource)
@@ -925,7 +925,7 @@ namespace FlinkDotNet.Core.Api.Execution
             }
         }
 
-        private bool ProcessSinkOperator(object chainedOp, object currentRecord)
+        private static bool ProcessSinkOperator(object chainedOp, object currentRecord)
         {
             if (chainedOp is ISinkFunction<string> sinkFunction && currentRecord is string stringRecord)
             {
@@ -938,7 +938,7 @@ namespace FlinkDotNet.Core.Api.Execution
             return false;
         }
 
-        private object ProcessMapOperator(object chainedOp, object currentRecord)
+        private static object ProcessMapOperator(object chainedOp, object currentRecord)
         {
             // Try to find and invoke Map or other transformation methods
             var mapMethod = chainedOp.GetType().GetMethod("Map");

@@ -140,31 +140,31 @@ namespace FlinkDotNet.Core.Observability
                 metricName, operatorName, taskId, value, unit, JsonSerializer.Serialize(logContext));
         }
 
-        public void LogStateOperation(LogLevel level, string operatorName, string taskId, string operation,
-            string stateType, TimeSpan? duration = null, long? sizeBytes = null, Dictionary<string, object>? context = null)
+        public void LogStateOperation(LogLevel level, StateOperationInfo stateInfo)
         {
             var logContext = CreateLogContext(new Dictionary<string, object>
             {
-                ["flink.operator.name"] = operatorName,
-                ["flink.task.id"] = taskId,
-                ["flink.job.id"] = GetJobIdFromTask(taskId),
-                ["flink.state.operation"] = operation,
-                ["flink.state.type"] = stateType,
+                ["flink.operator.name"] = stateInfo.OperatorName,
+                ["flink.task.id"] = stateInfo.TaskId,
+                ["flink.job.id"] = GetJobIdFromTask(stateInfo.TaskId),
+                ["flink.state.operation"] = stateInfo.Operation,
+                ["flink.state.type"] = stateInfo.StateType,
                 ["flink.event.type"] = "state_operation"
-            }, context);
+            }, stateInfo.Context);
 
-            if (duration.HasValue)
+            if (stateInfo.Duration.HasValue)
             {
-                logContext["flink.state.duration.ms"] = duration.Value.TotalMilliseconds;
+                logContext["flink.state.duration.ms"] = stateInfo.Duration.Value.TotalMilliseconds;
             }
 
-            if (sizeBytes.HasValue)
+            if (stateInfo.SizeBytes.HasValue)
             {
-                logContext["flink.state.size.bytes"] = sizeBytes.Value;
+                logContext["flink.state.size.bytes"] = stateInfo.SizeBytes.Value;
             }
 
             _logger.Log(level, "State operation {Operation} ({StateType}) in operator {OperatorName}, task {TaskId}: duration={Duration}ms, size={Size}bytes. Context: {Context}",
-                operation, stateType, operatorName, taskId, duration?.TotalMilliseconds ?? 0, sizeBytes ?? 0, JsonSerializer.Serialize(logContext));
+                stateInfo.Operation, stateInfo.StateType, stateInfo.OperatorName, stateInfo.TaskId, 
+                stateInfo.Duration?.TotalMilliseconds ?? 0, stateInfo.SizeBytes ?? 0, JsonSerializer.Serialize(logContext));
         }
 
         public void LogNetworkOperation(LogLevel level, string sourceTask, string targetTask, string operation,

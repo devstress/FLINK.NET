@@ -48,7 +48,7 @@ namespace FlinkDotNet.Core.Abstractions.Observability
         /// Adds span event for significant occurrences.
         /// Records important events like backpressure, restarts, etc.
         /// </summary>
-        void AddSpanEvent(string eventName, Dictionary<string, object>? attributes = null);
+        void AddSpanEvent(string eventName, Dictionary<string, object?>? attributes = null);
 
         /// <summary>
         /// Records an error in the current span.

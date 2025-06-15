@@ -1,5 +1,4 @@
 using FlinkDotNet.Core.Abstractions.Observability;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -23,293 +22,308 @@ namespace FlinkDotNet.Core.Observability
         public async Task<FlinkHealthCheckResult> CheckOperatorHealthAsync(string operatorName, string taskId, 
             CancellationToken cancellationToken = default)
         {
-            var stopwatch = Stopwatch.StartNew();
-            
-            try
+            return await Task.Run(() =>
             {
-                _logger.LogDebug("Starting health check for operator {OperatorName}, task {TaskId}", 
-                    operatorName, taskId);
-
-                // Simulate operator health checks:
-                // 1. Check if operator is responsive
-                // 2. Validate resource usage
-                // 3. Check error rates
-                // 4. Validate processing latency
-
-                var healthData = new Dictionary<string, object>
+                var stopwatch = Stopwatch.StartNew();
+                
+                try
                 {
-                    ["operator_name"] = operatorName,
-                    ["task_id"] = taskId,
-                    ["memory_usage_mb"] = Random.Shared.Next(50, 200), // Simulated
-                    ["cpu_usage_percent"] = Random.Shared.Next(10, 80), // Simulated
-                    ["error_rate_percent"] = Random.Shared.Next(0, 5), // Simulated
-                    ["avg_latency_ms"] = Random.Shared.Next(1, 100) // Simulated
-                };
+                    _logger.LogDebug("Starting health check for operator {OperatorName}, task {TaskId}", 
+                        operatorName, taskId);
 
-                // Determine health status based on metrics
-                var status = DetermineOperatorHealth(healthData);
+                    // Simulate operator health checks:
+                    // 1. Check if operator is responsive
+                    // 2. Validate resource usage
+                    // 3. Check error rates
+                    // 4. Validate processing latency
 
-                stopwatch.Stop();
+                    var healthData = new Dictionary<string, object>
+                    {
+                        ["operator_name"] = operatorName,
+                        ["task_id"] = taskId,
+                        ["memory_usage_mb"] = Random.Shared.Next(50, 200), // Simulated
+                        ["cpu_usage_percent"] = Random.Shared.Next(10, 80), // Simulated
+                        ["error_rate_percent"] = Random.Shared.Next(0, 5), // Simulated
+                        ["avg_latency_ms"] = Random.Shared.Next(1, 100) // Simulated
+                    };
 
-                var result = new FlinkHealthCheckResult
+                    // Determine health status based on metrics
+                    var status = DetermineOperatorHealth(healthData);
+
+                    stopwatch.Stop();
+
+                    var result = new FlinkHealthCheckResult
+                    {
+                        Status = status,
+                        ComponentName = $"Operator-{operatorName}",
+                        Description = $"Health check for operator {operatorName} on task {taskId}",
+                        Data = healthData,
+                        CheckDuration = stopwatch.Elapsed
+                    };
+
+                    _logger.LogInformation("Completed health check for operator {OperatorName}, task {TaskId}: {Status} in {Duration}ms",
+                        operatorName, taskId, status, stopwatch.ElapsedMilliseconds);
+
+                    return result;
+                }
+                catch (Exception ex)
                 {
-                    Status = status,
-                    ComponentName = $"Operator-{operatorName}",
-                    Description = $"Health check for operator {operatorName} on task {taskId}",
-                    Data = healthData,
-                    CheckDuration = stopwatch.Elapsed
-                };
+                    stopwatch.Stop();
+                    _logger.LogError(ex, "Health check failed for operator {OperatorName}, task {TaskId}",
+                        operatorName, taskId);
 
-                _logger.LogInformation("Completed health check for operator {OperatorName}, task {TaskId}: {Status} in {Duration}ms",
-                    operatorName, taskId, status, stopwatch.ElapsedMilliseconds);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                _logger.LogError(ex, "Health check failed for operator {OperatorName}, task {TaskId}",
-                    operatorName, taskId);
-
-                return new FlinkHealthCheckResult
-                {
-                    Status = FlinkHealthStatus.Failed,
-                    ComponentName = $"Operator-{operatorName}",
-                    Description = $"Health check failed for operator {operatorName}: {ex.Message}",
-                    CheckDuration = stopwatch.Elapsed,
-                    Exception = ex
-                };
-            }
+                    return new FlinkHealthCheckResult
+                    {
+                        Status = FlinkHealthStatus.Failed,
+                        ComponentName = $"Operator-{operatorName}",
+                        Description = $"Health check failed for operator {operatorName}: {ex.Message}",
+                        CheckDuration = stopwatch.Elapsed,
+                        Exception = ex
+                    };
+                }
+            }, cancellationToken);
         }
 
         public async Task<FlinkHealthCheckResult> CheckJobHealthAsync(string jobId, 
             CancellationToken cancellationToken = default)
         {
-            var stopwatch = Stopwatch.StartNew();
-            
-            try
+            return await Task.Run(() =>
             {
-                _logger.LogDebug("Starting health check for job {JobId}", jobId);
-
-                // Simulate job health checks:
-                // 1. Check job execution status
-                // 2. Validate checkpoint progress
-                // 3. Check overall throughput
-                // 4. Validate resource consumption
-
-                var healthData = new Dictionary<string, object>
+                var stopwatch = Stopwatch.StartNew();
+                
+                try
                 {
-                    ["job_id"] = jobId,
-                    ["execution_status"] = "RUNNING",
-                    ["last_checkpoint_id"] = Random.Shared.Next(1000, 9999),
-                    ["checkpoint_success_rate"] = Random.Shared.Next(85, 100),
-                    ["throughput_records_per_second"] = Random.Shared.Next(100, 1000),
-                    ["parallelism"] = Random.Shared.Next(1, 8)
-                };
+                    _logger.LogDebug("Starting health check for job {JobId}", jobId);
 
-                var status = DetermineJobHealth(healthData);
+                    // Simulate job health checks:
+                    // 1. Check job execution status
+                    // 2. Validate checkpoint progress
+                    // 3. Check overall throughput
+                    // 4. Validate resource consumption
 
-                stopwatch.Stop();
+                    var healthData = new Dictionary<string, object>
+                    {
+                        ["job_id"] = jobId,
+                        ["execution_status"] = "RUNNING",
+                        ["last_checkpoint_id"] = Random.Shared.Next(1000, 9999),
+                        ["checkpoint_success_rate"] = Random.Shared.Next(85, 100),
+                        ["throughput_records_per_second"] = Random.Shared.Next(100, 1000),
+                        ["parallelism"] = Random.Shared.Next(1, 8)
+                    };
 
-                var result = new FlinkHealthCheckResult
+                    var status = DetermineJobHealth(healthData);
+
+                    stopwatch.Stop();
+
+                    var result = new FlinkHealthCheckResult
+                    {
+                        Status = status,
+                        ComponentName = $"Job-{jobId}",
+                        Description = $"Health check for job {jobId}",
+                        Data = healthData,
+                        CheckDuration = stopwatch.Elapsed
+                    };
+
+                    _logger.LogInformation("Completed health check for job {JobId}: {Status} in {Duration}ms",
+                        jobId, status, stopwatch.ElapsedMilliseconds);
+
+                    return result;
+                }
+                catch (Exception ex)
                 {
-                    Status = status,
-                    ComponentName = $"Job-{jobId}",
-                    Description = $"Health check for job {jobId}",
-                    Data = healthData,
-                    CheckDuration = stopwatch.Elapsed
-                };
+                    stopwatch.Stop();
+                    _logger.LogError(ex, "Health check failed for job {JobId}", jobId);
 
-                _logger.LogInformation("Completed health check for job {JobId}: {Status} in {Duration}ms",
-                    jobId, status, stopwatch.ElapsedMilliseconds);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                _logger.LogError(ex, "Health check failed for job {JobId}", jobId);
-
-                return new FlinkHealthCheckResult
-                {
-                    Status = FlinkHealthStatus.Failed,
-                    ComponentName = $"Job-{jobId}",
-                    Description = $"Health check failed for job {jobId}: {ex.Message}",
-                    CheckDuration = stopwatch.Elapsed,
-                    Exception = ex
-                };
-            }
+                    return new FlinkHealthCheckResult
+                    {
+                        Status = FlinkHealthStatus.Failed,
+                        ComponentName = $"Job-{jobId}",
+                        Description = $"Health check failed for job {jobId}: {ex.Message}",
+                        CheckDuration = stopwatch.Elapsed,
+                        Exception = ex
+                    };
+                }
+            }, cancellationToken);
         }
 
         public async Task<FlinkHealthCheckResult> CheckStateBackendHealthAsync(
             CancellationToken cancellationToken = default)
         {
-            var stopwatch = Stopwatch.StartNew();
-            
-            try
+            return await Task.Run(() =>
             {
-                _logger.LogDebug("Starting state backend health check");
-
-                // Simulate state backend health checks:
-                // 1. Check storage accessibility
-                // 2. Validate checkpoint storage
-                // 3. Check state serialization performance
-                // 4. Validate state recovery capabilities
-
-                var healthData = new Dictionary<string, object>
+                var stopwatch = Stopwatch.StartNew();
+                
+                try
                 {
-                    ["backend_type"] = "RocksDB",
-                    ["storage_accessible"] = true,
-                    ["checkpoint_storage_mb"] = Random.Shared.Next(100, 1000),
-                    ["avg_serialize_time_ms"] = Random.Shared.Next(1, 50),
-                    ["avg_recovery_time_ms"] = Random.Shared.Next(100, 5000)
-                };
+                    _logger.LogDebug("Starting state backend health check");
 
-                var status = DetermineStateBackendHealth(healthData);
+                    // Simulate state backend health checks:
+                    // 1. Check storage accessibility
+                    // 2. Validate checkpoint storage
+                    // 3. Check state serialization performance
+                    // 4. Validate state recovery capabilities
 
-                stopwatch.Stop();
+                    var healthData = new Dictionary<string, object>
+                    {
+                        ["backend_type"] = "RocksDB",
+                        ["storage_accessible"] = true,
+                        ["checkpoint_storage_mb"] = Random.Shared.Next(100, 1000),
+                        ["avg_serialize_time_ms"] = Random.Shared.Next(1, 50),
+                        ["avg_recovery_time_ms"] = Random.Shared.Next(100, 5000)
+                    };
 
-                var result = new FlinkHealthCheckResult
+                    var status = DetermineStateBackendHealth(healthData);
+
+                    stopwatch.Stop();
+
+                    var result = new FlinkHealthCheckResult
+                    {
+                        Status = status,
+                        ComponentName = "StateBackend",
+                        Description = "Health check for state backend",
+                        Data = healthData,
+                        CheckDuration = stopwatch.Elapsed
+                    };
+
+                    _logger.LogInformation("Completed state backend health check: {Status} in {Duration}ms",
+                        status, stopwatch.ElapsedMilliseconds);
+
+                    return result;
+                }
+                catch (Exception ex)
                 {
-                    Status = status,
-                    ComponentName = "StateBackend",
-                    Description = "Health check for state backend",
-                    Data = healthData,
-                    CheckDuration = stopwatch.Elapsed
-                };
+                    stopwatch.Stop();
+                    _logger.LogError(ex, "State backend health check failed");
 
-                _logger.LogInformation("Completed state backend health check: {Status} in {Duration}ms",
-                    status, stopwatch.ElapsedMilliseconds);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                _logger.LogError(ex, "State backend health check failed");
-
-                return new FlinkHealthCheckResult
-                {
-                    Status = FlinkHealthStatus.Failed,
-                    ComponentName = "StateBackend",
-                    Description = $"State backend health check failed: {ex.Message}",
-                    CheckDuration = stopwatch.Elapsed,
-                    Exception = ex
-                };
-            }
+                    return new FlinkHealthCheckResult
+                    {
+                        Status = FlinkHealthStatus.Failed,
+                        ComponentName = "StateBackend",
+                        Description = $"State backend health check failed: {ex.Message}",
+                        CheckDuration = stopwatch.Elapsed,
+                        Exception = ex
+                    };
+                }
+            }, cancellationToken);
         }
 
         public async Task<FlinkHealthCheckResult> CheckNetworkHealthAsync(
             CancellationToken cancellationToken = default)
         {
-            var stopwatch = Stopwatch.StartNew();
-            
-            try
+            return await Task.Run(() =>
             {
-                _logger.LogDebug("Starting network health check");
-
-                // Simulate network health checks:
-                // 1. Check inter-task communication
-                // 2. Validate buffer pool usage
-                // 3. Check network latency
-                // 4. Validate data transfer rates
-
-                var healthData = new Dictionary<string, object>
+                var stopwatch = Stopwatch.StartNew();
+                
+                try
                 {
-                    ["buffer_pool_usage_percent"] = Random.Shared.Next(10, 90),
-                    ["avg_network_latency_ms"] = Random.Shared.Next(1, 100),
-                    ["data_transfer_rate_mbps"] = Random.Shared.Next(10, 1000),
-                    ["active_connections"] = Random.Shared.Next(1, 50)
-                };
+                    _logger.LogDebug("Starting network health check");
 
-                var status = DetermineNetworkHealth(healthData);
+                    // Simulate network health checks:
+                    // 1. Check inter-task communication
+                    // 2. Validate buffer pool usage
+                    // 3. Check network latency
+                    // 4. Validate data transfer rates
 
-                stopwatch.Stop();
+                    var healthData = new Dictionary<string, object>
+                    {
+                        ["buffer_pool_usage_percent"] = Random.Shared.Next(10, 90),
+                        ["avg_network_latency_ms"] = Random.Shared.Next(1, 100),
+                        ["data_transfer_rate_mbps"] = Random.Shared.Next(10, 1000),
+                        ["active_connections"] = Random.Shared.Next(1, 50)
+                    };
 
-                var result = new FlinkHealthCheckResult
+                    var status = DetermineNetworkHealth(healthData);
+
+                    stopwatch.Stop();
+
+                    var result = new FlinkHealthCheckResult
+                    {
+                        Status = status,
+                        ComponentName = "Network",
+                        Description = "Health check for network communication",
+                        Data = healthData,
+                        CheckDuration = stopwatch.Elapsed
+                    };
+
+                    _logger.LogInformation("Completed network health check: {Status} in {Duration}ms",
+                        status, stopwatch.ElapsedMilliseconds);
+
+                    return result;
+                }
+                catch (Exception ex)
                 {
-                    Status = status,
-                    ComponentName = "Network",
-                    Description = "Health check for network communication",
-                    Data = healthData,
-                    CheckDuration = stopwatch.Elapsed
-                };
+                    stopwatch.Stop();
+                    _logger.LogError(ex, "Network health check failed");
 
-                _logger.LogInformation("Completed network health check: {Status} in {Duration}ms",
-                    status, stopwatch.ElapsedMilliseconds);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                _logger.LogError(ex, "Network health check failed");
-
-                return new FlinkHealthCheckResult
-                {
-                    Status = FlinkHealthStatus.Failed,
-                    ComponentName = "Network",
-                    Description = $"Network health check failed: {ex.Message}",
-                    CheckDuration = stopwatch.Elapsed,
-                    Exception = ex
-                };
-            }
+                    return new FlinkHealthCheckResult
+                    {
+                        Status = FlinkHealthStatus.Failed,
+                        ComponentName = "Network",
+                        Description = $"Network health check failed: {ex.Message}",
+                        CheckDuration = stopwatch.Elapsed,
+                        Exception = ex
+                    };
+                }
+            }, cancellationToken);
         }
 
         public async Task<FlinkHealthCheckResult> CheckResourceHealthAsync(
             CancellationToken cancellationToken = default)
         {
-            var stopwatch = Stopwatch.StartNew();
-            
-            try
+            return await Task.Run(() =>
             {
-                _logger.LogDebug("Starting resource health check");
-
-                // Get actual system resource information
-                var process = Process.GetCurrentProcess();
-                var totalMemoryMB = GC.GetTotalMemory(false) / (1024 * 1024);
+                var stopwatch = Stopwatch.StartNew();
                 
-                var healthData = new Dictionary<string, object>
+                try
                 {
-                    ["memory_usage_mb"] = totalMemoryMB,
-                    ["working_set_mb"] = process.WorkingSet64 / (1024 * 1024),
-                    ["cpu_time_ms"] = process.TotalProcessorTime.TotalMilliseconds,
-                    ["thread_count"] = process.Threads.Count,
-                    ["handle_count"] = process.HandleCount
-                };
+                    _logger.LogDebug("Starting resource health check");
 
-                var status = DetermineResourceHealth(healthData);
+                    // Get actual system resource information
+                    var process = Process.GetCurrentProcess();
+                    var totalMemoryMB = GC.GetTotalMemory(false) / (1024 * 1024);
+                    
+                    var healthData = new Dictionary<string, object>
+                    {
+                        ["memory_usage_mb"] = totalMemoryMB,
+                        ["working_set_mb"] = process.WorkingSet64 / (1024 * 1024),
+                        ["cpu_time_ms"] = process.TotalProcessorTime.TotalMilliseconds,
+                        ["thread_count"] = process.Threads.Count,
+                        ["handle_count"] = process.HandleCount
+                    };
 
-                stopwatch.Stop();
+                    var status = DetermineResourceHealth(healthData);
 
-                var result = new FlinkHealthCheckResult
+                    stopwatch.Stop();
+
+                    var result = new FlinkHealthCheckResult
+                    {
+                        Status = status,
+                        ComponentName = "Resources",
+                        Description = "Health check for system resources",
+                        Data = healthData,
+                        CheckDuration = stopwatch.Elapsed
+                    };
+
+                    _logger.LogInformation("Completed resource health check: {Status} in {Duration}ms",
+                        status, stopwatch.ElapsedMilliseconds);
+
+                    return result;
+                }
+                catch (Exception ex)
                 {
-                    Status = status,
-                    ComponentName = "Resources",
-                    Description = "Health check for system resources",
-                    Data = healthData,
-                    CheckDuration = stopwatch.Elapsed
-                };
+                    stopwatch.Stop();
+                    _logger.LogError(ex, "Resource health check failed");
 
-                _logger.LogInformation("Completed resource health check: {Status} in {Duration}ms",
-                    status, stopwatch.ElapsedMilliseconds);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                stopwatch.Stop();
-                _logger.LogError(ex, "Resource health check failed");
-
-                return new FlinkHealthCheckResult
-                {
-                    Status = FlinkHealthStatus.Failed,
-                    ComponentName = "Resources",
-                    Description = $"Resource health check failed: {ex.Message}",
-                    CheckDuration = stopwatch.Elapsed,
-                    Exception = ex
-                };
-            }
+                    return new FlinkHealthCheckResult
+                    {
+                        Status = FlinkHealthStatus.Failed,
+                        ComponentName = "Resources",
+                        Description = $"Resource health check failed: {ex.Message}",
+                        CheckDuration = stopwatch.Elapsed,
+                        Exception = ex
+                    };
+                }
+            }, cancellationToken);
         }
 
         public async Task<Dictionary<string, FlinkHealthCheckResult>> CheckOverallHealthAsync(

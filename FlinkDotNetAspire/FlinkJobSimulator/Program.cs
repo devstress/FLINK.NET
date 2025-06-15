@@ -896,7 +896,13 @@ public static class Program
         using var cleanupActivity = tracing.StartStateOperationSpan("RedisCleanup", "state-cleanup", "cleanup");
         await CleanRedisStateForFreshTest(redisDatabase);
         Console.WriteLine("✅ STEP 8.2 COMPLETED: Redis state cleanup finished");
-        logger.LogStateOperation(LogLevel.Information, "RedisCleanup", "state-cleanup", "cleanup", "redis");
+        logger.LogStateOperation(LogLevel.Information, new StateOperationInfo
+        {
+            OperatorName = "RedisCleanup",
+            TaskId = "state-cleanup",
+            Operation = "cleanup",
+            StateType = "redis"
+        });
         
         // Verify infrastructure
         Console.WriteLine("🔄 STEP 8.3: Verifying JobManager and TaskManager infrastructure...");
@@ -1120,7 +1126,7 @@ public static class Program
         // 🔄 ENHANCED PROCESS LOGGING: Confirm FlinkJobSimulator is running and discoverable
         LogProcessDiscoveryInfo();
 
-        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration, metrics, tracing, logger, healthMonitor);
+        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration, metrics, tracing, logger);
         
         await FinalizeAndKeepAlive(totalStartTime, redisSinkCounterKey, kafkaTopic, redisDatabase, jobExecutionSuccess);
     }
@@ -1167,13 +1173,13 @@ public static class Program
     {
         Console.WriteLine("🔍 === ENHANCED PROCESS DISCOVERY LOGGING ===");
         Console.WriteLine($"🔍 Process ID: {Environment.ProcessId}");
-        Console.WriteLine($"🔍 Process Name: {System.Diagnostics.Process.GetCurrentProcess().ProcessName}");
-        Console.WriteLine($"🔍 Main Module: {System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "Unknown"}");
+        Console.WriteLine($"🔍 Process Name: {Process.GetCurrentProcess().ProcessName}");
+        Console.WriteLine($"🔍 Main Module: {Process.GetCurrentProcess().MainModule?.FileName ?? "Unknown"}");
         Console.WriteLine($"🔍 Working Directory: {Environment.CurrentDirectory}");
         Console.WriteLine($"🔍 Start Time: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
         
         // Check if this process should be discoverable as FlinkJobSimulator
-        var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+        var currentProcess = Process.GetCurrentProcess();
         var mainModuleFileName = currentProcess.MainModule?.FileName ?? "";
         if (mainModuleFileName.Contains("FlinkJobSimulator", StringComparison.OrdinalIgnoreCase))
         {
@@ -1188,7 +1194,7 @@ public static class Program
         
         // Log all running dotnet processes for comparison
         Console.WriteLine($"🔍 Current .NET processes running:");
-        var dotnetProcesses = System.Diagnostics.Process.GetProcessesByName("dotnet");
+        var dotnetProcesses = Process.GetProcessesByName("dotnet");
         foreach (var proc in dotnetProcesses)
         {
             try
@@ -1264,7 +1270,7 @@ public static class Program
         }
     }
 
-    private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger, IFlinkHealthMonitor healthMonitor)
+    private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
     {
         // ✨ START JOB-LEVEL TRACING
         using var jobActivity = tracing.StartOperatorSpan("FlinkJobSimulator", "main-job", null);
@@ -1410,9 +1416,9 @@ public static class Program
         Console.WriteLine("🏁 ===================================================");
     }
 
-    private static async Task KeepProcessAlive()
+    private static async Task KeepProcessAlive(CancellationToken cancellationToken = default)
     {
-        await Task.Delay(TimeSpan.FromSeconds(5));
+        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
         
         // CRITICAL: Keep process alive indefinitely for Aspire orchestration
         Console.WriteLine("🔄 STEP 11: Starting infinite wait loop to keep process alive...");
@@ -1424,11 +1430,15 @@ public static class Program
         try 
         {
             // Use a more frequent heartbeat for debugging instead of infinite delay
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(30));
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
                 Console.WriteLine($"💓 HEARTBEAT: FlinkJobSimulator alive at {DateTime.UtcNow:HH:mm:ss} UTC - PID: {Environment.ProcessId}");
             }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("💓 HEARTBEAT: FlinkJobSimulator shutdown requested via cancellation token");
         }
         catch (Exception waitEx)
         {
@@ -1436,9 +1446,9 @@ public static class Program
             Console.WriteLine("🔄 Attempting alternative wait mechanism...");
             
             // Fallback: Manual infinite loop if Task.Delay fails
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromMinutes(1));
+                await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
                 Console.WriteLine($"💓 FALLBACK HEARTBEAT: FlinkJobSimulator alive at {DateTime.UtcNow:HH:mm:ss} UTC - PID: {Environment.ProcessId}");
             }
         }

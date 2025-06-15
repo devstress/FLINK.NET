@@ -54,8 +54,7 @@ namespace FlinkDotNet.Core.Abstractions.Observability
         /// Logs state operations (create, restore, snapshot).
         /// Tracks state backend interactions and performance.
         /// </summary>
-        void LogStateOperation(LogLevel level, string operatorName, string taskId, string operation,
-            string stateType, TimeSpan? duration = null, long? sizeBytes = null, Dictionary<string, object>? context = null);
+        void LogStateOperation(LogLevel level, StateOperationInfo stateInfo);
 
         /// <summary>
         /// Logs network communication events between operators.
@@ -76,5 +75,19 @@ namespace FlinkDotNet.Core.Abstractions.Observability
         /// Maintains contextual information across related operations.
         /// </summary>
         IFlinkLogger WithContext(Dictionary<string, object> additionalContext);
+    }
+
+    /// <summary>
+    /// Encapsulates state operation parameters to reduce method parameter count.
+    /// </summary>
+    public class StateOperationInfo
+    {
+        public string OperatorName { get; set; } = string.Empty;
+        public string TaskId { get; set; } = string.Empty;
+        public string Operation { get; set; } = string.Empty;
+        public string StateType { get; set; } = string.Empty;
+        public TimeSpan? Duration { get; set; }
+        public long? SizeBytes { get; set; }
+        public Dictionary<string, object>? Context { get; set; }
     }
 }

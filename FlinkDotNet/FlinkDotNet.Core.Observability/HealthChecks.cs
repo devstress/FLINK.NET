@@ -60,11 +60,19 @@ namespace FlinkDotNet.Core.Observability
                     }
                 }
 
-                var description = overallStatus == HealthStatus.Healthy
-                    ? "All Flink components are healthy"
-                    : overallStatus == HealthStatus.Degraded
-                        ? "Some Flink components are degraded"
-                        : $"Flink components failed: {string.Join(", ", failedComponents)}";
+                string description;
+                if (overallStatus == HealthStatus.Healthy)
+                {
+                    description = "All Flink components are healthy";
+                }
+                else if (overallStatus == HealthStatus.Degraded)
+                {
+                    description = "Some Flink components are degraded";
+                }
+                else
+                {
+                    description = $"Flink components failed: {string.Join(", ", failedComponents)}";
+                }
 
                 _logger.LogInformation("Flink component health check completed: {Status} - {Description}", 
                     overallStatus, description);

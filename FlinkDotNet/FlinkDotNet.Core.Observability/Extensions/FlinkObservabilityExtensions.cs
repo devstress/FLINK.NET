@@ -1,9 +1,7 @@
 using FlinkDotNet.Core.Abstractions.Observability;
-using FlinkDotNet.Core.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using System.Diagnostics;
@@ -66,8 +64,7 @@ namespace FlinkDotNet.Core.Observability.Extensions
 
                     if (options.EnablePrometheusMetrics)
                     {
-                        // Add Prometheus metrics export if configured
-                        // metrics.AddPrometheusExporter();
+                        // Prometheus metrics export would be added here when needed
                     }
 
                     if (options.EnableConsoleMetrics)
@@ -87,8 +84,7 @@ namespace FlinkDotNet.Core.Observability.Extensions
 
                     if (options.EnableJaegerTracing && !string.IsNullOrEmpty(options.JaegerEndpoint))
                     {
-                        // Add Jaeger tracing export if configured
-                        // tracing.AddJaegerExporter(jaeger => jaeger.Endpoint = new Uri(options.JaegerEndpoint));
+                        // Jaeger tracing export would be added here when needed
                     }
                 });
 

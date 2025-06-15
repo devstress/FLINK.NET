@@ -23,6 +23,7 @@ namespace FlinkDotNet.Core.Observability
         private readonly Counter<long> _restartsCounter;
         private readonly Counter<long> _errorsCounter;
         private readonly Gauge<int> _queueSizeGauge;
+        private bool _disposed = false;
         private readonly Histogram<double> _watermarkLagHistogram;
         private readonly Gauge<long> _stateSizeGauge;
 
@@ -286,7 +287,20 @@ namespace FlinkDotNet.Core.Observability
 
         public void Dispose()
         {
-            _meter?.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _meter?.Dispose();
+                }
+                _disposed = true;
+            }
         }
     }
 }

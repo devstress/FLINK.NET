@@ -13,6 +13,7 @@ namespace FlinkDotNet.Core.Observability
         private readonly ActivitySource _activitySource;
         private readonly ILogger<FlinkTracingCollector> _logger;
         private readonly string _serviceName;
+        private bool _disposed = false;
 
         public FlinkTracingCollector(ILogger<FlinkTracingCollector> logger, string serviceName = "FlinkDotNet")
         {
@@ -30,6 +31,7 @@ namespace FlinkDotNet.Core.Observability
                 activity.SetTag("flink.task.id", taskId);
                 activity.SetTag("flink.job.id", GetJobIdFromTask(taskId));
                 activity.SetTag("flink.component.type", "operator");
+                activity.SetTag("service.name", _serviceName);
                 
                 if (!string.IsNullOrEmpty(parentSpanId))
                 {
@@ -123,13 +125,13 @@ namespace FlinkDotNet.Core.Observability
             }
         }
 
-        public void AddSpanEvent(string eventName, Dictionary<string, object>? attributes = null)
+        public void AddSpanEvent(string eventName, Dictionary<string, object?>? attributes = null)
         {
             var activity = Activity.Current;
             if (activity != null)
             {
                 var activityEvent = new ActivityEvent(eventName, DateTimeOffset.UtcNow, 
-                    new ActivityTagsCollection(attributes ?? new Dictionary<string, object>()));
+                    new ActivityTagsCollection(attributes ?? new Dictionary<string, object?>()));
                 activity.AddEvent(activityEvent);
 
                 _logger.LogTrace("Added span event {EventName} to span {SpanId}", 
@@ -178,7 +180,20 @@ namespace FlinkDotNet.Core.Observability
 
         public void Dispose()
         {
-            _activitySource?.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    _activitySource?.Dispose();
+                }
+                _disposed = true;
+            }
         }
     }
 }
