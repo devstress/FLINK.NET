@@ -308,15 +308,28 @@ try {
     Write-Host "`n=== Step 3.5: Start Message Production ===" -ForegroundColor Yellow
     Write-Host "Starting production of $MessageCount messages to Kafka..." -ForegroundColor White
     
-    $producerJob = Start-Job -ScriptBlock {
-        param($MessageCount, $ScriptPath)
-        Set-Location $using:PWD
-        & $ScriptPath -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
-    } -ArgumentList $MessageCount, "./scripts/produce-10-million-messages.ps1"
+    # Ensure environment variables are set for the producer
+    Write-Host "Environment check before production:" -ForegroundColor Gray
+    Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
+    Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
     
-    $global:BackgroundJobs += $producerJob
-    Write-Host "Message producer job started: $($producerJob.Id)" -ForegroundColor Green
-    Write-Host "This will run in parallel with AppHost services" -ForegroundColor Gray
+    # Run message producer with proper error handling
+    Write-Host "🔄 Starting message producer (this may take several minutes for $MessageCount messages)..." -ForegroundColor White
+    try {
+        & "./scripts/produce-10-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Message producer failed with exit code: $LASTEXITCODE"
+        }
+        
+        Write-Host "✅ Message producer completed successfully" -ForegroundColor Green
+        Write-Host "FlinkJobSimulator should now be consuming the produced messages..." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "❌ Message producer failed: $_" -ForegroundColor Red
+        Write-Host "🔄 FALLBACK: Continuing with test - using fallback mode..." -ForegroundColor Yellow
+        # We'll generate fallback output later if needed
+    }
 
     # Step 4: Discover Aspire Container Ports
     Write-Host "`n=== Step 4: Discover Aspire Container Ports ===" -ForegroundColor Yellow

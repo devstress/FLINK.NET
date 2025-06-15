@@ -265,15 +265,30 @@ jobs:
         run: |
           Write-Host "🚀 === STARTING MESSAGE PRODUCER ==="
           Write-Host "Producing ${{ env.SIMULATOR_NUM_MESSAGES }} messages to Kafka..."
+          Write-Host "Environment check before production:"
+          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
           
-          # Run message producer in background to feed Kafka while FlinkJobSimulator consumes
-          try {
-            & ./scripts/produce-10-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic"
-            Write-Host "✅ Message producer completed successfully"
-          } catch {
-            Write-Host "❌ Message producer failed: $_"
-            Write-Host "Continuing with test - FlinkJobSimulator may already be processing existing messages"
+          # Ensure environment variables are available to the producer script
+          if (-not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
+            Write-Host "❌ DOTNET_KAFKA_BOOTSTRAP_SERVERS not set. Re-running port discovery..." -ForegroundColor Red
+            & ./scripts/discover-aspire-ports.ps1
+            Write-Host "After re-discovery:"
+            Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
           }
+          
+          # Run message producer - this MUST succeed for the test to be valid
+          Write-Host "🔄 Starting message producer (this may take several minutes for 10M messages)..."
+          & ./scripts/produce-10-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic"
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Message producer failed with exit code: $LASTEXITCODE" -ForegroundColor Red
+            Write-Host "Cannot proceed with stress test - no messages available for FlinkJobSimulator to consume" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host "✅ Message producer completed successfully" -ForegroundColor Green
+          Write-Host "FlinkJobSimulator should now be consuming the produced messages..." -ForegroundColor Green
 
       - name: Diagnose FlinkJobSimulator Status
         env:

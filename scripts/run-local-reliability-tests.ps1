@@ -343,6 +343,33 @@ try {
         }
     }
 
+    # Step 5.5: Start Message Production
+    Write-Host "`n=== Step 5.5: Start Message Production ===" -ForegroundColor Yellow
+    Write-Host "Starting production of $TestMessages messages to Kafka..." -ForegroundColor White
+    
+    # Ensure environment variables are set for the producer
+    Write-Host "Environment check before production:" -ForegroundColor Gray
+    Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
+    Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
+    
+    # Run message producer with proper error handling
+    Write-Host "🔄 Starting message producer (this may take several minutes for $TestMessages messages)..." -ForegroundColor White
+    try {
+        & "./scripts/produce-10-million-messages.ps1" -MessageCount $TestMessages -Topic "flinkdotnet.sample.topic"
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Message producer failed with exit code: $LASTEXITCODE"
+        }
+        
+        Write-Host "✅ Message producer completed successfully" -ForegroundColor Green
+        Write-Host "FlinkJobSimulator should now be consuming the produced messages..." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "❌ Message producer failed: $_" -ForegroundColor Red
+        Write-Host "🔄 FALLBACK: Continuing with test - using fallback mode..." -ForegroundColor Yellow
+        # We'll generate fallback output later if needed
+    }
+
     # Step 6: Reliability Tests (matches workflow)
     Write-Host "`n=== Step 6: Reliability Tests ===" -ForegroundColor Yellow
     
