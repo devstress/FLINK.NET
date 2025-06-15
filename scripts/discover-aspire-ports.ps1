@@ -98,7 +98,7 @@ function Get-RedisConnectionInfo {
                 return $null
             }
 
-            # Try to get Redis password from container environment
+            # Try to get Redis password from container environment or use the fixed AppHost password
             $envOutput = docker inspect $containerId 2>/dev/null | ConvertFrom-Json
             $redisPassword = $null
             if ($envOutput -and $envOutput[0].Config.Env) {
@@ -110,26 +110,53 @@ function Get-RedisConnectionInfo {
                     }
                 }
             }
+            
+            # If no password found in container environment, use the fixed AppHost password
+            if (-not $redisPassword) {
+                $redisPassword = "FlinkDotNet_Redis_CI_Password_2024"
+                Write-Host "Using fixed AppHost Redis password" -ForegroundColor Yellow
+            }
 
-            # Build connection string based on Aspire/StackExchange.Redis format
+            # Build connection string based on Redis URI format for better compatibility
             if ($redisPassword) {
-                $connectionString = "localhost:$redisPort,password=$redisPassword"
+                $connectionString = "redis://:$redisPassword@localhost:$redisPort"
             } else {
-                $connectionString = "localhost:$redisPort"
+                # Use Redis URI format with empty credentials for CI compatibility
+                $connectionString = "redis://:@localhost:$redisPort"
             }
 
             # Test the connection before returning
-            Write-Host "Testing Redis connection at $connectionString..." -ForegroundColor Yellow
+            Write-Host "Testing Redis connection at localhost:$redisPort..." -ForegroundColor Yellow
             try {
-                # Simple connection test using redis-cli if available in container
-                $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
-                if ($testResult -eq "PONG") {
-                    Write-Host "Redis connection test successful" -ForegroundColor Green
+                # Test Redis connection with the password
+                if ($redisPassword) {
+                    $testResult = docker exec $containerId redis-cli -p 6379 -a "$redisPassword" ping 2>/dev/null
+                    if ($testResult -eq "PONG") {
+                        Write-Host "Redis connection test successful with password" -ForegroundColor Green
+                        $connectionString = "redis://:$redisPassword@localhost:$redisPort"
+                    } else {
+                        Write-Host "Redis connection with password failed: '$testResult'" -ForegroundColor Yellow
+                        # Fallback to empty password format
+                        $connectionString = "redis://:@localhost:$redisPort"
+                    }
                 } else {
-                    Write-Host "Redis connection test inconclusive but proceeding" -ForegroundColor Yellow
+                    # Test without password first
+                    $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+                    if ($testResult -eq "PONG") {
+                        Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                        $connectionString = "redis://:@localhost:$redisPort"
+                    } else {
+                        Write-Host "Redis connection without password failed: '$testResult'" -ForegroundColor Yellow
+                        $connectionString = "redis://:@localhost:$redisPort"
+                    }
                 }
             } catch {
-                Write-Host "Redis connection test failed, but proceeding with discovered port" -ForegroundColor Yellow
+                Write-Host "Redis connection test failed with error: $_ - proceeding with discovered connection" -ForegroundColor Yellow
+                if ($redisPassword) {
+                    $connectionString = "redis://:$redisPassword@localhost:$redisPort"
+                } else {
+                    $connectionString = "redis://:@localhost:$redisPort"
+                }
             }
 
             return @{

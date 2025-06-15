@@ -106,12 +106,29 @@ jobs:
         env:
           DOTNET_ENVIRONMENT: "Development"
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
+          # These environment variables must match those set in AppHost for FlinkJobSimulator
+          SIMULATOR_NUM_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
+          SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
+          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+          SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
+          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
           
           $maxAttempts = 5
           $delaySeconds = 10
+          
+          Write-Host "`n=== Health Check Configuration ===" 
+          Write-Host "Max attempts: $maxAttempts"
+          Write-Host "Delay between attempts: $delaySeconds seconds"
+          Write-Host "Environment variables:"
+          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
+          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
+          Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"
+          Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+          Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC"
           
           for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
@@ -134,6 +151,100 @@ jobs:
               Write-Host "❌ Max health check attempts ($maxAttempts) reached. Health checks failed." -ForegroundColor Red
               exit 1
             }
+          }
+
+      - name: Wait for FlinkJobSimulator Completion
+        env:
+          DOTNET_ENVIRONMENT: "Development"
+          SIMULATOR_NUM_MESSAGES: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}
+          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
+          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
+        run: |
+          Write-Host "🕐 Waiting for FlinkJobSimulator to complete message processing..."
+          Write-Host "Expected messages: ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
+          Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
+          
+          $maxWaitSeconds = 300  # 5 minutes max wait for reliability test
+          $checkIntervalSeconds = 5
+          $expectedMessages = [int]"${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
+          $waitStartTime = Get-Date
+          
+          $completed = $false
+          $completionReason = "Unknown"
+          
+          while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
+            try {
+              # Check completion status first
+              $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_completion_status`""
+              $completionStatus = Invoke-Expression $statusCommand 2>$null
+              
+              if ($completionStatus -eq "SUCCESS") {
+                Write-Host "✅ FlinkJobSimulator reported SUCCESS completion status"
+                $completed = $true
+                $completionReason = "Success"
+                break
+              } elseif ($completionStatus -eq "FAILED") {
+                Write-Host "❌ FlinkJobSimulator reported FAILED completion status"
+                $completed = $true
+                $completionReason = "Failed"
+                break
+              }
+              
+              # Check for execution errors
+              $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_execution_error`""
+              $errorValue = Invoke-Expression $errorCommand 2>$null
+              if ($errorValue -and $errorValue -ne "(nil)") {
+                Write-Host "❌ Found job execution error in Redis: $errorValue"
+                $completed = $true
+                $completionReason = "Error"
+                break
+              }
+              
+              # Use redis-cli to check the counter value with password authentication
+              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+              $counterValue = Invoke-Expression $redisCommand 2>$null
+              
+              if ($counterValue -match '^\d+$') {
+                $currentCount = [int]$counterValue
+                Write-Host "📊 Current message count: $currentCount / $expectedMessages"
+                
+                if ($currentCount -ge $expectedMessages) {
+                  Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
+                  $completed = $true
+                  $completionReason = "MessageCountReached"
+                  break
+                } else {
+                  $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
+                  $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
+                  Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                }
+              } else {
+                Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
+              }
+              
+              Start-Sleep -Seconds $checkIntervalSeconds
+            } catch {
+              Write-Host "⏳ Waiting for Redis to be accessible... ($($_.Exception.Message))"
+              Start-Sleep -Seconds $checkIntervalSeconds
+            }
+          }
+          
+          # Report final status
+          Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
+          Write-Host "Completion reason: $completionReason"
+          Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
+          
+          if (-not $completed) {
+            Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
+            exit 1
+          }
+          
+          # Check final success condition
+          if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached") {
+            Write-Host "✅ FlinkJobSimulator completed successfully!"
+          } else {
+            Write-Host "❌ FlinkJobSimulator completed with issues: $completionReason"
+            exit 1
           }
 
       - name: Run Flink.Net Standard Reliability Test with Aspire Infrastructure

@@ -1662,6 +1662,15 @@ namespace IntegrationTestVerifier
         private static void LogRedisConnectionError(Exception ex)
         {
             Console.WriteLine($"❌ Redis connection failed: {ex.GetType().Name}: {ex.Message}");
+            
+            // Specific handling for authentication errors
+            if (ex.Message.Contains("NOAUTH") || ex.Message.Contains("Authentication"))
+            {
+                Console.WriteLine($"   🔐 Redis authentication error detected");
+                Console.WriteLine($"   💡 Recommendation: Check Redis password configuration or disable authentication for CI");
+                Console.WriteLine($"   🛠️  This may be resolved by configuring Redis with empty password for testing");
+            }
+            
             if (ex.InnerException != null)
             {
                 Console.WriteLine($"   Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
@@ -2085,15 +2094,16 @@ namespace IntegrationTestVerifier
                 using var redis = await ConnectionMultiplexer.ConnectAsync(options);
                 stopwatch.Stop();
                 
-                if (redis.IsConnected)
+                Console.WriteLine($"✅ Redis connection established in {stopwatch.ElapsedMilliseconds}ms");
+                
+                // Wait a moment for connection to stabilize in containerized environments
+                if (isCI)
                 {
-                    Console.WriteLine($"✅ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
-                    return await TestRedisPingAsync(redis, isCI);
+                    await Task.Delay(500); // 500ms delay for CI environments
                 }
-                else
-                {
-                    Console.WriteLine($"❌ Redis connection established but not connected (took {stopwatch.ElapsedMilliseconds}ms)");
-                }
+                
+                // Test actual connectivity with ping instead of relying on IsConnected immediately
+                return await TestRedisPingAsync(redis, isCI);
             }
             catch (Exception ex)
             {
@@ -2105,11 +2115,61 @@ namespace IntegrationTestVerifier
 
         private static ConfigurationOptions CreateRedisOptions(string connectionString, bool isCI)
         {
-            var options = ConfigurationOptions.Parse(connectionString);
+            // Parse Redis URI format manually to handle password extraction properly
+            var options = new ConfigurationOptions();
+            
+            if (connectionString.StartsWith("redis://"))
+            {
+                // Parse Redis URI format: redis://:password@host:port
+                var uri = new Uri(connectionString);
+                options.EndPoints.Add(uri.Host, uri.Port);
+                
+                // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
+                if (!string.IsNullOrEmpty(uri.UserInfo))
+                {
+                    var userInfo = uri.UserInfo;
+                    if (userInfo.Contains(':'))
+                    {
+                        // Format: redis://user:password@host:port or redis://:password@host:port
+                        var password = userInfo.Split(':')[1];
+                        if (!string.IsNullOrEmpty(password))
+                        {
+                            options.Password = password;
+                            Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
+                        }
+                        else
+                        {
+                            options.Password = ""; // Empty password
+                            Console.WriteLine("Redis: Using empty password from URI");
+                        }
+                    }
+                    else
+                    {
+                        // Format: redis://password@host:port (no colon, treat as password)
+                        options.Password = userInfo;
+                        Console.WriteLine($"Redis: Extracted password from URI without colon (length: {userInfo.Length})");
+                    }
+                }
+                else
+                {
+                    // No credentials in URI
+                    options.Password = "";
+                    Console.WriteLine("Redis: No password specified in URI, using empty password");
+                }
+            }
+            else
+            {
+                // Fall back to standard parsing for non-URI formats
+                options = ConfigurationOptions.Parse(connectionString);
+                Console.WriteLine("Redis: Using standard ConfigurationOptions.Parse for non-URI connection string");
+            }
+            
+            // Set connection parameters optimized for CI environments
             options.ConnectTimeout = isCI ? 30000 : 15000; // 30s for CI, 15s for local
             options.SyncTimeout = isCI ? 30000 : 15000;    // 30s for CI, 15s for local
             options.AbortOnConnectFail = false; // Don't abort on first connection failure
             options.ConnectRetry = 3; // Retry connection attempts
+            
             return options;
         }
 

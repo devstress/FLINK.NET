@@ -60,7 +60,12 @@ public static class Program
 
     private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
     {
+        // Set a fixed password for CI/CD consistency and authentication
+        var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
+        
         return builder.AddRedis("redis")
+            .WithEnvironment("REDIS_PASSWORD", redisPassword)
+            .WithEnvironment("REDIS_ARGS", "--requirepass " + redisPassword)
             .PublishAsContainer(); // Ensure Redis is accessible from host
     }
 
@@ -135,6 +140,9 @@ public static class Program
         IResourceBuilder<KafkaServerResource> kafka, 
         string simulatorNumMessages)
     {
+        // Set the Redis password to match the Redis infrastructure configuration
+        var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
+        
         builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
             .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
@@ -142,6 +150,7 @@ public static class Program
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
+            .WithEnvironment("SIMULATOR_REDIS_PASSWORD", redisPassword) // Add password for FlinkJobSimulator
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development");
     }
 
