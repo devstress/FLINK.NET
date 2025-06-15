@@ -4,6 +4,7 @@ using FlinkDotNet.Core.Abstractions.Operators; // For IOperatorLifecycle
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration; // Required for reading connection string & topic
 using FlinkDotNet.Common.Constants;
+using System.Diagnostics; // For Process.Start
 
 namespace FlinkJobSimulator
 {
@@ -41,10 +42,11 @@ namespace FlinkJobSimulator
             _taskName = context.TaskName;
             Console.WriteLine($"[{_taskName}] Opening KafkaSinkFunction for topic '{_topic}'.");
 
-            // Priority order for Kafka bootstrap servers (external integration tests first for reliability):
+            // Multi-strategy Kafka bootstrap server discovery for maximum reliability:
             // 1. DOTNET_KAFKA_BOOTSTRAP_SERVERS (for external integration tests - most reliable)
             // 2. ConnectionStrings__kafka (Aspire service reference)
-            // 3. ServiceUris.KafkaBootstrapServers (default fallback)
+            // 3. Port scanning for Docker containers (fallback)
+            // 4. ServiceUris.KafkaBootstrapServers (default fallback)
             
             string? bootstrapServers = Configuration?["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
             Console.WriteLine($"[{_taskName}] 🔍 DEBUG: DOTNET_KAFKA_BOOTSTRAP_SERVERS = '{bootstrapServers}'");
@@ -61,11 +63,37 @@ namespace FlinkJobSimulator
                 if (!string.IsNullOrEmpty(bootstrapServers))
                 {
                     Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Aspire service reference: {bootstrapServers}");
+                    
+                    // Validate Aspire connection with fallback to Docker discovery
+                    if (!IsKafkaPortAccessible(bootstrapServers))
+                    {
+                        Console.WriteLine($"[{_taskName}] ⚠️ Aspire Kafka port not accessible, attempting Docker container discovery...");
+                        var discoveredPort = DiscoverDockerKafkaPort();
+                        if (!string.IsNullOrEmpty(discoveredPort))
+                        {
+                            bootstrapServers = discoveredPort;
+                            Console.WriteLine($"[{_taskName}] ✅ Docker discovery successful: {bootstrapServers}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[{_taskName}] ❌ Docker discovery failed, continuing with Aspire port...");
+                        }
+                    }
                 }
                 else
                 {
-                    bootstrapServers = ServiceUris.KafkaBootstrapServers;
-                    Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                    // Try Docker container discovery first
+                    var discoveredPort = DiscoverDockerKafkaPort();
+                    if (!string.IsNullOrEmpty(discoveredPort))
+                    {
+                        bootstrapServers = discoveredPort;
+                        Console.WriteLine($"[{_taskName}] Using Kafka bootstrap servers from Docker discovery: {bootstrapServers}");
+                    }
+                    else
+                    {
+                        bootstrapServers = ServiceUris.KafkaBootstrapServers;
+                        Console.WriteLine($"[{_taskName}] Using default Kafka bootstrap servers: {bootstrapServers}");
+                    }
                 }
             }
 
@@ -282,6 +310,79 @@ namespace FlinkJobSimulator
             }
             _producer?.Dispose();
             Console.WriteLine($"[{_taskName}] Kafka producer disposed.");
+        }
+
+        private bool IsKafkaPortAccessible(string bootstrapServers)
+        {
+            try
+            {
+                // Simple TCP connection test to see if port is accessible
+                var parts = bootstrapServers.Split(':');
+                if (parts.Length == 2 && int.TryParse(parts[1], out int port))
+                {
+                    using var tcpClient = new System.Net.Sockets.TcpClient();
+                    var connectTask = tcpClient.ConnectAsync(parts[0], port);
+                    return connectTask.Wait(TimeSpan.FromSeconds(3));
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] Port accessibility check failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        private string? DiscoverDockerKafkaPort()
+        {
+            try
+            {
+                Console.WriteLine($"[{_taskName}] 🔍 Attempting Docker Kafka port discovery...");
+                
+                // Try to discover Kafka port from Docker containers
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = "docker",
+                    Arguments = "ps --format \"table {{.Names}}\\t{{.Ports}}\" --filter ancestor=confluentinc/confluent-local",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(processInfo);
+                if (process != null)
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+                    
+                    Console.WriteLine($"[{_taskName}] Docker output: {output}");
+                    
+                    // Parse output to find Kafka port mapping (look for pattern like "127.0.0.1:32789->9092/tcp")
+                    var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var line in lines)
+                    {
+                        if (line.Contains("->9092/tcp"))
+                        {
+                            var match = System.Text.RegularExpressions.Regex.Match(line, @"127\.0\.0\.1:(\d+)->9092/tcp");
+                            if (match.Success)
+                            {
+                                var port = match.Groups[1].Value;
+                                var discoveredBootstrap = $"127.0.0.1:{port}";
+                                Console.WriteLine($"[{_taskName}] ✅ Discovered Kafka port: {discoveredBootstrap}");
+                                return discoveredBootstrap;
+                            }
+                        }
+                    }
+                }
+                
+                Console.WriteLine($"[{_taskName}] ❌ No Kafka containers found in Docker discovery");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[{_taskName}] Docker discovery failed: {ex.Message}");
+                return null;
+            }
         }
     }
 }
