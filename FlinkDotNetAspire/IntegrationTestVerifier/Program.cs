@@ -2094,15 +2094,16 @@ namespace IntegrationTestVerifier
                 using var redis = await ConnectionMultiplexer.ConnectAsync(options);
                 stopwatch.Stop();
                 
-                if (redis.IsConnected)
+                Console.WriteLine($"✅ Redis connection established in {stopwatch.ElapsedMilliseconds}ms");
+                
+                // Wait a moment for connection to stabilize in containerized environments
+                if (isCI)
                 {
-                    Console.WriteLine($"✅ Redis connection successful in {stopwatch.ElapsedMilliseconds}ms");
-                    return await TestRedisPingAsync(redis, isCI);
+                    await Task.Delay(500); // 500ms delay for CI environments
                 }
-                else
-                {
-                    Console.WriteLine($"❌ Redis connection established but not connected (took {stopwatch.ElapsedMilliseconds}ms)");
-                }
+                
+                // Test actual connectivity with ping instead of relying on IsConnected immediately
+                return await TestRedisPingAsync(redis, isCI);
             }
             catch (Exception ex)
             {
