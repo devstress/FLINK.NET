@@ -77,6 +77,22 @@ function Cleanup-Resources {
         }
     }
     
+    # Kill any orphaned FlinkDotNetAsp processes (from previous failed runs)
+    Write-Host "Cleaning up orphaned FlinkDotNetAsp processes..." -ForegroundColor Gray
+    try {
+        $orphanedProcesses = Get-Process -Name "*FlinkDotNetAsp*" -ErrorAction SilentlyContinue
+        if ($orphanedProcesses) {
+            foreach ($proc in $orphanedProcesses) {
+                Write-Host "Killing orphaned process: $($proc.ProcessName) (PID: $($proc.Id))" -ForegroundColor Gray
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+            Start-Sleep -Seconds 3
+        }
+    }
+    catch {
+        Write-Host "Process cleanup had issues (may be normal): $($_.Exception.Message)" -ForegroundColor DarkGray
+    }
+    
     # Clean up Docker containers that may be left running
     Write-Host "Cleaning up Docker containers..." -ForegroundColor Gray
     try {
