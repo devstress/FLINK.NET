@@ -1,0 +1,112 @@
+name: Test Development Lifecycle Scripts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'run-full-development-lifecycle.*'
+      - 'scripts/run-local-*.ps1'
+      - '.github/workflows/test-development-lifecycle.yml'
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+    paths:
+      - 'run-full-development-lifecycle.*'
+      - 'scripts/run-local-*.ps1'
+      - '.github/workflows/test-development-lifecycle.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: |
+    ${{ github.workflow }}-${{ github.workflow_ref }}-${{
+      github.event_name == 'pull_request' 
+      && github.event.pull_request.number 
+      || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  test-lifecycle-scripts:
+    name: Test Development Lifecycle on Windows
+    runs-on: windows-latest
+    
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 8.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+
+      - name: Verify PowerShell availability
+        run: |
+          # Verify Windows PowerShell is available
+          powershell -Command "Get-Host | Select-Object Version"
+
+      - name: Install .NET Aspire Workload
+        run: dotnet workload install aspire
+
+      - name: Verify Docker is available
+        run: docker info
+
+      - name: Make shell script executable
+        run: |
+          # Not needed for Windows, but ensure cmd script is available
+          if (Test-Path ".\run-full-development-lifecycle.cmd") {
+            Write-Host "Windows batch script found"
+          }
+
+      - name: Test development lifecycle script - Help
+        run: |
+          Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+          .\run-full-development-lifecycle.ps1 -Help
+
+      - name: Test development lifecycle script - Build only (skip tests for speed)
+        run: |
+          # Run directly with PowerShell (no background job needed in CI)
+          Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+          .\run-full-development-lifecycle.ps1 -SkipStress -SkipReliability -SkipSonar
+
+      - name: Verify script execution logs (if available)
+        if: always()
+        run: |
+          Write-Host "Checking for test logs..."
+          if (Test-Path "test-logs") {
+            Write-Host "Contents of test-logs directory:"
+            Get-ChildItem test-logs/ | Format-Table
+            Write-Host "Sample log content (first 20 lines):"
+            Get-ChildItem test-logs/*.log | ForEach-Object {
+              if (Test-Path $_.FullName) {
+                Write-Host "=== $($_.Name) ==="
+                Get-Content $_.FullName -Head 20
+                Write-Host ""
+              }
+            }
+          } else {
+            Write-Host "No test-logs directory found"
+          }
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: development-lifecycle-logs-windows
+          path: |
+            test-logs/**/*.log
+            *.log
+          retention-days: 3
+          if-no-files-found: ignore
