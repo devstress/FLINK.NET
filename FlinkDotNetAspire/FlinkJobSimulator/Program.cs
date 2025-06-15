@@ -707,8 +707,8 @@ public static class Program
         // Register configuration and other services
         builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
         
-        // Add Kafka message producer as a hosted service for stress testing
-        builder.Services.AddHostedService<KafkaMessageProducer>();
+        // TODO: Add Kafka message producer as a hosted service for Kafka consumer demos
+        // builder.Services.AddHostedService<KafkaMessageProducer>();
         
         var host = builder.Build();
         await host.StartAsync();
@@ -817,22 +817,22 @@ public static class Program
         RedisIncrementSinkFunction<string>.GlobalRedisKey = redisSinkCounterKey;
         KafkaSinkFunction<string>.GlobalKafkaTopic = kafkaTopic;
 
-        // Set static configuration for Apache Flink Kafka source
+        // Set static configuration for Apache Flink Kafka source (for future use)
         FlinkKafkaSourceFunction.GlobalTopic = kafkaTopic;
         FlinkKafkaSourceFunction.GlobalConsumerGroupId = "flinkdotnet-stress-test-consumer-group";
 
         var env = StreamExecutionEnvironment.GetExecutionEnvironment();
         env.SerializerRegistry.RegisterSerializer(typeof(string), typeof(StringSerializer));
 
-        // Use Apache Flink-style Kafka consumer instead of HighVolumeSourceFunction
-        // This demonstrates proper consumer group management and exactly-once processing
-        var kafkaSource = new FlinkKafkaSourceFunction(kafkaTopic, "flinkdotnet-stress-test-consumer-group");
-        DataStream<string> stream = env.AddSource(kafkaSource, "kafka-consumer-source-with-flink-consumer-group");
+        // Use HighVolumeSourceFunction for reliability in stress tests
+        // TODO: Future enhancement - switch to FlinkKafkaSourceFunction for Kafka consumer group demo
+        var source = new HighVolumeSourceFunction(numMessages, new StringSerializer(), redisDatabase, configuration);
+        DataStream<string> stream = env.AddSource(source, "high-volume-source-redis-seq");
 
         var mapOperator = new SimpleToUpperMapOperator();
         DataStream<string> mappedStream = stream.Map(mapOperator);
 
-        // Only use Redis sink for tracking processing - remove Kafka sink to avoid circular loop
+        // Use Redis sink for tracking processing
         mappedStream.AddSink(new FlinkJobSimulator.RedisIncrementSinkFunction<string>(redisDatabase, redisSinkCounterKey), "redis-processed-counter-sink");
 
         return env;
