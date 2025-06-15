@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SIMULATOR_NUM_MESSAGES_CI: "1000" # Fast stress test message count for 5-minute execution
-  MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout for processing 1K messages (increased for CI)
+  SIMULATOR_NUM_MESSAGES_CI: "1000" # Fast stress test message count for CI execution
+  MAX_ALLOWED_TIME_MS: "120000" # 2 minutes timeout for processing 1K messages (CI-optimized)
 
 jobs:
   run-stress-tests:
