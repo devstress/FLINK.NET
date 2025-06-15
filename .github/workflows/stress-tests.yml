@@ -282,14 +282,69 @@ jobs:
             Write-Host "❌ AppHost PID file not found"
           }
           
-          # Check for any FlinkJobSimulator processes
+          # Check for any FlinkJobSimulator processes (Aspire runs .NET projects as "dotnet <dll>")
           Write-Host "`n🔍 Checking for FlinkJobSimulator processes..."
-          $flinkProcesses = Get-Process | Where-Object { $_.ProcessName -like "*FlinkJobSimulator*" -or $_.CommandLine -like "*FlinkJobSimulator*" } -ErrorAction SilentlyContinue
-          if ($flinkProcesses) {
+          
+          # Get all dotnet processes and check their command lines for FlinkJobSimulator
+          $allDotnetProcesses = Get-Process -Name "dotnet" -ErrorAction SilentlyContinue
+          $flinkProcesses = @()
+          
+          if ($allDotnetProcesses) {
+            Write-Host "Found $($allDotnetProcesses.Count) dotnet processes - checking command lines..."
+            foreach ($proc in $allDotnetProcesses) {
+              try {
+                # Try to get command line using WMI for more detailed process info
+                $wmiProcess = Get-WmiObject -Class Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
+                if ($wmiProcess -and $wmiProcess.CommandLine -like "*FlinkJobSimulator*") {
+                  $flinkProcesses += [PSCustomObject]@{
+                    PID = $proc.Id
+                    Name = $proc.ProcessName
+                    CommandLine = $wmiProcess.CommandLine
+                  }
+                  Write-Host "  Found FlinkJobSimulator: PID $($proc.Id), Command: $($wmiProcess.CommandLine)"
+                }
+              } catch {
+                # Fallback: just check process name and basic info
+                Write-Host "  PID $($proc.Id): Could not get command line (Access denied/WMI error)"
+              }
+            }
+          }
+          
+          # Also check for any processes with FlinkJobSimulator in the name (direct execution)
+          $directFlinkProcesses = Get-Process | Where-Object { $_.ProcessName -like "*FlinkJobSimulator*" } -ErrorAction SilentlyContinue
+          if ($directFlinkProcesses) {
+            foreach ($proc in $directFlinkProcesses) {
+              $flinkProcesses += [PSCustomObject]@{
+                PID = $proc.Id
+                Name = $proc.ProcessName
+                CommandLine = "Direct execution"
+              }
+              Write-Host "  Found direct FlinkJobSimulator: PID $($proc.Id), Name: $($proc.ProcessName)"
+            }
+          }
+          
+          if ($flinkProcesses.Count -gt 0) {
             Write-Host "✅ Found FlinkJobSimulator processes:"
-            $flinkProcesses | ForEach-Object { Write-Host "  PID: $($_.Id), Name: $($_.ProcessName)" }
+            $flinkProcesses | ForEach-Object { Write-Host "  PID: $($_.PID), Name: $($_.Name)" }
           } else {
             Write-Host "❌ No FlinkJobSimulator processes found"
+            Write-Host "🔍 Debugging: Listing all dotnet processes for analysis:"
+            if ($allDotnetProcesses) {
+              $allDotnetProcesses | ForEach-Object { 
+                try {
+                  $wmiProcess = Get-WmiObject -Class Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue
+                  if ($wmiProcess) {
+                    Write-Host "    PID $($_.Id): $($wmiProcess.CommandLine)"
+                  } else {
+                    Write-Host "    PID $($_.Id): Command line not accessible"
+                  }
+                } catch {
+                  Write-Host "    PID $($_.Id): WMI query failed"
+                }
+              }
+            } else {
+              Write-Host "    No dotnet processes found at all"
+            }
           }
           
           # Check Docker containers for any Flink-related services
@@ -298,16 +353,64 @@ jobs:
           Write-Host "Active containers:"
           $containers | ForEach-Object { Write-Host "  $_" }
           
-          # Try to find any Aspire service logs
+          # Try to find any Aspire service logs and search for FlinkJobSimulator-specific content
           Write-Host "`n🔍 Checking for Aspire service logs..."
           if (Test-Path apphost.out.log) {
             Write-Host "📄 Recent AppHost output log content:"
-            Get-Content apphost.out.log -Tail 50 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+            $outputContent = Get-Content apphost.out.log -ErrorAction SilentlyContinue
+            if ($outputContent) {
+              # Look for FlinkJobSimulator-specific lines first
+              $flinkLines = $outputContent | Where-Object { $_ -match "FlinkJobSimulator|FLINKJOBSIMULATOR|flinkjobsimulator" }
+              if ($flinkLines) {
+                Write-Host "📍 FlinkJobSimulator-related log entries:"
+                $flinkLines | ForEach-Object { Write-Host "    FLINK: $_" }
+              } else {
+                Write-Host "📍 No FlinkJobSimulator-specific entries found in output log"
+              }
+              
+              # Show general log content (last 50 lines)
+              Write-Host "📄 General output log (last 50 lines):"
+              $outputContent | Select-Object -Last 50 | ForEach-Object { Write-Host "  $_" }
+            } else {
+              Write-Host "📄 Output log file exists but is empty"
+            }
+          } else {
+            Write-Host "📄 No apphost.out.log file found"
           }
           
           if (Test-Path apphost.err.log) {
-            Write-Host "📄 Recent AppHost error log content:"
-            Get-Content apphost.err.log -Tail 50 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+            Write-Host "`n📄 Recent AppHost error log content:"
+            $errorContent = Get-Content apphost.err.log -ErrorAction SilentlyContinue
+            if ($errorContent) {
+              # Look for FlinkJobSimulator-specific errors first
+              $flinkErrors = $errorContent | Where-Object { $_ -match "FlinkJobSimulator|FLINKJOBSIMULATOR|flinkjobsimulator" }
+              if ($flinkErrors) {
+                Write-Host "📍 FlinkJobSimulator-related error entries:"
+                $flinkErrors | ForEach-Object { Write-Host "    ERROR: $_" }
+              } else {
+                Write-Host "📍 No FlinkJobSimulator-specific errors found in error log"
+              }
+              
+              # Show general error content (last 50 lines)
+              Write-Host "📄 General error log (last 50 lines):"
+              $errorContent | Select-Object -Last 50 | ForEach-Object { Write-Host "  $_" }
+            } else {
+              Write-Host "📄 Error log file exists but is empty"
+            }
+          } else {
+            Write-Host "📄 No apphost.err.log file found"
+          }
+          
+          # Additional diagnostic: Check if any project build outputs exist for FlinkJobSimulator
+          Write-Host "`n🔍 Checking FlinkJobSimulator build outputs..."
+          $flinkSimulatorDll = "./FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll"
+          if (Test-Path $flinkSimulatorDll) {
+            $dllInfo = Get-Item $flinkSimulatorDll
+            Write-Host "✅ FlinkJobSimulator.dll exists: $flinkSimulatorDll"
+            Write-Host "   Size: $($dllInfo.Length) bytes, Last Modified: $($dllInfo.LastWriteTime)"
+          } else {
+            Write-Host "❌ FlinkJobSimulator.dll not found at: $flinkSimulatorDll"
+            Write-Host "   This could explain why AppHost cannot start FlinkJobSimulator"
           }
 
       - name: Wait for FlinkJobSimulator Completion
