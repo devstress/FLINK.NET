@@ -2,7 +2,6 @@ using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace FlinkJobSimulator
 {
@@ -48,8 +47,9 @@ namespace FlinkJobSimulator
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in Kafka message production");
-                throw;
+                _logger.LogError(ex, "Error in Kafka message production for topic '{Topic}' after {Duration:F1}s", 
+                    _topic, (DateTime.UtcNow - DateTime.UtcNow.AddSeconds(-5)).TotalSeconds);
+                throw new InvalidOperationException($"Kafka message production failed for topic '{_topic}'", ex);
             }
             finally
             {
@@ -57,7 +57,7 @@ namespace FlinkJobSimulator
             }
         }
 
-        private Task InitializeProducer()
+        private void InitializeProducer()
         {
             // Multi-strategy Kafka bootstrap server discovery
             string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
@@ -96,7 +96,6 @@ namespace FlinkJobSimulator
             _producer = new ProducerBuilder<Null, string>(config).Build();
             
             _logger.LogInformation("✅ Kafka producer created successfully");
-            return Task.CompletedTask;
         }
 
         private async Task ProduceMessages(CancellationToken stoppingToken)
@@ -158,12 +157,13 @@ namespace FlinkJobSimulator
             }
             catch (ProduceException<Null, string> ex)
             {
-                _logger.LogError(ex, "Failed to produce message: {Error}", ex.Error.Reason);
-                throw;
+                _logger.LogError(ex, "Failed to produce message to topic '{Topic}' at partition {Partition}: {Error}", 
+                    _topic, ex.DeliveryResult?.Partition?.Value ?? -1, ex.Error.Reason);
+                throw new InvalidOperationException($"Kafka message production failed: {ex.Error.Reason}", ex);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
-                _logger.LogInformation("Message production cancelled. Produced {MessagesProduced} messages", messagesProduced);
+                _logger.LogInformation(ex, "Message production cancelled. Produced {MessagesProduced} messages", messagesProduced);
                 throw;
             }
         }

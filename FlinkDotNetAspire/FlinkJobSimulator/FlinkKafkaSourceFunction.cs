@@ -6,7 +6,6 @@ using FlinkDotNet.Connectors.Sources.Kafka;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace FlinkJobSimulator
 {

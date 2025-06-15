@@ -1,10 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using FlinkDotNet.Connectors.Sources.Kafka;
-using FlinkDotNet.Core.Abstractions.Context;
 using FlinkDotNet.Core.Abstractions.Sources;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -57,8 +55,9 @@ namespace FlinkJobSimulator
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Error in Kafka consumption", _taskManagerId);
-                throw;
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Error in Kafka consumption for topic '{Topic}'", 
+                    _taskManagerId, _kafkaTopic);
+                throw new InvalidOperationException($"TaskManager {_taskManagerId} failed during Kafka consumption", ex);
             }
             finally
             {
@@ -119,62 +118,23 @@ namespace FlinkJobSimulator
 
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink patterns", _taskManagerId);
             
-            var startTime = DateTime.UtcNow;
-            var lastLogTime = DateTime.UtcNow;
-            var lastProcessedCount = 0L;
+            var consumptionContext = new ConsumptionContext(DateTime.UtcNow);
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    // Use FlinkKafkaConsumerGroup for Apache Flink-compliant consumption
                     var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(1000));
-                    
-                    if (consumeResult?.Message != null)
-                    {
-                        await ProcessMessageWithFlinkPatterns(consumeResult);
-                        
-                        // Periodic logging for load balancing visibility
-                        if ((DateTime.UtcNow - lastLogTime).TotalSeconds >= 30)
-                        {
-                            var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
-                            var messagesInPeriod = currentProcessedCount - lastProcessedCount;
-                            var elapsed = DateTime.UtcNow - startTime;
-                            var totalRate = currentProcessedCount / elapsed.TotalSeconds;
-                            
-                            _logger.LogInformation("📊 TaskManager {TaskManagerId}: Processed {TotalMessages} messages " +
-                                                 "(+{PeriodMessages} in last 30s) Rate: {Rate:F1} msg/s " +
-                                                 "Partition: {Partition}",
-                                                 _taskManagerId, currentProcessedCount, messagesInPeriod, totalRate,
-                                                 consumeResult.Partition.Value);
-                            
-                            lastLogTime = DateTime.UtcNow;
-                            lastProcessedCount = currentProcessedCount;
-                        }
-                    }
-                    else
-                    {
-                        // No message available, small delay to prevent busy waiting
-                        await Task.Delay(100, stoppingToken);
-                    }
+                    await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
                 }
                 catch (ConsumeException ex)
                 {
-                    _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Consume exception: {Error}", 
-                        _taskManagerId, ex.Error.Reason);
-                    
-                    if (ex.Error.IsFatal)
-                    {
-                        _logger.LogError("💥 TaskManager {TaskManagerId}: Fatal Kafka error, stopping consumption", _taskManagerId);
+                    if (!await HandleConsumeException(ex, stoppingToken))
                         break;
-                    }
-                    
-                    // Non-fatal error, continue with exponential backoff
-                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException ex)
                 {
-                    _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Consumption cancelled", _taskManagerId);
+                    _logger.LogInformation(ex, "🛑 TaskManager {TaskManagerId}: Consumption cancelled", _taskManagerId);
                     break;
                 }
                 catch (Exception ex)
@@ -184,6 +144,59 @@ namespace FlinkJobSimulator
                 }
             }
             
+            LogFinalConsumptionStats(consumptionContext.StartTime);
+        }
+
+        private async Task ProcessConsumeResult(ConsumeResult<Ignore, byte[]>? consumeResult, ConsumptionContext context, CancellationToken stoppingToken)
+        {
+            if (consumeResult?.Message != null)
+            {
+                await ProcessMessageWithFlinkPatterns(consumeResult);
+                CheckAndLogProgress(consumeResult, context);
+            }
+            else
+            {
+                await Task.Delay(100, stoppingToken);
+            }
+        }
+
+        private void CheckAndLogProgress(ConsumeResult<Ignore, byte[]> consumeResult, ConsumptionContext context)
+        {
+            if ((DateTime.UtcNow - context.LastLogTime).TotalSeconds >= 30)
+            {
+                var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
+                var messagesInPeriod = currentProcessedCount - context.LastProcessedCount;
+                var elapsed = DateTime.UtcNow - context.StartTime;
+                var totalRate = currentProcessedCount / elapsed.TotalSeconds;
+                
+                _logger.LogInformation("📊 TaskManager {TaskManagerId}: Processed {TotalMessages} messages " +
+                                     "(+{PeriodMessages} in last 30s) Rate: {Rate:F1} msg/s " +
+                                     "Partition: {Partition}",
+                                     _taskManagerId, currentProcessedCount, messagesInPeriod, totalRate,
+                                     consumeResult.Partition.Value);
+                
+                context.LastLogTime = DateTime.UtcNow;
+                context.LastProcessedCount = currentProcessedCount;
+            }
+        }
+
+        private async Task<bool> HandleConsumeException(ConsumeException ex, CancellationToken stoppingToken)
+        {
+            _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Consume exception: {Error}", 
+                _taskManagerId, ex.Error.Reason);
+            
+            if (ex.Error.IsFatal)
+            {
+                _logger.LogError("💥 TaskManager {TaskManagerId}: Fatal Kafka error, stopping consumption", _taskManagerId);
+                return false;
+            }
+            
+            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+            return true;
+        }
+
+        private void LogFinalConsumptionStats(DateTime startTime)
+        {
             var finalElapsed = DateTime.UtcNow - startTime;
             var finalCount = Interlocked.Read(ref _messagesProcessed);
             var finalRate = finalCount / finalElapsed.TotalSeconds;
@@ -192,6 +205,20 @@ namespace FlinkJobSimulator
                                  "Processed {TotalMessages} messages in {Duration:F1}s " +
                                  "Final rate: {Rate:F1} msg/s",
                                  _taskManagerId, finalCount, finalElapsed.TotalSeconds, finalRate);
+        }
+
+        private sealed class ConsumptionContext
+        {
+            public DateTime StartTime { get; }
+            public DateTime LastLogTime { get; set; }
+            public long LastProcessedCount { get; set; }
+
+            public ConsumptionContext(DateTime startTime)
+            {
+                StartTime = startTime;
+                LastLogTime = startTime;
+                LastProcessedCount = 0L;
+            }
         }
 
         private async Task ProcessMessageWithFlinkPatterns(ConsumeResult<Ignore, byte[]> consumeResult)
@@ -211,7 +238,7 @@ namespace FlinkJobSimulator
                 }
                 
                 // Process the message using Apache Flink sink patterns
-                await ProcessThroughFlinkSinkFunction(messageContent);
+                await ProcessThroughFlinkSinkFunction();
                 
                 // Increment processed message counter
                 Interlocked.Increment(ref _messagesProcessed);
@@ -234,7 +261,7 @@ namespace FlinkJobSimulator
             }
         }
 
-        private async Task ProcessThroughFlinkSinkFunction(string messageContent)
+        private static async Task ProcessThroughFlinkSinkFunction()
         {
             // Simulate Apache Flink sink function processing
             // In a real implementation, this would go through the actual sink function
@@ -326,12 +353,12 @@ namespace FlinkJobSimulator
             return Task.CompletedTask;
         }
 
-        public void CollectWithTimestamp(string record, long timestampMillis)
+        public void CollectWithTimestamp(string record, long timestamp)
         {
             // This would be used in a real Flink pipeline with event time
         }
 
-        public Task CollectWithTimestampAsync(string record, long timestampMillis)
+        public Task CollectWithTimestampAsync(string record, long timestamp)
         {
             // This would be used in a real Flink pipeline with event time
             return Task.CompletedTask;
@@ -342,7 +369,7 @@ namespace FlinkJobSimulator
             // This would be used for watermark generation in event time processing
         }
 
-        public Task EmitWatermarkAsync(long timestampMillis)
+        public static Task EmitWatermarkAsync(long timestamp)
         {
             // This would be used for watermark generation in event time processing
             return Task.CompletedTask;
@@ -350,6 +377,6 @@ namespace FlinkJobSimulator
 
         public long ProcessingTime => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        public long CurrentProcessingTimeMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        public static long CurrentProcessingTimeMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 }
