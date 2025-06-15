@@ -21,12 +21,12 @@ public static class ServicePorts
     /// <summary>
     /// Default port for Kafka service (dynamically assigned by Aspire)
     /// </summary>
-    public static int Kafka => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.KafkaPort), out var port) ? port : 9092;
+    public static int Kafka => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.DotNetKafkaPort), out var port) ? port : 9092;
 
     /// <summary>
     /// Default port for Redis service (dynamically assigned by Aspire)
     /// </summary>
-    public static int Redis => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.RedisPort), out var port) ? port : 6379;
+    public static int Redis => int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.DotNetRedisPort), out var port) ? port : 6379;
 
     /// <summary>
     /// Default port for TaskManager gRPC service (fallback when TASKMANAGER_GRPC_PORT env var not set)
@@ -68,14 +68,14 @@ public static class ServiceUris
     public static string JobManagerHttp => $"https://{ServiceHosts.Localhost}:{ServicePorts.JobManagerHttp}";
 
     /// <summary>
-    /// Default Kafka bootstrap servers
+    /// Default Kafka bootstrap servers (dynamically assigned by Aspire)
     /// </summary>
-    public static string KafkaBootstrapServers => $"{ServiceHosts.Localhost}:{ServicePorts.Kafka}";
+    public static string KafkaBootstrapServers => Environment.GetEnvironmentVariable(EnvironmentVariables.DotNetKafkaBootstrapServers) ?? $"{ServiceHosts.Localhost}:{ServicePorts.Kafka}";
 
     /// <summary>
-    /// Default Redis connection string
+    /// Default Redis connection string (dynamically assigned by Aspire)
     /// </summary>
-    public static string RedisConnectionString => $"{ServiceHosts.Localhost}:{ServicePorts.Redis}";
+    public static string RedisConnectionString => Environment.GetEnvironmentVariable(EnvironmentVariables.DotNetRedisUrl) ?? $"{ServiceHosts.Localhost}:{ServicePorts.Redis}";
 
     /// <summary>
     /// Default TaskManager gRPC address (secure HTTPS)
@@ -198,6 +198,26 @@ public static class EnvironmentVariables
     /// Environment variable for Redis port (dynamically assigned by Aspire)
     /// </summary>
     public const string RedisPort = "REDIS_PORT";
+
+    /// <summary>
+    /// Environment variable for Kafka port from Aspire port discovery (DOTNET_KAFKA_PORT)
+    /// </summary>
+    public const string DotNetKafkaPort = "DOTNET_KAFKA_PORT";
+
+    /// <summary>
+    /// Environment variable for Redis port from Aspire port discovery (DOTNET_REDIS_PORT)
+    /// </summary>
+    public const string DotNetRedisPort = "DOTNET_REDIS_PORT";
+
+    /// <summary>
+    /// Environment variable for Kafka bootstrap servers from Aspire port discovery (DOTNET_KAFKA_BOOTSTRAP_SERVERS)
+    /// </summary>
+    public const string DotNetKafkaBootstrapServers = "DOTNET_KAFKA_BOOTSTRAP_SERVERS";
+
+    /// <summary>
+    /// Environment variable for Redis connection string from Aspire port discovery (DOTNET_REDIS_URL)
+    /// </summary>
+    public const string DotNetRedisUrl = "DOTNET_REDIS_URL";
 
     /// <summary>
     /// Environment variable for Kafka bootstrap servers

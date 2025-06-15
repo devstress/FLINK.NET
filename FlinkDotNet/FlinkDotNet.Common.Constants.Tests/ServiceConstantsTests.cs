@@ -32,6 +32,48 @@ public class ServiceConstantsTests
     }
 
     [Fact]
+    public void ServicePorts_Should_Use_Aspire_Environment_Variables_When_Available()
+    {
+        // Set Aspire environment variables (these take precedence)
+        Environment.SetEnvironmentVariable("DOTNET_KAFKA_PORT", "19092");
+        Environment.SetEnvironmentVariable("DOTNET_REDIS_PORT", "16379");
+        
+        try
+        {
+            // Verify that the ports read from Aspire environment variables
+            Assert.Equal(19092, ServicePorts.Kafka);
+            Assert.Equal(16379, ServicePorts.Redis);
+        }
+        finally
+        {
+            // Clean up environment variables
+            Environment.SetEnvironmentVariable("DOTNET_KAFKA_PORT", null);
+            Environment.SetEnvironmentVariable("DOTNET_REDIS_PORT", null);
+        }
+    }
+
+    [Fact]
+    public void ServiceUris_Should_Use_Aspire_Connection_Strings_When_Available()
+    {
+        // Set Aspire connection string environment variables
+        Environment.SetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS", "localhost:19092");
+        Environment.SetEnvironmentVariable("DOTNET_REDIS_URL", "localhost:16379,password=test123");
+        
+        try
+        {
+            // Verify that the URIs use Aspire environment variables
+            Assert.Equal("localhost:19092", ServiceUris.KafkaBootstrapServers);
+            Assert.Equal("localhost:16379,password=test123", ServiceUris.RedisConnectionString);
+        }
+        finally
+        {
+            // Clean up environment variables
+            Environment.SetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS", null);
+            Environment.SetEnvironmentVariable("DOTNET_REDIS_URL", null);
+        }
+    }
+
+    [Fact]
     public void ServicePorts_Should_Have_Expected_Defaults_When_No_Environment_Variables()
     {
         // Ensure no environment variables are set for these tests
@@ -40,6 +82,8 @@ public class ServiceConstantsTests
         Environment.SetEnvironmentVariable("TASKMANAGER_GRPC_PORT", null);
         Environment.SetEnvironmentVariable("KAFKA_PORT", null);
         Environment.SetEnvironmentVariable("REDIS_PORT", null);
+        Environment.SetEnvironmentVariable("DOTNET_KAFKA_PORT", null);
+        Environment.SetEnvironmentVariable("DOTNET_REDIS_PORT", null);
         
         // Verify that the expected default ports are used as fallbacks
         Assert.Equal(50051, ServicePorts.JobManagerGrpc);
@@ -60,6 +104,12 @@ public class ServiceConstantsTests
     [Fact]
     public void ServiceUris_Should_Generate_Correct_Secure_URIs()
     {
+        // Clear any environment variables to ensure we test default behavior
+        Environment.SetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS", null);
+        Environment.SetEnvironmentVariable("DOTNET_REDIS_URL", null);
+        Environment.SetEnvironmentVariable("DOTNET_KAFKA_PORT", null);
+        Environment.SetEnvironmentVariable("DOTNET_REDIS_PORT", null);
+        
         // Verify that the secure URI generation works correctly (default)
         Assert.Equal("https://localhost:50051", ServiceUris.JobManagerGrpc);
         Assert.Equal("https://localhost:8088", ServiceUris.JobManagerHttp);
@@ -100,5 +150,11 @@ public class ServiceConstantsTests
         Assert.Equal("JOBMANAGER_GRPC_PORT", EnvironmentVariables.JobManagerGrpcPort);
         Assert.Equal("KAFKA_BOOTSTRAP_SERVERS", EnvironmentVariables.KafkaBootstrapServers);
         Assert.Equal("REDIS_CONNECTION_STRING", EnvironmentVariables.RedisConnectionString);
+        
+        // Verify Aspire environment variable names
+        Assert.Equal("DOTNET_KAFKA_PORT", EnvironmentVariables.DotNetKafkaPort);
+        Assert.Equal("DOTNET_REDIS_PORT", EnvironmentVariables.DotNetRedisPort);
+        Assert.Equal("DOTNET_KAFKA_BOOTSTRAP_SERVERS", EnvironmentVariables.DotNetKafkaBootstrapServers);
+        Assert.Equal("DOTNET_REDIS_URL", EnvironmentVariables.DotNetRedisUrl);
     }
 }
