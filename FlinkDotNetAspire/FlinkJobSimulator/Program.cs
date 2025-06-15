@@ -10,13 +10,17 @@ using FlinkDotNet.Core.Abstractions.Models; // For JobConfiguration
 using FlinkDotNet.Core.Abstractions.Models.State; // For state descriptors
 using FlinkDotNet.Core.Abstractions.Storage; // For IStateSnapshotStore
 using FlinkDotNet.Core.Abstractions.Windowing; // For Watermark
+using FlinkDotNet.Core.Abstractions.Observability; // For observability interfaces
+using FlinkDotNet.Core.Observability.Extensions; // For observability extension methods
 using StackExchange.Redis; // For HighVolumeSourceFunction Redis parts and IConnectionMultiplexer
 using Microsoft.Extensions.Configuration; // For IConfiguration in HighVolumeSourceFunction & Sinks
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using FlinkDotNet.JobManager.Models.JobGraph;
 using FlinkDotNet.Common.Constants;
 using System.Collections; // For DictionaryEntry
+using System.Diagnostics; // For Activity and tracing
 
 namespace FlinkJobSimulator
 {
@@ -648,6 +652,30 @@ public static class Program
     {
         var builder = Host.CreateApplicationBuilder(args);
         
+        // ✨ ADD COMPREHENSIVE OBSERVABILITY FOLLOWING APACHE FLINK 2.0 STANDARDS
+        Console.WriteLine("🔄 OBSERVABILITY: Configuring comprehensive monitoring, metrics, tracing, and health checks...");
+        builder.Services.AddFlinkObservability("FlinkJobSimulator", options =>
+        {
+            // Enable console outputs for development/debugging
+            options.EnableConsoleMetrics = true;
+            options.EnableConsoleTracing = true;
+            
+            // Enable all monitoring capabilities
+            options.EnableOperatorMonitoring = true;
+            options.EnableJobMonitoring = true;
+            options.EnableNetworkMonitoring = true;
+            options.EnableStateBackendMonitoring = true;
+            
+            // Configure intervals for real-time monitoring
+            options.MetricsIntervalSeconds = 5;  // More frequent for stress testing
+            options.HealthCheckIntervalSeconds = 10;
+            
+            // Production features (disabled for local development)
+            options.EnablePrometheusMetrics = false;
+            options.EnableJaegerTracing = false;
+        });
+        Console.WriteLine("✅ OBSERVABILITY: Comprehensive monitoring configured successfully");
+        
         // Configure Redis client with enhanced URI parsing to handle password extraction
         builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
         {
@@ -851,30 +879,41 @@ public static class Program
         }
     }
 
-    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase)
+    private static async Task ExecuteJob(StreamExecutionEnvironment env, long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger)
     {
         Console.WriteLine("🔄 STEP 8.1: Building JobGraph...");
+        using var jobGraphActivity = tracing.StartOperatorSpan("JobGraphBuilder", "job-graph", null);
+        
         JobGraph jobGraph = env.CreateJobGraph($"DualSinkSimJob-{numMessages}");
         Console.WriteLine($"✅ STEP 8.1 COMPLETED: JobGraph created with name: {jobGraph.JobName}");
         Console.WriteLine($"Job Vertices: {jobGraph.Vertices.Count}");
+        
+        logger.LogOperatorLifecycle(LogLevel.Information, "JobGraphBuilder", "job-graph", "completed");
 
         // *** CRITICAL FIX: Clean Redis state before each test run ***
         Console.WriteLine("🔄 STEP 8.2: Starting Redis state cleanup...");
         Console.WriteLine("=== REDIS STATE CLEANUP ===");
+        using var cleanupActivity = tracing.StartStateOperationSpan("RedisCleanup", "state-cleanup", "cleanup");
         await CleanRedisStateForFreshTest(redisDatabase);
         Console.WriteLine("✅ STEP 8.2 COMPLETED: Redis state cleanup finished");
+        logger.LogStateOperation(LogLevel.Information, "RedisCleanup", "state-cleanup", "cleanup", "redis");
         
         // Verify infrastructure
         Console.WriteLine("🔄 STEP 8.3: Verifying JobManager and TaskManager infrastructure...");
+        using var infraActivity = tracing.StartNetworkSpan("InfraVerifier", "JobManager", "health_check");
         try 
         {
             await VerifyInfrastructure(jobManagerGrpcUrl);
             Console.WriteLine("✅ STEP 8.3 COMPLETED: Infrastructure verification finished");
+            logger.LogNetworkOperation(LogLevel.Information, "InfraVerifier", "JobManager", "health_check");
         }
         catch (Exception infraEx)
         {
             Console.WriteLine($"⚠️ STEP 8.3 WARNING: Infrastructure verification failed: {infraEx.Message}");
             Console.WriteLine("Proceeding with local execution for integration testing...");
+            metrics.RecordError("InfraVerifier", "JobManager", infraEx.GetType().Name);
+            logger.LogError("InfraVerifier", "JobManager", infraEx, "health_check");
+            tracing.RecordSpanError(infraEx, "Infrastructure verification failed");
         }
 
         // Execute the job
@@ -1066,7 +1105,13 @@ public static class Program
         Console.WriteLine("🔄 STEP 5: Retrieving services from DI container...");
         var redisDatabase = host.Services.GetRequiredService<IDatabase>();
         var configuration = host.Services.GetRequiredService<IConfiguration>();
-        Console.WriteLine("✅ STEP 5 COMPLETED: Services retrieved successfully");
+        
+        // ✨ GET OBSERVABILITY SERVICES
+        var metrics = host.Services.GetRequiredService<IFlinkMetrics>();
+        var tracing = host.Services.GetRequiredService<IFlinkTracing>();
+        var logger = host.Services.GetRequiredService<IFlinkLogger>();
+        var healthMonitor = host.Services.GetRequiredService<IFlinkHealthMonitor>();
+        Console.WriteLine("✅ STEP 5 COMPLETED: Services retrieved successfully (including observability services)");
 
         Console.WriteLine("🔄 STEP 6: Loading configuration values...");
         var (numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl) = GetConfiguration();
@@ -1075,7 +1120,7 @@ public static class Program
         // 🔄 ENHANCED PROCESS LOGGING: Confirm FlinkJobSimulator is running and discoverable
         LogProcessDiscoveryInfo();
 
-        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration);
+        var jobExecutionSuccess = await ExecuteJobWithErrorHandling(numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, configuration, metrics, tracing, logger, healthMonitor);
         
         await FinalizeAndKeepAlive(totalStartTime, redisSinkCounterKey, kafkaTopic, redisDatabase, jobExecutionSuccess);
     }
@@ -1219,8 +1264,14 @@ public static class Program
         }
     }
 
-    private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration)
+    private static async Task<bool> ExecuteJobWithErrorHandling(long numMessages, string redisSinkCounterKey, string kafkaTopic, string jobManagerGrpcUrl, IDatabase redisDatabase, IConfiguration configuration, IFlinkMetrics metrics, IFlinkTracing tracing, IFlinkLogger logger, IFlinkHealthMonitor healthMonitor)
     {
+        // ✨ START JOB-LEVEL TRACING
+        using var jobActivity = tracing.StartOperatorSpan("FlinkJobSimulator", "main-job", null);
+        var jobId = $"job-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+        
+        logger.LogJobEvent(LogLevel.Information, jobId, "FlinkJobSimulator", "job_started");
+        
         try
         {
             Console.WriteLine("🔄 STEP 7: Setting up Flink environment...");
@@ -1229,16 +1280,33 @@ public static class Program
             var envSetupDuration = DateTime.UtcNow - envSetupStartTime;
             Console.WriteLine($"✅ STEP 7 COMPLETED: Flink environment setup completed in {envSetupDuration.TotalMilliseconds:F0}ms");
             
+            // Log performance metric
+            logger.LogPerformance(LogLevel.Information, "FlinkJobSimulator", "main-job", 
+                "environment_setup_time", envSetupDuration.TotalMilliseconds, "ms");
+            
             Console.WriteLine("🔄 STEP 8: Starting job execution...");
             var jobStartTime = DateTime.UtcNow;
-            await ExecuteJob(env, numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase);
+            await ExecuteJob(env, numMessages, redisSinkCounterKey, kafkaTopic, jobManagerGrpcUrl, redisDatabase, metrics, tracing, logger);
             var jobDuration = DateTime.UtcNow - jobStartTime;
             Console.WriteLine($"✅ STEP 8 COMPLETED: Job execution completed in {jobDuration.TotalMilliseconds:F0}ms");
+            
+            // Record job completion metrics
+            metrics.RecordCheckpointDuration(jobId, jobDuration);
+            logger.LogPerformance(LogLevel.Information, "FlinkJobSimulator", "main-job", 
+                "job_execution_time", jobDuration.TotalMilliseconds, "ms");
+            logger.LogJobEvent(LogLevel.Information, jobId, "FlinkJobSimulator", "job_completed");
+            
             return true;
         }
         catch (Exception ex)
         {
+            // Record error metrics and logs
+            metrics.RecordError("FlinkJobSimulator", "main-job", ex.GetType().Name);
+            logger.LogError("FlinkJobSimulator", "main-job", ex, "job_execution");
+            tracing.RecordSpanError(ex, "Job execution failed");
+            
             await HandleJobExecutionError(ex, redisDatabase);
+            logger.LogJobEvent(LogLevel.Error, jobId, "FlinkJobSimulator", "job_failed");
             return false;
         }
     }

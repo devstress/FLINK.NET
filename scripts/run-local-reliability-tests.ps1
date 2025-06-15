@@ -176,11 +176,25 @@ try {
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
     $env:DOTNET_ENVIRONMENT = 'Development'
     
+    # ✨ ENHANCED OBSERVABILITY CONFIGURATION (Apache Flink 2.0 Standards)
+    $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS = 'true'
+    $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING = 'true'
+    $env:FLINK_OBSERVABILITY_ENABLE_DETAILED_MONITORING = 'true'
+    $env:FLINK_OBSERVABILITY_METRICS_INTERVAL = '10'
+    $env:FLINK_OBSERVABILITY_HEALTH_INTERVAL = '15'
+    $env:OTEL_SERVICE_NAME = 'FlinkDotnetStandardReliabilityTest'
+    $env:OTEL_SERVICE_VERSION = '1.0.0'
+    $env:OTEL_RESOURCE_ATTRIBUTES = 'service.name=FlinkDotnetStandardReliabilityTest,service.version=1.0.0,environment=reliability-test'
+    
     Write-Host "Environment variables set:" -ForegroundColor Gray
     Write-Host "  FLINKDOTNET_STANDARD_TEST_MESSAGES: $env:FLINKDOTNET_STANDARD_TEST_MESSAGES" -ForegroundColor Gray
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray
     Write-Host "  DOTNET_ENVIRONMENT: $env:DOTNET_ENVIRONMENT" -ForegroundColor Gray
+    Write-Host "  🔍 OBSERVABILITY_CONSOLE_METRICS: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS" -ForegroundColor Cyan
+    Write-Host "  🔍 OBSERVABILITY_CONSOLE_TRACING: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING" -ForegroundColor Cyan
+    Write-Host "  🔍 OBSERVABILITY_DETAILED_MONITORING: $env:FLINK_OBSERVABILITY_ENABLE_DETAILED_MONITORING" -ForegroundColor Cyan
+    Write-Host "  🔍 OTEL_SERVICE_NAME: $env:OTEL_SERVICE_NAME" -ForegroundColor Cyan
 
     # Step 2: Build Solutions (matches workflow) 
     Write-Host "`n=== Step 2: Build Solutions ===" -ForegroundColor Yellow

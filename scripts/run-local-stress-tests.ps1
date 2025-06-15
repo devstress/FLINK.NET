@@ -175,6 +175,16 @@ try {
     $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
     $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
+    # ✨ ENHANCED OBSERVABILITY CONFIGURATION (Apache Flink 2.0 Standards)
+    $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS = 'true'
+    $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING = 'true'
+    $env:FLINK_OBSERVABILITY_ENABLE_DETAILED_MONITORING = 'true'
+    $env:FLINK_OBSERVABILITY_METRICS_INTERVAL = '5'
+    $env:FLINK_OBSERVABILITY_HEALTH_INTERVAL = '10'
+    $env:OTEL_SERVICE_NAME = 'FlinkJobSimulator'
+    $env:OTEL_SERVICE_VERSION = '1.0.0'
+    $env:OTEL_RESOURCE_ATTRIBUTES = 'service.name=FlinkJobSimulator,service.version=1.0.0,environment=stress-test'
+    
     Write-Host "Environment variables set:" -ForegroundColor Gray
     Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES" -ForegroundColor Gray
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
@@ -183,6 +193,11 @@ try {
     Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE" -ForegroundColor Gray
     Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER" -ForegroundColor Gray
     Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC" -ForegroundColor Gray
+    Write-Host "  🔍 OBSERVABILITY_CONSOLE_METRICS: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS" -ForegroundColor Cyan
+    Write-Host "  🔍 OBSERVABILITY_CONSOLE_TRACING: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_TRACING" -ForegroundColor Cyan
+    Write-Host "  🔍 OBSERVABILITY_DETAILED_MONITORING: $env:FLINK_OBSERVABILITY_ENABLE_DETAILED_MONITORING" -ForegroundColor Cyan
+    Write-Host "  🔍 OBSERVABILITY_METRICS_INTERVAL: $env:FLINK_OBSERVABILITY_METRICS_INTERVAL" -ForegroundColor Cyan
+    Write-Host "  🔍 OTEL_SERVICE_NAME: $env:OTEL_SERVICE_NAME" -ForegroundColor Cyan
 
     # Step 2: Build Solutions (matches workflow) 
     Write-Host "`n=== Step 2: Build Solutions ===" -ForegroundColor Yellow
