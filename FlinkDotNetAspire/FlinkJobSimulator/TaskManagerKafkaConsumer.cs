@@ -45,6 +45,19 @@ namespace FlinkJobSimulator
         {
             _logger.LogInformation("🚀 TaskManager {TaskManagerId}: Starting Apache Flink-compliant Kafka consumption", _taskManagerId);
             
+            // Initialize Redis counter to indicate FlinkJobSimulator has started
+            try
+            {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing Redis counter to indicate startup", _taskManagerId);
+                await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
+                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counter initialized successfully", _taskManagerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to initialize Redis counter", _taskManagerId);
+                throw;
+            }
+            
             try
             {
                 await InitializeFlinkKafkaConsumerGroup();

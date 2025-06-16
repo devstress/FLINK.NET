@@ -177,8 +177,8 @@ try {
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
     $env:DOTNET_ENVIRONMENT = 'Development'
     
-    # Enable simplified mode for more reliable execution
-    $env:USE_SIMPLIFIED_MODE = 'true'
+    # Disable simplified mode for reliability test - we need full Kafka functionality
+    $env:USE_SIMPLIFIED_MODE = 'false'
     
     # ✨ RELIABILITY TEST CONFIGURATION: Focus on fault tolerance standards
     $env:RELIABILITY_TEST_MODE = 'true'

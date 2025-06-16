@@ -19,6 +19,14 @@ namespace FlinkJobSimulator
             Console.WriteLine($"🌟 PROCESS ID: {Environment.ProcessId}");
             Console.WriteLine("🌟 SIMPLIFIED TO KAFKA CONSUMER GROUP ONLY");
             
+            // Enhanced startup diagnostics
+            Console.WriteLine("🔍 Environment Configuration:");
+            Console.WriteLine($"  SIMULATOR_KAFKA_TOPIC: {Environment.GetEnvironmentVariable("SIMULATOR_KAFKA_TOPIC")}");
+            Console.WriteLine($"  SIMULATOR_REDIS_KEY_SINK_COUNTER: {Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_SINK_COUNTER")}");
+            Console.WriteLine($"  DOTNET_KAFKA_BOOTSTRAP_SERVERS: {Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS")}");
+            Console.WriteLine($"  ConnectionStrings__kafka: {Environment.GetEnvironmentVariable("ConnectionStrings__kafka")}");
+            Console.WriteLine($"  ConnectionStrings__redis: {Environment.GetEnvironmentVariable("ConnectionStrings__redis")}");
+            
             await RunAsKafkaConsumerGroupAsync(args);
         }
         
