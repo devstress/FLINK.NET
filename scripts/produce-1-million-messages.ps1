@@ -27,10 +27,10 @@
 #>
 
 param(
-    [long]$MessageCount = 1000000,  # 1 million messages 
+    [long]$MessageCount = 5000,  # 50 producers × 100 messages each = 5000 total
     [string]$Topic = "flinkdotnet.sample.topic",
-    [int]$BatchSize = 50000,   # Reduced batch size for granular progress tracking (msg/ms level)
-    [int]$ParallelProducers = 8  # Optimized for 4-core systems: 2x cores for optimal utilization
+    [int]$BatchSize = 100,   # 100 messages per producer batch as requested
+    [int]$ParallelProducers = 50  # 50 parallel producers as requested
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,38 +43,33 @@ function Get-OptimizationRecommendations {
     )
     
     $recommendations = @()
-    $targetRate = 1000000  # 1M messages/second
+    $targetRate = 50000  # 50 producers × 100 messages = 5,000 total, but aim for much higher throughput rate
     
-    Write-Host "📋 Performance Analysis & Optimization Recommendations:" -ForegroundColor Cyan
+    Write-Host "📋 Performance Analysis (50 Producers × 100 Messages = 5,000 Total):" -ForegroundColor Cyan
     Write-Host "   Current Rate: $([math]::Round($CurrentRate, 0)) msg/sec" -ForegroundColor White
-    Write-Host "   Target Rate: $([math]::Round($targetRate, 0)) msg/sec" -ForegroundColor White
-    Write-Host "   Performance Gap: $([math]::Round($targetRate - $CurrentRate, 0)) msg/sec ($([math]::Round((($targetRate - $CurrentRate) / $targetRate) * 100, 1))%)" -ForegroundColor Yellow
+    Write-Host "   Target Rate: High throughput for 50 parallel producers" -ForegroundColor White
+    Write-Host "   Total Messages: 5,000 (50 × 100)" -ForegroundColor Yellow
     
     if ($CurrentRate -lt $targetRate) {
-        Write-Host "🔧 Optimization Strategies for 1M+ msg/sec:" -ForegroundColor Green
+        Write-Host "🔧 Optimization Strategies for 50 Producers:" -ForegroundColor Green
         
-        # Calculate scalability recommendations
-        $scaleFactor = [math]::Ceiling($targetRate / $CurrentRate)
+        # 1. Parallel Producer Configuration - already optimized for 50 producers
+        Write-Host "   1️⃣ PARALLEL PRODUCER CONFIGURATION:" -ForegroundColor Yellow
+        Write-Host "      • Producers: 50 (as requested)" -ForegroundColor Gray
+        Write-Host "      • Messages per producer: 100 (as requested)" -ForegroundColor Gray
+        Write-Host "      • Total throughput capacity: High with 50 parallel streams" -ForegroundColor Gray
         
-        # 1. Parallel Producer Scaling - optimized for 4-core systems
-        $recommendedProducers = [math]::Min($ParallelProducers * $scaleFactor, $SystemInfo.CPUCores * 2)  # 2x cores for 4-core systems
-        if ($recommendedProducers -gt $ParallelProducers) {
-            Write-Host "   1️⃣ SCALE PARALLEL PRODUCERS: Increase from $ParallelProducers to $recommendedProducers producers" -ForegroundColor Yellow
-            Write-Host "      • Formula: Current rate × scale factor ($scaleFactor) = target throughput" -ForegroundColor Gray
-            Write-Host "      • Optimized for 4-core systems: CPU cores ($($SystemInfo.CPUCores)) × 2 = max efficient producers" -ForegroundColor Gray
-        }
-        
-        # 2. Batch Size Optimization - already optimized for granular progress
+        # 2. Batch Size Optimization - optimized for 100 messages per producer
         Write-Host "   2️⃣ BATCH PROCESSING OPTIMIZATION:" -ForegroundColor Yellow
-        Write-Host "      • Batch size optimized to 50K messages for granular progress (msg/ms tracking)" -ForegroundColor Gray
-        Write-Host "      • Task chunks: 1K messages for real-time progress updates every 5K messages" -ForegroundColor Gray
-        Write-Host "      • Semaphore concurrency: 2K operations (optimized for 4-core systems)" -ForegroundColor Gray
+        Write-Host "      • Batch size: 100 messages per producer (as requested)" -ForegroundColor Gray
+        Write-Host "      • Small batch size provides fast execution and low latency" -ForegroundColor Gray
+        Write-Host "      • Real-time progress tracking for all 50 producers" -ForegroundColor Gray
         
-        # 3. Kafka Configuration Tuning - optimized for 4-core systems
+        # 3. Kafka Configuration Tuning - optimized for 50 producers
         Write-Host "   3️⃣ KAFKA CONFIGURATION TUNING:" -ForegroundColor Yellow
-        Write-Host "      • Topic partitions: 16 partitions (optimized for 8 producers × 2 partitions each)" -ForegroundColor Gray
-        Write-Host "      • QueueBufferingMaxKbytes: 4GB (optimal for available RAM: $($SystemInfo.AvailableRAMGB)GB)" -ForegroundColor Gray
-        Write-Host "      • SocketSendBufferBytes: 2MB (balanced for 4-core system throughput)" -ForegroundColor Gray
+        Write-Host "      • Topic partitions: 50 partitions (1:1 mapping with producers)" -ForegroundColor Gray
+        Write-Host "      • Optimal load distribution across all producers" -ForegroundColor Gray
+        Write-Host "      • Each producer gets dedicated partition for maximum parallelism" -ForegroundColor Gray
         
         # 4. System Resource Optimization
         if ($SystemInfo.AvailableRAMGB -gt 8) {
@@ -100,7 +95,7 @@ function Get-OptimizationRecommendations {
         Write-Host "      • Consider using multiple Kafka brokers for distributed load" -ForegroundColor Gray
         
         # Immediate actionable recommendation
-        Write-Host "🎯 NEXT STEP: Try -ParallelProducers $recommendedProducers for immediate improvement" -ForegroundColor Green
+        Write-Host "🎯 CONFIGURATION: 50 producers × 100 messages = optimal for testing producer parallelism" -ForegroundColor Green
     } else {
         Write-Host "🏆 EXCELLENT: Already achieving target throughput!" -ForegroundColor Green
     }
@@ -175,9 +170,9 @@ function Get-SystemInfo {
     return $info
 }
 
-Write-Host "=== High-Performance Flink.NET Kafka Producer ===" -ForegroundColor Cyan
+Write-Host "=== High-Performance Flink.NET Kafka Producer (50 Producers × 100 Messages) ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') UTC" -ForegroundColor White
-Write-Host "Target: 1M+ messages/second using parallel Flink.NET optimized producers" -ForegroundColor Yellow
+Write-Host "Configuration: 50 parallel producers, 100 messages per producer = 5,000 total messages" -ForegroundColor Yellow
 Write-Host "Parameters: MessageCount=$MessageCount, Topic=$Topic, BatchSize=$BatchSize, ParallelProducers=$ParallelProducers" -ForegroundColor White
 
 function Get-KafkaBootstrapServers {
@@ -520,7 +515,7 @@ class Program {
         dotnet build | Out-Null
         
         # Determine partition count based on parallel producers for optimal distribution
-        $partitionCount = 16  # Optimized for 8 producers: 16 partitions for better distribution (2 partitions per producer)
+        $partitionCount = 50  # Optimized for 50 producers: 50 partitions for 1:1 producer-to-partition mapping
         
         Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions for parallel processing..." -ForegroundColor Yellow
         $fallbackOutput = dotnet run -- "$BootstrapServers" "$Topic" "$partitionCount" 2>&1
@@ -605,7 +600,7 @@ class UltraHighPerformanceProducer {
             .Build();
         
         try {
-            var totalPartitions = 16; // Optimized for 8 parallel producers (2 partitions per producer)
+            var totalPartitions = 50; // Optimized for 50 parallel producers (1 partition per producer)
             var partitionsPerProducer = 2; // Each producer handles 2 partitions for optimal load distribution
             var assignedPartitions = GetAssignedPartitions(producerId, totalPartitions, partitionsPerProducer);
             

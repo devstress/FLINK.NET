@@ -374,14 +374,17 @@ public static class Program
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
 
-        // Add TaskManagers
+        // Add TaskManagers with dynamic port allocation
         for (int i = 1; i <= taskManagerCount; i++)
         {
+            // Let Aspire/Kubernetes assign ports dynamically to avoid conflicts
+            // Each TaskManager will get a unique port through Aspire service discovery
             builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", jobManager.GetEndpoint("https"));
+                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", jobManager.GetEndpoint("https"))
+                .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Signal to use dynamic ports
         }
 
         return simulatorNumMessages;

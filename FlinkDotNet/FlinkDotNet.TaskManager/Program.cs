@@ -12,14 +12,26 @@ namespace FlinkDotNet.TaskManager
     public static class Program
     {
         public static string TaskManagerId { get; private set; } = $"TM-{Guid.NewGuid()}";
-        // Default gRPC port for TaskManager services (JobManager will call this)
-        public static int GrpcPort { get; private set; } = ServicePorts.TaskManagerGrpc;
+        public static int GrpcPort { get; private set; }
         public static string JobManagerAddress { get; private set; } = ServiceUris.Insecure.JobManagerGrpcHttp;
         public static TaskManagerCoreService? CoreServiceInstance { get; private set; }
 
 
         public static async Task Main(string[] args)
         {
+            // Initialize dynamic port allocation for Aspire/Kubernetes environments
+            // Use port 0 to let the system assign an available port when ASPIRE_USE_DYNAMIC_PORTS is set
+            if (Environment.GetEnvironmentVariable("ASPIRE_USE_DYNAMIC_PORTS")?.ToLowerInvariant() == "true")
+            {
+                GrpcPort = 0; // Let Kestrel/system assign an available port dynamically
+                Console.WriteLine("🔄 ASPIRE MODE: Using dynamic port allocation (system will assign available port)");
+            }
+            else
+            {
+                // Default gRPC port for TaskManager services (JobManager will call this) - for non-Aspire scenarios
+                GrpcPort = ServicePorts.TaskManagerGrpc;
+            }
+
             // Basic configuration - replace with actual config mechanism later
             // Allow overriding TM ID and gRPC port via command line for multiple instances
             if (args.Length > 0) TaskManagerId = args[0];
@@ -48,7 +60,14 @@ namespace FlinkDotNet.TaskManager
 
             Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
             Console.WriteLine($"JobManager Address: {JobManagerAddress}");
-            Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
+            if (GrpcPort == 0)
+            {
+                Console.WriteLine($"TaskManager gRPC services using dynamic port allocation (Aspire/K8s mode)");
+            }
+            else
+            {
+                Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
+            }
 
             var host = CreateHostBuilder(args).Build();
 
@@ -118,7 +137,16 @@ namespace FlinkDotNet.TaskManager
                 {
                     webBuilder.ConfigureKestrel(options =>
                     {
-                        options.ListenLocalhost(GrpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+                        if (GrpcPort == 0)
+                        {
+                            // Dynamic port allocation - let Kestrel choose an available port
+                            options.ListenAnyIP(0, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+                        }
+                        else
+                        {
+                            // Use specified port
+                            options.ListenLocalhost(GrpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+                        }
                     });
                     webBuilder.Configure(app =>
                     {
