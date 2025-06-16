@@ -692,9 +692,12 @@ namespace IntegrationTestVerifier
                 }
                 else
                 {
-                    Console.WriteLine("⚠️  WARNING: flinkdotnet.sample.topic not found - producer will create it if needed");
-                    testCoordinator.LogThen("Topic availability", "Topic not found but producer has fallback creation capability");
-                    testCoordinator.LogScenarioSuccess("Kafka is operational - topic will be created by producer if needed");
+                    Console.WriteLine("⚠️  WARNING: flinkdotnet.sample.topic not found in Kafka broker");
+                    Console.WriteLine("⚠️  This topic should be created by Aspire infrastructure (kafka-init container)");
+                    Console.WriteLine("⚠️  The topic is defined in AppHost Program.cs line 190: create_topic_safe 'flinkdotnet.sample.topic'");
+                    Console.WriteLine("⚠️  Producer will create it if needed as fallback");
+                    testCoordinator.LogThen("Topic availability", "Topic not found - Aspire kafka-init may not have completed or failed");
+                    testCoordinator.LogScenarioSuccess("Kafka is operational - producer has fallback creation capability");
                 }
             }
             else
@@ -2140,7 +2143,11 @@ namespace IntegrationTestVerifier
             var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
             if (isCI)
             {
-                maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                // Only adjust if not explicitly set to 1 (respect explicit single attempt requests)
+                if (maxAttempts != 1)
+                {
+                    maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                }
                 delaySeconds = Math.Max(delaySeconds, 15); // At least 15 seconds delay in CI
             }
             return (maxAttempts, delaySeconds, isCI);

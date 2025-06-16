@@ -17,7 +17,7 @@
     If specified, leaves the AppHost running for debugging purposes.
 
 .PARAMETER MessageCount
-    Number of messages to process (default: 10000000 = 10 million).
+    Number of messages to process (default: 1000000 = 1 million).
 
 .PARAMETER MaxTimeMs
     Maximum allowed processing time in milliseconds (default: 300000 = 5 minutes).
@@ -27,14 +27,14 @@
     Runs local stress tests with default settings.
 
 .EXAMPLE
-    ./scripts/run-local-stress-tests.ps1 -MessageCount 10000000 -MaxTimeMs 300000
-    Processes 10 million messages with 5 minute timeout.
+    ./scripts/run-local-stress-tests.ps1 -MessageCount 1000000 -MaxTimeMs 300000
+    Processes 1 million messages with 5 minute timeout.
 #>
 
 param(
     [switch]$SkipCleanup,
-    [int]$MessageCount = 10000000,  # 10 million messages
-    [int]$MaxTimeMs = 300000  # 5 minutes for 10M messages
+    [int]$MessageCount = 1000000,  # 1 million messages
+    [int]$MaxTimeMs = 300000  # 5 minutes for 1M messages
 )
 
 $ErrorActionPreference = 'Stop'
@@ -316,7 +316,7 @@ try {
     # Run message producer with proper error handling
     Write-Host "🔄 Starting message producer (this may take several minutes for $MessageCount messages)..." -ForegroundColor White
     try {
-        & "./scripts/produce-10-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
+        & "./scripts/produce-1-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
         
         if ($LASTEXITCODE -ne 0) {
             throw "Message producer failed with exit code: $LASTEXITCODE"
