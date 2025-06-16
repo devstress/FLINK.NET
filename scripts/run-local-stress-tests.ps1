@@ -129,35 +129,61 @@ function Test-FlinkJobSimulatorStartup {
     Test for FlinkJobSimulator startup by reading log files written by the simulator.
     
     .DESCRIPTION
-    Checks for startup, consumer, and status log files written by FlinkJobSimulator
-    to verify that it has successfully started and is ready to process messages.
+    Checks for startup, consumer, status, and state log files written by FlinkJobSimulator
+    to verify that it has successfully started and is in RUNNING state processing messages.
     #>
     
-    Write-Host "🔍 Checking FlinkJobSimulator startup logs..." -ForegroundColor Gray
+    Write-Host "🔍 Testing FlinkJobSimulator startup with enhanced state detection..." -ForegroundColor Cyan
     
     # Define log file paths (FlinkJobSimulator writes to current directory)
     $startupLogPath = "flinkjobsimulator_startup.log"
     $consumerLogPath = "flinkjobsimulator_consumer.log" 
     $statusLogPath = "flinkjobsimulator_status.log"
+    $stateLogPath = "flinkjobsimulator_state.log"
     
     $startupDetected = $false
+    $runningStateDetected = $false
     $maxAttempts = 6  # 30 seconds total check time
     $attemptDelay = 5  # seconds between attempts
     
+    Write-Host "📋 Available FlinkJobSimulator states:" -ForegroundColor Gray
+    Write-Host "  • FlinkJobSimulatorNotStarted - Initial state before startup" -ForegroundColor Gray
+    Write-Host "  • FlinkJobSimulatorRunning - Actively processing messages" -ForegroundColor Gray
+    Write-Host "  • FlinkJobSimulatorStartedByStop - Previously stopped/exited" -ForegroundColor Gray
+    Write-Host ""
+    
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        Write-Host "  Attempt $attempt/$maxAttempts: Checking for FlinkJobSimulator logs..." -ForegroundColor Gray
+        Write-Host "  Attempt $attempt/$maxAttempts: Checking for FlinkJobSimulator logs and states..." -ForegroundColor Gray
         
         # Check startup log
         if (Test-Path $startupLogPath) {
             try {
                 $startupContent = Get-Content $startupLogPath -Raw
-                if ($startupContent -like "*FLINKJOBSIMULATOR_STARTUP_LOG*" -and $startupContent -like "*STARTING*") {
-                    Write-Host "  ✅ Startup log found: FlinkJobSimulator process started" -ForegroundColor Green
+                if ($startupContent -like "*FLINKJOBSIMULATOR_STARTUP_LOG*" -and $startupContent -like "*FlinkJobSimulatorNotStarted*") {
+                    Write-Host "  ✅ Startup log found: FlinkJobSimulator process started (state: FlinkJobSimulatorNotStarted)" -ForegroundColor Green
                     $startupDetected = $true
                 }
             }
             catch {
                 Write-Host "  ⚠️ Startup log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Check state log for RUNNING status (most important)
+        if (Test-Path $stateLogPath) {
+            try {
+                $stateContent = Get-Content $stateLogPath -Raw
+                if ($stateContent -like "*FlinkJobSimulatorRunning*") {
+                    Write-Host "  🎯 STATE LOG FOUND: FlinkJobSimulator is RUNNING and processing messages!" -ForegroundColor Green
+                    $runningStateDetected = $true
+                    $startupDetected = $true
+                }
+                if ($stateContent -like "*FlinkJobSimulatorStartedByStop*") {
+                    Write-Host "  ⚠️ State log shows: FlinkJobSimulator was previously stopped" -ForegroundColor Yellow
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ State log exists but couldn't read: $_" -ForegroundColor Yellow
             }
         }
         
@@ -187,6 +213,11 @@ function Test-FlinkJobSimulatorStartup {
                     Write-Host "  ✅ Status log found: Kafka consumption started" -ForegroundColor Green
                     $startupDetected = $true
                 }
+                if ($statusContent -like "*FlinkJobSimulatorRunning*") {
+                    Write-Host "  🎯 Status log found: FlinkJobSimulator confirmed RUNNING!" -ForegroundColor Green
+                    $runningStateDetected = $true
+                    $startupDetected = $true
+                }
                 if ($statusContent -like "*KAFKA_FAILED*" -or $statusContent -like "*REDIS_FAILED*") {
                     Write-Host "  ❌ Status log shows failure: FlinkJobSimulator startup issues detected" -ForegroundColor Red
                     return $false
@@ -197,22 +228,32 @@ function Test-FlinkJobSimulatorStartup {
             }
         }
         
-        if ($startupDetected) {
-            Write-Host "  🎯 FlinkJobSimulator startup verified through log files!" -ForegroundColor Green
+        # Only consider truly started if we detect the RUNNING state
+        if ($runningStateDetected) {
+            Write-Host "  🎯 FlinkJobSimulator startup verified: State = FlinkJobSimulatorRunning!" -ForegroundColor Green
             return $true
         }
         
+        if ($startupDetected -and -not $runningStateDetected) {
+            Write-Host "  ⏳ FlinkJobSimulator initializing but not yet RUNNING..." -ForegroundColor Yellow
+        }
+        
         if ($attempt -lt $maxAttempts) {
-            Write-Host "  ⏳ No startup logs found yet, waiting $attemptDelay seconds..." -ForegroundColor Yellow
+            Write-Host "  ⏳ No RUNNING state detected yet, waiting $attemptDelay seconds..." -ForegroundColor Yellow
             Start-Sleep -Seconds $attemptDelay
         }
     }
     
-    Write-Host "  ❌ FlinkJobSimulator startup logs not found after $maxAttempts attempts" -ForegroundColor Red
+    Write-Host "  ❌ FlinkJobSimulator RUNNING state not detected after $maxAttempts attempts" -ForegroundColor Red
     Write-Host "  📋 Log file status:" -ForegroundColor Gray
     Write-Host "    Startup log ($startupLogPath): $(if (Test-Path $startupLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
     Write-Host "    Consumer log ($consumerLogPath): $(if (Test-Path $consumerLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
     Write-Host "    Status log ($statusLogPath): $(if (Test-Path $statusLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    Write-Host "    State log ($stateLogPath): $(if (Test-Path $stateLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    
+    if ($startupDetected -and -not $runningStateDetected) {
+        Write-Host "  💡 FlinkJobSimulator started but didn't reach RUNNING state - check for initialization issues" -ForegroundColor Yellow
+    }
     
     return $false
 }

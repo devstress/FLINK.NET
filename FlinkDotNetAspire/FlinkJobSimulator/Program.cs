@@ -43,7 +43,7 @@ namespace FlinkJobSimulator
                 var logContent = $@"FLINKJOBSIMULATOR_STARTUP_LOG
 StartTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
 ProcessId: {Environment.ProcessId}
-Status: STARTING
+Status: FlinkJobSimulatorNotStarted
 Phase: INITIALIZATION
 Message: FlinkJobSimulator is initializing Kafka consumer group
 ";
@@ -57,6 +57,32 @@ Message: FlinkJobSimulator is initializing Kafka consumer group
             {
                 Console.WriteLine($"⚠️ STARTUP LOG: Failed to write startup log - {ex.Message}");
                 // Don't fail startup if logging fails
+            }
+        }
+        
+        /// <summary>
+        /// Update state log to show FlinkJobSimulator is running
+        /// </summary>
+        public static async Task WriteRunningStateLogAsync()
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_STATE_LOG
+UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+ProcessId: {Environment.ProcessId}
+Status: FlinkJobSimulatorRunning
+Phase: MESSAGE_PROCESSING
+Message: FlinkJobSimulator is actively running and processing messages
+PreviousState: FlinkJobSimulatorNotStarted
+";
+                
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_state.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                Console.WriteLine($"📝 STATE LOG: FlinkJobSimulator now in RUNNING state - {logPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ STATE LOG: Failed to write running state log - {ex.Message}");
             }
         }
         

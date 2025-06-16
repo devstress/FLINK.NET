@@ -71,6 +71,11 @@ namespace FlinkJobSimulator
                 await InitializeFlinkKafkaConsumerGroup();
                 await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup started with automatic resumption");
                 
+                // IMPORTANT: Mark FlinkJobSimulator as actually RUNNING
+                _logger.LogInformation("🎯 TaskManager {TaskManagerId}: FlinkJobSimulator is now RUNNING and ready to process messages", _taskManagerId);
+                await Program.WriteRunningStateLogAsync();
+                await UpdateStartupLogAsync("FlinkJobSimulatorRunning", "FlinkJobSimulator is actively running and processing messages");
+                
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns", _taskManagerId);
                 await ConsumeMessagesWithFlinkPatterns(stoppingToken);
             }
@@ -86,6 +91,8 @@ namespace FlinkJobSimulator
             }
             finally
             {
+                // Mark as stopped when exiting
+                await UpdateStartupLogAsync("FlinkJobSimulatorStartedByStop", "FlinkJobSimulator was stopped or exited");
                 await CleanupResources();
             }
         }
