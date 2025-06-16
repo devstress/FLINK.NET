@@ -8,12 +8,14 @@ using Microsoft.Extensions.Logging;
 namespace FlinkDotNet.Connectors.Sources.Kafka
 {
     /// <summary>
-    /// Apache Flink-style consumer group manager that provides proper coordination
+    /// Apache Flink 2.0-compliant consumer group manager that provides proper coordination
     /// between Flink's checkpointing mechanism and Kafka's consumer group protocol.
-    /// This follows Apache Flink's pattern of managing consumer groups with:
+    /// This follows Apache Flink 2.0 patterns of managing consumer groups with:
     /// - Checkpoint-based offset management
     /// - Proper partition assignment coordination  
     /// - Enhanced failure recovery and rebalancing
+    /// - Automatic resumption capabilities with exponential backoff
+    /// - Circuit breaker pattern for robust error handling
     /// </summary>
     public class FlinkKafkaConsumerGroup : IDisposable
     {
@@ -23,6 +25,13 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         private readonly object _offsetLock = new object();
         private IConsumer<Ignore, byte[]>? _consumer;
         private bool _disposed = false;
+        
+        // Apache Flink 2.0 resumption state
+        private IEnumerable<string>? _subscribedTopics;
+        private DateTime _lastFailureTime = DateTime.MinValue;
+        private int _consecutiveFailures = 0;
+        private bool _isInRecoveryMode = false;
+        private readonly object _recoveryLock = new object();
 
         public FlinkKafkaConsumerGroup(ConsumerConfig consumerConfig, ILogger? logger = null)
         {
@@ -64,11 +73,14 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         /// <summary>
         /// Initialize consumer with proper error handling and partition assignment callbacks.
         /// Waits for Kafka setup with 1-minute timeout for maximum reliability.
+        /// Stores subscription topics for resumption capabilities.
         /// </summary>
         public async Task InitializeAsync(IEnumerable<string> topics)
         {
             if (_consumer != null)
                 throw new InvalidOperationException("Consumer already initialized");
+
+            _subscribedTopics = topics.ToList(); // Store for resumption
 
             // Wait for Kafka setup with 1-minute timeout
             await WaitForKafkaSetupAsync(TimeSpan.FromMinutes(1));
@@ -83,6 +95,13 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             _consumer.Subscribe(topics);
             _logger?.LogInformation("FlinkKafkaConsumerGroup initialized and subscribed to topics: {Topics}", 
                 string.Join(", ", topics));
+            
+            // Reset recovery state on successful initialization
+            lock (_recoveryLock)
+            {
+                _consecutiveFailures = 0;
+                _isInRecoveryMode = false;
+            }
             
             await Task.CompletedTask;
         }
@@ -172,7 +191,8 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         }
 
         /// <summary>
-        /// Consume messages with Flink-compatible offset management
+        /// Consume messages with Flink-compatible offset management and automatic resumption.
+        /// Implements Apache Flink 2.0 recovery patterns with exponential backoff.
         /// </summary>
         public ConsumeResult<Ignore, byte[]>? ConsumeMessage(TimeSpan timeout)
         {
@@ -190,6 +210,17 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                     {
                         _checkpointedOffsets[result.TopicPartition] = result.Offset + 1; // +1 for next offset to consume
                     }
+                    
+                    // Reset failure count on successful consumption
+                    lock (_recoveryLock)
+                    {
+                        if (_consecutiveFailures > 0)
+                        {
+                            _logger?.LogInformation("✅ FlinkKafkaConsumerGroup: Recovery successful after {FailureCount} failures", _consecutiveFailures);
+                            _consecutiveFailures = 0;
+                            _isInRecoveryMode = false;
+                        }
+                    }
                 }
                 return result;
             }
@@ -199,9 +230,213 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 
                 // For critical errors, rethrow to trigger Flink fault tolerance
                 if (ex.Error.IsFatal)
+                {
+                    _logger?.LogCritical("Fatal Kafka error encountered: {Error}", ex.Error);
                     throw;
+                }
+                
+                // Handle recoverable errors with Apache Flink 2.0 patterns
+                return HandleRecoverableError(ex);
+            }
+        }
+        
+        /// <summary>
+        /// Handle recoverable Kafka errors with Apache Flink 2.0 resumption patterns.
+        /// Implements exponential backoff and automatic consumer group resumption.
+        /// </summary>
+        private ConsumeResult<Ignore, byte[]>? HandleRecoverableError(ConsumeException ex)
+        {
+            lock (_recoveryLock)
+            {
+                _consecutiveFailures++;
+                _lastFailureTime = DateTime.UtcNow;
+                
+                // Check if error indicates need for consumer resumption
+                if (IsConsumerResumptionNeeded(ex))
+                {
+                    var timeSinceLastFailure = DateTime.UtcNow - _lastFailureTime;
+                    _logger?.LogWarning("🔄 FlinkKafkaConsumerGroup: Resumption needed due to error: {Error} (Failure #{FailureCount}, last failure: {TimeSinceLastFailure}ms ago)", 
+                        ex.Error.Reason, _consecutiveFailures, timeSinceLastFailure.TotalMilliseconds);
                     
-                return null;
+                    // Attempt resumption with exponential backoff
+                    if (AttemptConsumerResumption())
+                    {
+                        _logger?.LogInformation("✅ FlinkKafkaConsumerGroup: Resumption successful");
+                        return null; // Return null to retry consumption
+                    }
+                    else
+                    {
+                        _logger?.LogError("❌ FlinkKafkaConsumerGroup: Resumption failed, marking as in recovery mode");
+                        _isInRecoveryMode = true;
+                    }
+                }
+                
+                // Apply circuit breaker pattern - if too many consecutive failures, temporarily disable
+                if (_consecutiveFailures >= 10)
+                {
+                    _logger?.LogError("🚨 FlinkKafkaConsumerGroup: Circuit breaker activated after {FailureCount} consecutive failures", _consecutiveFailures);
+                    _isInRecoveryMode = true;
+                    
+                    // Reset after exponential backoff period
+                    var backoffTime = CalculateExponentialBackoff(_consecutiveFailures);
+                    _logger?.LogInformation("⏳ FlinkKafkaConsumerGroup: Waiting {BackoffTime}ms before reset attempt", backoffTime.TotalMilliseconds);
+                    Task.Delay(backoffTime).Wait();
+                    
+                    // Reset failure count to allow recovery attempts
+                    _consecutiveFailures = 5; // Partial reset to prevent immediate circuit breaker re-activation
+                }
+            }
+            
+            return null;
+        }
+        
+        /// <summary>
+        /// Determine if a Kafka error requires consumer resumption based on Apache Flink patterns.
+        /// </summary>
+        private static bool IsConsumerResumptionNeeded(ConsumeException ex)
+        {
+            var errorCode = ex.Error.Code;
+            var errorReason = ex.Error.Reason;
+            
+            // Errors that typically require consumer recreation
+            return errorCode == ErrorCode.BrokerNotAvailable ||
+                   errorCode == ErrorCode.NetworkException ||
+                   errorCode == ErrorCode.RequestTimedOut ||
+                   errorCode == ErrorCode.UnknownMemberId ||
+                   errorReason.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+                   errorReason.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
+                   errorReason.Contains("timeout", StringComparison.OrdinalIgnoreCase);
+        }
+        
+        /// <summary>
+        /// Attempt to resume the FlinkKafkaConsumerGroup by recreating the consumer
+        /// while preserving checkpoint state. Follows Apache Flink 2.0 recovery patterns.
+        /// </summary>
+        private bool AttemptConsumerResumption()
+        {
+            try
+            {
+                _logger?.LogInformation("🔄 FlinkKafkaConsumerGroup: Starting resumption process...");
+                
+                // Preserve current checkpoint state
+                Dictionary<TopicPartition, Offset> preservedState;
+                lock (_offsetLock)
+                {
+                    preservedState = new Dictionary<TopicPartition, Offset>(_checkpointedOffsets);
+                }
+                
+                // Safely dispose existing consumer
+                try
+                {
+                    _consumer?.Close();
+                    _consumer?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "⚠️ FlinkKafkaConsumerGroup: Error disposing consumer during resumption");
+                }
+                
+                _consumer = null;
+                
+                // Apply exponential backoff before resumption attempt
+                var backoffTime = CalculateExponentialBackoff(_consecutiveFailures);
+                _logger?.LogDebug("⏳ FlinkKafkaConsumerGroup: Applying {BackoffTime}ms backoff before resumption", backoffTime.TotalMilliseconds);
+                Task.Delay(backoffTime).Wait();
+                
+                // Recreate consumer with same configuration
+                _consumer = new ConsumerBuilder<Ignore, byte[]>(_consumerConfig)
+                    .SetErrorHandler(OnError)
+                    .SetPartitionsAssignedHandler(OnPartitionsAssigned)
+                    .SetPartitionsRevokedHandler(OnPartitionsRevoked)
+                    .SetPartitionsLostHandler(OnPartitionsLost)
+                    .Build();
+                
+                // Re-subscribe to topics
+                if (_subscribedTopics != null)
+                {
+                    _consumer.Subscribe(_subscribedTopics);
+                    _logger?.LogInformation("✅ FlinkKafkaConsumerGroup: Re-subscribed to topics: {Topics}", 
+                        string.Join(", ", _subscribedTopics));
+                }
+                
+                // Restore checkpoint state if available
+                if (preservedState.Count > 0)
+                {
+                    _logger?.LogInformation("🔄 FlinkKafkaConsumerGroup: Restoring {PartitionCount} partition offsets after resumption", 
+                        preservedState.Count);
+                    
+                    // Wait briefly for partition assignment before seeking
+                    Task.Delay(TimeSpan.FromSeconds(2)).Wait();
+                    
+                    try
+                    {
+                        foreach (var kvp in preservedState)
+                        {
+                            _consumer.Seek(new TopicPartitionOffset(kvp.Key, kvp.Value));
+                        }
+                        
+                        // Restore internal state
+                        lock (_offsetLock)
+                        {
+                            _checkpointedOffsets.Clear();
+                            foreach (var kvp in preservedState)
+                            {
+                                _checkpointedOffsets[kvp.Key] = kvp.Value;
+                            }
+                        }
+                        
+                        _logger?.LogInformation("✅ FlinkKafkaConsumerGroup: Successfully restored checkpoint state");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "⚠️ FlinkKafkaConsumerGroup: Failed to restore offsets during resumption, will start from current position");
+                    }
+                }
+                
+                _logger?.LogInformation("✅ FlinkKafkaConsumerGroup: Resumption completed successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "❌ FlinkKafkaConsumerGroup: Resumption failed: {Error}", ex.Message);
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Calculate exponential backoff delay based on failure count.
+        /// Implements Apache Flink's exponential backoff pattern with maximum delay cap.
+        /// </summary>
+        private static TimeSpan CalculateExponentialBackoff(int failureCount)
+        {
+            // Start with 1 second, double each time, max 30 seconds
+            var baseDelayMs = 1000;
+            var maxDelayMs = 30000;
+            
+            var delayMs = Math.Min(baseDelayMs * Math.Pow(2, Math.Min(failureCount - 1, 5)), maxDelayMs);
+            return TimeSpan.FromMilliseconds(delayMs);
+        }
+        
+        /// <summary>
+        /// Check if the consumer group is currently in recovery mode.
+        /// Used by external components to determine health status.
+        /// </summary>
+        public bool IsInRecoveryMode()
+        {
+            lock (_recoveryLock)
+            {
+                return _isInRecoveryMode;
+            }
+        }
+        
+        /// <summary>
+        /// Get the number of consecutive failures for monitoring purposes.
+        /// </summary>
+        public int GetConsecutiveFailureCount()
+        {
+            lock (_recoveryLock)
+            {
+                return _consecutiveFailures;
             }
         }
 
@@ -333,6 +568,18 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             if (error.IsFatal)
             {
                 _logger?.LogCritical("Fatal Kafka error encountered, Flink will handle recovery: {Error}", error);
+            }
+            else
+            {
+                // For non-fatal errors, check if resumption is needed
+                lock (_recoveryLock)
+                {
+                    _consecutiveFailures++;
+                    _lastFailureTime = DateTime.UtcNow;
+                }
+                
+                _logger?.LogWarning("Non-fatal Kafka error (failure #{FailureCount}): {ErrorCode} - {Reason}", 
+                    _consecutiveFailures, error.Code, error.Reason);
             }
         }
 
