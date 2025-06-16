@@ -198,16 +198,27 @@ Write-Host ""
 # Step 2: Run all tests in parallel with progress tracking
 Write-Host "=== Step 2: Running All Tests in Parallel ===" -ForegroundColor Yellow
 
+# Workflows executed in parallel:
+# 1. Unit Tests - Run unit tests with coverage collection
+# 2. Integration Tests - Run Aspire integration tests  
+# 3. Stress Tests - Run stress test verification with 1M messages
+# 4. Reliability Tests - Run fault tolerance and reliability tests
+# 5. SonarCloud Analysis - Run static code analysis and coverage submission
+
 # Create logs directory
 $logsDir = "$rootPath/test-logs"
 if (-not (Test-Path $logsDir)) {
     New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
 }
 
-# Set environment variables
+# Set environment variables to match GitHub Actions workflows
 $env:SIMULATOR_NUM_MESSAGES = if ($env:SIMULATOR_NUM_MESSAGES) { $env:SIMULATOR_NUM_MESSAGES } else { "1000000" }
-$env:FLINKDOTNET_STANDARD_TEST_MESSAGES = if ($env:FLINKDOTNET_STANDARD_TEST_MESSAGES) { $env:FLINKDOTNET_STANDARD_TEST_MESSAGES } else { "100000" }
+$env:FLINKDOTNET_STANDARD_TEST_MESSAGES = if ($env:FLINKDOTNET_STANDARD_TEST_MESSAGES) { $env:FLINKDOTNET_STANDARD_TEST_MESSAGES } else { "1000000" }
+$env:MAX_ALLOWED_TIME_MS = if ($env:MAX_ALLOWED_TIME_MS) { $env:MAX_ALLOWED_TIME_MS } else { "300000" }
+$env:USE_SIMPLIFIED_MODE = if ($env:USE_SIMPLIFIED_MODE) { $env:USE_SIMPLIFIED_MODE } else { "false" }
 $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
+$env:DOTNET_ENVIRONMENT = "Development"
+$env:SIMULATOR_REDIS_KEY_SINK_COUNTER = "flinkdotnet:sample:processed_message_counter"
 
 Write-Host "Starting parallel test execution with progress tracking..." -ForegroundColor White
 Write-Host ""
