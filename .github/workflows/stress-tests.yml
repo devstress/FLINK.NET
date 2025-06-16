@@ -279,7 +279,7 @@ jobs:
           
           # Run optimized parallel message producer for 1M+ msg/sec throughput
           Write-Host "🔄 Starting high-performance parallel message producer (targeting 1M+ msg/sec)..."
-          & ./scripts/produce-1-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic" -ParallelProducers 20
+          & ./scripts/produce-1-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic" -ParallelProducers 8
           
           if ($LASTEXITCODE -ne 0) {
             Write-Host "❌ Message producer failed with exit code: $LASTEXITCODE" -ForegroundColor Red

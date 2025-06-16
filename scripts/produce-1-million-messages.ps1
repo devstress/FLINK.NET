@@ -29,8 +29,8 @@
 param(
     [long]$MessageCount = 1000000,  # 1 million messages 
     [string]$Topic = "flinkdotnet.sample.topic",
-    [int]$BatchSize = 250000,  # Optimized batch size per performance analysis (increased from 100,000)
-    [int]$ParallelProducers = 20  # Number of parallel producer instances for maximum throughput (targeting 1M+ msg/sec)
+    [int]$BatchSize = 50000,   # Reduced batch size for granular progress tracking (msg/ms level)
+    [int]$ParallelProducers = 8  # Optimized for 4-core systems: 2x cores for optimal utilization
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,25 +56,25 @@ function Get-OptimizationRecommendations {
         # Calculate scalability recommendations
         $scaleFactor = [math]::Ceiling($targetRate / $CurrentRate)
         
-        # 1. Parallel Producer Scaling
-        $recommendedProducers = [math]::Min($ParallelProducers * $scaleFactor, $SystemInfo.CPUCores * 5)
+        # 1. Parallel Producer Scaling - optimized for 4-core systems
+        $recommendedProducers = [math]::Min($ParallelProducers * $scaleFactor, $SystemInfo.CPUCores * 2)  # 2x cores for 4-core systems
         if ($recommendedProducers -gt $ParallelProducers) {
             Write-Host "   1️⃣ SCALE PARALLEL PRODUCERS: Increase from $ParallelProducers to $recommendedProducers producers" -ForegroundColor Yellow
             Write-Host "      • Formula: Current rate × scale factor ($scaleFactor) = target throughput" -ForegroundColor Gray
-            Write-Host "      • Limited by CPU cores ($($SystemInfo.CPUCores)) × 5 = max efficient producers" -ForegroundColor Gray
+            Write-Host "      • Optimized for 4-core systems: CPU cores ($($SystemInfo.CPUCores)) × 2 = max efficient producers" -ForegroundColor Gray
         }
         
-        # 2. Batch Size Optimization
-        Write-Host "   2️⃣ OPTIMIZE BATCH PROCESSING:" -ForegroundColor Yellow
-        Write-Host "      • Increase BatchSize from 250000 to 500000+ messages per batch" -ForegroundColor Gray
-        Write-Host "      • Increase semaphore concurrency from 10000 to 15000+ concurrent operations" -ForegroundColor Gray
-        Write-Host "      • Use larger progress reporting chunks (100K instead of 50K)" -ForegroundColor Gray
+        # 2. Batch Size Optimization - already optimized for granular progress
+        Write-Host "   2️⃣ BATCH PROCESSING OPTIMIZATION:" -ForegroundColor Yellow
+        Write-Host "      • Batch size optimized to 50K messages for granular progress (msg/ms tracking)" -ForegroundColor Gray
+        Write-Host "      • Task chunks: 1K messages for real-time progress updates every 5K messages" -ForegroundColor Gray
+        Write-Host "      • Semaphore concurrency: 2K operations (optimized for 4-core systems)" -ForegroundColor Gray
         
-        # 3. Kafka Configuration Tuning
+        # 3. Kafka Configuration Tuning - optimized for 4-core systems
         Write-Host "   3️⃣ KAFKA CONFIGURATION TUNING:" -ForegroundColor Yellow
-        Write-Host "      • Increase topic partitions to match parallel producers ($recommendedProducers partitions)" -ForegroundColor Gray
-        Write-Host "      • Tune QueueBufferingMaxKbytes to 8GB+ (currently 4GB)" -ForegroundColor Gray
-        Write-Host "      • Optimize SocketSendBufferBytes to 4MB+ (currently 2MB)" -ForegroundColor Gray
+        Write-Host "      • Topic partitions: 16 partitions (optimized for 8 producers × 2 partitions each)" -ForegroundColor Gray
+        Write-Host "      • QueueBufferingMaxKbytes: 4GB (optimal for available RAM: $($SystemInfo.AvailableRAMGB)GB)" -ForegroundColor Gray
+        Write-Host "      • SocketSendBufferBytes: 2MB (balanced for 4-core system throughput)" -ForegroundColor Gray
         
         # 4. System Resource Optimization
         if ($SystemInfo.AvailableRAMGB -gt 8) {
@@ -520,7 +520,7 @@ class Program {
         dotnet build | Out-Null
         
         # Determine partition count based on parallel producers for optimal distribution
-        $partitionCount = 40  # Increased from 20 to 40 partitions for better parallel producer distribution (per performance analysis)
+        $partitionCount = 16  # Optimized for 8 producers: 16 partitions for better distribution (2 partitions per producer)
         
         Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions for parallel processing..." -ForegroundColor Yellow
         $fallbackOutput = dotnet run -- "$BootstrapServers" "$Topic" "$partitionCount" 2>&1
@@ -605,15 +605,15 @@ class UltraHighPerformanceProducer {
             .Build();
         
         try {
-            var totalPartitions = 40; // Optimized partition count for better parallel producer distribution
-            var partitionsPerProducer = 2; // Each producer handles 2 partitions for optimal load distribution (40 partitions / 20 producers)
+            var totalPartitions = 16; // Optimized for 8 parallel producers (2 partitions per producer)
+            var partitionsPerProducer = 2; // Each producer handles 2 partitions for optimal load distribution
             var assignedPartitions = GetAssignedPartitions(producerId, totalPartitions, partitionsPerProducer);
             
             Console.WriteLine("PARTITIONS:" + producerId + ":" + string.Join(",", assignedPartitions));
             
-            // Ultra-fast parallel message production with optimized concurrency
+            // Ultra-fast parallel message production with optimized concurrency for granular progress
             var tasks = new List<Task>();
-            var semaphore = new SemaphoreSlim(10000); // Optimized concurrency (increased from 5000 per performance analysis)
+            var semaphore = new SemaphoreSlim(2000); // Reduced concurrency for 4-core systems - optimized for CPU/memory balance
             var progressReported = 0L;
             
             for (int i = 0; i < messageCount; i++) {
@@ -626,13 +626,13 @@ class UltraHighPerformanceProducer {
                 var task = ProduceMessageAsync(producer, topic, msgId, partition, semaphore);
                 tasks.Add(task);
                 
-                // Process in larger chunks for maximum throughput (optimized per performance analysis)
-                if (tasks.Count >= 10000) {
+                // Process in smaller chunks for granular progress tracking (msg/ms level)
+                if (tasks.Count >= 1000) {  // Reduced from 10000 to 1000 for granular progress
                     await Task.WhenAll(tasks);
                     tasks.Clear();
                     
-                    progressReported += 10000;
-                    if (progressReported % 100000 == 0) {  // Report every 100K instead of 50K
+                    progressReported += 1000;
+                    if (progressReported % 5000 == 0) {  // Report every 5K messages for msg/ms granularity
                         Console.WriteLine("PROGRESS:" + producerId + ":" + progressReported);
                     }
                 }
@@ -766,12 +766,42 @@ function Wait-ParallelProducers {
     
     $completedProducers = 0
     $totalSentMessages = 0
+    $producerProgress = @{}  # Track progress per producer
     $lastProgressTime = Get-Date
     
-    Write-Host "⏳ Monitoring parallel producer progress..." -ForegroundColor Yellow
+    Write-Host "⏳ Monitoring parallel producer progress with real-time rate tracking..." -ForegroundColor Yellow
     
     while ($completedProducers -lt $Jobs.Count) {
         $currentTime = Get-Date
+        
+        # Check for new output from running jobs (captures PROGRESS lines)
+        foreach ($job in $Jobs) {
+            if ($job.HasMoreData) {
+                $newOutput = Receive-Job $job -Keep
+                if ($newOutput) {
+                    foreach ($line in $newOutput) {
+                        if ($line -like "PROGRESS:*") {
+                            # Parse: PROGRESS:producerId:messageCount
+                            $parts = $line.Split(':')
+                            if ($parts.Length -eq 3) {
+                                $producerId = [int]$parts[1]
+                                $currentProgress = [long]$parts[2]
+                                $producerProgress[$producerId] = $currentProgress
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Calculate real-time total sent messages from all producer progress
+        $realTimeTotalSent = 0
+        foreach ($progress in $producerProgress.Values) {
+            $realTimeTotalSent += $progress
+        }
+        
+        # Add completed producer messages
+        $realTimeTotalSent += $totalSentMessages
         
         # Check job completion
         foreach ($job in $Jobs) {
@@ -792,14 +822,20 @@ function Wait-ParallelProducers {
             }
         }
         
-        # Progress reporting every 5 seconds
-        if (($currentTime - $lastProgressTime).TotalSeconds -ge 5) {
+        # Progress reporting every 2 seconds for more responsive feedback
+        if (($currentTime - $lastProgressTime).TotalSeconds -ge 2) {
             $elapsed = $currentTime - $StartTime
-            $currentRate = if ($elapsed.TotalSeconds -gt 0) { $totalSentMessages / $elapsed.TotalSeconds } else { 0 }
+            $currentRate = if ($elapsed.TotalSeconds -gt 0) { $realTimeTotalSent / $elapsed.TotalSeconds } else { 0 }
             $progress = ($completedProducers * 100.0) / $Jobs.Count
             
+            # Calculate msg/ms for granular progress display as requested
+            $rateMsgPerMs = if ($elapsed.TotalMilliseconds -gt 0) { $realTimeTotalSent / $elapsed.TotalMilliseconds } else { 0 }
+            
             $rateColor = if ($currentRate -gt 1000000) { "Green" } elseif ($currentRate -gt 500000) { "Yellow" } else { "Red" }
-            Write-Host "📊 Progress: $completedProducers/$($Jobs.Count) producers completed ($([math]::Round($progress, 1))%) - Current rate: $([math]::Round($currentRate, 0)) msg/sec" -ForegroundColor $rateColor
+            Write-Host "📊 Progress: $completedProducers/$($Jobs.Count) producers completed ($([math]::Round($progress, 1))%) - Current rate: $([math]::Round($currentRate, 0)) msg/sec ($([math]::Round($rateMsgPerMs, 2)) msg/ms)" -ForegroundColor $rateColor
+            
+            # Show real-time message breakdown
+            Write-Host "   📈 Real-time status: $realTimeTotalSent/$MessageCount messages sent ($([math]::Round(($realTimeTotalSent * 100.0) / $MessageCount, 1))%)" -ForegroundColor Gray
             
             if ($currentRate -gt 1000000) {
                 Write-Host "🎯 TARGET ACHIEVED: >1M msg/sec sustained throughput!" -ForegroundColor Green
@@ -810,20 +846,21 @@ function Wait-ParallelProducers {
             $lastProgressTime = $currentTime
         }
         
-        Start-Sleep -Seconds 1
+        Start-Sleep -Seconds 0.5  # Faster polling for real-time progress
     }
     
-    # Final verification
+    # Final verification using actual total sent messages
     $finalElapsed = (Get-Date) - $StartTime
-    $finalRate = if ($finalElapsed.TotalSeconds -gt 0) { $totalSentMessages / $finalElapsed.TotalSeconds } else { 0 }
+    $finalTotalSent = $totalSentMessages
+    $finalRate = if ($finalElapsed.TotalSeconds -gt 0) { $finalTotalSent / $finalElapsed.TotalSeconds } else { 0 }
     
     Write-Host "📊 Final Results:" -ForegroundColor White
-    Write-Host "  Total Messages Sent: $totalSentMessages" -ForegroundColor Green
+    Write-Host "  Total Messages Sent: $finalTotalSent" -ForegroundColor Green
     Write-Host "  Total Time: $([math]::Round($finalElapsed.TotalSeconds, 1)) seconds" -ForegroundColor Green
     Write-Host "  Final Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
     Write-Host "  Parallel Producers: $($Jobs.Count)" -ForegroundColor Green
     
-    return ($totalSentMessages -eq $MessageCount)
+    return ($finalTotalSent -eq $MessageCount)
 }
 
 function Send-KafkaMessages {
