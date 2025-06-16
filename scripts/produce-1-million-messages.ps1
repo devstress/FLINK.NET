@@ -632,9 +632,8 @@ class UltraHighPerformanceProducer {
                     tasks.Clear();
                     
                     progressReported += 1000;
-                    if (progressReported % 5000 == 0) {  // Report every 5K messages for msg/ms granularity
-                        Console.WriteLine("PROGRESS:" + producerId + ":" + progressReported);
-                    }
+                    // Report every 1K messages for real-time visibility as requested
+                    Console.WriteLine("PROGRESS:" + producerId + ":" + progressReported);
                 }
             }
             
@@ -642,6 +641,7 @@ class UltraHighPerformanceProducer {
             if (tasks.Count > 0) {
                 await Task.WhenAll(tasks);
                 progressReported += tasks.Count;
+                Console.WriteLine("PROGRESS:" + producerId + ":" + progressReported);
             }
             
             // Flush for exactly-once guarantees
@@ -765,8 +765,8 @@ function Wait-ParallelProducers {
     param([array]$Jobs, [long]$MessageCount, [datetime]$StartTime)
     
     $completedProducers = 0
-    $totalSentMessages = 0
     $producerProgress = @{}  # Track progress per producer
+    $completedProducerIds = @{}  # Track which producers have completed
     $lastProgressTime = Get-Date
     
     Write-Host "⏳ Monitoring parallel producer progress with real-time rate tracking..." -ForegroundColor Yellow
@@ -776,7 +776,7 @@ function Wait-ParallelProducers {
         
         # Check for new output from running jobs (captures PROGRESS lines)
         foreach ($job in $Jobs) {
-            if ($job.HasMoreData) {
+            if ($job.State -eq 'Running' -and $job.HasMoreData) {
                 $newOutput = Receive-Job $job -Keep
                 if ($newOutput) {
                     foreach ($line in $newOutput) {
@@ -787,32 +787,41 @@ function Wait-ParallelProducers {
                                 $producerId = [int]$parts[1]
                                 $currentProgress = [long]$parts[2]
                                 $producerProgress[$producerId] = $currentProgress
+                                Write-Host "   📊 Producer $($producerId + 1): $currentProgress messages" -ForegroundColor DarkGray
                             }
+                        }
+                        elseif ($line -like "PRODUCER_START:*") {
+                            $producerId = [int]$line.Split(':')[1]
+                            Write-Host "   🚀 Producer $($producerId + 1) started" -ForegroundColor DarkGreen
                         }
                     }
                 }
             }
         }
         
-        # Calculate real-time total sent messages from all producer progress
+        # Calculate real-time total sent messages (only from active producers, not double-counting completed ones)
         $realTimeTotalSent = 0
-        foreach ($progress in $producerProgress.Values) {
-            $realTimeTotalSent += $progress
+        foreach ($producerId in $producerProgress.Keys) {
+            if (-not $completedProducerIds.ContainsKey($producerId)) {
+                $realTimeTotalSent += $producerProgress[$producerId]
+            }
         }
-        
-        # Add completed producer messages
-        $realTimeTotalSent += $totalSentMessages
         
         # Check job completion
         foreach ($job in $Jobs) {
-            if ($job.State -eq 'Completed' -and $job.HasMoreData) {
+            if ($job.State -eq 'Completed') {
                 $result = Receive-Job $job
                 $completedProducers++
+                $producerId = $result.ProducerId
+                
+                # Mark this producer as completed to avoid double-counting
+                $completedProducerIds[$producerId] = $true
                 
                 if ($result.ExitCode -eq 0 -and $result.Output -like "*SUCCESS:*") {
                     $sentMessages = ($result.Output | Where-Object { $_ -like "SUCCESS:*" }).Split(':')[2]
-                    $totalSentMessages += [long]$sentMessages
-                    Write-Host "✅ Producer $($result.ProducerId + 1) completed: $sentMessages messages" -ForegroundColor Green
+                    # Use the final progress from the producer, not the SUCCESS count (which might be different)
+                    $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { [long]$sentMessages }
+                    Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages" -ForegroundColor Green
                 } else {
                     Write-Host "❌ Producer $($result.ProducerId + 1) failed: $($result.Output)" -ForegroundColor Red
                     return $false
@@ -849,9 +858,15 @@ function Wait-ParallelProducers {
         Start-Sleep -Seconds 0.5  # Faster polling for real-time progress
     }
     
-    # Final verification using actual total sent messages
+    # Final verification using actual total sent messages from producer progress
     $finalElapsed = (Get-Date) - $StartTime
-    $finalTotalSent = $totalSentMessages
+    $finalTotalSent = 0
+    
+    # Sum all producer progress (which contains the actual message counts)
+    foreach ($progress in $producerProgress.Values) {
+        $finalTotalSent += $progress
+    }
+    
     $finalRate = if ($finalElapsed.TotalSeconds -gt 0) { $finalTotalSent / $finalElapsed.TotalSeconds } else { 0 }
     
     Write-Host "📊 Final Results:" -ForegroundColor White
