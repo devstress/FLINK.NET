@@ -255,137 +255,6 @@ function Send-KafkaMessages {
     try {
         # Use .NET Kafka producer for reliable message sending without container network issues
         
-        # Wait for kafka-init container to complete topic creation
-        Write-Host "Waiting for kafka-init container to complete topic creation..." -ForegroundColor Gray
-        $maxWaitAttempts = 50  # Increased timeout to 4+ minutes for comprehensive initialization
-        $waitAttempt = 0
-        $kafkaInitCompleted = $false
-        $kafkaInitStartTime = Get-Date
-        
-        while ($waitAttempt -lt $maxWaitAttempts -and -not $kafkaInitCompleted) {
-            try {
-                # Check if docker is available
-                $dockerAvailable = Get-Command docker -ErrorAction SilentlyContinue
-                if (-not $dockerAvailable) {
-                    Write-Host "⚠️ Docker command not available, skipping kafka-init wait" -ForegroundColor Yellow
-                    $kafkaInitCompleted = $true
-                    break
-                }
-                
-                # Check if kafka-init containers exist and get their status
-                $kafkaInitContainers = docker ps -a --filter "name=kafka-init" --format "table {{.Names}}\t{{.Status}}" 2>$null
-                if ($kafkaInitContainers) {
-                    $elapsedWait = (Get-Date) - $kafkaInitStartTime
-                    Write-Host "🔍 Kafka-init container status (${waitAttempt}/${maxWaitAttempts}, elapsed: $([math]::Round($elapsedWait.TotalSeconds, 1))s):" -ForegroundColor Gray
-                    Write-Host $kafkaInitContainers -ForegroundColor Gray
-                    
-                    # Check if any kafka-init container has exited successfully (exit code 0)
-                    $exitedContainers = docker ps -a --filter "name=kafka-init" --filter "status=exited" --format "{{.Names}}\t{{.Status}}" 2>$null
-                    if ($exitedContainers -and $exitedContainers -match "Exited \(0\)") {
-                        Write-Host "✅ Kafka-init container completed successfully" -ForegroundColor Green
-                        
-                        # Get final logs for confirmation
-                        try {
-                            $containerName = ($exitedContainers -split '\s+')[0]
-                            Write-Host "🔍 Final kafka-init success logs (last 10 lines):" -ForegroundColor Green
-                            $successLogs = docker logs --tail 10 $containerName 2>&1
-                            $successLogs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-                        }
-                        catch {
-                            Write-Host "  Could not retrieve success logs: $_" -ForegroundColor Yellow
-                        }
-                        
-                        $kafkaInitCompleted = $true
-                        break
-                    }
-                    
-                    # Check if container exited with error
-                    $failedContainers = docker ps -a --filter "name=kafka-init" --filter "status=exited" --format "{{.Names}}\t{{.Status}}" 2>$null
-                    if ($failedContainers -and $failedContainers -match "Exited \([1-9]\d*\)") {
-                        Write-Host "❌ Kafka-init container failed!" -ForegroundColor Red
-                        Write-Host "Container status: $failedContainers" -ForegroundColor Red
-                        
-                        # Get container logs for debugging
-                        Write-Host "🔍 Kafka-init container failure logs (last 50 lines):" -ForegroundColor Yellow
-                        try {
-                            $containerName = ($failedContainers -split '\s+')[0]
-                            $logs = docker logs --tail 50 $containerName 2>&1
-                            $logs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-                        }
-                        catch {
-                            Write-Host "  Could not retrieve container logs: $_" -ForegroundColor Yellow
-                        }
-                        
-                        Write-Host "⚠️ Kafka-init failed, will attempt topic creation fallback" -ForegroundColor Yellow
-                        break
-                    }
-                    
-                    # Check if container is still running (which means it's still working)
-                    $runningContainers = docker ps --filter "name=kafka-init" --format "{{.Names}}" 2>$null
-                    if ($runningContainers) {
-                        # Show logs periodically to help with debugging and track progress
-                        if ($waitAttempt % 6 -eq 0 -and $waitAttempt -gt 0) {
-                            Write-Host "🔍 Kafka-init container progress logs (last 15 lines):" -ForegroundColor Yellow
-                            try {
-                                $containerName = $runningContainers
-                                $logs = docker logs --tail 15 $containerName 2>&1
-                                $logs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-                            }
-                            catch {
-                                Write-Host "  Could not retrieve container logs: $_" -ForegroundColor Yellow
-                            }
-                        }
-                        Write-Host "🔄 Kafka-init container still running, waiting... (attempt $($waitAttempt + 1)/$maxWaitAttempts)" -ForegroundColor Yellow
-                    } else {
-                        # Container may have finished, check exit status
-                        $lastExitCode = docker ps -a --filter "name=kafka-init" --format "{{.Names}}\t{{.Status}}" 2>$null
-                        Write-Host "⚠️ Kafka-init container status: $lastExitCode" -ForegroundColor Yellow
-                        if ($lastExitCode -match "Exited \(0\)") {
-                            $kafkaInitCompleted = $true
-                            break
-                        }
-                    }
-                } else {
-                    Write-Host "⚠️ No kafka-init containers found, assuming topics are already created" -ForegroundColor Yellow
-                    $kafkaInitCompleted = $true
-                    break
-                }
-                
-                Start-Sleep -Seconds 5
-                $waitAttempt++
-            }
-            catch {
-                Write-Host "⚠️ Error checking kafka-init status: $_" -ForegroundColor Yellow
-                Start-Sleep -Seconds 5
-                $waitAttempt++
-            }
-        }
-        
-        if (-not $kafkaInitCompleted) {
-            $totalWaitTime = (Get-Date) - $kafkaInitStartTime
-            Write-Host "⚠️ Kafka-init container did not complete within timeout ($([math]::Round($totalWaitTime.TotalMinutes, 1)) minutes)" -ForegroundColor Yellow
-            
-            # Get final diagnostic information
-            try {
-                Write-Host "🔍 Final kafka-init container diagnostics:" -ForegroundColor Yellow
-                $allKafkaInitContainers = docker ps -a --filter "name=kafka-init" --format "{{.Names}}\t{{.Status}}" 2>$null
-                if ($allKafkaInitContainers) {
-                    Write-Host "Container status: $allKafkaInitContainers" -ForegroundColor Gray
-                    
-                    # Get logs from the most recent container
-                    $containerName = ($allKafkaInitContainers -split '\s+')[0]
-                    Write-Host "Container logs (last 50 lines):" -ForegroundColor Gray
-                    $logs = docker logs --tail 50 $containerName 2>&1
-                    $logs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-                }
-            }
-            catch {
-                Write-Host "Could not get final diagnostics: $_" -ForegroundColor Yellow
-            }
-            
-            Write-Host "🔄 Proceeding with topic verification and potential fallback creation..." -ForegroundColor Yellow
-        }
-        
         # Verify topic exists using external .NET client (avoids container network issues)
         Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
         
@@ -438,37 +307,15 @@ class Program {
             dotnet add package Confluent.Kafka | Out-Null
             $topicVerificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
             
-            # Retry topic verification up to 3 times with delays
-            $topicFound = $false
-            $maxVerifyAttempts = 5  # Increased attempts for better reliability
+            Write-Host "🔍 Checking if topic '$Topic' exists..." -ForegroundColor Gray
+            $verifyOutput = dotnet run 2>&1
             
-            for ($verifyAttempt = 1; $verifyAttempt -le $maxVerifyAttempts; $verifyAttempt++) {
-                Write-Host "🔍 Topic verification attempt $verifyAttempt/$maxVerifyAttempts..." -ForegroundColor Gray
-                $verifyOutput = dotnet run 2>&1
+            if ($verifyOutput -like "*TOPIC_EXISTS*") {
+                Write-Host "✅ Topic '$Topic' exists (verified via .NET AdminClient)" -ForegroundColor Green
+            } elseif ($verifyOutput -like "*TOPIC_NOT_FOUND*") {
+                Write-Host "⚠️ Topic '$Topic' not found - attempting fallback creation..." -ForegroundColor Yellow
                 
-                if ($verifyOutput -like "*TOPIC_EXISTS*") {
-                    Write-Host "✅ Topic '$Topic' exists (verified via .NET AdminClient)" -ForegroundColor Green
-                    $topicFound = $true
-                    break
-                } elseif ($verifyOutput -like "*TOPIC_NOT_FOUND*") {
-                    Write-Host "⚠️ Topic '$Topic' not found on attempt $verifyAttempt/$maxVerifyAttempts" -ForegroundColor Yellow
-                    if ($verifyAttempt -lt $maxVerifyAttempts) {
-                        Write-Host "🔄 Waiting 15 seconds before retry..." -ForegroundColor Yellow
-                        Start-Sleep -Seconds 15
-                    }
-                } else {
-                    Write-Host "⚠️ Could not verify topic existence on attempt $verifyAttempt/$maxVerifyAttempts : $verifyOutput" -ForegroundColor Yellow
-                    if ($verifyAttempt -lt $maxVerifyAttempts) {
-                        Write-Host "🔄 Waiting 15 seconds before retry..." -ForegroundColor Yellow
-                        Start-Sleep -Seconds 15
-                    }
-                }
-            }
-            
-            # If topic not found, attempt fallback creation
-            if (-not $topicFound) {
-                Write-Host "🔄 Attempting fallback topic creation since Aspire infrastructure may have failed..." -ForegroundColor Yellow
-                
+                # Single fallback attempt as requested by user
                 $fallbackTopicCreationScript = @"
 using System;
 using System.Collections.Generic;
@@ -549,37 +396,24 @@ class Program {
                     $isStressTest = $env:STRESS_TEST_MODE -eq "true"
                     $partitionCount = if ($isStressTest) { 20 } else { 4 }
                     
-                    Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions via fallback method..." -ForegroundColor Yellow
+                    Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions via fallback method (single attempt)..." -ForegroundColor Yellow
                     $fallbackOutput = dotnet run -- "$BootstrapServers" "$Topic" "$partitionCount" 2>&1
                     
-                    if ($fallbackOutput -like "*TOPIC_CREATED*" -or $fallbackOutput -like "*TOPIC_ALREADY_EXISTS*") {
+                    if ($fallbackOutput -like "*TOPIC_CREATED*" -or $fallbackOutput -like "*TOPIC_ALREADY_EXISTS*" -or $fallbackOutput -like "*TOPIC_VERIFIED*") {
                         Write-Host "✅ Fallback topic creation successful!" -ForegroundColor Green
                         Write-Host "Fallback result: $fallbackOutput" -ForegroundColor Gray
-                        
-                        # Verify the fallback creation worked
-                        Write-Host "🔍 Verifying fallback topic creation..." -ForegroundColor Gray
-                        Start-Sleep -Seconds 5  # Give time for topic metadata to propagate
-                        
-                        $verifyFallbackOutput = dotnet run -p ../kafka-verify-* 2>&1
-                        if ($verifyFallbackOutput -like "*TOPIC_EXISTS*") {
-                            Write-Host "✅ Fallback topic creation verified!" -ForegroundColor Green
-                            $topicFound = $true
-                        } else {
-                            Write-Host "❌ Fallback topic creation could not be verified: $verifyFallbackOutput" -ForegroundColor Red
-                        }
                     } else {
                         Write-Host "❌ Fallback topic creation failed: $fallbackOutput" -ForegroundColor Red
+                        throw "Topic '$Topic' could not be created via fallback method. This indicates a serious Kafka infrastructure issue."
                     }
                 }
                 finally {
                     Pop-Location
                     Remove-Item -Path $fallbackProjectDir -Recurse -Force -ErrorAction SilentlyContinue
                 }
-                
-                if (-not $topicFound) {
-                    Write-Host "❌ Both Aspire infrastructure and fallback topic creation failed" -ForegroundColor Red
-                    throw "Topic '$Topic' not found after $maxVerifyAttempts verification attempts and fallback creation. This indicates a serious Kafka infrastructure issue."
-                }
+            } else {
+                Write-Host "❌ Could not verify topic existence: $verifyOutput" -ForegroundColor Red
+                throw "Topic '$Topic' verification failed. This indicates a serious Kafka infrastructure issue."
             }
         }
         finally {
