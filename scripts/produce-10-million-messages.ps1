@@ -240,20 +240,14 @@ function Send-KafkaMessages {
         
         Write-Host "Using Kafka container: $kafkaContainer" -ForegroundColor Gray
         
-        # Verify topic exists, create if needed
+        # Verify topic exists (topic should be created by Aspire infrastructure)
         Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
         $topicExists = docker exec $kafkaContainer kafka-topics --bootstrap-server localhost:9092 --list | Where-Object { $_ -eq $Topic }
         if (-not $topicExists) {
-            Write-Host "Topic '$Topic' does not exist, creating it..." -ForegroundColor Yellow
-            $createResult = docker exec $kafkaContainer kafka-topics --create --if-not-exists --bootstrap-server localhost:9092 --topic $Topic --partitions 20 --replication-factor 1 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Topic '$Topic' created successfully" -ForegroundColor Green
-            } else {
-                Write-Host "⚠️ Topic creation result: $createResult" -ForegroundColor Yellow
-                # Continue anyway, the topic might exist
-            }
+            Write-Host "❌ Topic '$Topic' does not exist. Topic should be created by Aspire infrastructure." -ForegroundColor Red
+            throw "Topic '$Topic' not found. Ensure Aspire infrastructure is properly initialized."
         } else {
-            Write-Host "✅ Topic '$Topic' already exists" -ForegroundColor Green
+            Write-Host "✅ Topic '$Topic' exists (created by Aspire infrastructure)" -ForegroundColor Green
         }
         
         # Create a pipeline to send messages in optimal batches
