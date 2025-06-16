@@ -176,6 +176,10 @@ try {
     $env:MAX_ALLOWED_TIME_MS = $MaxTimeMs.ToString()
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
     $env:DOTNET_ENVIRONMENT = 'Development'
+    $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE = 'flinkdotnet:global_sequence_id'
+    $env:SIMULATOR_REDIS_KEY_SINK_COUNTER = 'flinkdotnet:sample:processed_message_counter'
+    $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
+    $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
     # Disable simplified mode for reliability test - we need full Kafka functionality
     $env:USE_SIMPLIFIED_MODE = 'false'
@@ -201,6 +205,10 @@ try {
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray
     Write-Host "  DOTNET_ENVIRONMENT: $env:DOTNET_ENVIRONMENT" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_PASSWORD: $env:SIMULATOR_REDIS_PASSWORD" -ForegroundColor Gray
     Write-Host "  🛡️ RELIABILITY_TEST_MODE: $env:RELIABILITY_TEST_MODE (world-class standards)" -ForegroundColor Cyan
     Write-Host "  🛡️ RELIABILITY_FAULT_TOLERANCE_LEVEL: $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL" -ForegroundColor Cyan
     Write-Host "  🛡️ RELIABILITY_FAULT_INJECTION_RATE: $env:RELIABILITY_TEST_FAULT_INJECTION_RATE" -ForegroundColor Cyan
