@@ -264,21 +264,12 @@ namespace FlinkDotnetStandardReliabilityTest
                             {
                                 options.Password = password;
                             }
-                            else
-                            {
-                                options.Password = ""; // Empty password
-                            }
                         }
                         else
                         {
                             // Format: redis://password@host:port (no colon, treat as password)
                             options.Password = userInfo;
                         }
-                    }
-                    else
-                    {
-                        // No credentials in URI - use empty password
-                        options.Password = "";
                     }
                 }
                 else
