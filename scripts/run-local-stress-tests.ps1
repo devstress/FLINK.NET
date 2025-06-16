@@ -507,6 +507,8 @@ try {
     
     $completed = $false
     $completionReason = "Unknown"
+    $counterNotInitializedAttempts = 0
+    $maxCounterNotInitializedAttempts = 3
     
     while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
         try {
@@ -555,7 +557,16 @@ try {
                     Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
                 }
             } else {
-                Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
+                $counterNotInitializedAttempts++
+                Write-Host "⏳ Waiting for job to start... (counter not yet initialized) - Attempt $counterNotInitializedAttempts/$maxCounterNotInitializedAttempts"
+                
+                if ($counterNotInitializedAttempts -ge $maxCounterNotInitializedAttempts) {
+                    Write-Host "❌ FlinkJobSimulator failed to start after $maxCounterNotInitializedAttempts attempts"
+                    Write-Host "💡 This indicates that FlinkJobSimulator is not running or cannot initialize the counter"
+                    $completed = $true
+                    $completionReason = "FlinkJobSimulatorNotStarted"
+                    break
+                }
             }
             
             Start-Sleep -Seconds $checkIntervalSeconds
