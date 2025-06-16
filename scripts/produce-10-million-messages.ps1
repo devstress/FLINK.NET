@@ -167,8 +167,10 @@ function Test-KafkaConnection {
             Write-Host "Found Kafka container: $kafkaContainer" -ForegroundColor Gray
             Write-Host "Testing Kafka API via container..." -ForegroundColor Gray
             
-            # Test with Kafka network hostname (as used by Aspire initialization)
-            $result = docker exec $kafkaContainer kafka-topics --bootstrap-server kafka:9092 --list 2>&1
+            # Use a timeout and internal network address to avoid advertised listener issues
+            # Set KAFKA_OPTS to override client configuration for container-internal commands
+            $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dclient.dns.lookup=use_all_dns_ips -Dconnections.max.idle.ms=30000 -Drequest.timeout.ms=30000"
+            $result = docker exec -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer kafka-topics --bootstrap-server kafka:9092 --command-config /dev/null --list 2>&1
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✅ Kafka API connection successful via container" -ForegroundColor Green
                 Write-Host "Available topics:" -ForegroundColor Gray
@@ -193,8 +195,10 @@ function Test-KafkaConnection {
             Write-Host "Testing Kafka producer connectivity..." -ForegroundColor Gray
             
             # Send a simple test message to verify the producer works
+            # Use producer configuration to override any advertised listener issues
             $testMessage = "test-connectivity-$(Get-Date -Format 'yyyyMMddHHmmss')"
-            $testResult = echo $testMessage | docker exec -i $kafkaContainer kafka-console-producer --bootstrap-server kafka:9092 --topic __connectivity_test 2>&1
+            $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dconnections.max.idle.ms=30000 -Drequest.timeout.ms=30000 -Dretries=3"
+            $testResult = echo $testMessage | docker exec -i -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer kafka-console-producer --bootstrap-server kafka:9092 --topic __connectivity_test --producer-property request.timeout.ms=30000 --producer-property retries=3 2>&1
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✅ Kafka producer connectivity test successful" -ForegroundColor Green
@@ -242,7 +246,7 @@ function Send-KafkaMessages {
         
         # Verify topic exists (topic should be created by Aspire infrastructure)
         Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
-        $topicExists = docker exec $kafkaContainer kafka-topics --bootstrap-server localhost:9092 --list | Where-Object { $_ -eq $Topic }
+        $topicExists = docker exec $kafkaContainer kafka-topics --bootstrap-server kafka:9092 --list | Where-Object { $_ -eq $Topic }
         if (-not $topicExists) {
             Write-Host "❌ Topic '$Topic' does not exist. Topic should be created by Aspire infrastructure." -ForegroundColor Red
             throw "Topic '$Topic' not found. Ensure Aspire infrastructure is properly initialized."
@@ -281,9 +285,10 @@ function Send-KafkaMessages {
             $messagesText = $messages -join "`n"
             
             try {
-                # Use optimized producer settings  
-                $producerCmd = "kafka-console-producer --bootstrap-server kafka:9092 --topic $Topic --batch-size 1000 --linger-ms 10 --compression-type snappy --request-timeout-ms 30000"
-                $messagesText | docker exec -i $kafkaContainer $producerCmd
+                # Use optimized producer settings with robust configuration
+                $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dconnections.max.idle.ms=60000 -Drequest.timeout.ms=60000 -Dretries=5"
+                $producerCmd = "kafka-console-producer --bootstrap-server kafka:9092 --topic $Topic --batch-size 1000 --linger-ms 10 --compression-type snappy --request-timeout-ms 30000 --producer-property retries=5 --producer-property max.in.flight.requests.per.connection=1"
+                $messagesText | docker exec -i -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer $producerCmd
                 
                 if ($LASTEXITCODE -ne 0) {
                     throw "Producer command failed with exit code $LASTEXITCODE for batch starting at message $($batch + 1)"
@@ -330,7 +335,7 @@ function Send-KafkaMessages {
                     
                     try {
                         Start-Sleep -Seconds (2 * $retryCount) # Exponential backoff
-                        $messagesText | docker exec -i $kafkaContainer $producerCmd
+                        $messagesText | docker exec -i -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer $producerCmd
                         
                         if ($LASTEXITCODE -eq 0) {
                             $retrySuccess = $true
@@ -361,7 +366,8 @@ function Send-KafkaMessages {
         # Verify some messages were actually sent by checking topic
         try {
             Write-Host "🔍 Verifying messages were sent to topic..." -ForegroundColor Gray
-            $topicInfo = docker exec $kafkaContainer kafka-run-class kafka.tools.GetOffsetShell --broker-list kafka:9092 --topic $Topic 2>&1
+            $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dconnections.max.idle.ms=30000 -Drequest.timeout.ms=30000"
+            $topicInfo = docker exec -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer kafka-run-class kafka.tools.GetOffsetShell --broker-list kafka:9092 --topic $Topic 2>&1
             if ($LASTEXITCODE -eq 0 -and $topicInfo) {
                 Write-Host "✅ Topic verification successful. Offset information:" -ForegroundColor Green
                 $topicInfo | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
