@@ -181,6 +181,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         /// <summary>
         /// Commit offsets as part of Flink checkpoint process
         /// This replaces Kafka's auto-commit with Flink-managed checkpointing
+        /// Following Apache Flink 2.0 exactly-once semantics patterns
         /// </summary>
         public async Task CommitCheckpointOffsetsAsync(long checkpointId)
         {
@@ -200,51 +201,89 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
             try
             {
+                // Commit offsets synchronously to ensure exactly-once semantics
                 _consumer.Commit(offsetsToCommit);
-                _logger?.LogDebug("Committed offsets for checkpoint {CheckpointId}: {Offsets}", 
-                    checkpointId, string.Join(", ", offsetsToCommit));
+                _logger?.LogDebug("Successfully committed checkpoint {CheckpointId} with {PartitionCount} partition offsets", 
+                    checkpointId, offsetsToCommit.Count);
+                    
+                // Clear checkpointed offsets after successful commit (Apache Flink pattern)
+                lock (_offsetLock)
+                {
+                    _checkpointedOffsets.Clear();
+                }
             }
             catch (KafkaException ex)
             {
-                _logger?.LogError(ex, "Failed to commit offsets for checkpoint {CheckpointId}. Kafka error: {ErrorCode} - {ErrorReason}", 
-                    checkpointId, ex.Error.Code, ex.Error.Reason);
-                throw new InvalidOperationException($"Checkpoint {checkpointId} failed due to Kafka offset commit failure: {ex.Error.Code} - {ex.Error.Reason}", ex);
+                _logger?.LogError(ex, "Failed to commit checkpoint {CheckpointId} offsets: {Error}", 
+                    checkpointId, ex.Error.Reason);
+                    
+                // For exactly-once semantics, checkpoint failures should be escalated
+                throw new InvalidOperationException($"Apache Flink checkpoint {checkpointId} offset commit failed", ex);
             }
             
             await Task.CompletedTask;
         }
 
         /// <summary>
-        /// Restore offsets from Flink checkpoint state
+        /// Restore offsets from Flink checkpoint during recovery
+        /// This implements Apache Flink's state recovery pattern
         /// </summary>
-        public async Task RestoreOffsetsAsync(Dictionary<TopicPartition, long> checkpointOffsets)
+        public async Task RestoreFromCheckpointAsync(Dictionary<TopicPartition, Offset> checkpointState)
         {
             if (_consumer == null)
                 throw new InvalidOperationException("Consumer not initialized");
 
-            var offsetsToSeek = new List<TopicPartitionOffset>();
-            foreach (var kvp in checkpointOffsets)
+            if (checkpointState?.Count > 0)
             {
-                offsetsToSeek.Add(new TopicPartitionOffset(kvp.Key, kvp.Value));
-            }
-
-            if (offsetsToSeek.Count > 0)
-            {
-                // Seek to checkpointed positions
-                foreach (var tpo in offsetsToSeek)
+                try
                 {
-                    _consumer.Seek(tpo);
+                    var topicPartitionOffsets = checkpointState
+                        .Select(kvp => new TopicPartitionOffset(kvp.Key, kvp.Value))
+                        .ToList();
+
+                    // Seek to checkpointed offsets (Apache Flink recovery pattern)
+                    foreach (var tpo in topicPartitionOffsets)
+                    {
+                        _consumer.Seek(tpo);
+                    }
+
+                    _logger?.LogInformation("Restored {PartitionCount} partition offsets from Flink checkpoint", 
+                        checkpointState.Count);
+
+                    // Update internal state
+                    lock (_offsetLock)
+                    {
+                        _checkpointedOffsets.Clear();
+                        foreach (var kvp in checkpointState)
+                        {
+                            _checkpointedOffsets[kvp.Key] = kvp.Value;
+                        }
+                    }
                 }
-                
-                _logger?.LogInformation("Restored consumer positions from checkpoint: {Offsets}", 
-                    string.Join(", ", offsetsToSeek));
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to restore from checkpoint state");
+                    throw new InvalidOperationException("Apache Flink checkpoint state recovery failed", ex);
+                }
             }
             
             await Task.CompletedTask;
         }
 
         /// <summary>
-        /// Get current consumer assignment for partition coordination
+        /// Get current checkpoint state for Flink snapshot
+        /// Returns copy of current offset state for exactly-once semantics
+        /// </summary>
+        public Dictionary<TopicPartition, Offset> GetCheckpointState()
+        {
+            lock (_offsetLock)
+            {
+                return new Dictionary<TopicPartition, Offset>(_checkpointedOffsets);
+            }
+        }
+        
+        /// <summary>
+        /// Get consumer assignment for partition coordination
         /// </summary>
         public List<TopicPartition> GetAssignment()
         {
@@ -256,7 +295,6 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         /// </summary>
         public string? GetConsumerGroupId()
         {
-            // Simple fallback since we can't access GroupId directly
             return _consumerConfig?.GroupId;
         }
 
