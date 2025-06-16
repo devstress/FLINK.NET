@@ -62,7 +62,7 @@ namespace FlinkJobSimulator
             {
                 _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to initialize Redis counter", _taskManagerId);
                 await UpdateStartupLogAsync("REDIS_FAILED", $"Redis initialization failed: {ex.Message}");
-                throw;
+                throw new InvalidOperationException($"TaskManager {_taskManagerId}: Error during message consumption. Kafka topic: {_kafkaTopic}", ex);
             }
             
             try
@@ -81,13 +81,13 @@ namespace FlinkJobSimulator
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Error in Kafka consumption for topic '{Topic}'", 
+                _logger.LogError(ex, "❌ TaskManager {_taskManagerId}: Error in Kafka consumption for topic '{_kafkaTopic}'", 
                     _taskManagerId, _kafkaTopic);
                 await UpdateStartupLogAsync("KAFKA_FAILED", $"Kafka consumption failed: {ex.Message}");
                 
                 // Let FlinkKafkaConsumerGroup handle the recovery instead of heartbeat mode
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup will handle automatic recovery", _taskManagerId);
-                throw;
+                throw new InvalidOperationException($"TaskManager {_taskManagerId}: Error during message consumption. Kafka topic: {_kafkaTopic}", ex);
             }
             finally
             {
@@ -223,8 +223,7 @@ Message: {message}
                 }
                 catch (ConsumeException ex)
                 {
-                    // FlinkKafkaConsumerGroup handles this internally now
-                    _logger.LogDebug("🔄 TaskManager {TaskManagerId}: ConsumeException handled by FlinkKafkaConsumerGroup: {Error}", 
+                    _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException handled by FlinkKafkaConsumerGroup: {Error}",
                         _taskManagerId, ex.Error.Reason);
                 }
                 catch (OperationCanceledException ex)

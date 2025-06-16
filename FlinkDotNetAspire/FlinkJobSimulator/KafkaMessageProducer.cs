@@ -110,94 +110,126 @@ namespace FlinkJobSimulator
                 throw new InvalidOperationException("Producer not initialized");
 
             _logger.LogInformation("📨 Starting to produce {MessageCount} messages to topic '{Topic}'", _numberOfMessages, _topic);
-            
+
             var startTime = DateTime.UtcNow;
             var messagesProduced = 0L;
             var lastLogTime = DateTime.UtcNow;
-            
+
             try
             {
                 for (long i = 1; i <= _numberOfMessages && !stoppingToken.IsCancellationRequested; i++)
                 {
-                    var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
-                    
-                    // Enhanced message with Flink.NET compliance fields for exactly-once processing
-                    var message = new {
-                        id = i,
-                        redis_ordered_id = i,
-                        timestamp = timestamp,
-                        job_id = "flink-job-1",
-                        task_id = "task-" + i,
-                        kafka_partition = i % 20,  // Distributed across TaskManagers
-                        kafka_offset = i,
-                        processing_stage = "source->map->sink",
-                        payload = "high-throughput-data-" + i,
-                        checksum = (i * 31 + timestamp.GetHashCode()) % 1000000  // Data integrity
-                    };
-                    
+                    var message = CreateMessage(i);
                     var jsonMessage = System.Text.Json.JsonSerializer.Serialize(message);
-                    
+
                     var deliveryResult = await _producer.ProduceAsync(_topic, new Message<Null, string>
                     {
                         Value = jsonMessage,
                         Timestamp = new Timestamp(DateTime.UtcNow)
                     }, stoppingToken);
-                    
+
                     messagesProduced++;
-                    
-                    // Log production progress with high-throughput focus
-                    if (messagesProduced % 10000 == 0 || (DateTime.UtcNow - lastLogTime).TotalSeconds > 5)
-                    {
-                        var elapsed = DateTime.UtcNow - startTime;
-                        var messagesPerSecond = messagesProduced / elapsed.TotalSeconds;
-                        
-                        var rateMessage = messagesPerSecond > 1000000 ? 
-                            $"🏆 EXCELLENT: {messagesPerSecond:F0} msg/s (>1M target achieved!)" :
-                            messagesPerSecond > 500000 ?
-                            $"✅ GOOD: {messagesPerSecond:F0} msg/s (approaching 1M target)" :
-                            $"⚠️ OPTIMIZING: {messagesPerSecond:F0} msg/s (target: 1M+ msg/s)";
-                        
-                        _logger.LogInformation("📊 Produced {ProducedCount}/{TotalCount} messages " +
-                                             "(partition: {Partition}, offset: {Offset}) " +
-                                             "{RateMessage}",
-                                             messagesProduced, _numberOfMessages,
-                                             deliveryResult.Partition.Value, deliveryResult.Offset.Value,
-                                             rateMessage);
-                        lastLogTime = DateTime.UtcNow;
-                    }
-                    
-                    // No artificial delays - maximize throughput for Flink.NET compliance
+                    LogProgress(messagesProduced, startTime, lastLogTime, deliveryResult);
                 }
-                
-                // Flush any remaining messages
+
                 _producer.Flush(TimeSpan.FromSeconds(10));
-                
-                var totalElapsed = DateTime.UtcNow - startTime;
-                var finalRate = messagesProduced / totalElapsed.TotalSeconds;
-                
-                var performanceLevel = finalRate > 1000000 ? 
-                    "🏆 EXCELLENT: >1M msg/s target achieved!" :
-                    finalRate > 500000 ?
-                    "✅ GOOD: High throughput achieved" :
-                    "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/s for Flink.NET compliance";
-                
-                _logger.LogInformation("🏁 High-performance message production completed! " +
-                                     "Produced {TotalMessages} messages in {Duration:F1}s " +
-                                     "Final rate: {Rate:F0} msg/s " +
-                                     "{PerformanceLevel}",
-                                     messagesProduced, totalElapsed.TotalSeconds, finalRate, performanceLevel);
+                LogFinalPerformance(messagesProduced, startTime);
             }
             catch (ProduceException<Null, string> ex)
             {
-                _logger.LogError(ex, "Failed to produce message to topic '{Topic}' at partition {Partition}: {Error}", 
-                    _topic, ex.DeliveryResult?.Partition ?? new Partition(-1), ex.Error.Reason);
-                throw new InvalidOperationException($"Kafka message production failed: {ex.Error.Reason}", ex);
+                HandleProduceException(ex);
             }
             catch (OperationCanceledException ex)
             {
-                _logger.LogInformation(ex, "Message production cancelled. Produced {MessagesProduced} messages", messagesProduced);
-                throw new OperationCanceledException($"Kafka message production was cancelled after producing {messagesProduced} messages", ex);
+                HandleCancellationException(ex, messagesProduced);
             }
+        }
+
+        private object CreateMessage(long i)
+        {
+            var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            return new
+            {
+                id = i,
+                redis_ordered_id = i,
+                timestamp = timestamp,
+                job_id = "flink-job-1",
+                task_id = "task-" + i,
+                kafka_partition = i % 20,
+                kafka_offset = i,
+                processing_stage = "source->map->sink",
+                payload = "high-throughput-data-" + i,
+                checksum = (i * 31 + timestamp.GetHashCode()) % 1000000
+            };
+        }
+
+        private void LogProgress(long messagesProduced, DateTime startTime, DateTime lastLogTime, DeliveryResult<Null, string> deliveryResult)
+        {
+            if (messagesProduced % 10000 == 0 || (DateTime.UtcNow - lastLogTime).TotalSeconds > 5)
+            {
+                var elapsed = DateTime.UtcNow - startTime;
+                var messagesPerSecond = messagesProduced / elapsed.TotalSeconds;
+
+                string rateMessage;
+                if (messagesPerSecond > 1000000)
+                {
+                    rateMessage = $"🏆 EXCELLENT: {messagesPerSecond:F0} msg/s (>1M target achieved!)";
+                }
+                else if (messagesPerSecond > 500000)
+                {
+                    rateMessage = $"✅ GOOD: {messagesPerSecond:F0} msg/s (approaching 1M target)";
+                }
+                else
+                {
+                    rateMessage = $"⚠️ OPTIMIZING: {messagesPerSecond:F0} msg/s (target: 1M+ msg/s)";
+                }
+
+                _logger.LogInformation("📊 Produced {ProducedCount}/{TotalCount} messages " +
+                                     "(partition: {Partition}, offset: {Offset}) " +
+                                     "{RateMessage}",
+                                     messagesProduced, _numberOfMessages,
+                                     deliveryResult.Partition.Value, deliveryResult.Offset.Value,
+                                     rateMessage);
+            }
+        }
+
+        private void LogFinalPerformance(long messagesProduced, DateTime startTime)
+        {
+            var totalElapsed = DateTime.UtcNow - startTime;
+            var finalRate = messagesProduced / totalElapsed.TotalSeconds;
+
+            string performanceLevel;
+            if (finalRate > 1000000)
+            {
+                performanceLevel = "🏆 EXCELLENT: >1M msg/s target achieved!";
+            }
+            else if (finalRate > 500000)
+            {
+                performanceLevel = "✅ GOOD: High throughput achieved";
+            }
+            else
+            {
+                performanceLevel = "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/s for Flink.NET compliance";
+            }
+
+            _logger.LogInformation("🏁 High-performance message production completed! " +
+                                 "Produced {TotalMessages} messages in {Duration:F1}s " +
+                                 "Final rate: {Rate:F0} msg/s " +
+                                 "{PerformanceLevel}",
+                                 messagesProduced, totalElapsed.TotalSeconds, finalRate, performanceLevel);
+        }
+
+        private void HandleProduceException(ProduceException<Null, string> ex)
+        {
+            _logger.LogError(ex, "Failed to produce message to topic '{Topic}' at partition {Partition}: {Error}",
+                _topic, ex.DeliveryResult?.Partition ?? new Partition(-1), ex.Error.Reason);
+            throw new InvalidOperationException($"Kafka message production failed: {ex.Error.Reason}", ex);
+        }
+
+        private void HandleCancellationException(OperationCanceledException ex, long messagesProduced)
+        {
+            _logger.LogInformation(ex, "Message production cancelled. Produced {MessagesProduced} messages", messagesProduced);
+            throw new OperationCanceledException($"Kafka message production was cancelled after producing {messagesProduced} messages", ex);
         }
 
         public override void Dispose()

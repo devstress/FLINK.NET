@@ -1,5 +1,3 @@
-// Existing using statements (implicit for DistributedApplication, Projects)
-
 namespace FlinkDotNetAspire.AppHost.AppHost;
 
 public static class Program
@@ -115,26 +113,7 @@ public static class Program
 
     private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
     {
-        // Set a fixed password for CI/CD consistency and authentication
-        var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
-        var isWindows = IsRunningOnWindows();
-        
-        var redis = builder.AddRedis("redis")
-            .WithEnvironment("REDIS_PASSWORD", redisPassword);
-            
-        // Windows-specific Redis configuration for better compatibility
-        if (isWindows)
-        {
-            redis = redis
-                .WithEnvironment("REDIS_ARGS", $"--requirepass {redisPassword} --maxmemory 256mb --maxmemory-policy allkeys-lru") // Windows memory optimization
-                .WithEnvironment("REDIS_SAVE", "900 1 300 10 60 10000") // Windows-optimized persistence
-                .WithEnvironment("REDIS_LOGLEVEL", "warning"); // Reduced logging for Windows
-        }
-        else
-        {
-            redis = redis.WithEnvironment("REDIS_ARGS", "--requirepass " + redisPassword);
-        }
-        
+        var redis = builder.AddRedis("redis");
         return redis.PublishAsContainer(); // Ensure Redis is accessible from host
     }
 
@@ -181,7 +160,7 @@ public static class Program
         // Use simpler shell invocation for better Windows compatibility
         if (isWindows)
         {
-            kafkaInit = kafkaInit.WithArgs("sh", "-c", kafkaInitScript);
+            kafkaInit = kafkaInit.WithArgs("sh", "-c", kafkaInitScript.Replace("\r",""));
         }
         else
         {
@@ -239,9 +218,6 @@ public static class Program
         string simulatorNumMessages,
         IResourceBuilder<ContainerResource> kafkaInit)
     {
-        // Set the Redis password to match the Redis infrastructure configuration
-        var redisPassword = "FlinkDotNet_Redis_CI_Password_2024";
-        
         // Check if we should use simplified mode
         var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
                                Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
@@ -262,7 +238,6 @@ public static class Program
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
-            .WithEnvironment("SIMULATOR_REDIS_PASSWORD", redisPassword) // Add password for FlinkJobSimulator
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
             .WaitFor(redis); // Always wait for Redis since we need it even in simplified mode
             

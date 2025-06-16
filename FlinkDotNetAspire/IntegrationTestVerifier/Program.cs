@@ -11,7 +11,7 @@ namespace IntegrationTestVerifier
     using System.Threading.Tasks;
     using System.Text.RegularExpressions;
     using System.IO;
-    using Confluent.Kafka;
+    using Confluent.Kafka;  
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
 
@@ -2434,57 +2434,61 @@ namespace IntegrationTestVerifier
 
         private static bool TryFindKafkaTopic(string bootstrapServers, AdminClientConfig adminConfig, string topicName, int attempt, int maxAttempts, bool isCI)
         {
+            Console.WriteLine($"      ⏳ Topic search attempt {attempt}/{maxAttempts}: Looking for '{topicName}' in {bootstrapServers}");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
             try
             {
-                Console.WriteLine($"      ⏳ Topic search attempt {attempt}/{maxAttempts}: Looking for '{topicName}' in {bootstrapServers}");
-                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-                
                 using var admin = new AdminClientBuilder(adminConfig).Build();
                 var metadataTimeout = TimeSpan.FromSeconds(isCI ? 45 : 15); // 45s for CI, 15s for local
                 var metadata = admin.GetMetadata(metadataTimeout);
                 stopwatch.Stop();
-                
-                if (metadata.Topics != null)
-                {
-                    var topicFound = metadata.Topics.Any(t => t.Topic == topicName);
-                    
-                    if (topicFound)
-                    {
-                        var topic = metadata.Topics.First(t => t.Topic == topicName);
-                        Console.WriteLine($"      ✅ Topic '{topicName}' found in {stopwatch.ElapsedMilliseconds}ms");
-                        Console.WriteLine($"      📊 Topic details: {topic.Partitions.Count} partitions");
-                        return true;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"      ❌ Topic '{topicName}' not found among {metadata.Topics.Count} available topics (search took {stopwatch.ElapsedMilliseconds}ms)");
-                        
-                        // List available topics for debugging
-                        if (metadata.Topics.Count > 0)
-                        {
-                            Console.WriteLine($"      📋 Available topics: {string.Join(", ", metadata.Topics.Take(10).Select(t => t.Topic))}");
-                            if (metadata.Topics.Count > 10)
-                            {
-                                Console.WriteLine($"      📋 ... and {metadata.Topics.Count - 10} more topics");
-                            }
-                        }
-                    }
-                }
-                else
+
+                if (metadata.Topics == null)
                 {
                     Console.WriteLine($"      ❌ Kafka metadata retrieved but no topics found (took {stopwatch.ElapsedMilliseconds}ms)");
+                    return false;
                 }
+
+                var topicFound = metadata.Topics.Any(t => t.Topic == topicName);
+                if (topicFound)
+                {
+                    var topic = metadata.Topics.First(t => t.Topic == topicName);
+                    Console.WriteLine($"      ✅ Topic '{topicName}' found in {stopwatch.ElapsedMilliseconds}ms");
+                    Console.WriteLine($"      📊 Topic details: {topic.Partitions.Count} partitions");
+                    return true;
+                }
+
+                Console.WriteLine($"      ❌ Topic '{topicName}' not found among {metadata.Topics.Count} available topics (search took {stopwatch.ElapsedMilliseconds}ms)");
+                LogAvailableTopics(metadata.Topics);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"      ❌ Topic search failed: {ex.GetType().Name}: {ex.Message}");
-                if (ex.InnerException != null)
+                LogKafkaTopicSearchError(ex, topicName);
+            }
+
+            return false;
+        }
+
+        private static void LogAvailableTopics(IEnumerable<TopicMetadata> topics)
+        {
+            if (topics.Any())
+            {
+                Console.WriteLine($"      📋 Available topics: {string.Join(", ", topics.Take(10).Select(t => t.Topic))}");
+                if (topics.Count() > 10)
                 {
-                    Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+                    Console.WriteLine($"      📋 ... and {topics.Count() - 10} more topics");
                 }
             }
-            
-            return false;
+        }
+
+        private static void LogKafkaTopicSearchError(Exception ex, string topicName)
+        {
+            Console.WriteLine($"      ❌ Topic search failed: {ex.GetType().Name}: {ex.Message} | Topic Name: {topicName}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            }
         }
     }
 }
