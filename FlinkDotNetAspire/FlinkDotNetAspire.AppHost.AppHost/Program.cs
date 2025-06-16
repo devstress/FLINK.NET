@@ -42,17 +42,26 @@ public static class Program
                 
                 echo 'Kafka port is reachable! Testing Kafka API...'
                 
-                # Test Kafka API readiness
+                # Test Kafka API readiness with timeout
                 max_api_attempts=20
                 api_attempt=0
-                until kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do
+                while [ $api_attempt -lt $max_api_attempts ]; do
                     api_attempt=$((api_attempt + 1))
+                    echo ""Testing Kafka API (attempt $api_attempt/$max_api_attempts)...""
+                    
+                    # Use timeout to prevent hanging
+                    if timeout 10 kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; then
+                        echo 'Kafka API is ready!'
+                        break
+                    fi
+                    
                     if [ $api_attempt -ge $max_api_attempts ]; then
                         echo 'ERROR: Kafka API failed to become ready after 20 attempts (100s)'
                         echo 'Last Kafka API test output:'
-                        kafka-topics --bootstrap-server kafka:9092 --list 2>&1 || echo 'Kafka topics command failed'
+                        timeout 10 kafka-topics --bootstrap-server kafka:9092 --list 2>&1 || echo 'Kafka topics command timed out'
                         exit 1
                     fi
+                    
                     echo ""Kafka API not ready yet, waiting... (attempt $api_attempt/$max_api_attempts)""
                     sleep 5
                 done
@@ -61,32 +70,32 @@ public static class Program
                 
                 # Create topics with optimized settings for load distribution
                 echo 'Creating business-events topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 
                 echo 'Creating processed-events topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 
                 echo 'Creating analytics-events topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 
                 echo 'Creating dead-letter-queue topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
                 
                 echo 'Creating test-input topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
                 
                 echo 'Creating test-output topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
                 
                 echo 'Creating flinkdotnet.sample.topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
+                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
                 
                 echo 'Verifying all topics were created successfully...'
                 echo 'Topic list:'
-                kafka-topics --list --bootstrap-server kafka:9092
+                timeout 15 kafka-topics --list --bootstrap-server kafka:9092
                 
                 echo 'Verifying flinkdotnet.sample.topic details:'
-                kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
+                timeout 15 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
                 
                 echo 'SUCCESS: Kafka initialization completed successfully!'
                 echo 'All topics have been created and verified.'
