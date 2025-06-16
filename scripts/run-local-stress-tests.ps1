@@ -410,7 +410,7 @@ try {
     # Run message producer with proper error handling
     Write-Host "🔄 Starting message producer (this may take several minutes for $MessageCount messages)..." -ForegroundColor White
     try {
-        & "./scripts/produce-1-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
+        & "./scripts/produce-1-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic" -ParallelProducers 20
         
         if ($LASTEXITCODE -ne 0) {
             throw "Message producer failed with exit code: $LASTEXITCODE"
