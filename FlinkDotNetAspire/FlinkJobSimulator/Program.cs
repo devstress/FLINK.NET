@@ -19,7 +19,71 @@ namespace FlinkJobSimulator
             Console.WriteLine($"🌟 PROCESS ID: {Environment.ProcessId}");
             Console.WriteLine("🌟 SIMPLIFIED TO KAFKA CONSUMER GROUP ONLY");
             
+            // Enhanced startup diagnostics
+            Console.WriteLine("🔍 Environment Configuration:");
+            Console.WriteLine($"  SIMULATOR_KAFKA_TOPIC: {Environment.GetEnvironmentVariable("SIMULATOR_KAFKA_TOPIC")}");
+            Console.WriteLine($"  SIMULATOR_REDIS_KEY_SINK_COUNTER: {Environment.GetEnvironmentVariable("SIMULATOR_REDIS_KEY_SINK_COUNTER")}");
+            Console.WriteLine($"  DOTNET_KAFKA_BOOTSTRAP_SERVERS: {Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS")}");
+            Console.WriteLine($"  ConnectionStrings__kafka: {Environment.GetEnvironmentVariable("ConnectionStrings__kafka")}");
+            Console.WriteLine($"  ConnectionStrings__redis: {Environment.GetEnvironmentVariable("ConnectionStrings__redis")}");
+            
+            // Write startup log to file for stress test monitoring
+            await WriteStartupLogAsync();
+            
             await RunAsKafkaConsumerGroupAsync(args);
+        }
+        
+        /// <summary>
+        /// Write startup information to log file for stress test script to monitor
+        /// </summary>
+        private static async Task WriteStartupLogAsync()
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_STARTUP_LOG
+StartTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+ProcessId: {Environment.ProcessId}
+Status: FlinkJobSimulatorNotStarted
+Phase: INITIALIZATION
+Message: FlinkJobSimulator is initializing Kafka consumer group
+";
+                
+                // Write to project root for easy access by stress test scripts
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_startup.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                Console.WriteLine($"📝 STARTUP LOG: Written to {logPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ STARTUP LOG: Failed to write startup log - {ex.Message}");
+                // Don't fail startup if logging fails
+            }
+        }
+        
+        /// <summary>
+        /// Update state log to show FlinkJobSimulator is running
+        /// </summary>
+        public static async Task WriteRunningStateLogAsync()
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_STATE_LOG
+UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+ProcessId: {Environment.ProcessId}
+Status: FlinkJobSimulatorRunning
+Phase: MESSAGE_PROCESSING
+Message: FlinkJobSimulator is actively running and processing messages
+PreviousState: FlinkJobSimulatorNotStarted
+";
+                
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_state.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                Console.WriteLine($"📝 STATE LOG: FlinkJobSimulator now in RUNNING state - {logPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ STATE LOG: Failed to write running state log - {ex.Message}");
+            }
         }
         
         /// <summary>

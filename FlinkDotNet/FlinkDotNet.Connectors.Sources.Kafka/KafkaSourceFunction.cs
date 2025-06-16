@@ -76,13 +76,23 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             await _consumerGroup.InitializeAsync(_topics);
             
             // Restore offsets from checkpoint state if available
+            Dictionary<TopicPartition, Offset>? offsetsToRestore = null;
             lock (_checkpointLock)
             {
                 if (_checkpointState.Count > 0)
                 {
-                    _consumerGroup.RestoreOffsetsAsync(_checkpointState).GetAwaiter().GetResult();
-                    _logger?.LogInformation("Restored consumer positions from checkpoint state");
+                    offsetsToRestore = new Dictionary<TopicPartition, Offset>();
+                    foreach (var kvp in _checkpointState)
+                    {
+                        offsetsToRestore[kvp.Key] = new Offset(kvp.Value);
+                    }
                 }
+            }
+            
+            if (offsetsToRestore != null)
+            {
+                await _consumerGroup.RestoreFromCheckpointAsync(offsetsToRestore);
+                _logger?.LogInformation("Restored consumer positions from checkpoint state");
             }
         }
 

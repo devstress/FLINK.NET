@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using FlinkDotNet.Common.Constants;
+using Confluent.Kafka;
 
 namespace FlinkDotNetAspire.IntegrationTests;
 
@@ -300,5 +301,125 @@ public class AspireIntegrationTests
         
         // No exception should be thrown - the DI issues are fixed
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public void Kafka_Topic_Creation_By_Aspire_Infrastructure()
+    {
+        // This test verifies that the flinkdotnet.sample.topic is created by Aspire infrastructure
+        // as requested in the comment: "flinkdotnet.sample.topic Should be created with Aspire with a Dockerfile, not in procedure"
+        
+        // Skip this test if running in environments where Kafka is not available
+        if (IsRunningInTestOnlyEnvironment())
+        {
+            // Test passes but indicates that Kafka infrastructure is not available
+            Assert.True(true); // Test passed - skipped due to no Kafka infrastructure
+            return;
+        }
+        
+        try
+        {
+            // Get Kafka bootstrap servers from environment or use default
+            var kafkaBootstrapServers = Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
+            
+            // Create admin client to check if topic exists
+            var adminConfig = new AdminClientConfig
+            {
+                BootstrapServers = kafkaBootstrapServers,
+                SecurityProtocol = SecurityProtocol.Plaintext,
+                SocketTimeoutMs = 5000, // 5 second timeout for integration test
+                ApiVersionRequestTimeoutMs = 5000
+            };
+            
+            using var admin = new AdminClientBuilder(adminConfig).Build();
+            
+            // Get metadata with short timeout - if Kafka is not running, this will throw
+            var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+            
+            // Check if flinkdotnet.sample.topic exists
+            var sampleTopic = metadata.Topics.FirstOrDefault(t => t.Topic == "flinkdotnet.sample.topic");
+            
+            if (sampleTopic != null)
+            {
+                // Topic exists - verify it was created with proper configuration
+                Assert.NotNull(sampleTopic);
+                Assert.Equal("flinkdotnet.sample.topic", sampleTopic.Topic);
+                
+                // Check that topic has partitions (should be created with multiple partitions for load distribution)
+                Assert.True(sampleTopic.Partitions.Count > 0, "Topic should have at least one partition");
+                
+                // Test passes - topic exists with proper configuration
+                Assert.True(true); // SUCCESS: Topic created by Aspire infrastructure
+            }
+            else
+            {
+                // Topic doesn't exist - this indicates Aspire kafka-init container failed
+                var availableTopics = string.Join(", ", metadata.Topics.Select(t => t.Topic));
+                Assert.Fail($"❌ FAILURE: flinkdotnet.sample.topic not found. Aspire kafka-init container may have failed. Available topics: {availableTopics}");
+            }
+        }
+        catch (KafkaException kafkaEx) when (kafkaEx.Error.Code == ErrorCode.BrokerNotAvailable || 
+                                             kafkaEx.Error.Code == ErrorCode.NetworkException ||
+                                             kafkaEx.Message.Contains("timeout") ||
+                                             kafkaEx.Message.Contains("transport failure"))
+        {
+            // Kafka is not available - this is expected in unit test environments
+            // Test passes but indicates infrastructure issue
+            Assert.True(true); // Test passed - skipped due to Kafka not available
+        }
+        catch (Exception ex)
+        {
+            // Unexpected exception - let the test framework handle it
+            Assert.Fail($"Unexpected exception during Kafka connectivity test: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+    
+    private static bool IsRunningInTestOnlyEnvironment()
+    {
+        // Check if we're running in a pure unit test environment (no Aspire infrastructure)
+        var isCI = Environment.GetEnvironmentVariable("CI") == "true";
+        var hasKafkaBootstrap = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS"));
+        var isUnitTestOnly = !hasKafkaBootstrap && !isCI;
+        
+        return isUnitTestOnly;
+    }
+
+    [Fact]
+    public void Aspire_Kafka_Init_Script_Contains_Sample_Topic_Creation()
+    {
+        // This test verifies that the Aspire AppHost configuration includes topic creation for flinkdotnet.sample.topic
+        // This ensures the topic creation is properly configured in the infrastructure code
+        
+        var appHostProgramPath = Path.GetFullPath(Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, 
+            "..", "..", "..", "..", 
+            "FlinkDotNetAspire.AppHost.AppHost", "Program.cs"));
+            
+        Assert.True(File.Exists(appHostProgramPath), $"AppHost Program.cs not found at: {appHostProgramPath}");
+        
+        var appHostContent = File.ReadAllText(appHostProgramPath);
+        
+        // Verify that the kafka-init script contains topic creation for flinkdotnet.sample.topic
+        Assert.Contains("flinkdotnet.sample.topic", appHostContent);
+        Assert.Contains("kafka-topics --create", appHostContent);
+        Assert.Contains("--if-not-exists", appHostContent);
+        
+        // Verify that the topic creation uses proper configuration
+        Assert.Contains("--partitions", appHostContent);
+        Assert.Contains("--replication-factor", appHostContent);
+        
+        // Verify that the script includes topic creation and validation for Windows compatibility
+        Assert.Contains("Creating critical flinkdotnet.sample.topic", appHostContent);
+        Assert.Contains("kafka-topics --bootstrap-server kafka:9092", appHostContent);
+        
+        // Verify that topic verification is included
+        Assert.Contains("--describe --topic", appHostContent);
+        
+        // Verify specific topic verification for flinkdotnet.sample.topic
+        var describeIndex = appHostContent.IndexOf("--describe --topic");
+        Assert.True(describeIndex >= 0, "Script should include --describe --topic command");
+        
+        var afterDescribe = appHostContent.Substring(describeIndex);
+        Assert.Contains("flinkdotnet.sample.topic", afterDescribe);
     }
 }

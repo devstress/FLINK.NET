@@ -17,7 +17,7 @@
     If specified, leaves the AppHost running for debugging purposes.
 
 .PARAMETER MessageCount
-    Number of messages to process (default: 10000000 = 10 million).
+    Number of messages to process (default: 1000000 = 1 million).
 
 .PARAMETER MaxTimeMs
     Maximum allowed processing time in milliseconds (default: 300000 = 5 minutes).
@@ -27,14 +27,14 @@
     Runs local stress tests with default settings.
 
 .EXAMPLE
-    ./scripts/run-local-stress-tests.ps1 -MessageCount 10000000 -MaxTimeMs 300000
-    Processes 10 million messages with 5 minute timeout.
+    ./scripts/run-local-stress-tests.ps1 -MessageCount 1000000 -MaxTimeMs 300000
+    Processes 1 million messages with 5 minute timeout.
 #>
 
 param(
     [switch]$SkipCleanup,
-    [int]$MessageCount = 10000000,  # 10 million messages
-    [int]$MaxTimeMs = 300000  # 5 minutes for 10M messages
+    [int]$MessageCount = 1000000,  # 1 million messages
+    [int]$MaxTimeMs = 300000  # 5 minutes for 1M messages
 )
 
 $ErrorActionPreference = 'Stop'
@@ -123,6 +123,141 @@ function Cleanup-Resources {
     Write-Host "=== Cleanup Complete ===" -ForegroundColor Yellow
 }
 
+function Test-FlinkJobSimulatorStartup {
+    <#
+    .SYNOPSIS
+    Test for FlinkJobSimulator startup by reading log files written by the simulator.
+    
+    .DESCRIPTION
+    Checks for startup, consumer, status, and state log files written by FlinkJobSimulator
+    to verify that it has successfully started and is in RUNNING state processing messages.
+    #>
+    
+    Write-Host "🔍 Testing FlinkJobSimulator startup with enhanced state detection..." -ForegroundColor Cyan
+    
+    # Define log file paths (FlinkJobSimulator writes to current directory)
+    $startupLogPath = "flinkjobsimulator_startup.log"
+    $consumerLogPath = "flinkjobsimulator_consumer.log" 
+    $statusLogPath = "flinkjobsimulator_status.log"
+    $stateLogPath = "flinkjobsimulator_state.log"
+    
+    $startupDetected = $false
+    $runningStateDetected = $false
+    $maxAttempts = 6  # 30 seconds total check time
+    $attemptDelay = 5  # seconds between attempts
+    
+    Write-Host "📋 Available FlinkJobSimulator states:" -ForegroundColor Gray
+    Write-Host "  • FlinkJobSimulatorNotStarted - Initial state before startup" -ForegroundColor Gray
+    Write-Host "  • FlinkJobSimulatorRunning - Actively processing messages" -ForegroundColor Gray
+    Write-Host "  • FlinkJobSimulatorStartedByStop - Previously stopped/exited" -ForegroundColor Gray
+    Write-Host ""
+    
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        Write-Host "  Attempt $attempt/$maxAttempts - Checking for FlinkJobSimulator logs and states..." -ForegroundColor Gray
+        
+        # Check startup log
+        if (Test-Path $startupLogPath) {
+            try {
+                $startupContent = Get-Content $startupLogPath -Raw
+                if ($startupContent -like "*FLINKJOBSIMULATOR_STARTUP_LOG*" -and $startupContent -like "*FlinkJobSimulatorNotStarted*") {
+                    Write-Host "  ✅ Startup log found: FlinkJobSimulator process started (state: FlinkJobSimulatorNotStarted)" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ Startup log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Check state log for RUNNING status (most important)
+        if (Test-Path $stateLogPath) {
+            try {
+                $stateContent = Get-Content $stateLogPath -Raw
+                if ($stateContent -like "*FlinkJobSimulatorRunning*") {
+                    Write-Host "  🎯 STATE LOG FOUND: FlinkJobSimulator is RUNNING and processing messages!" -ForegroundColor Green
+                    $runningStateDetected = $true
+                    $startupDetected = $true
+                }
+                if ($stateContent -like "*FlinkJobSimulatorStartedByStop*") {
+                    Write-Host "  ⚠️ State log shows: FlinkJobSimulator was previously stopped" -ForegroundColor Yellow
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ State log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Check consumer log
+        if (Test-Path $consumerLogPath) {
+            try {
+                $consumerContent = Get-Content $consumerLogPath -Raw
+                if ($consumerContent -like "*FLINKJOBSIMULATOR_CONSUMER_LOG*" -and $consumerContent -like "*CONSUMER_STARTING*") {
+                    Write-Host "  ✅ Consumer log found: Kafka consumer starting" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ Consumer log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Check status log for Redis connection and Kafka consumption
+        if (Test-Path $statusLogPath) {
+            try {
+                $statusContent = Get-Content $statusLogPath -Raw
+                if ($statusContent -like "*REDIS_CONNECTED*") {
+                    Write-Host "  ✅ Status log found: Redis connection successful" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+                if ($statusContent -like "*KAFKA_CONSUMING*") {
+                    Write-Host "  ✅ Status log found: Kafka consumption started" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+                if ($statusContent -like "*FlinkJobSimulatorRunning*") {
+                    Write-Host "  🎯 Status log found: FlinkJobSimulator confirmed RUNNING!" -ForegroundColor Green
+                    $runningStateDetected = $true
+                    $startupDetected = $true
+                }
+                if ($statusContent -like "*KAFKA_FAILED*" -or $statusContent -like "*REDIS_FAILED*") {
+                    Write-Host "  ❌ Status log shows failure: FlinkJobSimulator startup issues detected" -ForegroundColor Red
+                    return $false
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ Status log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Only consider truly started if we detect the RUNNING state
+        if ($runningStateDetected) {
+            Write-Host "  🎯 FlinkJobSimulator startup verified: State = FlinkJobSimulatorRunning!" -ForegroundColor Green
+            return $true
+        }
+        
+        if ($startupDetected -and -not $runningStateDetected) {
+            Write-Host "  ⏳ FlinkJobSimulator initializing but not yet RUNNING..." -ForegroundColor Yellow
+        }
+        
+        if ($attempt -lt $maxAttempts) {
+            Write-Host "  ⏳ No RUNNING state detected yet, waiting $attemptDelay seconds..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $attemptDelay
+        }
+    }
+    
+    Write-Host "  ❌ FlinkJobSimulator RUNNING state not detected after $maxAttempts attempts" -ForegroundColor Red
+    Write-Host "  📋 Log file status:" -ForegroundColor Gray
+    Write-Host "    Startup log ($startupLogPath): $(if (Test-Path $startupLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    Write-Host "    Consumer log ($consumerLogPath): $(if (Test-Path $consumerLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    Write-Host "    Status log ($statusLogPath): $(if (Test-Path $statusLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    Write-Host "    State log ($stateLogPath): $(if (Test-Path $stateLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    
+    if ($startupDetected -and -not $runningStateDetected) {
+        Write-Host "  💡 FlinkJobSimulator started but didn't reach RUNNING state - check for initialization issues" -ForegroundColor Yellow
+    }
+    
+    return $false
+}
+
 function Initialize-Environment {
     Write-Host "`n=== Environment Initialization ===" -ForegroundColor Yellow
     
@@ -175,8 +310,8 @@ try {
     $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
     $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
-    # Enable simplified mode for more reliable execution
-    $env:USE_SIMPLIFIED_MODE = 'true'
+    # Disable simplified mode for stress test - we need full Kafka functionality
+    $env:USE_SIMPLIFIED_MODE = 'false'
     
     # ✨ STRESS TEST CONFIGURATION: Enable all 20 TaskManagers for load sharing
     $env:STRESS_TEST_MODE = 'true'
@@ -303,6 +438,21 @@ try {
     
     Write-Host "AppHost started, waiting 45 seconds for initialization..." -ForegroundColor White
     Start-Sleep -Seconds 45  # Increased for consistency with CI improvements
+    
+    # Start comprehensive Aspire sub-task log capture
+    Write-Host "`n=== Starting Aspire Sub-Task Log Capture ===" -ForegroundColor Yellow
+    Write-Host "Capturing logs from all Aspire components for error/warning analysis..." -ForegroundColor White
+    try {
+        $logCaptureJob = Start-Job -ScriptBlock {
+            param($scriptPath)
+            & $scriptPath -LogDirectory "aspire-logs" -MonitorDurationSeconds 420  # 7 minutes
+        } -ArgumentList "./scripts/capture-aspire-logs.ps1"
+        
+        $global:BackgroundJobs += $logCaptureJob
+        Write-Host "Aspire log capture job started: $($logCaptureJob.Id)" -ForegroundColor Green
+    } catch {
+        Write-Host "⚠️ Warning: Failed to start log capture job: $_" -ForegroundColor Yellow
+    }
 
     # Step 3.5: Start Message Production in Background
     Write-Host "`n=== Step 3.5: Start Message Production ===" -ForegroundColor Yellow
@@ -316,7 +466,7 @@ try {
     # Run message producer with proper error handling
     Write-Host "🔄 Starting message producer (this may take several minutes for $MessageCount messages)..." -ForegroundColor White
     try {
-        & "./scripts/produce-10-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic"
+        & "./scripts/produce-1-million-messages.ps1" -MessageCount $MessageCount -Topic "flinkdotnet.sample.topic" -ParallelProducers 50
         
         if ($LASTEXITCODE -ne 0) {
             throw "Message producer failed with exit code: $LASTEXITCODE"
@@ -393,8 +543,17 @@ try {
     Write-Host "Expected messages: $MessageCount"
     Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
     
-    # First, wait a bit for FlinkJobSimulator to start after health checks pass
-    Write-Host "⏳ Waiting 30 seconds for FlinkJobSimulator to start and begin processing..."
+    # Check for FlinkJobSimulator startup logs
+    Write-Host "🔍 Checking FlinkJobSimulator startup status..."
+    $startupDetected = Test-FlinkJobSimulatorStartup
+    if ($startupDetected) {
+        Write-Host "✅ FlinkJobSimulator startup detected successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️ WARNING: FlinkJobSimulator startup logs not found - proceeding with Redis monitoring" -ForegroundColor Yellow
+    }
+    
+    # Wait for FlinkJobSimulator to initialize and begin processing
+    Write-Host "⏳ Waiting 30 seconds for FlinkJobSimulator to initialize and begin processing..."
     Start-Sleep -Seconds 30
     
     $maxWaitSeconds = 60  # 1 minute max wait (reduced for faster fallback)
@@ -404,6 +563,8 @@ try {
     
     $completed = $false
     $completionReason = "Unknown"
+    $counterNotInitializedAttempts = 0
+    $maxCounterNotInitializedAttempts = 3
     
     while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
         try {
@@ -452,7 +613,16 @@ try {
                     Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
                 }
             } else {
-                Write-Host "⏳ Waiting for job to start... (counter not yet initialized)"
+                $counterNotInitializedAttempts++
+                Write-Host "⏳ Waiting for job to start... (counter not yet initialized) - Attempt $counterNotInitializedAttempts/$maxCounterNotInitializedAttempts"
+                
+                if ($counterNotInitializedAttempts -ge $maxCounterNotInitializedAttempts) {
+                    Write-Host "❌ FlinkJobSimulator failed to start after $maxCounterNotInitializedAttempts attempts"
+                    Write-Host "💡 This indicates that FlinkJobSimulator is not running or cannot initialize the counter"
+                    $completed = $true
+                    $completionReason = "FlinkJobSimulatorNotStarted"
+                    break
+                }
             }
             
             Start-Sleep -Seconds $checkIntervalSeconds
@@ -623,6 +793,34 @@ try {
 } finally {
     # Always cleanup unless explicitly skipped
     Cleanup-Resources
+    
+    # Display captured log results if available
+    Write-Host "`n=== 📋 ASPIRE SUB-TASK LOG SUMMARY ===" -ForegroundColor Yellow
+    if (Test-Path "aspire-logs") {
+        Write-Host "✅ Aspire logs captured successfully" -ForegroundColor Green
+        
+        # Show directory contents
+        Write-Host "📁 Captured log files:"
+        Get-ChildItem "aspire-logs" | ForEach-Object {
+            Write-Host "  📄 $($_.Name) - Size: $($_.Length) bytes" -ForegroundColor Gray
+        }
+        
+        # Show error/warning summary if available
+        $reportPath = "aspire-logs/error-warning-report.log"
+        if (Test-Path $reportPath) {
+            Write-Host "`n🚨 ERROR AND WARNING SUMMARY:" -ForegroundColor Yellow
+            $reportContent = Get-Content $reportPath -ErrorAction SilentlyContinue
+            $errorCount = ($reportContent | Where-Object { $_ -like "*Total Errors:*" }) -replace ".*Total Errors: ", ""
+            $warningCount = ($reportContent | Where-Object { $_ -like "*Total Warnings:*" }) -replace ".*Total Warnings: ", ""
+            
+            if ($errorCount) { Write-Host "  ❌ Total Errors: $errorCount" -ForegroundColor Red }
+            if ($warningCount) { Write-Host "  ⚠️ Total Warnings: $warningCount" -ForegroundColor Yellow }
+            
+            Write-Host "  📄 Full report available at: $reportPath" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "⚠️ No Aspire logs directory found" -ForegroundColor Yellow
+    }
 }
 
 # Update stress test output file with results

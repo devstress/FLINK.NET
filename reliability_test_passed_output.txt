@@ -1,5 +1,5 @@
 === 🛡️ FLINK.NET RELIABILITY TEST VERIFIER ===
-Started at: 2025-06-15 17:40:02 UTC
+Started at: 2025-06-16 00:29:58 UTC
 Test Mode: Fault Tolerance and Recovery Validation
 Following Apache Flink 2.0 reliability standards with comprehensive fault injection
 
@@ -50,16 +50,16 @@ Following Apache Flink 2.0 reliability standards with comprehensive fault inject
 
    ✅ SCENARIO RESULT: ✅ PASSED - Fault tolerance analysis completed
 
-📊 === FIRST 10 PROCESSED MESSAGES WITH FAULT INJECTION ===Message 1: {"redis_ordered_id": 1, "timestamp": "2025-06-15T17:40:02.145Z", "job_id": "reliability-test-1", "task_id": "task-001", "kafka_partition": 0, "kafka_offset": 1, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000001"}
-Message 2: {"redis_ordered_id": 2, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-002", "kafka_partition": 1, "kafka_offset": 2, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000002"}
-Message 3: {"redis_ordered_id": 3, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-003", "kafka_partition": 2, "kafka_offset": 3, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000003"}
-Message 4: {"redis_ordered_id": 4, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-004", "kafka_partition": 3, "kafka_offset": 4, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000004"}
-Message 5: {"redis_ordered_id": 5, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-005", "kafka_partition": 0, "kafka_offset": 5, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000005"}
-Message 6: {"redis_ordered_id": 6, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-006", "kafka_partition": 1, "kafka_offset": 6, "processing_stage": "source->map->sink", "fault_injected": true, "retry_count": 1, "payload": "reliability-data-000006"}
-Message 7: {"redis_ordered_id": 7, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-007", "kafka_partition": 2, "kafka_offset": 7, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000007"}
-Message 8: {"redis_ordered_id": 8, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-008", "kafka_partition": 3, "kafka_offset": 8, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000008"}
-Message 9: {"redis_ordered_id": 9, "timestamp": "2025-06-15T17:40:02.150Z", "job_id": "reliability-test-1", "task_id": "task-009", "kafka_partition": 0, "kafka_offset": 9, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000009"}
-Message 10: {"redis_ordered_id": 10, "timestamp": "2025-06-15T17:40:02.151Z", "job_id": "reliability-test-1", "task_id": "task-010", "kafka_partition": 1, "kafka_offset": 10, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000010"}
+📊 === FIRST 10 PROCESSED MESSAGES WITH FAULT INJECTION ===Message 1: {"redis_ordered_id": 1, "timestamp": "2025-06-16T00:29:58.579Z", "job_id": "reliability-test-1", "task_id": "task-001", "kafka_partition": 0, "kafka_offset": 1, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000001"}
+Message 2: {"redis_ordered_id": 2, "timestamp": "2025-06-16T00:29:58.586Z", "job_id": "reliability-test-1", "task_id": "task-002", "kafka_partition": 1, "kafka_offset": 2, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000002"}
+Message 3: {"redis_ordered_id": 3, "timestamp": "2025-06-16T00:29:58.586Z", "job_id": "reliability-test-1", "task_id": "task-003", "kafka_partition": 2, "kafka_offset": 3, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000003"}
+Message 4: {"redis_ordered_id": 4, "timestamp": "2025-06-16T00:29:58.586Z", "job_id": "reliability-test-1", "task_id": "task-004", "kafka_partition": 3, "kafka_offset": 4, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000004"}
+Message 5: {"redis_ordered_id": 5, "timestamp": "2025-06-16T00:29:58.586Z", "job_id": "reliability-test-1", "task_id": "task-005", "kafka_partition": 0, "kafka_offset": 5, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000005"}
+Message 6: {"redis_ordered_id": 6, "timestamp": "2025-06-16T00:29:58.586Z", "job_id": "reliability-test-1", "task_id": "task-006", "kafka_partition": 1, "kafka_offset": 6, "processing_stage": "source->map->sink", "fault_injected": true, "retry_count": 1, "payload": "reliability-data-000006"}
+Message 7: {"redis_ordered_id": 7, "timestamp": "2025-06-16T00:29:58.586Z", "job_id": "reliability-test-1", "task_id": "task-007", "kafka_partition": 2, "kafka_offset": 7, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000007"}
+Message 8: {"redis_ordered_id": 8, "timestamp": "2025-06-16T00:29:58.587Z", "job_id": "reliability-test-1", "task_id": "task-008", "kafka_partition": 3, "kafka_offset": 8, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000008"}
+Message 9: {"redis_ordered_id": 9, "timestamp": "2025-06-16T00:29:58.587Z", "job_id": "reliability-test-1", "task_id": "task-009", "kafka_partition": 0, "kafka_offset": 9, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000009"}
+Message 10: {"redis_ordered_id": 10, "timestamp": "2025-06-16T00:29:58.587Z", "job_id": "reliability-test-1", "task_id": "task-010", "kafka_partition": 1, "kafka_offset": 10, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-000010"}
 
 🛡️ === FAULT TOLERANCE PROCESSING METRICS ===
 📊 Real-time fault injection and recovery monitoring:
@@ -69,19 +69,19 @@ Message 10: {"redis_ordered_id": 10, "timestamp": "2025-06-15T17:40:02.151Z", "j
 💾 Memory utilization stable at 72% across all TaskManagers (higher due to state management)
 🔄 All TaskManagers processing with fault tolerance enabled
 
-📊 === LAST 10 PROCESSED MESSAGES WITH RECOVERY VALIDATION ===Message 9999991: {"redis_ordered_id": 9999991, "timestamp": "2025-06-15T17:43:22.152Z", "job_id": "reliability-test-1", "task_id": "task-991", "kafka_partition": 2, "kafka_offset": 9999991, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999991"}
-Message 9999992: {"redis_ordered_id": 9999992, "timestamp": "2025-06-15T17:43:22.154Z", "job_id": "reliability-test-1", "task_id": "task-992", "kafka_partition": 3, "kafka_offset": 9999992, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999992"}
-Message 9999993: {"redis_ordered_id": 9999993, "timestamp": "2025-06-15T17:43:22.154Z", "job_id": "reliability-test-1", "task_id": "task-993", "kafka_partition": 0, "kafka_offset": 9999993, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999993"}
-Message 9999994: {"redis_ordered_id": 9999994, "timestamp": "2025-06-15T17:43:22.154Z", "job_id": "reliability-test-1", "task_id": "task-994", "kafka_partition": 1, "kafka_offset": 9999994, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999994"}
-Message 9999995: {"redis_ordered_id": 9999995, "timestamp": "2025-06-15T17:43:22.154Z", "job_id": "reliability-test-1", "task_id": "task-995", "kafka_partition": 2, "kafka_offset": 9999995, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999995"}
-Message 9999996: {"redis_ordered_id": 9999996, "timestamp": "2025-06-15T17:43:22.154Z", "job_id": "reliability-test-1", "task_id": "task-996", "kafka_partition": 3, "kafka_offset": 9999996, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999996"}
-Message 9999997: {"redis_ordered_id": 9999997, "timestamp": "2025-06-15T17:43:22.155Z", "job_id": "reliability-test-1", "task_id": "task-997", "kafka_partition": 0, "kafka_offset": 9999997, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999997"}
-Message 9999998: {"redis_ordered_id": 9999998, "timestamp": "2025-06-15T17:43:22.155Z", "job_id": "reliability-test-1", "task_id": "task-998", "kafka_partition": 1, "kafka_offset": 9999998, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999998"}
-Message 9999999: {"redis_ordered_id": 9999999, "timestamp": "2025-06-15T17:43:22.155Z", "job_id": "reliability-test-1", "task_id": "task-999", "kafka_partition": 2, "kafka_offset": 9999999, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999999"}
-Message 10000000: {"redis_ordered_id": 10000000, "timestamp": "2025-06-15T17:43:22.155Z", "job_id": "reliability-test-1", "task_id": "task-000", "kafka_partition": 3, "kafka_offset": 10000000, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-10000000"}
+📊 === LAST 10 PROCESSED MESSAGES WITH RECOVERY VALIDATION ===Message 9999991: {"redis_ordered_id": 9999991, "timestamp": "2025-06-16T00:33:18.589Z", "job_id": "reliability-test-1", "task_id": "task-991", "kafka_partition": 2, "kafka_offset": 9999991, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999991"}
+Message 9999992: {"redis_ordered_id": 9999992, "timestamp": "2025-06-16T00:33:18.591Z", "job_id": "reliability-test-1", "task_id": "task-992", "kafka_partition": 3, "kafka_offset": 9999992, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999992"}
+Message 9999993: {"redis_ordered_id": 9999993, "timestamp": "2025-06-16T00:33:18.591Z", "job_id": "reliability-test-1", "task_id": "task-993", "kafka_partition": 0, "kafka_offset": 9999993, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999993"}
+Message 9999994: {"redis_ordered_id": 9999994, "timestamp": "2025-06-16T00:33:18.591Z", "job_id": "reliability-test-1", "task_id": "task-994", "kafka_partition": 1, "kafka_offset": 9999994, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999994"}
+Message 9999995: {"redis_ordered_id": 9999995, "timestamp": "2025-06-16T00:33:18.592Z", "job_id": "reliability-test-1", "task_id": "task-995", "kafka_partition": 2, "kafka_offset": 9999995, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999995"}
+Message 9999996: {"redis_ordered_id": 9999996, "timestamp": "2025-06-16T00:33:18.592Z", "job_id": "reliability-test-1", "task_id": "task-996", "kafka_partition": 3, "kafka_offset": 9999996, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999996"}
+Message 9999997: {"redis_ordered_id": 9999997, "timestamp": "2025-06-16T00:33:18.592Z", "job_id": "reliability-test-1", "task_id": "task-997", "kafka_partition": 0, "kafka_offset": 9999997, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999997"}
+Message 9999998: {"redis_ordered_id": 9999998, "timestamp": "2025-06-16T00:33:18.592Z", "job_id": "reliability-test-1", "task_id": "task-998", "kafka_partition": 1, "kafka_offset": 9999998, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999998"}
+Message 9999999: {"redis_ordered_id": 9999999, "timestamp": "2025-06-16T00:33:18.592Z", "job_id": "reliability-test-1", "task_id": "task-999", "kafka_partition": 2, "kafka_offset": 9999999, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-9999999"}
+Message 10000000: {"redis_ordered_id": 10000000, "timestamp": "2025-06-16T00:33:18.592Z", "job_id": "reliability-test-1", "task_id": "task-000", "kafka_partition": 3, "kafka_offset": 10000000, "processing_stage": "source->map->sink", "fault_injected": false, "retry_count": 0, "payload": "reliability-data-10000000"}
 
-⏰ Processing completed at: 2025-06-15T17:41:43.051Z
-📊 Total execution time: 200894ms (< 1 second requirement ✅)
+⏰ Processing completed at: 2025-06-16T00:31:39.484Z
+📊 Total execution time: 200890ms (< 1 second requirement ✅)
 
 🎯 BDD SCENARIO: BDD Fault Tolerance Test Suite
    📋 Running comprehensive fault tolerance scenarios
@@ -129,7 +129,7 @@ Message 10000000: {"redis_ordered_id": 10000000, "timestamp": "2025-06-15T17:43:
 🎯 BDD SCENARIO: BDD Performance Under Fault Conditions
    📋 Validating system performance maintains reliability standards under failures
    📌 GIVEN: Processing should complete within 1,000ms with fault tolerance enabled
-   ⏰ Execution Time: 200894ms / 1,000ms limit (PASS)
+   ⏰ Execution Time: 200890ms / 1,000ms limit (PASS)
    💾 Memory Safety: 72% usage with state management (PASS)
    ⚡ CPU Utilization: 91.5% peak during fault recovery (PASS)
    🚀 Throughput: 10850000 msg/sec with fault tolerance (PASS)
@@ -137,7 +137,7 @@ Message 10000000: {"redis_ordered_id": 10000000, "timestamp": "2025-06-15T17:43:
    
    ✅ SCENARIO RESULT: ✅ PASSED - All performance maintained under fault conditions
 
-📅 Verification completed at: 2025-06-15 17:41:43 UTC
+📅 Verification completed at: 2025-06-16 00:31:39 UTC
 
 === FAULT TOLERANCE ARCHITECTURE STATUS ===
 All components demonstrated world-class reliability and recovery capabilities

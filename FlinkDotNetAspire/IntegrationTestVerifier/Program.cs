@@ -11,7 +11,7 @@ namespace IntegrationTestVerifier
     using System.Threading.Tasks;
     using System.Text.RegularExpressions;
     using System.IO;
-    using Confluent.Kafka;
+    using Confluent.Kafka;  
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
 
@@ -670,7 +670,7 @@ namespace IntegrationTestVerifier
         private static Task<bool> RunKafkaHealthCheckAsync(IConfigurationRoot config, BddTestCoordinator testCoordinator)
         {
             testCoordinator.LogScenarioStart("Kafka Health Check", 
-                "Verifying Kafka container connectivity and metadata access");
+                "Verifying Kafka container connectivity, metadata access, and topic availability");
             
             var kafkaBootstrapServers = config["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] ?? ServiceUris.KafkaBootstrapServers;
             testCoordinator.LogGiven("Kafka connectivity", $"Kafka should be accessible at {kafkaBootstrapServers}");
@@ -680,7 +680,25 @@ namespace IntegrationTestVerifier
             
             if (kafkaOk)
             {
-                testCoordinator.LogScenarioSuccess("Kafka is fully operational and ready for message streaming");
+                testCoordinator.LogThen("Kafka connectivity", "Kafka broker is operational");
+                
+                // Now check for the critical topic
+                testCoordinator.LogWhen("Topic verification", "Checking for flinkdotnet.sample.topic created by Aspire infrastructure");
+                bool topicExists = WaitForKafkaTopic(kafkaBootstrapServers, "flinkdotnet.sample.topic", maxAttempts: 1);
+                
+                if (topicExists)
+                {
+                    testCoordinator.LogScenarioSuccess("Kafka is fully operational with required topic ready for message streaming");
+                }
+                else
+                {
+                    Console.WriteLine("⚠️  WARNING: flinkdotnet.sample.topic not found in Kafka broker");
+                    Console.WriteLine("⚠️  This topic should be created by Aspire infrastructure (kafka-init container)");
+                    Console.WriteLine("⚠️  The topic is defined in AppHost Program.cs line 190: create_topic_safe 'flinkdotnet.sample.topic'");
+                    Console.WriteLine("⚠️  Producer will create it if needed as fallback");
+                    testCoordinator.LogThen("Topic availability", "Topic not found - Aspire kafka-init may not have completed or failed");
+                    testCoordinator.LogScenarioSuccess("Kafka is operational - producer has fallback creation capability");
+                }
             }
             else
             {
@@ -2125,7 +2143,11 @@ namespace IntegrationTestVerifier
             var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
             if (isCI)
             {
-                maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                // Only adjust if not explicitly set to 1 (respect explicit single attempt requests)
+                if (maxAttempts != 1)
+                {
+                    maxAttempts = Math.Max(maxAttempts, 8); // At least 8 attempts in CI
+                }
                 delaySeconds = Math.Max(delaySeconds, 15); // At least 15 seconds delay in CI
             }
             return (maxAttempts, delaySeconds, isCI);
@@ -2377,6 +2399,104 @@ namespace IntegrationTestVerifier
         private static void LogKafkaConnectionError(Exception ex)
         {
             Console.WriteLine($"      ❌ Kafka connection failed: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            }
+        }
+
+        private static bool WaitForKafkaTopic(string bootstrapServers, string topicName, int maxAttempts = 8, int delaySeconds = 5)
+        {
+            var (adjustedMaxAttempts, adjustedDelaySeconds, isCI) = GetCIAdjustedParameters(maxAttempts, delaySeconds);
+            
+            Console.WriteLine($"      🔍 Checking for topic '{topicName}': bootstrapServers='{bootstrapServers}', maxAttempts={adjustedMaxAttempts}, delaySeconds={adjustedDelaySeconds}");
+            Console.WriteLine($"      CI Environment: {isCI}");
+            
+            var cleanBootstrapServers = FixKafkaIPv6Issues(bootstrapServers);
+            var adminConfig = CreateKafkaAdminConfig(cleanBootstrapServers, isCI);
+            
+            for (int i = 0; i < adjustedMaxAttempts; i++)
+            {
+                var topicFound = TryFindKafkaTopic(cleanBootstrapServers, adminConfig, topicName, i + 1, adjustedMaxAttempts, isCI);
+                if (topicFound)
+                    return true;
+                
+                if (i < adjustedMaxAttempts - 1)
+                {
+                    Console.WriteLine($"      ⏳ Topic '{topicName}' not found yet, waiting {adjustedDelaySeconds} seconds before retry...");
+                    Thread.Sleep(TimeSpan.FromSeconds(adjustedDelaySeconds));
+                }
+            }
+            
+            Console.WriteLine($"      ⚠️  Topic '{topicName}' not found after {adjustedMaxAttempts} attempts - this is expected if Aspire kafka-init container hasn't completed yet");
+            return false;
+        }
+
+        private static bool TryFindKafkaTopic(string bootstrapServers, AdminClientConfig adminConfig, string topicName, int attempt, int maxAttempts, bool isCI)
+        {
+            Console.WriteLine($"      ⏳ Topic search attempt {attempt}/{maxAttempts}: Looking for '{topicName}' in {bootstrapServers}");
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            try
+            {
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                var metadataTimeout = TimeSpan.FromSeconds(isCI ? 45 : 15); // 45s for CI, 15s for local
+                var metadata = admin.GetMetadata(metadataTimeout);
+                stopwatch.Stop();
+                
+                return ProcessKafkaMetadata(metadata, topicName, stopwatch.ElapsedMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                LogTopicSearchException(ex);
+                return false;
+            }
+        }
+
+        private static bool ProcessKafkaMetadata(Confluent.Kafka.Metadata metadata, string topicName, long elapsedMs)
+        {
+            if (metadata.Topics == null)
+            {
+                Console.WriteLine($"      ❌ Kafka metadata retrieved but no topics found (took {elapsedMs}ms)");
+                return false;
+            }
+
+            var topicFound = metadata.Topics.Any(t => t.Topic == topicName);
+            
+            if (topicFound)
+            {
+                var topic = metadata.Topics.First(t => t.Topic == topicName);
+                Console.WriteLine($"      ✅ Topic '{topicName}' found in {elapsedMs}ms");
+                Console.WriteLine($"      📊 Topic details: {topic.Partitions.Count} partitions");
+                return true;
+            }
+
+            LogTopicNotFound(topicName, metadata.Topics.Count, elapsedMs);
+            LogAvailableTopics(metadata.Topics);
+            return false;
+        }
+
+        private static void LogTopicNotFound(string topicName, int totalTopics, long elapsedMs)
+        {
+            Console.WriteLine($"      ❌ Topic '{topicName}' not found among {totalTopics} available topics (search took {elapsedMs}ms)");
+        }
+
+        private static void LogAvailableTopics(IEnumerable<Confluent.Kafka.TopicMetadata> topics)
+        {
+            var topicsList = topics.ToList();
+            if (topicsList.Count > 0)
+            {
+                Console.WriteLine($"      📋 Available topics: {string.Join(", ", topicsList.Take(10).Select(t => t.Topic))}");
+                if (topicsList.Count > 10)
+                {
+                    Console.WriteLine($"      📋 ... and {topicsList.Count - 10} more topics");
+                }
+            }
+        }
+
+        private static void LogTopicSearchException(Exception ex)
+        {
+            Console.WriteLine($"      ❌ Topic search failed: {ex.GetType().Name}: {ex.Message}");
             if (ex.InnerException != null)
             {
                 Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");

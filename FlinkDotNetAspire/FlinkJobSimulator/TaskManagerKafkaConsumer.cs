@@ -43,22 +43,107 @@ namespace FlinkJobSimulator
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("🚀 TaskManager {TaskManagerId}: Starting Apache Flink-compliant Kafka consumption", _taskManagerId);
+            _logger.LogInformation("🚀 TaskManager {TaskManagerId}: Starting Apache Flink 2.0-compliant Kafka consumption with automatic resumption", _taskManagerId);
+            
+            // Write consumer startup log to file for stress test monitoring
+            await WriteConsumerStartupLogAsync();
+            
+            // Initialize Redis counter to indicate FlinkJobSimulator has started
+            try
+            {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing Redis counter to indicate startup", _taskManagerId);
+                await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
+                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counter initialized successfully", _taskManagerId);
+                
+                // Update startup log with Redis success
+                await UpdateStartupLogAsync("REDIS_CONNECTED", "Redis counter initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to initialize Redis counter", _taskManagerId);
+                await UpdateStartupLogAsync("REDIS_FAILED", $"Redis initialization failed: {ex.Message}");
+                throw new InvalidOperationException($"TaskManager {_taskManagerId}: Error during message consumption. Kafka topic: {_kafkaTopic}", ex);
+            }
             
             try
             {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting FlinkKafkaConsumerGroup initialization", _taskManagerId);
                 await InitializeFlinkKafkaConsumerGroup();
+                await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup started with automatic resumption");
+                
+                // IMPORTANT: Mark FlinkJobSimulator as actually RUNNING
+                _logger.LogInformation("🎯 TaskManager {TaskManagerId}: FlinkJobSimulator is now RUNNING and ready to process messages", _taskManagerId);
+                await Program.WriteRunningStateLogAsync();
+                await UpdateStartupLogAsync("FlinkJobSimulatorRunning", "FlinkJobSimulator is actively running and processing messages");
+                
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns", _taskManagerId);
                 await ConsumeMessagesWithFlinkPatterns(stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Error in Kafka consumption for topic '{Topic}'", 
+                _logger.LogError(ex, "❌ TaskManager {_taskManagerId}: Error in Kafka consumption for topic '{_kafkaTopic}'", 
                     _taskManagerId, _kafkaTopic);
-                throw new InvalidOperationException($"TaskManager {_taskManagerId} failed during Kafka consumption", ex);
+                await UpdateStartupLogAsync("KAFKA_FAILED", $"Kafka consumption failed: {ex.Message}");
+                
+                // Let FlinkKafkaConsumerGroup handle the recovery instead of heartbeat mode
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup will handle automatic recovery", _taskManagerId);
+                throw new InvalidOperationException($"TaskManager {_taskManagerId}: Error during message consumption. Kafka topic: {_kafkaTopic}", ex);
             }
             finally
             {
+                // Mark as stopped when exiting
+                await UpdateStartupLogAsync("FlinkJobSimulatorStartedByStop", "FlinkJobSimulator was stopped or exited");
                 await CleanupResources();
+            }
+        }
+        
+        /// <summary>
+        /// Write consumer startup information to log file for stress test script to monitor
+        /// </summary>
+        private async Task WriteConsumerStartupLogAsync()
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_CONSUMER_LOG
+TaskManagerId: {_taskManagerId}
+StartTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+Topic: {_kafkaTopic}
+RedisKey: {_redisSinkCounterKey}
+Status: CONSUMER_STARTING
+Message: TaskManager Kafka consumer is starting
+";
+                
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_consumer.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                _logger.LogInformation("📝 CONSUMER LOG: Written to {LogPath}", logPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ CONSUMER LOG: Failed to write consumer startup log");
+            }
+        }
+        
+        /// <summary>
+        /// Update startup log with current status for stress test monitoring
+        /// </summary>
+        private async Task UpdateStartupLogAsync(string status, string message)
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_STATUS_UPDATE
+TaskManagerId: {_taskManagerId}
+UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+Status: {status}
+Message: {message}
+";
+                
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_status.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                _logger.LogInformation("📝 STATUS LOG: {Status} - {Message}", status, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ STATUS LOG: Failed to write status update");
             }
         }
 
@@ -102,10 +187,11 @@ namespace FlinkJobSimulator
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing FlinkKafkaConsumerGroup with servers: {BootstrapServers}", 
                 _taskManagerId, bootstrapServers);
 
+            // Simple initialization - FlinkKafkaConsumerGroup now handles resumption internally
             _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig, _logger);
             await _consumerGroup.InitializeAsync(new[] { _kafkaTopic });
 
-            _logger.LogInformation("✅ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup initialized successfully", _taskManagerId);
+            _logger.LogInformation("✅ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup initialized with built-in resumption", _taskManagerId);
         }
 
         private async Task ConsumeMessagesWithFlinkPatterns(CancellationToken stoppingToken)
@@ -113,7 +199,7 @@ namespace FlinkJobSimulator
             if (_consumerGroup == null)
                 throw new InvalidOperationException("Consumer group not initialized");
 
-            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink patterns", _taskManagerId);
+            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns and automatic resumption", _taskManagerId);
             
             var consumptionContext = new ConsumptionContext(DateTime.UtcNow);
 
@@ -123,11 +209,22 @@ namespace FlinkJobSimulator
                 {
                     var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(1000));
                     await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
+                    
+                    // Check if consumer group is in recovery mode
+                    if (_consumerGroup.IsInRecoveryMode())
+                    {
+                        var failureCount = _consumerGroup.GetConsecutiveFailureCount();
+                        _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup in recovery mode (failures: {FailureCount})", 
+                            _taskManagerId, failureCount);
+                        
+                        // Brief pause to allow recovery
+                        await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                    }
                 }
                 catch (ConsumeException ex)
                 {
-                    if (!await HandleConsumeException(ex, stoppingToken))
-                        break;
+                    _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException handled by FlinkKafkaConsumerGroup: {Error}",
+                        _taskManagerId, ex.Error.Reason);
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -175,21 +272,6 @@ namespace FlinkJobSimulator
                 context.LastLogTime = DateTime.UtcNow;
                 context.LastProcessedCount = currentProcessedCount;
             }
-        }
-
-        private async Task<bool> HandleConsumeException(ConsumeException ex, CancellationToken stoppingToken)
-        {
-            _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Consume exception: {Error}", 
-                _taskManagerId, ex.Error.Reason);
-            
-            if (ex.Error.IsFatal)
-            {
-                _logger.LogError("💥 TaskManager {TaskManagerId}: Fatal Kafka error, stopping consumption", _taskManagerId);
-                return false;
-            }
-            
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
-            return true;
         }
 
         private void LogFinalConsumptionStats(DateTime startTime)
