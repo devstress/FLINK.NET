@@ -571,7 +571,7 @@ class UltraHighPerformanceProducer {
         
         Console.WriteLine("PRODUCER_START:" + producerId);
         
-        # Ultra-high-performance configuration for 1M+ msg/sec target
+        // Ultra-high-performance configuration for 1M+ msg/sec target
         var config = new ProducerConfig {
             BootstrapServers = bootstrapServers,
             
