@@ -29,7 +29,7 @@
 param(
     [long]$MessageCount = 1000000,  # 1 million messages 
     [string]$Topic = "flinkdotnet.sample.topic",
-    [int]$BatchSize = 100000,  # Ultra-high-throughput batch size for 1M+ msg/sec
+    [int]$BatchSize = 250000,  # Optimized batch size per performance analysis (increased from 100,000)
     [int]$ParallelProducers = 20  # Number of parallel producer instances for maximum throughput (targeting 1M+ msg/sec)
 )
 
@@ -66,15 +66,15 @@ function Get-OptimizationRecommendations {
         
         # 2. Batch Size Optimization
         Write-Host "   2️⃣ OPTIMIZE BATCH PROCESSING:" -ForegroundColor Yellow
-        Write-Host "      • Increase BatchSize from 100000 to 250000+ messages per batch" -ForegroundColor Gray
-        Write-Host "      • Increase semaphore concurrency from 5000 to 10000+ concurrent operations" -ForegroundColor Gray
+        Write-Host "      • Increase BatchSize from 250000 to 500000+ messages per batch" -ForegroundColor Gray
+        Write-Host "      • Increase semaphore concurrency from 10000 to 15000+ concurrent operations" -ForegroundColor Gray
         Write-Host "      • Use larger progress reporting chunks (100K instead of 50K)" -ForegroundColor Gray
         
         # 3. Kafka Configuration Tuning
         Write-Host "   3️⃣ KAFKA CONFIGURATION TUNING:" -ForegroundColor Yellow
         Write-Host "      • Increase topic partitions to match parallel producers ($recommendedProducers partitions)" -ForegroundColor Gray
-        Write-Host "      • Tune QueueBufferingMaxKbytes to 4GB+ (currently 2GB)" -ForegroundColor Gray
-        Write-Host "      • Optimize SocketSendBufferBytes to 2MB+ (currently 1MB)" -ForegroundColor Gray
+        Write-Host "      • Tune QueueBufferingMaxKbytes to 8GB+ (currently 4GB)" -ForegroundColor Gray
+        Write-Host "      • Optimize SocketSendBufferBytes to 4MB+ (currently 2MB)" -ForegroundColor Gray
         
         # 4. System Resource Optimization
         if ($SystemInfo.AvailableRAMGB -gt 8) {
@@ -520,7 +520,7 @@ class Program {
         dotnet build | Out-Null
         
         # Determine partition count based on parallel producers for optimal distribution
-        $partitionCount = 20  # Use 20 partitions for optimal parallel producer distribution
+        $partitionCount = 40  # Increased from 20 to 40 partitions for better parallel producer distribution (per performance analysis)
         
         Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions for parallel processing..." -ForegroundColor Yellow
         $fallbackOutput = dotnet run -- "$BootstrapServers" "$Topic" "$partitionCount" 2>&1
@@ -571,12 +571,12 @@ class UltraHighPerformanceProducer {
         
         Console.WriteLine("PRODUCER_START:" + producerId);
         
-        // Ultra-high-performance configuration for 1M+ msg/sec target
+        # Ultra-high-performance configuration for 1M+ msg/sec target
         var config = new ProducerConfig {
             BootstrapServers = bootstrapServers,
             
-            // Maximum throughput settings for parallel processing
-            BatchSize = 100000,          // Ultra-large batches for maximum throughput
+            // Maximum throughput settings for parallel processing (optimized per performance analysis)
+            BatchSize = 250000,          // Optimized batch size (increased from 100K per performance analysis)
             LingerMs = 0,                // No latency - send immediately when batch is full
             CompressionType = CompressionType.Lz4,  // Fast compression
             SocketTimeoutMs = 120000,    // Long timeout for high-volume processing
@@ -587,11 +587,11 @@ class UltraHighPerformanceProducer {
             EnableIdempotence = true,
             Acks = Acks.All,
             
-            // Ultra-high-performance optimizations
-            SocketSendBufferBytes = 1048576,    // 1MB send buffer
-            SocketReceiveBufferBytes = 1048576, // 1MB receive buffer
+            // Ultra-high-performance optimizations (enhanced per analysis)
+            SocketSendBufferBytes = 2097152,    // 2MB send buffer (increased from 1MB)
+            SocketReceiveBufferBytes = 2097152, // 2MB receive buffer (increased from 1MB)
             QueueBufferingMaxMessages = 1000000, // 1M message queue
-            QueueBufferingMaxKbytes = 2097152,   // 2GB queue buffer
+            QueueBufferingMaxKbytes = 4194304,   // 4GB queue buffer (increased from 2GB)
             
             SecurityProtocol = SecurityProtocol.Plaintext,
             
@@ -605,15 +605,15 @@ class UltraHighPerformanceProducer {
             .Build();
         
         try {
-            var totalPartitions = 20; // Match our topic partition count
-            var partitionsPerProducer = 1; // Each producer handles 1 partition for optimal load distribution
+            var totalPartitions = 40; // Optimized partition count for better parallel producer distribution
+            var partitionsPerProducer = 2; // Each producer handles 2 partitions for optimal load distribution (40 partitions / 20 producers)
             var assignedPartitions = GetAssignedPartitions(producerId, totalPartitions, partitionsPerProducer);
             
             Console.WriteLine("PARTITIONS:" + producerId + ":" + string.Join(",", assignedPartitions));
             
-            // Ultra-fast parallel message production
+            // Ultra-fast parallel message production with optimized concurrency
             var tasks = new List<Task>();
-            var semaphore = new SemaphoreSlim(5000); // Very high concurrency for maximum throughput
+            var semaphore = new SemaphoreSlim(10000); // Optimized concurrency (increased from 5000 per performance analysis)
             var progressReported = 0L;
             
             for (int i = 0; i < messageCount; i++) {
@@ -626,13 +626,13 @@ class UltraHighPerformanceProducer {
                 var task = ProduceMessageAsync(producer, topic, msgId, partition, semaphore);
                 tasks.Add(task);
                 
-                // Process in very large chunks for maximum throughput
-                if (tasks.Count >= 5000) {
+                // Process in larger chunks for maximum throughput (optimized per performance analysis)
+                if (tasks.Count >= 10000) {
                     await Task.WhenAll(tasks);
                     tasks.Clear();
                     
-                    progressReported += 5000;
-                    if (progressReported % 50000 == 0) {
+                    progressReported += 10000;
+                    if (progressReported % 100000 == 0) {  // Report every 100K instead of 50K
                         Console.WriteLine("PROGRESS:" + producerId + ":" + progressReported);
                     }
                 }
@@ -667,7 +667,7 @@ class UltraHighPerformanceProducer {
         try {
             var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
             
-            // Optimized message format for high-throughput processing
+            // Optimized message format for high-throughput processing with ConfigureAwait(false)
             var message = new {
                 id = msgId,
                 redis_ordered_id = msgId,
@@ -684,11 +684,12 @@ class UltraHighPerformanceProducer {
             var jsonMessage = JsonSerializer.Serialize(message);
             
             // Explicitly specify partition to maintain FIFO order within partition
+            // Use ConfigureAwait(false) for maximum throughput per performance analysis
             await producer.ProduceAsync(new TopicPartition(topic, partition), new Message<string, string> {
                 Key = msgId.ToString(),
                 Value = jsonMessage,
                 Timestamp = new Timestamp(DateTime.UtcNow)
-            });
+            }).ConfigureAwait(false);
         } finally {
             semaphore.Release();
         }
