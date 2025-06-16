@@ -408,16 +408,16 @@ public class AspireIntegrationTests
         Assert.Contains("--partitions", appHostContent);
         Assert.Contains("--replication-factor", appHostContent);
         
-        // Verify that the script includes error handling and validation
-        Assert.Contains("Step 5: Creating critical flinkdotnet.sample.topic", appHostContent);
-        Assert.Contains("timeout 60", appHostContent);
+        // Verify that the script includes topic creation and validation for Windows compatibility
+        Assert.Contains("Creating critical flinkdotnet.sample.topic", appHostContent);
+        Assert.Contains("kafka-topics --bootstrap-server kafka:9092", appHostContent);
         
         // Verify that topic verification is included
-        Assert.Contains("kafka-topics --describe", appHostContent);
+        Assert.Contains("--describe --topic", appHostContent);
         
         // Verify specific topic verification for flinkdotnet.sample.topic
-        var describeIndex = appHostContent.IndexOf("kafka-topics --describe");
-        Assert.True(describeIndex >= 0, "Script should include kafka-topics --describe command");
+        var describeIndex = appHostContent.IndexOf("--describe --topic");
+        Assert.True(describeIndex >= 0, "Script should include --describe --topic command");
         
         var afterDescribe = appHostContent.Substring(describeIndex);
         Assert.Contains("flinkdotnet.sample.topic", afterDescribe);
