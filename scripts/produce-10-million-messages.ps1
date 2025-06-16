@@ -168,7 +168,7 @@ function Test-KafkaConnection {
             Write-Host "Testing Kafka API via container..." -ForegroundColor Gray
             
             # Test with internal Kafka port (inside container)
-            $result = docker exec $kafkaContainer kafka-topics --bootstrap-server localhost:9092 --list --timeout 10000 2>&1
+            $result = docker exec $kafkaContainer kafka-topics --bootstrap-server localhost:9092 --list 2>&1
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✅ Kafka API connection successful via container" -ForegroundColor Green
                 Write-Host "Available topics:" -ForegroundColor Gray
@@ -194,7 +194,7 @@ function Test-KafkaConnection {
             
             # Send a simple test message to verify the producer works
             $testMessage = "test-connectivity-$(Get-Date -Format 'yyyyMMddHHmmss')"
-            $testResult = echo $testMessage | docker exec -i $kafkaContainer kafka-console-producer --bootstrap-server localhost:9092 --topic __connectivity_test --timeout 5000 2>&1
+            $testResult = echo $testMessage | docker exec -i $kafkaContainer kafka-console-producer --bootstrap-server localhost:9092 --topic __connectivity_test 2>&1
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✅ Kafka producer connectivity test successful" -ForegroundColor Green
