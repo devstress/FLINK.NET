@@ -2222,6 +2222,12 @@ namespace IntegrationTestVerifier
             {
                 ExtractPasswordFromUserInfo(uri.UserInfo, options);
             }
+            else
+            {
+                // No credentials in URI - use empty password
+                options.Password = "";
+                Console.WriteLine("Redis: No password specified in URI, using empty password");
+            }
             
             Console.WriteLine($"Redis: Parsed URI - Host: {uri.Host}, Port: {uri.Port}");
         }
@@ -2236,6 +2242,11 @@ namespace IntegrationTestVerifier
                 {
                     options.Password = password;
                     Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
+                }
+                else
+                {
+                    options.Password = ""; // Empty password
+                    Console.WriteLine("Redis: Using empty password from URI");
                 }
             }
             else

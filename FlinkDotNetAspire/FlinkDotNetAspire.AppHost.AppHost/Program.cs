@@ -113,7 +113,8 @@ public static class Program
 
     private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
     {
-        var redis = builder.AddRedis("redis");
+        var redis = builder.AddRedis("redis")
+            .WithArgs("--protected-mode", "no");  // Disable protected mode (allows connections without auth)
         return redis.PublishAsContainer(); // Ensure Redis is accessible from host
     }
 
