@@ -185,6 +185,17 @@ jobs:
           # Increased startup time for Aspire service binding setup
           Start-Sleep -Seconds 45
           
+          # Start comprehensive Aspire sub-task log capture
+          Write-Host "`n=== Starting Aspire Sub-Task Log Capture ==="
+          Write-Host "Capturing logs from all Aspire components for error/warning analysis..."
+          $logCaptureJob = Start-Job -ScriptBlock {
+            param($scriptPath)
+            & $scriptPath -LogDirectory "aspire-logs" -MonitorDurationSeconds 420  # 7 minutes
+          } -ArgumentList "./scripts/capture-aspire-logs.ps1"
+          
+          $logCaptureJob.Id | Out-File "aspire-log-capture.job" -Encoding utf8
+          Write-Host "Aspire log capture job started: $($logCaptureJob.Id)" -ForegroundColor Green
+          
           # Add container diagnostics
           Write-Host "`n=== Container Diagnostics ==="
           Write-Host "Checking for Redis/Kafka container processes..."
@@ -838,3 +849,99 @@ jobs:
             Write-Host "📄 First 10 lines:"
             Get-Content "stress_test_passed_output.txt" -TotalCount 10 | ForEach-Object { Write-Host "  $_" }
           }
+
+      - name: Collect Aspire Sub-Task Logs and Error Analysis
+        if: always()
+        run: |
+          Write-Host "📋 === ASPIRE SUB-TASK LOG COLLECTION RESULTS ===" -ForegroundColor Cyan
+          
+          # Wait for log capture job to complete (if still running)
+          $logCaptureJobFile = "aspire-log-capture.job"
+          if (Test-Path $logCaptureJobFile) {
+            $jobId = Get-Content $logCaptureJobFile
+            $job = Get-Job -Id $jobId -ErrorAction SilentlyContinue
+            if ($job -and $job.State -eq "Running") {
+              Write-Host "⏳ Waiting for log capture job to complete..." -ForegroundColor Yellow
+              Wait-Job -Id $jobId -Timeout 30 | Out-Null
+              Receive-Job -Id $jobId
+              Remove-Job -Id $jobId -ErrorAction SilentlyContinue
+            }
+          }
+          
+          # Display log capture results
+          if (Test-Path "aspire-logs") {
+            Write-Host "✅ Aspire logs directory found" -ForegroundColor Green
+            
+            # Show directory contents
+            Write-Host "`n📁 Captured log files:"
+            Get-ChildItem "aspire-logs" | ForEach-Object {
+              Write-Host "  📄 $($_.Name) - Size: $($_.Length) bytes" -ForegroundColor Gray
+            }
+            
+            # Display error and warning report if available
+            $reportPath = "aspire-logs/error-warning-report.log"
+            if (Test-Path $reportPath) {
+              Write-Host "`n🚨 ERROR AND WARNING REPORT:" -ForegroundColor Yellow
+              Get-Content $reportPath | ForEach-Object {
+                if ($_ -like "*ERROR*") {
+                  Write-Host "  ❌ $_" -ForegroundColor Red
+                } elseif ($_ -like "*WARNING*") {
+                  Write-Host "  ⚠️ $_" -ForegroundColor Yellow
+                } else {
+                  Write-Host "  $_" -ForegroundColor Gray
+                }
+              }
+            } else {
+              Write-Host "⚠️ Error report not found at $reportPath" -ForegroundColor Yellow
+            }
+            
+            # Show key log file summaries
+            $keyLogFiles = @(
+              @{Path="aspire-logs/jobmanager.log"; Name="JobManager"},
+              @{Path="aspire-logs/taskmanager.log"; Name="TaskManagers"},
+              @{Path="aspire-logs/flinkjobsimulator.log"; Name="FlinkJobSimulator"},
+              @{Path="aspire-logs/redis-container.log"; Name="Redis Container"},
+              @{Path="aspire-logs/kafka-container.log"; Name="Kafka Container"}
+            )
+            
+            foreach ($logFile in $keyLogFiles) {
+              if (Test-Path $logFile.Path) {
+                Write-Host "`n📋 $($logFile.Name) Summary:" -ForegroundColor Cyan
+                $content = Get-Content $logFile.Path -ErrorAction SilentlyContinue
+                if ($content) {
+                  # Show first few lines and any error/warning lines
+                  $firstLines = $content | Select-Object -First 3
+                  $errorLines = $content | Where-Object { $_ -like "*ERROR*" -or $_ -like "*FAILED*" } | Select-Object -First 3
+                  $warningLines = $content | Where-Object { $_ -like "*WARN*" -or $_ -like "*WARNING*" } | Select-Object -First 3
+                  
+                  $firstLines | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
+                  if ($errorLines) {
+                    Write-Host "    ❌ Recent errors:" -ForegroundColor Red
+                    $errorLines | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+                  }
+                  if ($warningLines) {
+                    Write-Host "    ⚠️ Recent warnings:" -ForegroundColor Yellow
+                    $warningLines | ForEach-Object { Write-Host "      $_" -ForegroundColor Yellow }
+                  }
+                } else {
+                  Write-Host "    (Empty or unreadable)" -ForegroundColor Gray
+                }
+              } else {
+                Write-Host "`n📋 $($logFile.Name): Log file not found" -ForegroundColor Yellow
+              }
+            }
+            
+          } else {
+            Write-Host "❌ No aspire-logs directory found - log capture may have failed" -ForegroundColor Red
+            
+            # Try to run log capture now as a fallback
+            Write-Host "🔄 Running immediate log capture as fallback..." -ForegroundColor Yellow
+            try {
+              & ./scripts/capture-aspire-logs.ps1 -LogDirectory "fallback-logs" -MonitorDurationSeconds 60
+              Write-Host "✅ Fallback log capture completed" -ForegroundColor Green
+            } catch {
+              Write-Host "❌ Fallback log capture failed: $_" -ForegroundColor Red
+            }
+          }
+          
+          Write-Host "`n📋 === LOG COLLECTION COMPLETE ===" -ForegroundColor Cyan

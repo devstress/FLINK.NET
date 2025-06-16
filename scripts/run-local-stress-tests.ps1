@@ -438,6 +438,21 @@ try {
     
     Write-Host "AppHost started, waiting 45 seconds for initialization..." -ForegroundColor White
     Start-Sleep -Seconds 45  # Increased for consistency with CI improvements
+    
+    # Start comprehensive Aspire sub-task log capture
+    Write-Host "`n=== Starting Aspire Sub-Task Log Capture ===" -ForegroundColor Yellow
+    Write-Host "Capturing logs from all Aspire components for error/warning analysis..." -ForegroundColor White
+    try {
+        $logCaptureJob = Start-Job -ScriptBlock {
+            param($scriptPath)
+            & $scriptPath -LogDirectory "aspire-logs" -MonitorDurationSeconds 420  # 7 minutes
+        } -ArgumentList "./scripts/capture-aspire-logs.ps1"
+        
+        $global:BackgroundJobs += $logCaptureJob
+        Write-Host "Aspire log capture job started: $($logCaptureJob.Id)" -ForegroundColor Green
+    } catch {
+        Write-Host "⚠️ Warning: Failed to start log capture job: $_" -ForegroundColor Yellow
+    }
 
     # Step 3.5: Start Message Production in Background
     Write-Host "`n=== Step 3.5: Start Message Production ===" -ForegroundColor Yellow
@@ -778,6 +793,34 @@ try {
 } finally {
     # Always cleanup unless explicitly skipped
     Cleanup-Resources
+    
+    # Display captured log results if available
+    Write-Host "`n=== 📋 ASPIRE SUB-TASK LOG SUMMARY ===" -ForegroundColor Yellow
+    if (Test-Path "aspire-logs") {
+        Write-Host "✅ Aspire logs captured successfully" -ForegroundColor Green
+        
+        # Show directory contents
+        Write-Host "📁 Captured log files:"
+        Get-ChildItem "aspire-logs" | ForEach-Object {
+            Write-Host "  📄 $($_.Name) - Size: $($_.Length) bytes" -ForegroundColor Gray
+        }
+        
+        # Show error/warning summary if available
+        $reportPath = "aspire-logs/error-warning-report.log"
+        if (Test-Path $reportPath) {
+            Write-Host "`n🚨 ERROR AND WARNING SUMMARY:" -ForegroundColor Yellow
+            $reportContent = Get-Content $reportPath -ErrorAction SilentlyContinue
+            $errorCount = ($reportContent | Where-Object { $_ -like "*Total Errors:*" }) -replace ".*Total Errors: ", ""
+            $warningCount = ($reportContent | Where-Object { $_ -like "*Total Warnings:*" }) -replace ".*Total Warnings: ", ""
+            
+            if ($errorCount) { Write-Host "  ❌ Total Errors: $errorCount" -ForegroundColor Red }
+            if ($warningCount) { Write-Host "  ⚠️ Total Warnings: $warningCount" -ForegroundColor Yellow }
+            
+            Write-Host "  📄 Full report available at: $reportPath" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "⚠️ No Aspire logs directory found" -ForegroundColor Yellow
+    }
 }
 
 # Update stress test output file with results
