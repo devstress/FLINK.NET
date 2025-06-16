@@ -99,12 +99,27 @@ function Get-RedisConnectionInfo {
             }
 
             $envOutput = docker inspect $containerId 2>/dev/null | ConvertFrom-Json
-            $connectionString = "redis://localhost:$redisPort"
-            $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+            
+            # Try to get Redis password from environment variables or use default
+            $redisPassword = $env:SIMULATOR_REDIS_PASSWORD
+            if (-not $redisPassword) {
+                $redisPassword = "FlinkDotNet_Redis_CI_Password_2024"
+            }
+            
+            $connectionString = "redis://:$redisPassword@localhost:$redisPort"
+            
+            # Test Redis connection with password
+            $testResult = docker exec $containerId redis-cli -a $redisPassword -p 6379 ping 2>/dev/null
             if ($testResult -eq "PONG") {
-                Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                Write-Host "Redis connection test successful (with password)" -ForegroundColor Green
             } else {
-                Write-Host "Redis connection without password failed: '$testResult'" -ForegroundColor Yellow
+                Write-Host "Redis connection with password failed: '$testResult'" -ForegroundColor Yellow
+                # Fallback to no auth test
+                $testResultNoAuth = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+                if ($testResultNoAuth -eq "PONG") {
+                    Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                    $connectionString = "redis://localhost:$redisPort"
+                }
             }
 
             return @{
