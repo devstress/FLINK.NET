@@ -113,8 +113,7 @@ public static class Program
 
     private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
     {
-        var redisPassword = builder.AddParameter("redis-password", value: "testpassword123", secret: false);
-        var redis = builder.AddRedis("redis", password: redisPassword);
+        var redis = builder.AddRedis("redis");
         return redis.PublishAsContainer(); // Ensure Redis is accessible from host
     }
 

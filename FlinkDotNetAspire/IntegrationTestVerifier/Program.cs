@@ -2237,6 +2237,10 @@ namespace IntegrationTestVerifier
                     options.Password = password;
                     Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
                 }
+                else
+                {
+                    Console.WriteLine($"Redis: Empty password detected in URI - no authentication will be used");
+                }
             }
             else
             {

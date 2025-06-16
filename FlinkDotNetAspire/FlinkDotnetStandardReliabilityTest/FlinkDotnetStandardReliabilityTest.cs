@@ -264,6 +264,11 @@ namespace FlinkDotnetStandardReliabilityTest
                             {
                                 options.Password = password;
                             }
+                            else
+                            {
+                                // Empty password - no authentication required
+                                _logger.LogDebug("Redis: Empty password detected in URI - no authentication will be used");
+                            }
                         }
                         else
                         {
