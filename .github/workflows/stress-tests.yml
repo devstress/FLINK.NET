@@ -277,9 +277,9 @@ jobs:
             Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
           }
           
-          # Run message producer - this MUST succeed for the test to be valid
-          Write-Host "🔄 Starting message producer (this may take several minutes for 1M messages)..."
-          & ./scripts/produce-1-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic"
+          # Run optimized parallel message producer for 1M+ msg/sec throughput
+          Write-Host "🔄 Starting high-performance parallel message producer (targeting 1M+ msg/sec)..."
+          & ./scripts/produce-1-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic" -ParallelProducers 10
           
           if ($LASTEXITCODE -ne 0) {
             Write-Host "❌ Message producer failed with exit code: $LASTEXITCODE" -ForegroundColor Red

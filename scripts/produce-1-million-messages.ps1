@@ -29,15 +29,16 @@
 param(
     [long]$MessageCount = 1000000,  # 1 million messages 
     [string]$Topic = "flinkdotnet.sample.topic",
-    [int]$BatchSize = 10000  # High-throughput batch size
+    [int]$BatchSize = 100000,  # Ultra-high-throughput batch size for 1M+ msg/sec
+    [int]$ParallelProducers = 10  # Number of parallel producer instances for maximum throughput
 )
 
 $ErrorActionPreference = 'Stop'
 
 Write-Host "=== High-Performance Flink.NET Kafka Producer ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') UTC" -ForegroundColor White
-Write-Host "Target: 1M+ messages/second using Flink.NET optimized producer" -ForegroundColor Yellow
-Write-Host "Parameters: MessageCount=$MessageCount, Topic=$Topic, BatchSize=$BatchSize" -ForegroundColor White
+Write-Host "Target: 1M+ messages/second using parallel Flink.NET optimized producers" -ForegroundColor Yellow
+Write-Host "Parameters: MessageCount=$MessageCount, Topic=$Topic, BatchSize=$BatchSize, ParallelProducers=$ParallelProducers" -ForegroundColor White
 
 function Get-KafkaBootstrapServers {
     Write-Host "🔍 Discovering Kafka bootstrap servers..." -ForegroundColor White
@@ -236,32 +237,11 @@ class Program {
     return $false
 }
 
-function Send-KafkaMessages {
-    param(
-        [string]$BootstrapServers,
-        [string]$Topic,
-        [long]$MessageCount,
-        [int]$BatchSize
-    )
+function Test-TopicExists {
+    param([string]$BootstrapServers, [string]$Topic)
     
-    Write-Host "📨 Starting to produce $MessageCount messages to topic '$Topic'" -ForegroundColor White
-    Write-Host "Configuration:" -ForegroundColor Gray
-    Write-Host "  Bootstrap Servers: $BootstrapServers" -ForegroundColor Gray
-    Write-Host "  Topic: $Topic" -ForegroundColor Gray
-    Write-Host "  Batch Size: $BatchSize" -ForegroundColor Gray
-    
-    $startTime = Get-Date
-    $sentCount = 0
-    $lastLogTime = $startTime
-    
-    try {
-        # Use .NET Kafka producer for reliable message sending without container network issues
-        
-        # Verify topic exists using external .NET client (avoids container network issues)
-        Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
-        
-        # Use .NET AdminClient to verify topic exists
-        $topicVerificationScript = @"
+    # Use .NET AdminClient to verify topic exists
+    $topicVerificationScript = @"
 using System;
 using System.Threading.Tasks;
 using Confluent.Kafka;
@@ -298,27 +278,31 @@ class Program {
     }
 }
 "@
+    
+    $tempDir = [System.IO.Path]::GetTempPath()
+    $verifyProjectDir = Join-Path $tempDir "kafka-verify-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    New-Item -ItemType Directory -Path $verifyProjectDir -Force | Out-Null
+    
+    Push-Location $verifyProjectDir
+    try {
+        dotnet new console -f net8.0 --force | Out-Null
+        dotnet add package Confluent.Kafka | Out-Null
+        $topicVerificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
         
-        $tempDir = [System.IO.Path]::GetTempPath()
-        $verifyProjectDir = Join-Path $tempDir "kafka-verify-$(Get-Date -Format 'yyyyMMddHHmmss')"
-        New-Item -ItemType Directory -Path $verifyProjectDir -Force | Out-Null
-        
-        Push-Location $verifyProjectDir
-        try {
-            dotnet new console -f net8.0 --force | Out-Null
-            dotnet add package Confluent.Kafka | Out-Null
-            $topicVerificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
-            
-            Write-Host "🔍 Checking if topic '$Topic' exists..." -ForegroundColor Gray
-            $verifyOutput = dotnet run 2>&1
-            
-            if ($verifyOutput -like "*TOPIC_EXISTS*") {
-                Write-Host "✅ Topic '$Topic' exists (verified via .NET AdminClient)" -ForegroundColor Green
-            } elseif ($verifyOutput -like "*TOPIC_NOT_FOUND*") {
-                Write-Host "⚠️ Topic '$Topic' not found - attempting fallback creation..." -ForegroundColor Yellow
-                
-                # Single fallback attempt as requested by user
-                $fallbackTopicCreationScript = @"
+        $verifyOutput = dotnet run 2>&1
+        return ($verifyOutput -like "*TOPIC_EXISTS*")
+    }
+    finally {
+        Pop-Location
+        Remove-Item -Path $verifyProjectDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function New-TopicFallback {
+    param([string]$BootstrapServers, [string]$Topic)
+    
+    # Single fallback attempt as requested by user
+    $fallbackTopicCreationScript = @"
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -383,72 +367,59 @@ class Program {
     }
 }
 "@
-                
-                $fallbackProjectDir = Join-Path $tempDir "kafka-fallback-$(Get-Date -Format 'yyyyMMddHHmmss')"
-                New-Item -ItemType Directory -Path $fallbackProjectDir -Force | Out-Null
-                
-                Push-Location $fallbackProjectDir
-                try {
-                    dotnet new console -f net8.0 --force | Out-Null
-                    dotnet add package Confluent.Kafka | Out-Null
-                    $fallbackTopicCreationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
-                    dotnet build | Out-Null
-                    
-                    # Determine partition count based on environment
-                    $isStressTest = $env:STRESS_TEST_MODE -eq "true"
-                    $partitionCount = if ($isStressTest) { 20 } else { 4 }
-                    
-                    Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions via fallback method (single attempt)..." -ForegroundColor Yellow
-                    $fallbackOutput = dotnet run -- "$BootstrapServers" "$Topic" "$partitionCount" 2>&1
-                    
-                    if ($fallbackOutput -like "*TOPIC_CREATED*" -or $fallbackOutput -like "*TOPIC_ALREADY_EXISTS*" -or $fallbackOutput -like "*TOPIC_VERIFIED*") {
-                        Write-Host "✅ Fallback topic creation successful!" -ForegroundColor Green
-                        Write-Host "Fallback result: $fallbackOutput" -ForegroundColor Gray
-                    } else {
-                        Write-Host "❌ Fallback topic creation failed: $fallbackOutput" -ForegroundColor Red
-                        throw "Topic '$Topic' could not be created via fallback method. This indicates a serious Kafka infrastructure issue."
-                    }
-                }
-                finally {
-                    Pop-Location
-                    Remove-Item -Path $fallbackProjectDir -Recurse -Force -ErrorAction SilentlyContinue
-                }
-            } else {
-                Write-Host "❌ Could not verify topic existence: $verifyOutput" -ForegroundColor Red
-                throw "Topic '$Topic' verification failed. This indicates a serious Kafka infrastructure issue."
-            }
+    
+    $tempDir = [System.IO.Path]::GetTempPath()
+    $fallbackProjectDir = Join-Path $tempDir "kafka-fallback-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    New-Item -ItemType Directory -Path $fallbackProjectDir -Force | Out-Null
+    
+    Push-Location $fallbackProjectDir
+    try {
+        dotnet new console -f net8.0 --force | Out-Null
+        dotnet add package Confluent.Kafka | Out-Null
+        $fallbackTopicCreationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
+        dotnet build | Out-Null
+        
+        # Determine partition count based on parallel producers for optimal distribution
+        $partitionCount = 20  # Use 20 partitions for optimal parallel producer distribution
+        
+        Write-Host "🔧 Creating topic '$Topic' with $partitionCount partitions for parallel processing..." -ForegroundColor Yellow
+        $fallbackOutput = dotnet run -- "$BootstrapServers" "$Topic" "$partitionCount" 2>&1
+        
+        $success = ($fallbackOutput -like "*TOPIC_CREATED*" -or $fallbackOutput -like "*TOPIC_ALREADY_EXISTS*" -or $fallbackOutput -like "*TOPIC_VERIFIED*")
+        if ($success) {
+            Write-Host "✅ Fallback topic creation successful!" -ForegroundColor Green
+        } else {
+            Write-Host "❌ Fallback topic creation failed: $fallbackOutput" -ForegroundColor Red
         }
-        finally {
-            Pop-Location
-            Remove-Item -Path $verifyProjectDir -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        
-        # Create a pipeline to send messages in optimal batches for 1M+ msg/sec throughput
-        $optimalBatchSize = [Math]::Min($BatchSize, 50000) # High-throughput optimized batching
-        Write-Host "Using high-throughput batch size: $optimalBatchSize (target: 1M+ msg/sec)" -ForegroundColor Green
-        
-        # Use parallel processing for maximum throughput
-        $totalBatches = [Math]::Ceiling($MessageCount / $optimalBatchSize)
-        Write-Host "Processing $totalBatches batches in parallel for maximum performance..." -ForegroundColor Yellow
-        
-        for ($batch = 0; $batch -lt $MessageCount; $batch += $optimalBatchSize) {
-            $currentBatchSize = [math]::Min($optimalBatchSize, $MessageCount - $batch)
-            
-            # Use Flink.NET-optimized producer for maximum performance
-            try {
-                # Create high-performance .NET producer optimized for Flink.NET architecture
-                $flinkNetProducerScript = @"
+        return $success
+    }
+    finally {
+        Pop-Location
+        Remove-Item -Path $fallbackProjectDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function New-OptimizedProducerProject {
+    param([string]$BootstrapServers, [string]$Topic)
+    
+    $tempDir = [System.IO.Path]::GetTempPath()
+    $producerProjectDir = Join-Path $tempDir "parallel-producer-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    New-Item -ItemType Directory -Path $producerProjectDir -Force | Out-Null
+    
+    # Create ultra-high-performance parallel producer optimized for 1M+ msg/sec
+    $parallelProducerScript = @"
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using System.Collections.Generic;
 using System.Threading;
+using System.Linq;
 
-class FlinkNetOptimizedProducer {
+class UltraHighPerformanceProducer {
     static async Task Main(string[] args) {
-        if (args.Length < 4) {
-            Console.WriteLine("ERROR: Usage: program <bootstrapServers> <topic> <startMsgId> <messageCount>");
+        if (args.Length < 5) {
+            Console.WriteLine("ERROR: Usage: program <bootstrapServers> <topic> <startMsgId> <messageCount> <producerId>");
             return;
         }
         
@@ -456,53 +427,73 @@ class FlinkNetOptimizedProducer {
         var topic = args[1];
         var startMsgId = long.Parse(args[2]);
         var messageCount = int.Parse(args[3]);
+        var producerId = int.Parse(args[4]);
         
-        // Flink.NET optimized producer configuration for maximum throughput
+        Console.WriteLine("PRODUCER_START:" + producerId);
+        
+        // Ultra-high-performance configuration for 1M+ msg/sec target
         var config = new ProducerConfig {
             BootstrapServers = bootstrapServers,
             
-            // High-throughput settings inspired by Flink.NET architecture
-            BatchSize = 65536,           // Large batches for high throughput
-            LingerMs = 1,                // Minimal latency for immediate sending
+            // Maximum throughput settings for parallel processing
+            BatchSize = 100000,          // Ultra-large batches for maximum throughput
+            LingerMs = 0,                // No latency - send immediately when batch is full
             CompressionType = CompressionType.Lz4,  // Fast compression
-            SocketTimeoutMs = 60000,
-            MessageTimeoutMs = 120000,
-            MaxInFlight = 5,             // Required ≤5 when EnableIdempotence=true for exactly-once semantics
+            SocketTimeoutMs = 120000,    // Long timeout for high-volume processing
+            MessageTimeoutMs = 180000,   // Long message timeout
+            MaxInFlight = 5,             // Max allowed for exactly-once semantics
             
-            // Reliability settings for exactly-once semantics (Flink.NET compliance)
+            // Exactly-once semantics for Flink.NET compliance
             EnableIdempotence = true,
             Acks = Acks.All,
             
-            // Performance optimizations
-            SocketSendBufferBytes = 131072,    // 128KB send buffer
-            SocketReceiveBufferBytes = 131072, // 128KB receive buffer
+            // Ultra-high-performance optimizations
+            SocketSendBufferBytes = 1048576,    // 1MB send buffer
+            SocketReceiveBufferBytes = 1048576, // 1MB receive buffer
+            QueueBufferingMaxMessages = 1000000, // 1M message queue
+            QueueBufferingMaxKbytes = 2097152,   // 2GB queue buffer
             
-            SecurityProtocol = SecurityProtocol.Plaintext
+            SecurityProtocol = SecurityProtocol.Plaintext,
+            
+            // Partition assignment for FIFO maintenance
+            // Each producer handles specific partitions to maintain order
+            Partitioner = Partitioner.ConsistentRandom
         };
         
         using var producer = new ProducerBuilder<string, string>(config)
-            .SetErrorHandler((_, e) => Console.WriteLine("WARN: " + e.Reason))
+            .SetErrorHandler((_, e) => Console.WriteLine("WARN:" + producerId + ":" + e.Reason))
             .Build();
         
         try {
-            var tasks = new List<Task>();
-            var semaphore = new SemaphoreSlim(1000); // Control concurrency
+            var totalPartitions = 20; // Match our topic partition count
+            var partitionsPerProducer = 2; // Each producer handles 2 partitions for balanced load
+            var assignedPartitions = GetAssignedPartitions(producerId, totalPartitions, partitionsPerProducer);
             
-            // Use async parallel production for maximum throughput
+            Console.WriteLine("PARTITIONS:" + producerId + ":" + string.Join(",", assignedPartitions));
+            
+            // Ultra-fast parallel message production
+            var tasks = new List<Task>();
+            var semaphore = new SemaphoreSlim(5000); // Very high concurrency for maximum throughput
+            var progressReported = 0L;
+            
             for (int i = 0; i < messageCount; i++) {
                 await semaphore.WaitAsync();
                 var msgId = startMsgId + i;
                 
-                var task = ProduceMessageAsync(producer, topic, msgId, semaphore);
+                // Assign message to one of this producer's partitions using FIFO-preserving algorithm
+                var partition = assignedPartitions[msgId % assignedPartitions.Length];
+                
+                var task = ProduceMessageAsync(producer, topic, msgId, partition, semaphore);
                 tasks.Add(task);
                 
-                // Process in chunks to avoid memory issues
-                if (tasks.Count >= 1000) {
+                // Process in very large chunks for maximum throughput
+                if (tasks.Count >= 5000) {
                     await Task.WhenAll(tasks);
                     tasks.Clear();
                     
-                    if (i % 10000 == 0) {
-                        Console.WriteLine("PROGRESS:" + msgId);
+                    progressReported += 5000;
+                    if (progressReported % 50000 == 0) {
+                        Console.WriteLine("PROGRESS:" + producerId + ":" + progressReported);
                     }
                 }
             }
@@ -510,37 +501,50 @@ class FlinkNetOptimizedProducer {
             // Wait for remaining tasks
             if (tasks.Count > 0) {
                 await Task.WhenAll(tasks);
+                progressReported += tasks.Count;
             }
             
             // Flush for exactly-once guarantees
-            producer.Flush(TimeSpan.FromSeconds(30));
-            Console.WriteLine("SUCCESS:" + messageCount);
+            Console.WriteLine("FLUSHING:" + producerId);
+            producer.Flush(TimeSpan.FromMinutes(2)); // Generous flush timeout for high volume
+            
+            Console.WriteLine("SUCCESS:" + producerId + ":" + messageCount);
         } catch (Exception ex) {
-            Console.WriteLine("ERROR: " + ex.Message);
+            Console.WriteLine("ERROR:" + producerId + ":" + ex.Message);
         }
     }
     
-    static async Task ProduceMessageAsync(IProducer<string, string> producer, string topic, long msgId, SemaphoreSlim semaphore) {
+    static int[] GetAssignedPartitions(int producerId, int totalPartitions, int partitionsPerProducer) {
+        var startPartition = (producerId * partitionsPerProducer) % totalPartitions;
+        var result = new int[partitionsPerProducer];
+        for (int i = 0; i < partitionsPerProducer; i++) {
+            result[i] = (startPartition + i) % totalPartitions;
+        }
+        return result;
+    }
+    
+    static async Task ProduceMessageAsync(IProducer<string, string> producer, string topic, long msgId, int partition, SemaphoreSlim semaphore) {
         try {
             var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
             
-            // Flink.NET optimized message format for exactly-once processing
+            // Optimized message format for high-throughput processing
             var message = new {
                 id = msgId,
                 redis_ordered_id = msgId,
                 timestamp = timestamp,
                 job_id = "flink-job-1",
                 task_id = "task-" + msgId,
-                kafka_partition = msgId % 20,  // Distributed across TaskManagers
+                kafka_partition = partition,  // Explicit partition assignment for FIFO
                 kafka_offset = msgId,
-                processing_stage = "source->map->sink",
-                payload = "high-throughput-data-" + msgId,
-                checksum = (msgId * 31 + timestamp.GetHashCode()) % 1000000  // Data integrity
+                processing_stage = "parallel-source->map->sink",
+                payload = "ultra-high-throughput-" + msgId,
+                checksum = (msgId * 31 + timestamp.GetHashCode()) % 1000000
             };
             
             var jsonMessage = JsonSerializer.Serialize(message);
             
-            await producer.ProduceAsync(topic, new Message<string, string> {
+            // Explicitly specify partition to maintain FIFO order within partition
+            await producer.ProduceAsync(new TopicPartition(topic, partition), new Message<string, string> {
                 Key = msgId.ToString(),
                 Value = jsonMessage,
                 Timestamp = new Timestamp(DateTime.UtcNow)
@@ -551,216 +555,216 @@ class FlinkNetOptimizedProducer {
     }
 }
 "@
-                
-                $tempDir = [System.IO.Path]::GetTempPath()
-                $producerProjectDir = Join-Path $tempDir "flink-net-producer-$(Get-Date -Format 'yyyyMMddHHmmss')"
-                New-Item -ItemType Directory -Path $producerProjectDir -Force | Out-Null
-                
-                Push-Location $producerProjectDir
-                try {
-                    # Create optimized Flink.NET producer project
-                    dotnet new console -f net8.0 --force | Out-Null
-                    dotnet add package Confluent.Kafka | Out-Null
-                    dotnet add package System.Text.Json | Out-Null
-                    $flinkNetProducerScript | Out-File -FilePath "Program.cs" -Encoding UTF8
-                    
-                    # Build with optimizations
-                    dotnet build --configuration Release | Out-Null
-                    
-                    $startMsgId = $batch + 1
-                    $batchNumber = [Math]::Floor($batch / $optimalBatchSize) + 1
-                    Write-Host "🚀 High-throughput batch ${batchNumber}/${totalBatches}: $currentBatchSize messages (target: 1M+ msg/sec)" -ForegroundColor Green
-                    
-                    $batchStartTime = Get-Date
-                    $producerOutput = dotnet run --configuration Release -- "$BootstrapServers" "$Topic" "$startMsgId" "$currentBatchSize" 2>&1
-                    $batchEndTime = Get-Date
-                    $batchDuration = ($batchEndTime - $batchStartTime).TotalSeconds
-                    
-                    if ($producerOutput -like "*SUCCESS:*") {
-                        $sentCount += $currentBatchSize
-                        $batchRate = if ($batchDuration -gt 0) { $currentBatchSize / $batchDuration } else { 0 }
-                        
-                        Write-Host "✅ Batch completed: $currentBatchSize messages in $([math]::Round($batchDuration, 2))s ($([math]::Round($batchRate, 0)) msg/sec)" -ForegroundColor Green
-                        
-                        # Extract progress info if available
-                        $progressLines = $producerOutput | Where-Object { $_ -like "PROGRESS:*" }
-                        if ($progressLines) {
-                            $lastProgress = ($progressLines | Select-Object -Last 1).Split(':')[1]
-                        }
-                    } else {
-                        throw "High-performance producer failed: $producerOutput"
-                    }
-                }
-                finally {
-                    Pop-Location
-                    Remove-Item -Path $producerProjectDir -Recurse -Force -ErrorAction SilentlyContinue
-                }
-                
-                # Log progress with enhanced throughput metrics
-                $currentTime = Get-Date
-                if (($currentTime - $lastLogTime).TotalSeconds -ge 5 -or $sentCount % 50000 -eq 0 -or $sentCount -eq $MessageCount) {
-                    $elapsed = $currentTime - $startTime
-                    $rate = if ($elapsed.TotalSeconds -gt 0) { $sentCount / $elapsed.TotalSeconds } else { 0 }
-                    $progressPercent = [math]::Round(($sentCount / $MessageCount) * 100, 1)
-                    $eta = if ($rate -gt 0) { 
-                        $remainingMessages = $MessageCount - $sentCount
-                        $etaSeconds = $remainingMessages / $rate
-                        " ETA: $([math]::Round($etaSeconds, 0))s"
-                    } else { "" }
-                    
-                    $rateColor = if ($rate -gt 500000) { "Green" } elseif ($rate -gt 100000) { "Yellow" } else { "Red" }
-                    Write-Host "📊 Progress: $sentCount/$MessageCount messages ($progressPercent%) - Rate: $([math]::Round($rate, 0)) msg/sec$eta" -ForegroundColor $rateColor
-                    
-                    if ($rate -gt 1000000) {
-                        Write-Host "🎯 TARGET ACHIEVED: >1M msg/sec sustained throughput!" -ForegroundColor Green
-                    }
-                    
-                    $lastLogTime = $currentTime
-                }
-                
-                # No artificial delays - maximize throughput for Flink.NET compliance
-            }
-            catch {
-                Write-Host "❌ Error sending batch at position $batch : $_" -ForegroundColor Red
-                
-                # Retry logic for failed batches
-                $retryCount = 0
-                $maxRetries = 3
-                $retrySuccess = $false
-                
-                while ($retryCount -lt $maxRetries -and -not $retrySuccess) {
-                    $retryCount++
-                    Write-Host "🔄 Retry attempt $retryCount/$maxRetries for batch at position $batch" -ForegroundColor Yellow
-                    
-                    try {
-                        Start-Sleep -Seconds (2 * $retryCount) # Exponential backoff
-                        
-                        # Retry using high-performance Flink.NET producer
-                        $producerOutput = dotnet run --configuration Release -- "$BootstrapServers" "$Topic" "$startMsgId" "$currentBatchSize" 2>&1
-                        
-                        if ($producerOutput -like "*SUCCESS:*") {
-                            $retrySuccess = $true
-                            $sentCount += $currentBatchSize
-                            Write-Host "✅ Retry successful for batch at position $batch" -ForegroundColor Green
-                        }
-                    }
-                    catch {
-                        Write-Host "❌ Retry $retryCount failed: $_" -ForegroundColor Red
-                    }
-                }
-                
-                if (-not $retrySuccess) {
-                    throw "Failed to send batch at position $batch after $maxRetries retries"
-                }
-            }
-        }
+    
+    Push-Location $producerProjectDir
+    try {
+        # Create ultra-high-performance producer project
+        dotnet new console -f net8.0 --force | Out-Null
+        dotnet add package Confluent.Kafka | Out-Null
+        dotnet add package System.Text.Json | Out-Null
+        $parallelProducerScript | Out-File -FilePath "Program.cs" -Encoding UTF8
         
-        $totalElapsed = (Get-Date) - $startTime
-        $finalRate = if ($totalElapsed.TotalSeconds -gt 0) { $sentCount / $totalElapsed.TotalSeconds } else { 0 }
+        # Build with maximum optimizations
+        dotnet build --configuration Release | Out-Null
         
-        Write-Host "🎉 High-performance message production completed!" -ForegroundColor Green
-        Write-Host "Summary:" -ForegroundColor White
-        Write-Host "  Total Messages: $sentCount" -ForegroundColor Green
-        Write-Host "  Total Time: $([math]::Round($totalElapsed.TotalSeconds, 1)) seconds" -ForegroundColor Green
-        Write-Host "  Average Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
-        
-        # Performance evaluation
-        if ($finalRate -gt 1000000) {
-            Write-Host "🏆 EXCELLENT: Achieved >1M msg/sec target!" -ForegroundColor Green
-        } elseif ($finalRate -gt 500000) {
-            Write-Host "✅ GOOD: High throughput achieved (>500K msg/sec)" -ForegroundColor Yellow
-        } else {
-            Write-Host "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/sec for Flink.NET compliance" -ForegroundColor Red
-        }
-        
-        # Verify some messages were actually sent using .NET AdminClient
-        try {
-            Write-Host "🔍 Verifying messages were sent to topic..." -ForegroundColor Gray
-            
-            $verificationScript = @"
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
-
-class Program {
-    static async Task Main(string[] args) {
-        var bootstrapServers = args[0];
-        var topic = args[1];
-        
-        var config = new AdminClientConfig {
-            BootstrapServers = bootstrapServers,
-            SocketTimeoutMs = 30000,
-            ApiVersionRequestTimeoutMs = 30000,
-            SecurityProtocol = SecurityProtocol.Plaintext
-        };
-        
-        using var adminClient = new AdminClientBuilder(config).Build();
-        try {
-            var metadata = adminClient.GetMetadata(topic, TimeSpan.FromSeconds(30));
-            var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == topic);
-            
-            if (topicMetadata != null) {
-                Console.WriteLine("TOPIC_VERIFIED");
-                foreach (var partition in topicMetadata.Partitions) {
-                    Console.WriteLine("PARTITION:" + partition.PartitionId + ":REPLICAS:" + partition.Replicas.Count);
-                }
-            } else {
-                Console.WriteLine("TOPIC_NOT_FOUND");
-            }
-        } catch (Exception ex) {
-            Console.WriteLine("ERROR: " + ex.Message);
-        }
+        Write-Host "✅ Optimized parallel producer project created and built" -ForegroundColor Green
+        return $producerProjectDir
+    }
+    catch {
+        Pop-Location
+        Remove-Item -Path $producerProjectDir -Recurse -Force -ErrorAction SilentlyContinue
+        throw "Failed to create optimized producer project: $_"
     }
 }
-"@
+
+function Start-ParallelProducers {
+    param([string]$ProjectDir, [long]$MessageCount, [int]$ParallelProducers)
+    
+    $messagesPerProducer = [Math]::Ceiling($MessageCount / $ParallelProducers)
+    $jobs = @()
+    
+    Write-Host "🚀 Starting $ParallelProducers parallel producers..." -ForegroundColor Green
+    
+    for ($i = 0; $i -lt $ParallelProducers; $i++) {
+        $startMsgId = ($i * $messagesPerProducer) + 1
+        $actualMessageCount = [Math]::Min($messagesPerProducer, $MessageCount - ($i * $messagesPerProducer))
+        
+        if ($actualMessageCount -le 0) { break }
+        
+        Write-Host "  Producer $($i+1): Messages $startMsgId to $($startMsgId + $actualMessageCount - 1) ($actualMessageCount messages)" -ForegroundColor Gray
+        
+        # Start each producer as a background job
+        $job = Start-Job -ScriptBlock {
+            param($ProjectDir, $BootstrapServers, $Topic, $StartMsgId, $MessageCount, $ProducerId)
             
-            $tempDir = [System.IO.Path]::GetTempPath()
-            $verifyDir = Join-Path $tempDir "kafka-verify-final-$(Get-Date -Format 'yyyyMMddHHmmss')"
-            New-Item -ItemType Directory -Path $verifyDir -Force | Out-Null
-            
-            Push-Location $verifyDir
+            Push-Location $ProjectDir
             try {
-                dotnet new console -f net8.0 --force | Out-Null
-                dotnet add package Confluent.Kafka | Out-Null
-                $verificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
-                dotnet build | Out-Null
-                
-                $verifyOutput = dotnet run -- "$BootstrapServers" "$Topic" 2>&1
-                if ($verifyOutput -like "*TOPIC_VERIFIED*") {
-                    Write-Host "✅ Topic verification successful. Topic details:" -ForegroundColor Green
-                    $verifyOutput | Where-Object { $_ -like "PARTITION:*" } | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-                } else {
-                    Write-Host "⚠️ Could not verify topic details: $verifyOutput" -ForegroundColor Yellow
+                $output = dotnet run --configuration Release -- $BootstrapServers $Topic $StartMsgId $MessageCount $ProducerId 2>&1
+                return @{
+                    ProducerId = $ProducerId
+                    Output = $output
+                    ExitCode = $LASTEXITCODE
+                    StartMsgId = $StartMsgId
+                    MessageCount = $MessageCount
                 }
             }
             finally {
                 Pop-Location
-                Remove-Item -Path $verifyDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        } -ArgumentList $ProjectDir, $BootstrapServers, $Topic, $startMsgId, $actualMessageCount, $i
+        
+        $jobs += $job
+    }
+    
+    Write-Host "✅ All $($jobs.Count) parallel producers started" -ForegroundColor Green
+    return $jobs
+}
+
+function Wait-ParallelProducers {
+    param([array]$Jobs, [long]$MessageCount, [datetime]$StartTime)
+    
+    $completedProducers = 0
+    $totalSentMessages = 0
+    $lastProgressTime = Get-Date
+    
+    Write-Host "⏳ Monitoring parallel producer progress..." -ForegroundColor Yellow
+    
+    while ($completedProducers -lt $Jobs.Count) {
+        $currentTime = Get-Date
+        
+        # Check job completion
+        foreach ($job in $Jobs) {
+            if ($job.State -eq 'Completed' -and $job.HasMoreData) {
+                $result = Receive-Job $job
+                $completedProducers++
+                
+                if ($result.ExitCode -eq 0 -and $result.Output -like "*SUCCESS:*") {
+                    $sentMessages = ($result.Output | Where-Object { $_ -like "SUCCESS:*" }).Split(':')[2]
+                    $totalSentMessages += [long]$sentMessages
+                    Write-Host "✅ Producer $($result.ProducerId + 1) completed: $sentMessages messages" -ForegroundColor Green
+                } else {
+                    Write-Host "❌ Producer $($result.ProducerId + 1) failed: $($result.Output)" -ForegroundColor Red
+                    return $false
+                }
+                
+                Remove-Job $job
             }
         }
-        catch {
-            Write-Host "⚠️ Topic verification failed but this may be normal: $_" -ForegroundColor Yellow
+        
+        # Progress reporting every 5 seconds
+        if (($currentTime - $lastProgressTime).TotalSeconds -ge 5) {
+            $elapsed = $currentTime - $StartTime
+            $currentRate = if ($elapsed.TotalSeconds -gt 0) { $totalSentMessages / $elapsed.TotalSeconds } else { 0 }
+            $progress = ($completedProducers * 100.0) / $Jobs.Count
+            
+            $rateColor = if ($currentRate -gt 1000000) { "Green" } elseif ($currentRate -gt 500000) { "Yellow" } else { "Red" }
+            Write-Host "📊 Progress: $completedProducers/$($Jobs.Count) producers completed ($([math]::Round($progress, 1))%) - Current rate: $([math]::Round($currentRate, 0)) msg/sec" -ForegroundColor $rateColor
+            
+            if ($currentRate -gt 1000000) {
+                Write-Host "🎯 TARGET ACHIEVED: >1M msg/sec sustained throughput!" -ForegroundColor Green
+            }
+            
+            $lastProgressTime = $currentTime
         }
         
-        return $true
+        Start-Sleep -Seconds 1
+    }
+    
+    # Final verification
+    $finalElapsed = (Get-Date) - $StartTime
+    $finalRate = if ($finalElapsed.TotalSeconds -gt 0) { $totalSentMessages / $finalElapsed.TotalSeconds } else { 0 }
+    
+    Write-Host "📊 Final Results:" -ForegroundColor White
+    Write-Host "  Total Messages Sent: $totalSentMessages" -ForegroundColor Green
+    Write-Host "  Total Time: $([math]::Round($finalElapsed.TotalSeconds, 1)) seconds" -ForegroundColor Green
+    Write-Host "  Final Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
+    Write-Host "  Parallel Producers: $($Jobs.Count)" -ForegroundColor Green
+    
+    return ($totalSentMessages -eq $MessageCount)
+}
+
+function Send-KafkaMessages {
+    param(
+        [string]$BootstrapServers,
+        [string]$Topic,
+        [long]$MessageCount,
+        [int]$BatchSize,
+        [int]$ParallelProducers
+    )
+    
+    Write-Host "📨 Starting high-performance parallel message production" -ForegroundColor White
+    Write-Host "Configuration:" -ForegroundColor Gray
+    Write-Host "  Bootstrap Servers: $BootstrapServers" -ForegroundColor Gray
+    Write-Host "  Topic: $Topic" -ForegroundColor Gray
+    Write-Host "  Total Messages: $MessageCount" -ForegroundColor Gray
+    Write-Host "  Parallel Producers: $ParallelProducers" -ForegroundColor Gray
+    Write-Host "  Target Rate: 1M+ messages/second" -ForegroundColor Gray
+    
+    $startTime = Get-Date
+    
+    try {
+        # First, verify topic exists using external .NET client
+        Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
+        $topicExists = Test-TopicExists -BootstrapServers $BootstrapServers -Topic $Topic
+        
+        if (-not $topicExists) {
+            Write-Host "⚠️ Topic '$Topic' not found - attempting fallback creation..." -ForegroundColor Yellow
+            $fallbackCreated = New-TopicFallback -BootstrapServers $BootstrapServers -Topic $Topic
+            if (-not $fallbackCreated) {
+                throw "Topic '$Topic' could not be created via fallback method."
+            }
+        }
+        
+        # Create optimized high-performance producer project once (eliminates build overhead)
+        Write-Host "🔧 Creating optimized parallel producer infrastructure..." -ForegroundColor Yellow
+        $producerProjectDir = New-OptimizedProducerProject -BootstrapServers $BootstrapServers -Topic $Topic
+        
+        try {
+            # Calculate message distribution across parallel producers for FIFO maintenance
+            $messagesPerProducer = [Math]::Ceiling($MessageCount / $ParallelProducers)
+            Write-Host "📊 Distribution: $messagesPerProducer messages per producer (maintains FIFO per partition)" -ForegroundColor Green
+            
+            # Start parallel producers
+            Write-Host "🚀 Starting $ParallelProducers parallel producers for maximum throughput..." -ForegroundColor Green
+            $producerJobs = Start-ParallelProducers -ProjectDir $producerProjectDir -MessageCount $MessageCount -ParallelProducers $ParallelProducers
+            
+            # Monitor and wait for completion
+            $completed = Wait-ParallelProducers -Jobs $producerJobs -MessageCount $MessageCount -StartTime $startTime
+            
+            if ($completed) {
+                $totalElapsed = (Get-Date) - $startTime
+                $finalRate = $MessageCount / $totalElapsed.TotalSeconds
+                
+                Write-Host "🎉 High-performance parallel production completed!" -ForegroundColor Green
+                Write-Host "Summary:" -ForegroundColor White
+                Write-Host "  Total Messages: $MessageCount" -ForegroundColor Green
+                Write-Host "  Total Time: $([math]::Round($totalElapsed.TotalSeconds, 1)) seconds" -ForegroundColor Green
+                Write-Host "  Average Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
+                Write-Host "  Parallel Producers: $ParallelProducers" -ForegroundColor Green
+                
+                # Performance evaluation
+                if ($finalRate -gt 1000000) {
+                    Write-Host "🏆 EXCELLENT: Achieved >1M msg/sec target!" -ForegroundColor Green
+                } elseif ($finalRate -gt 500000) {
+                    Write-Host "✅ GOOD: High throughput achieved (>500K msg/sec)" -ForegroundColor Yellow
+                } else {
+                    Write-Host "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/sec for Flink.NET compliance" -ForegroundColor Red
+                }
+                
+                return $true
+            } else {
+                throw "Parallel producer execution failed or timed out"
+            }
+        }
+        finally {
+            # Cleanup producer project
+            if (Test-Path $producerProjectDir) {
+                Remove-Item -Path $producerProjectDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
     catch {
-        Write-Host "❌ Message production failed: $_" -ForegroundColor Red
-        Write-Host "Sent $sentCount messages before failure" -ForegroundColor Yellow
-        
-        # Enhanced error diagnostics
-        Write-Host "🔍 Error diagnostics:" -ForegroundColor Gray
-        Write-Host "  Kafka container status:" -ForegroundColor Gray
-        try {
-            $containerStatus = docker ps --filter "name=kafka" --format "{{.Names}}\t{{.Status}}"
-            $containerStatus | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
-        }
-        catch {
-            Write-Host "    Could not get container status" -ForegroundColor Gray
-        }
-        
+        Write-Host "❌ High-performance message production failed: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -776,7 +780,7 @@ try {
     }
     
     # Step 3: Send messages
-    $success = Send-KafkaMessages -BootstrapServers $bootstrapServers -Topic $Topic -MessageCount $MessageCount -BatchSize $BatchSize
+    $success = Send-KafkaMessages -BootstrapServers $bootstrapServers -Topic $Topic -MessageCount $MessageCount -BatchSize $BatchSize -ParallelProducers $ParallelProducers
     
     if ($success) {
         Write-Host "✅ Message production completed successfully" -ForegroundColor Green
