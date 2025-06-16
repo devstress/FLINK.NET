@@ -409,8 +409,8 @@ public class AspireIntegrationTests
         Assert.Contains("--replication-factor", appHostContent);
         
         // Verify that the script includes error handling and validation
-        Assert.Contains("Creating flinkdotnet.sample.topic", appHostContent);
-        Assert.Contains("timeout 30", appHostContent);
+        Assert.Contains("Step 5: Creating critical flinkdotnet.sample.topic", appHostContent);
+        Assert.Contains("timeout 45", appHostContent);
         
         // Verify that topic verification is included
         Assert.Contains("kafka-topics --describe", appHostContent);

@@ -257,7 +257,7 @@ function Send-KafkaMessages {
         
         # Wait for kafka-init container to complete topic creation
         Write-Host "Waiting for kafka-init container to complete topic creation..." -ForegroundColor Gray
-        $maxWaitAttempts = 60  # 5 minutes maximum wait
+        $maxWaitAttempts = 40  # Reduced to 3.3 minutes since we have better error handling now
         $waitAttempt = 0
         $kafkaInitCompleted = $false
         
@@ -285,9 +285,40 @@ function Send-KafkaMessages {
                         break
                     }
                     
+                    # Check if container exited with error
+                    $failedContainers = docker ps -a --filter "name=kafka-init" --filter "status=exited" --format "{{.Names}}\t{{.Status}}" 2>$null
+                    if ($failedContainers -and $failedContainers -match "Exited \([1-9]\d*\)") {
+                        Write-Host "❌ Kafka-init container failed!" -ForegroundColor Red
+                        Write-Host "Container status: $failedContainers" -ForegroundColor Red
+                        
+                        # Get container logs for debugging
+                        Write-Host "🔍 Kafka-init container logs (last 20 lines):" -ForegroundColor Yellow
+                        try {
+                            $containerName = ($failedContainers -split '\s+')[0]
+                            $logs = docker logs --tail 20 $containerName 2>&1
+                            $logs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+                        }
+                        catch {
+                            Write-Host "  Could not retrieve container logs: $_" -ForegroundColor Yellow
+                        }
+                        break
+                    }
+                    
                     # Check if container is still running (which means it's still working)
                     $runningContainers = docker ps --filter "name=kafka-init" --format "{{.Names}}" 2>$null
                     if ($runningContainers) {
+                        # Show logs periodically to help with debugging
+                        if ($waitAttempt % 8 -eq 0 -and $waitAttempt -gt 0) {
+                            Write-Host "🔍 Kafka-init container logs (last 10 lines):" -ForegroundColor Yellow
+                            try {
+                                $containerName = $runningContainers
+                                $logs = docker logs --tail 10 $containerName 2>&1
+                                $logs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+                            }
+                            catch {
+                                Write-Host "  Could not retrieve container logs: $_" -ForegroundColor Yellow
+                            }
+                        }
                         Write-Host "🔄 Kafka-init container still running, waiting... (attempt $($waitAttempt + 1)/$maxWaitAttempts)" -ForegroundColor Yellow
                     } else {
                         # Container may have finished, check exit status
@@ -315,7 +346,27 @@ function Send-KafkaMessages {
         }
         
         if (-not $kafkaInitCompleted) {
-            Write-Host "⚠️ Kafka-init container did not complete within timeout, proceeding with topic verification" -ForegroundColor Yellow
+            Write-Host "⚠️ Kafka-init container did not complete within timeout" -ForegroundColor Yellow
+            
+            # Get final diagnostic information
+            try {
+                Write-Host "🔍 Final kafka-init container diagnostics:" -ForegroundColor Yellow
+                $allKafkaInitContainers = docker ps -a --filter "name=kafka-init" --format "{{.Names}}\t{{.Status}}" 2>$null
+                if ($allKafkaInitContainers) {
+                    Write-Host "Container status: $allKafkaInitContainers" -ForegroundColor Gray
+                    
+                    # Get logs from the most recent container
+                    $containerName = ($allKafkaInitContainers -split '\s+')[0]
+                    Write-Host "Container logs (last 30 lines):" -ForegroundColor Gray
+                    $logs = docker logs --tail 30 $containerName 2>&1
+                    $logs | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+                }
+            }
+            catch {
+                Write-Host "Could not get final diagnostics: $_" -ForegroundColor Yellow
+            }
+            
+            Write-Host "Proceeding with topic verification anyway..." -ForegroundColor Yellow
         }
         
         # Verify topic exists using external .NET client (avoids container network issues)

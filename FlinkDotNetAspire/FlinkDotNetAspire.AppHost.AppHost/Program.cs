@@ -10,97 +10,172 @@ public static class Program
         var partitionCount = isStressTest ? 20 : 4; // Use 20 partitions for stress test to utilize all TaskManagers
         
         return $@"
-                echo 'Starting Kafka topic initialization...'
+                set -e  # Exit immediately if any command fails
+                set -x  # Enable debug output to see what commands are being executed
+                
+                echo '=== KAFKA INITIALIZATION START ==='
                 echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
+                echo 'Container hostname:' $(hostname)
+                echo 'Container IP:' $(hostname -i 2>/dev/null || echo 'IP not available')
+                
+                # Function to handle script exit and provide diagnostics
+                cleanup_and_exit() {{
+                    local exit_code=$1
+                    echo ""=== KAFKA INITIALIZATION CLEANUP (exit code: $exit_code) ===""
+                    
+                    if [ $exit_code -eq 0 ]; then
+                        echo 'SUCCESS: Kafka initialization completed successfully!'
+                        echo 'Final topic verification:'
+                        timeout 10 kafka-topics --list --bootstrap-server kafka:9092 2>/dev/null || echo 'Final verification failed'
+                    else
+                        echo 'ERROR: Kafka initialization failed!'
+                        echo 'Diagnostics:'
+                        echo 'Network status:' 
+                        timeout 5 netstat -tuln 2>/dev/null || echo 'netstat not available'
+                        echo 'Kafka process status:'
+                        timeout 5 ps aux | grep kafka 2>/dev/null || echo 'ps not available'
+                    fi
+                    
+                    echo '=== KAFKA INITIALIZATION END ==='
+                    exit $exit_code
+                }}
+                
+                # Set up trap to handle script termination
+                trap 'cleanup_and_exit $?' EXIT
                 
                 # Test hostname resolution first
-                echo 'Testing hostname resolution...'
-                if ! nslookup kafka >/dev/null 2>&1; then
-                    echo 'WARNING: Cannot resolve kafka hostname, this may cause connectivity issues'
+                echo 'Step 1: Testing hostname resolution...'
+                if ! timeout 5 nslookup kafka >/dev/null 2>&1; then
+                    echo 'WARNING: Cannot resolve kafka hostname'
+                    echo 'Attempting to continue with IP resolution...'
+                    # Try to get kafka container IP from /etc/hosts
+                    if grep -q kafka /etc/hosts; then
+                        echo 'Found kafka in /etc/hosts:'
+                        grep kafka /etc/hosts
+                    else
+                        echo 'Kafka not found in /etc/hosts'
+                    fi
                 fi
                 
                 # Test basic connectivity to Kafka port
-                echo 'Testing Kafka port connectivity...'
-                max_connectivity_attempts=30
+                echo 'Step 2: Testing Kafka port connectivity...'
+                max_connectivity_attempts=20  # Reduced from 30 to fail faster
                 connectivity_attempt=0
-                kafka_reachable=false
                 
-                until timeout 2 bash -c '</dev/tcp/kafka/9092' >/dev/null 2>&1; do
+                until timeout 3 bash -c '</dev/tcp/kafka/9092' >/dev/null 2>&1; do
                     connectivity_attempt=$((connectivity_attempt + 1))
                     if [ $connectivity_attempt -ge $max_connectivity_attempts ]; then
-                        echo 'ERROR: Cannot reach Kafka at kafka:9092 after 30 attempts (150s)'
+                        echo ""ERROR: Cannot reach Kafka at kafka:9092 after $max_connectivity_attempts attempts""
                         echo 'Network troubleshooting:'
-                        echo 'Available network interfaces:'
-                        ip addr show 2>/dev/null || ifconfig 2>/dev/null || echo 'Network tools not available'
-                        echo 'DNS resolution test:'
-                        nslookup kafka 2>/dev/null || echo 'DNS resolution failed'
-                        exit 1
+                        timeout 5 ping -c 2 kafka 2>/dev/null || echo 'Ping to kafka failed'
+                        timeout 5 telnet kafka 9092 </dev/null 2>/dev/null || echo 'Telnet to kafka:9092 failed'
+                        cleanup_and_exit 1
                     fi
                     echo ""Kafka port not reachable yet, waiting... (attempt $connectivity_attempt/$max_connectivity_attempts)""
-                    sleep 5
+                    sleep 3  # Reduced sleep time
                 done
                 
-                echo 'Kafka port is reachable! Testing Kafka API...'
+                echo 'SUCCESS: Kafka port is reachable!'
                 
-                # Test Kafka API readiness with timeout
-                max_api_attempts=20
+                # Test Kafka API readiness with enhanced error handling
+                echo 'Step 3: Testing Kafka API readiness...'
+                max_api_attempts=15  # Reduced from 20
                 api_attempt=0
+                
                 while [ $api_attempt -lt $max_api_attempts ]; do
                     api_attempt=$((api_attempt + 1))
                     echo ""Testing Kafka API (attempt $api_attempt/$max_api_attempts)...""
                     
-                    # Use timeout to prevent hanging
-                    if timeout 10 kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; then
-                        echo 'Kafka API is ready!'
+                    # Use timeout to prevent hanging and capture output
+                    if api_output=$(timeout 15 kafka-topics --bootstrap-server kafka:9092 --list 2>&1); then
+                        echo 'SUCCESS: Kafka API is ready!'
+                        echo ""API test output: $api_output""
                         break
+                    else
+                        echo ""Kafka API test failed, output: $api_output""
+                        
+                        if [ $api_attempt -ge $max_api_attempts ]; then
+                            echo ""ERROR: Kafka API failed to become ready after $max_api_attempts attempts""
+                            cleanup_and_exit 1
+                        fi
+                        
+                        echo ""Kafka API not ready yet, waiting... (attempt $api_attempt/$max_api_attempts)""
+                        sleep 4
                     fi
-                    
-                    if [ $api_attempt -ge $max_api_attempts ]; then
-                        echo 'ERROR: Kafka API failed to become ready after 20 attempts (100s)'
-                        echo 'Last Kafka API test output:'
-                        timeout 10 kafka-topics --bootstrap-server kafka:9092 --list 2>&1 || echo 'Kafka topics command timed out'
-                        exit 1
-                    fi
-                    
-                    echo ""Kafka API not ready yet, waiting... (attempt $api_attempt/$max_api_attempts)""
-                    sleep 5
                 done
                 
-                echo 'Kafka is ready! Creating topics for Flink.Net development...'
+                echo 'Step 4: Creating topics for Flink.Net development...'
                 
-                # Create topics with optimized settings for load distribution
-                echo 'Creating business-events topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                # Function to create topic with error handling
+                create_topic_safe() {{
+                    local topic_name=$1
+                    local partitions=$2
+                    local retention_ms=$3
+                    local segment_ms=$4
+                    
+                    echo ""Creating topic: $topic_name (partitions: $partitions)...""
+                    
+                    if topic_result=$(timeout 45 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic ""$topic_name"" --partitions ""$partitions"" --replication-factor 1 --config retention.ms=""$retention_ms"" --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=""$segment_ms"" 2>&1); then
+                        echo ""SUCCESS: Topic $topic_name created""
+                        echo ""Result: $topic_result""
+                    else
+                        echo ""WARNING: Topic $topic_name creation may have failed""
+                        echo ""Result: $topic_result""
+                        
+                        # Check if topic exists anyway (--if-not-exists might cause 'already exists' message)
+                        if timeout 10 kafka-topics --describe --bootstrap-server kafka:9092 --topic ""$topic_name"" >/dev/null 2>&1; then
+                            echo ""Topic $topic_name exists despite creation warning""
+                        else
+                            echo ""ERROR: Topic $topic_name does not exist after creation attempt""
+                            cleanup_and_exit 1
+                        fi
+                    fi
+                }}
                 
-                echo 'Creating processed-events topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                # Create all topics with enhanced error handling
+                create_topic_safe 'business-events' '{partitionCount}' '3600000' '60000'
+                create_topic_safe 'processed-events' '{partitionCount}' '3600000' '60000'
+                create_topic_safe 'analytics-events' '2' '3600000' '60000'
+                create_topic_safe 'dead-letter-queue' '2' '3600000' '60000'
+                create_topic_safe 'test-input' '2' '1800000' '30000'
+                create_topic_safe 'test-output' '2' '1800000' '30000'
                 
-                echo 'Creating analytics-events topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                # Create the critical flinkdotnet.sample.topic with extra validation
+                echo 'Step 5: Creating critical flinkdotnet.sample.topic...'
+                create_topic_safe 'flinkdotnet.sample.topic' '{partitionCount}' '3600000' '60000'
                 
-                echo 'Creating dead-letter-queue topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                # Verify the critical topic exists
+                echo 'Step 6: Verifying flinkdotnet.sample.topic exists...'
+                if timeout 20 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic >/dev/null 2>&1; then
+                    echo 'SUCCESS: flinkdotnet.sample.topic verified to exist!'
+                    
+                    # Get detailed topic information
+                    echo 'Topic details:'
+                    timeout 15 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic 2>/dev/null || echo 'Could not get topic details'
+                else
+                    echo 'ERROR: flinkdotnet.sample.topic verification failed!'
+                    echo 'Available topics:'
+                    timeout 15 kafka-topics --list --bootstrap-server kafka:9092 2>/dev/null || echo 'Could not list topics'
+                    cleanup_and_exit 1
+                fi
                 
-                echo 'Creating test-input topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
+                echo 'Step 7: Final verification of all topics...'
+                echo 'All topics created:'
+                if topic_list=$(timeout 20 kafka-topics --list --bootstrap-server kafka:9092 2>&1); then
+                    echo ""$topic_list""
+                    
+                    # Verify flinkdotnet.sample.topic is in the list
+                    if echo ""$topic_list"" | grep -q 'flinkdotnet.sample.topic'; then
+                        echo 'SUCCESS: flinkdotnet.sample.topic found in topic list!'
+                    else
+                        echo 'ERROR: flinkdotnet.sample.topic not found in topic list!'
+                        cleanup_and_exit 1
+                    fi
+                else
+                    echo ""WARNING: Could not list topics for final verification: $topic_list""
+                fi
                 
-                echo 'Creating test-output topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
-                
-                echo 'Creating flinkdotnet.sample.topic...'
-                timeout 30 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
-                
-                echo 'Verifying all topics were created successfully...'
-                echo 'Topic list:'
-                timeout 15 kafka-topics --list --bootstrap-server kafka:9092
-                
-                echo 'Verifying flinkdotnet.sample.topic details:'
-                timeout 15 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
-                
-                echo 'SUCCESS: Kafka initialization completed successfully!'
-                echo 'All topics have been created and verified.'
-                
-                # Ensure the container exits cleanly
+                # Success exit will be handled by trap
                 exit 0
             ";
     }
