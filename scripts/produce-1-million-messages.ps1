@@ -35,6 +35,146 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-OptimizationRecommendations {
+    param(
+        [double]$CurrentRate,
+        [int]$ParallelProducers,
+        [object]$SystemInfo
+    )
+    
+    $recommendations = @()
+    $targetRate = 1000000  # 1M messages/second
+    
+    Write-Host "📋 Performance Analysis & Optimization Recommendations:" -ForegroundColor Cyan
+    Write-Host "   Current Rate: $([math]::Round($CurrentRate, 0)) msg/sec" -ForegroundColor White
+    Write-Host "   Target Rate: $([math]::Round($targetRate, 0)) msg/sec" -ForegroundColor White
+    Write-Host "   Performance Gap: $([math]::Round($targetRate - $CurrentRate, 0)) msg/sec ($([math]::Round((($targetRate - $CurrentRate) / $targetRate) * 100, 1))%)" -ForegroundColor Yellow
+    
+    if ($CurrentRate -lt $targetRate) {
+        Write-Host "🔧 Optimization Strategies for 1M+ msg/sec:" -ForegroundColor Green
+        
+        # Calculate scalability recommendations
+        $scaleFactor = [math]::Ceiling($targetRate / $CurrentRate)
+        
+        # 1. Parallel Producer Scaling
+        $recommendedProducers = [math]::Min($ParallelProducers * $scaleFactor, $SystemInfo.CPUCores * 5)
+        if ($recommendedProducers -gt $ParallelProducers) {
+            Write-Host "   1️⃣ SCALE PARALLEL PRODUCERS: Increase from $ParallelProducers to $recommendedProducers producers" -ForegroundColor Yellow
+            Write-Host "      • Formula: Current rate × scale factor ($scaleFactor) = target throughput" -ForegroundColor Gray
+            Write-Host "      • Limited by CPU cores ($($SystemInfo.CPUCores)) × 5 = max efficient producers" -ForegroundColor Gray
+        }
+        
+        # 2. Batch Size Optimization
+        Write-Host "   2️⃣ OPTIMIZE BATCH PROCESSING:" -ForegroundColor Yellow
+        Write-Host "      • Increase BatchSize from 100000 to 250000+ messages per batch" -ForegroundColor Gray
+        Write-Host "      • Increase semaphore concurrency from 5000 to 10000+ concurrent operations" -ForegroundColor Gray
+        Write-Host "      • Use larger progress reporting chunks (100K instead of 50K)" -ForegroundColor Gray
+        
+        # 3. Kafka Configuration Tuning
+        Write-Host "   3️⃣ KAFKA CONFIGURATION TUNING:" -ForegroundColor Yellow
+        Write-Host "      • Increase topic partitions to match parallel producers ($recommendedProducers partitions)" -ForegroundColor Gray
+        Write-Host "      • Tune QueueBufferingMaxKbytes to 4GB+ (currently 2GB)" -ForegroundColor Gray
+        Write-Host "      • Optimize SocketSendBufferBytes to 2MB+ (currently 1MB)" -ForegroundColor Gray
+        
+        # 4. System Resource Optimization
+        if ($SystemInfo.AvailableRAMGB -gt 8) {
+            Write-Host "   4️⃣ MEMORY OPTIMIZATION:" -ForegroundColor Yellow
+            Write-Host "      • Available RAM: $($SystemInfo.AvailableRAMGB)GB - sufficient for high throughput" -ForegroundColor Gray
+            Write-Host "      • Increase JVM heap for Kafka brokers to 4GB+ if running locally" -ForegroundColor Gray
+        } else {
+            Write-Host "   4️⃣ MEMORY CONSTRAINT:" -ForegroundColor Red
+            Write-Host "      • Available RAM: $($SystemInfo.AvailableRAMGB)GB - may limit throughput" -ForegroundColor Gray
+            Write-Host "      • Consider reducing parallel producers or batch sizes to fit memory" -ForegroundColor Gray
+        }
+        
+        # 5. Implementation Recommendations
+        Write-Host "   5️⃣ IMPLEMENTATION OPTIMIZATIONS:" -ForegroundColor Yellow
+        Write-Host "      • Use async/await with ConfigureAwait(false) for maximum throughput" -ForegroundColor Gray
+        Write-Host "      • Implement message pooling to reduce GC pressure" -ForegroundColor Gray
+        Write-Host "      • Consider using unsafe code for ultra-high-performance scenarios" -ForegroundColor Gray
+        
+        # 6. Infrastructure Recommendations
+        Write-Host "   6️⃣ INFRASTRUCTURE SCALING:" -ForegroundColor Yellow
+        Write-Host "      • Run on SSD storage for Kafka logs (reduce I/O latency)" -ForegroundColor Gray
+        Write-Host "      • Use dedicated Kafka brokers instead of containerized setup" -ForegroundColor Gray
+        Write-Host "      • Consider using multiple Kafka brokers for distributed load" -ForegroundColor Gray
+        
+        # Immediate actionable recommendation
+        Write-Host "🎯 NEXT STEP: Try -ParallelProducers $recommendedProducers for immediate improvement" -ForegroundColor Green
+    } else {
+        Write-Host "🏆 EXCELLENT: Already achieving target throughput!" -ForegroundColor Green
+    }
+}
+
+function Get-SystemInfo {
+    $info = @{
+        CPUCores = 0
+        TotalRAMGB = 0
+        AvailableRAMGB = 0
+        Platform = "Unknown"
+    }
+    
+    try {
+        if ($IsLinux -or $IsMacOS -or $env:OS -notlike "*Windows*") {
+            # Linux/macOS system information
+            $info.Platform = "Linux/Unix"
+            
+            # Get CPU cores
+            try {
+                $info.CPUCores = (Get-Content /proc/cpuinfo | Where-Object { $_ -like "processor*" } | Measure-Object).Count
+            }
+            catch {
+                $info.CPUCores = [Environment]::ProcessorCount
+            }
+            
+            # Get memory information from /proc/meminfo
+            try {
+                $memInfo = Get-Content /proc/meminfo
+                $memTotalLine = $memInfo | Where-Object { $_ -like "MemTotal:*" }
+                $memAvailLine = $memInfo | Where-Object { $_ -like "MemAvailable:*" }
+                
+                if ($memTotalLine -match "MemTotal:\s+(\d+)\s+kB") {
+                    $info.TotalRAMGB = [math]::Round([double]$matches[1] / 1024 / 1024, 2)
+                }
+                
+                if ($memAvailLine -match "MemAvailable:\s+(\d+)\s+kB") {
+                    $info.AvailableRAMGB = [math]::Round([double]$matches[1] / 1024 / 1024, 2)
+                }
+            }
+            catch {
+                Write-Host "Warning: Could not read memory info from /proc/meminfo" -ForegroundColor Yellow
+            }
+        }
+        else {
+            # Windows system information
+            $info.Platform = "Windows"
+            $info.CPUCores = [Environment]::ProcessorCount
+            
+            try {
+                # Try using WMI for Windows
+                $memory = Get-WmiObject -Class Win32_ComputerSystem -ErrorAction SilentlyContinue
+                if ($memory) {
+                    $info.TotalRAMGB = [math]::Round([double]$memory.TotalPhysicalMemory / 1GB, 2)
+                }
+                
+                $availMem = Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue
+                if ($availMem) {
+                    $info.AvailableRAMGB = [math]::Round([double]$availMem.FreePhysicalMemory / 1MB, 2)
+                }
+            }
+            catch {
+                Write-Host "Warning: Could not get Windows memory info via WMI" -ForegroundColor Yellow
+            }
+        }
+    }
+    catch {
+        Write-Host "Warning: Could not determine system information: $_" -ForegroundColor Yellow
+        $info.CPUCores = [Environment]::ProcessorCount
+    }
+    
+    return $info
+}
+
 Write-Host "=== High-Performance Flink.NET Kafka Producer ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') UTC" -ForegroundColor White
 Write-Host "Target: 1M+ messages/second using parallel Flink.NET optimized producers" -ForegroundColor Yellow
@@ -736,6 +876,7 @@ function Send-KafkaMessages {
             if ($completed) {
                 $totalElapsed = (Get-Date) - $startTime
                 $finalRate = $MessageCount / $totalElapsed.TotalSeconds
+                $systemInfo = Get-SystemInfo
                 
                 Write-Host "🎉 High-performance parallel production completed!" -ForegroundColor Green
                 Write-Host "Summary:" -ForegroundColor White
@@ -743,6 +884,13 @@ function Send-KafkaMessages {
                 Write-Host "  Total Time: $([math]::Round($totalElapsed.TotalSeconds, 1)) seconds" -ForegroundColor Green
                 Write-Host "  Average Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
                 Write-Host "  Parallel Producers: $ParallelProducers" -ForegroundColor Green
+                
+                # System Information
+                Write-Host "💻 System Resources:" -ForegroundColor Cyan
+                Write-Host "  CPU Cores: $($systemInfo.CPUCores)" -ForegroundColor Green
+                Write-Host "  Total RAM: $($systemInfo.TotalRAMGB) GB" -ForegroundColor Green
+                Write-Host "  Available RAM: $($systemInfo.AvailableRAMGB) GB" -ForegroundColor Green
+                Write-Host "  Platform: $($systemInfo.Platform)" -ForegroundColor Green
                 
                 # Performance evaluation for 1M+ msg/sec target
                 if ($finalRate -gt 1000000) {
@@ -752,6 +900,9 @@ function Send-KafkaMessages {
                 } else {
                     Write-Host "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/sec for Flink.NET compliance" -ForegroundColor Red
                 }
+                
+                # Add optimization recommendations
+                Get-OptimizationRecommendations -CurrentRate $finalRate -ParallelProducers $ParallelProducers -SystemInfo $systemInfo
                 
                 return $true
             } else {
