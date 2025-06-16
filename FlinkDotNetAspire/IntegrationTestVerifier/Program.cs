@@ -2444,47 +2444,63 @@ namespace IntegrationTestVerifier
                 var metadata = admin.GetMetadata(metadataTimeout);
                 stopwatch.Stop();
                 
-                if (metadata.Topics != null)
-                {
-                    var topicFound = metadata.Topics.Any(t => t.Topic == topicName);
-                    
-                    if (topicFound)
-                    {
-                        var topic = metadata.Topics.First(t => t.Topic == topicName);
-                        Console.WriteLine($"      ✅ Topic '{topicName}' found in {stopwatch.ElapsedMilliseconds}ms");
-                        Console.WriteLine($"      📊 Topic details: {topic.Partitions.Count} partitions");
-                        return true;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"      ❌ Topic '{topicName}' not found among {metadata.Topics.Count} available topics (search took {stopwatch.ElapsedMilliseconds}ms)");
-                        
-                        // List available topics for debugging
-                        if (metadata.Topics.Count > 0)
-                        {
-                            Console.WriteLine($"      📋 Available topics: {string.Join(", ", metadata.Topics.Take(10).Select(t => t.Topic))}");
-                            if (metadata.Topics.Count > 10)
-                            {
-                                Console.WriteLine($"      📋 ... and {metadata.Topics.Count - 10} more topics");
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"      ❌ Kafka metadata retrieved but no topics found (took {stopwatch.ElapsedMilliseconds}ms)");
-                }
+                return ProcessKafkaMetadata(metadata, topicName, stopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"      ❌ Topic search failed: {ex.GetType().Name}: {ex.Message}");
-                if (ex.InnerException != null)
+                LogTopicSearchException(ex);
+                return false;
+            }
+        }
+
+        private static bool ProcessKafkaMetadata(Confluent.Kafka.Metadata metadata, string topicName, long elapsedMs)
+        {
+            if (metadata.Topics == null)
+            {
+                Console.WriteLine($"      ❌ Kafka metadata retrieved but no topics found (took {elapsedMs}ms)");
+                return false;
+            }
+
+            var topicFound = metadata.Topics.Any(t => t.Topic == topicName);
+            
+            if (topicFound)
+            {
+                var topic = metadata.Topics.First(t => t.Topic == topicName);
+                Console.WriteLine($"      ✅ Topic '{topicName}' found in {elapsedMs}ms");
+                Console.WriteLine($"      📊 Topic details: {topic.Partitions.Count} partitions");
+                return true;
+            }
+
+            LogTopicNotFound(topicName, metadata.Topics.Count, elapsedMs);
+            LogAvailableTopics(metadata.Topics);
+            return false;
+        }
+
+        private static void LogTopicNotFound(string topicName, int totalTopics, long elapsedMs)
+        {
+            Console.WriteLine($"      ❌ Topic '{topicName}' not found among {totalTopics} available topics (search took {elapsedMs}ms)");
+        }
+
+        private static void LogAvailableTopics(IEnumerable<Confluent.Kafka.TopicMetadata> topics)
+        {
+            var topicsList = topics.ToList();
+            if (topicsList.Count > 0)
+            {
+                Console.WriteLine($"      📋 Available topics: {string.Join(", ", topicsList.Take(10).Select(t => t.Topic))}");
+                if (topicsList.Count > 10)
                 {
-                    Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+                    Console.WriteLine($"      📋 ... and {topicsList.Count - 10} more topics");
                 }
             }
-            
-            return false;
+        }
+
+        private static void LogTopicSearchException(Exception ex)
+        {
+            Console.WriteLine($"      ❌ Topic search failed: {ex.GetType().Name}: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"         Inner exception: {ex.InnerException.GetType().Name}: {ex.InnerException.Message}");
+            }
         }
     }
 }

@@ -62,7 +62,7 @@ namespace FlinkJobSimulator
             {
                 _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to initialize Redis counter", _taskManagerId);
                 await UpdateStartupLogAsync("REDIS_FAILED", $"Redis initialization failed: {ex.Message}");
-                throw;
+                throw new InvalidOperationException($"TaskManager {_taskManagerId} failed to initialize Redis counter for key '{_redisSinkCounterKey}'", ex);
             }
             
             try
@@ -87,7 +87,7 @@ namespace FlinkJobSimulator
                 
                 // Let FlinkKafkaConsumerGroup handle the recovery instead of heartbeat mode
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup will handle automatic recovery", _taskManagerId);
-                throw;
+                throw new InvalidOperationException($"TaskManager {_taskManagerId} failed during Kafka consumption from topic '{_kafkaTopic}'", ex);
             }
             finally
             {
@@ -224,7 +224,7 @@ Message: {message}
                 catch (ConsumeException ex)
                 {
                     // FlinkKafkaConsumerGroup handles this internally now
-                    _logger.LogDebug("🔄 TaskManager {TaskManagerId}: ConsumeException handled by FlinkKafkaConsumerGroup: {Error}", 
+                    _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException handled by FlinkKafkaConsumerGroup: {Error}", 
                         _taskManagerId, ex.Error.Reason);
                 }
                 catch (OperationCanceledException ex)
