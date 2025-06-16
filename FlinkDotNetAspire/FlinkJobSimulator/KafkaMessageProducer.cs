@@ -88,7 +88,7 @@ namespace FlinkJobSimulator
                 BatchSize = 65536,               // Large batches for high throughput  
                 BatchNumMessages = 10000,        // High message batching
                 CompressionType = CompressionType.Lz4, // Fast compression
-                MaxInFlight = 100,               // High parallelism like Flink TaskManagers
+                MaxInFlight = 5,                 // Required ≤5 when EnableIdempotence=true for exactly-once semantics
                 // Reliability settings for exactly-once semantics
                 Acks = Acks.All,
                 EnableIdempotence = true,

@@ -467,7 +467,7 @@ class FlinkNetOptimizedProducer {
             CompressionType = CompressionType.Lz4,  // Fast compression
             SocketTimeoutMs = 60000,
             MessageTimeoutMs = 120000,
-            MaxInFlight = 100,           // High parallelism like Flink TaskManagers
+            MaxInFlight = 5,             // Required ≤5 when EnableIdempotence=true for exactly-once semantics
             
             // Reliability settings for exactly-once semantics (Flink.NET compliance)
             EnableIdempotence = true,
