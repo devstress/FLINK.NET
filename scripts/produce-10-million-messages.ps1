@@ -255,6 +255,69 @@ function Send-KafkaMessages {
     try {
         # Use .NET Kafka producer for reliable message sending without container network issues
         
+        # Wait for kafka-init container to complete topic creation
+        Write-Host "Waiting for kafka-init container to complete topic creation..." -ForegroundColor Gray
+        $maxWaitAttempts = 60  # 5 minutes maximum wait
+        $waitAttempt = 0
+        $kafkaInitCompleted = $false
+        
+        while ($waitAttempt -lt $maxWaitAttempts -and -not $kafkaInitCompleted) {
+            try {
+                # Check if docker is available
+                $dockerAvailable = Get-Command docker -ErrorAction SilentlyContinue
+                if (-not $dockerAvailable) {
+                    Write-Host "⚠️ Docker command not available, skipping kafka-init wait" -ForegroundColor Yellow
+                    $kafkaInitCompleted = $true
+                    break
+                }
+                
+                # Check if kafka-init containers exist and get their status
+                $kafkaInitContainers = docker ps -a --filter "name=kafka-init" --format "table {{.Names}}\t{{.Status}}" 2>$null
+                if ($kafkaInitContainers) {
+                    Write-Host "🔍 Kafka-init container status:" -ForegroundColor Gray
+                    Write-Host $kafkaInitContainers -ForegroundColor Gray
+                    
+                    # Check if any kafka-init container has exited successfully (exit code 0)
+                    $exitedContainers = docker ps -a --filter "name=kafka-init" --filter "status=exited" --format "{{.Names}}\t{{.Status}}" 2>$null
+                    if ($exitedContainers -and $exitedContainers -match "Exited \(0\)") {
+                        Write-Host "✅ Kafka-init container completed successfully" -ForegroundColor Green
+                        $kafkaInitCompleted = $true
+                        break
+                    }
+                    
+                    # Check if container is still running (which means it's still working)
+                    $runningContainers = docker ps --filter "name=kafka-init" --format "{{.Names}}" 2>$null
+                    if ($runningContainers) {
+                        Write-Host "🔄 Kafka-init container still running, waiting... (attempt $($waitAttempt + 1)/$maxWaitAttempts)" -ForegroundColor Yellow
+                    } else {
+                        # Container may have finished, check exit status
+                        $lastExitCode = docker ps -a --filter "name=kafka-init" --format "{{.Names}}\t{{.Status}}" 2>$null
+                        Write-Host "⚠️ Kafka-init container status: $lastExitCode" -ForegroundColor Yellow
+                        if ($lastExitCode -match "Exited \(0\)") {
+                            $kafkaInitCompleted = $true
+                            break
+                        }
+                    }
+                } else {
+                    Write-Host "⚠️ No kafka-init containers found, assuming topics are already created" -ForegroundColor Yellow
+                    $kafkaInitCompleted = $true
+                    break
+                }
+                
+                Start-Sleep -Seconds 5
+                $waitAttempt++
+            }
+            catch {
+                Write-Host "⚠️ Error checking kafka-init status: $_" -ForegroundColor Yellow
+                Start-Sleep -Seconds 5
+                $waitAttempt++
+            }
+        }
+        
+        if (-not $kafkaInitCompleted) {
+            Write-Host "⚠️ Kafka-init container did not complete within timeout, proceeding with topic verification" -ForegroundColor Yellow
+        }
+        
         # Verify topic exists using external .NET client (avoids container network issues)
         Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
         
@@ -307,15 +370,36 @@ class Program {
             dotnet add package Confluent.Kafka | Out-Null
             $topicVerificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
             
-            $verifyOutput = dotnet run 2>&1
-            if ($verifyOutput -like "*TOPIC_EXISTS*") {
-                Write-Host "✅ Topic '$Topic' exists (verified via .NET AdminClient)" -ForegroundColor Green
-            } elseif ($verifyOutput -like "*TOPIC_NOT_FOUND*") {
-                Write-Host "❌ Topic '$Topic' does not exist. Topic should be created by Aspire infrastructure." -ForegroundColor Red
-                throw "Topic '$Topic' not found. Ensure Aspire infrastructure is properly initialized."
-            } else {
-                Write-Host "⚠️ Could not verify topic existence: $verifyOutput" -ForegroundColor Yellow
-                Write-Host "Proceeding with message production (topic may be auto-created)" -ForegroundColor Yellow
+            # Retry topic verification up to 3 times with delays
+            $topicFound = $false
+            $maxVerifyAttempts = 3
+            
+            for ($verifyAttempt = 1; $verifyAttempt -le $maxVerifyAttempts; $verifyAttempt++) {
+                Write-Host "🔍 Topic verification attempt $verifyAttempt/$maxVerifyAttempts..." -ForegroundColor Gray
+                $verifyOutput = dotnet run 2>&1
+                
+                if ($verifyOutput -like "*TOPIC_EXISTS*") {
+                    Write-Host "✅ Topic '$Topic' exists (verified via .NET AdminClient)" -ForegroundColor Green
+                    $topicFound = $true
+                    break
+                } elseif ($verifyOutput -like "*TOPIC_NOT_FOUND*") {
+                    Write-Host "⚠️ Topic '$Topic' not found on attempt $verifyAttempt/$maxVerifyAttempts" -ForegroundColor Yellow
+                    if ($verifyAttempt -lt $maxVerifyAttempts) {
+                        Write-Host "🔄 Waiting 10 seconds before retry..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds 10
+                    }
+                } else {
+                    Write-Host "⚠️ Could not verify topic existence on attempt $verifyAttempt/$maxVerifyAttempts : $verifyOutput" -ForegroundColor Yellow
+                    if ($verifyAttempt -lt $maxVerifyAttempts) {
+                        Write-Host "🔄 Waiting 10 seconds before retry..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds 10
+                    }
+                }
+            }
+            
+            if (-not $topicFound) {
+                Write-Host "❌ Topic '$Topic' does not exist after $maxVerifyAttempts attempts. Topic should be created by Aspire infrastructure." -ForegroundColor Red
+                throw "Topic '$Topic' not found after $maxVerifyAttempts verification attempts. Ensure Aspire infrastructure is properly initialized."
             }
         }
         finally {
