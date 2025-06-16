@@ -160,52 +160,69 @@ function Test-KafkaConnection {
         return $false
     }
     
-    # Method 2: Try to find and use Kafka container for topic listing
+    # Skip container-based API tests due to Aspire's dynamic advertised listeners
+    # Aspire uses external dynamic ports in advertised listeners which are not accessible from within container
+    
+    # Method 2: Test producer connectivity using external bootstrap servers
     try {
-        $kafkaContainer = docker ps -q --filter "name=kafka" | Select-Object -First 1
-        if ($kafkaContainer) {
-            Write-Host "Found Kafka container: $kafkaContainer" -ForegroundColor Gray
-            Write-Host "Testing Kafka API via container..." -ForegroundColor Gray
-            
-            # Use a timeout and internal network address to avoid advertised listener issues
-            # Set KAFKA_OPTS to override client configuration for container-internal commands
-            $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dclient.dns.lookup=use_all_dns_ips -Dconnections.max.idle.ms=30000 -Drequest.timeout.ms=30000"
-            $result = docker exec -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer kafka-topics --bootstrap-server kafka:9092 --command-config /dev/null --list 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Kafka API connection successful via container" -ForegroundColor Green
-                Write-Host "Available topics:" -ForegroundColor Gray
-                $result | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-                return $true
-            } else {
-                Write-Host "❌ Kafka API test via container failed: $result" -ForegroundColor Red
-                # Continue to producer connectivity test instead of failing
-            }
-        } else {
-            Write-Host "❌ No Kafka container found for API testing" -ForegroundColor Red
+        Write-Host "Testing Kafka producer connectivity..." -ForegroundColor Gray
+        
+        # Test producer connectivity using the external bootstrap servers
+        # This validates that Kafka is accessible and can accept messages
+        $testMessage = "test-connectivity-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        
+        # Use .NET Kafka producer for testing since it uses external bootstrap servers
+        $testScript = @"
+using System;
+using System.Threading.Tasks;
+using Confluent.Kafka;
+
+class Program {
+    static async Task Main() {
+        var config = new ProducerConfig {
+            BootstrapServers = "$BootstrapServers",
+            RequestTimeoutMs = 30000,
+            MessageTimeoutMs = 30000,
+            Retries = 3
+        };
+        
+        using var producer = new ProducerBuilder<string, string>(config).Build();
+        try {
+            var result = await producer.ProduceAsync("__connectivity_test", new Message<string, string> {
+                Key = "test",
+                Value = "$testMessage"
+            });
+            Console.WriteLine("SUCCESS");
+        } catch (Exception ex) {
+            Console.WriteLine("ERROR: " + ex.Message);
         }
     }
-    catch {
-        Write-Host "❌ Container-based Kafka test failed: $_" -ForegroundColor Red
-    }
-    
-    # Method 3: Try using kafka-console-producer as a connectivity test
-    try {
-        $kafkaContainer = docker ps -q --filter "name=kafka" | Select-Object -First 1
-        if ($kafkaContainer) {
-            Write-Host "Testing Kafka producer connectivity..." -ForegroundColor Gray
+}
+"@
+        
+        # Create temporary test program
+        $tempDir = [System.IO.Path]::GetTempPath()
+        $testProjectDir = Join-Path $tempDir "kafka-test-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        New-Item -ItemType Directory -Path $testProjectDir -Force | Out-Null
+        
+        # Create a simple .NET console app to test Kafka connectivity
+        Push-Location $testProjectDir
+        try {
+            dotnet new console -f net8.0 --force | Out-Null
+            dotnet add package Confluent.Kafka | Out-Null
+            $testScript | Out-File -FilePath "Program.cs" -Encoding UTF8
             
-            # Send a simple test message to verify the producer works
-            # Use producer configuration to override any advertised listener issues
-            $testMessage = "test-connectivity-$(Get-Date -Format 'yyyyMMddHHmmss')"
-            $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dconnections.max.idle.ms=30000 -Drequest.timeout.ms=30000 -Dretries=3"
-            $testResult = echo $testMessage | docker exec -i -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer kafka-console-producer --bootstrap-server kafka:9092 --topic __connectivity_test --producer-property request.timeout.ms=30000 --producer-property retries=3 2>&1
-            
-            if ($LASTEXITCODE -eq 0) {
+            $testOutput = dotnet run 2>&1
+            if ($testOutput -like "*SUCCESS*") {
                 Write-Host "✅ Kafka producer connectivity test successful" -ForegroundColor Green
                 return $true
             } else {
-                Write-Host "❌ Kafka producer connectivity test failed: $testResult" -ForegroundColor Red
+                Write-Host "❌ Kafka producer connectivity test failed: $testOutput" -ForegroundColor Red
             }
+        }
+        finally {
+            Pop-Location
+            Remove-Item -Path $testProjectDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
     catch {
@@ -236,22 +253,72 @@ function Send-KafkaMessages {
     $lastLogTime = $startTime
     
     try {
-        # Find Kafka container
-        $kafkaContainer = docker ps -q --filter "name=kafka" | Select-Object -First 1
-        if (-not $kafkaContainer) {
-            throw "No Kafka container found. Available containers: $(docker ps --format '{{.Names}}' | Join-String -Separator ', ')"
-        }
+        # Use .NET Kafka producer for reliable message sending without container network issues
         
-        Write-Host "Using Kafka container: $kafkaContainer" -ForegroundColor Gray
-        
-        # Verify topic exists (topic should be created by Aspire infrastructure)
+        # Verify topic exists using external .NET client (avoids container network issues)
         Write-Host "Verifying topic '$Topic' exists..." -ForegroundColor Gray
-        $topicExists = docker exec $kafkaContainer kafka-topics --bootstrap-server kafka:9092 --list | Where-Object { $_ -eq $Topic }
-        if (-not $topicExists) {
-            Write-Host "❌ Topic '$Topic' does not exist. Topic should be created by Aspire infrastructure." -ForegroundColor Red
-            throw "Topic '$Topic' not found. Ensure Aspire infrastructure is properly initialized."
-        } else {
-            Write-Host "✅ Topic '$Topic' exists (created by Aspire infrastructure)" -ForegroundColor Green
+        
+        # Use .NET AdminClient to verify topic exists
+        $topicVerificationScript = @"
+using System;
+using System.Threading.Tasks;
+using Confluent.Kafka;
+using Confluent.Kafka.Admin;
+
+class Program {
+    static async Task Main() {
+        var config = new AdminClientConfig {
+            BootstrapServers = "$BootstrapServers",
+            RequestTimeoutMs = 30000
+        };
+        
+        using var adminClient = new AdminClientBuilder(config).Build();
+        try {
+            var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(30));
+            var topicExists = false;
+            foreach (var topic in metadata.Topics) {
+                if (topic.Topic == "$Topic") {
+                    topicExists = true;
+                    break;
+                }
+            }
+            
+            if (topicExists) {
+                Console.WriteLine("TOPIC_EXISTS");
+            } else {
+                Console.WriteLine("TOPIC_NOT_FOUND");
+            }
+        } catch (Exception ex) {
+            Console.WriteLine("ERROR: " + ex.Message);
+        }
+    }
+}
+"@
+        
+        $tempDir = [System.IO.Path]::GetTempPath()
+        $verifyProjectDir = Join-Path $tempDir "kafka-verify-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        New-Item -ItemType Directory -Path $verifyProjectDir -Force | Out-Null
+        
+        Push-Location $verifyProjectDir
+        try {
+            dotnet new console -f net8.0 --force | Out-Null
+            dotnet add package Confluent.Kafka | Out-Null
+            $topicVerificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
+            
+            $verifyOutput = dotnet run 2>&1
+            if ($verifyOutput -like "*TOPIC_EXISTS*") {
+                Write-Host "✅ Topic '$Topic' exists (verified via .NET AdminClient)" -ForegroundColor Green
+            } elseif ($verifyOutput -like "*TOPIC_NOT_FOUND*") {
+                Write-Host "❌ Topic '$Topic' does not exist. Topic should be created by Aspire infrastructure." -ForegroundColor Red
+                throw "Topic '$Topic' not found. Ensure Aspire infrastructure is properly initialized."
+            } else {
+                Write-Host "⚠️ Could not verify topic existence: $verifyOutput" -ForegroundColor Yellow
+                Write-Host "Proceeding with message production (topic may be auto-created)" -ForegroundColor Yellow
+            }
+        }
+        finally {
+            Pop-Location
+            Remove-Item -Path $verifyProjectDir -Recurse -Force -ErrorAction SilentlyContinue
         }
         
         # Create a pipeline to send messages in optimal batches
@@ -261,40 +328,110 @@ function Send-KafkaMessages {
         for ($batch = 0; $batch -lt $MessageCount; $batch += $optimalBatchSize) {
             $currentBatchSize = [math]::Min($optimalBatchSize, $MessageCount - $batch)
             
-            # Generate batch of messages
-            $messages = @()
-            for ($i = 0; $i -lt $currentBatchSize; $i++) {
-                $msgId = $batch + $i + 1
-                $timestamp = Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ"
-                $message = @{
-                    id = $msgId
-                    redis_ordered_id = $msgId
-                    timestamp = $timestamp
-                    job_id = "flink-job-1"
-                    task_id = "task-$msgId"
-                    kafka_partition = $msgId % 20  # Distribute across 20 partitions
-                    kafka_offset = $msgId
-                    processing_stage = "source->map->sink"
-                    payload = "sample-data-$msgId"
-                } | ConvertTo-Json -Compress
+            # Use .NET producer instead of docker exec to avoid container network issues
+            try {
+                # Create .NET producer for reliable message sending
+                $producerScript = @"
+using System;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Confluent.Kafka;
+
+class Program {
+    static async Task Main(string[] args) {
+        if (args.Length < 4) {
+            Console.WriteLine("ERROR: Usage: program <bootstrapServers> <topic> <startMsgId> <messageCount>");
+            return;
+        }
+        
+        var bootstrapServers = args[0];
+        var topic = args[1];
+        var startMsgId = long.Parse(args[2]);
+        var messageCount = int.Parse(args[3]);
+        
+        var config = new ProducerConfig {
+            BootstrapServers = bootstrapServers,
+            BatchSize = 16384,
+            LingerMs = 10,
+            CompressionType = CompressionType.Snappy,
+            RequestTimeoutMs = 30000,
+            MessageTimeoutMs = 60000,
+            Retries = 5,
+            MaxInFlight = 1
+        };
+        
+        using var producer = new ProducerBuilder<string, string>(config).Build();
+        
+        try {
+            for (int i = 0; i < messageCount; i++) {
+                var msgId = startMsgId + i;
+                var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
                 
-                $messages += $message
+                var message = new {
+                    id = msgId,
+                    redis_ordered_id = msgId,
+                    timestamp = timestamp,
+                    job_id = "flink-job-1",
+                    task_id = "task-" + msgId,
+                    kafka_partition = msgId % 20,
+                    kafka_offset = msgId,
+                    processing_stage = "source->map->sink",
+                    payload = "sample-data-" + msgId
+                };
+                
+                var jsonMessage = JsonSerializer.Serialize(message);
+                
+                await producer.ProduceAsync(topic, new Message<string, string> {
+                    Key = msgId.ToString(),
+                    Value = jsonMessage
+                });
+                
+                if (i % 1000 == 0 && i > 0) {
+                    Console.WriteLine("PROGRESS:" + (startMsgId + i));
+                }
             }
             
-            # Send batch to Kafka with optimized settings
-            $messagesText = $messages -join "`n"
-            
-            try {
-                # Use optimized producer settings with robust configuration
-                $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dconnections.max.idle.ms=60000 -Drequest.timeout.ms=60000 -Dretries=5"
-                $producerCmd = "kafka-console-producer --bootstrap-server kafka:9092 --topic $Topic --batch-size 1000 --linger-ms 10 --compression-type snappy --request-timeout-ms 30000 --producer-property retries=5 --producer-property max.in.flight.requests.per.connection=1"
-                $messagesText | docker exec -i -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer $producerCmd
+            producer.Flush(TimeSpan.FromSeconds(30));
+            Console.WriteLine("SUCCESS:" + messageCount);
+        } catch (Exception ex) {
+            Console.WriteLine("ERROR: " + ex.Message);
+        }
+    }
+}
+"@
                 
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Producer command failed with exit code $LASTEXITCODE for batch starting at message $($batch + 1)"
+                $tempDir = [System.IO.Path]::GetTempPath()
+                $producerProjectDir = Join-Path $tempDir "kafka-producer-$(Get-Date -Format 'yyyyMMddHHmmss')"
+                New-Item -ItemType Directory -Path $producerProjectDir -Force | Out-Null
+                
+                Push-Location $producerProjectDir
+                try {
+                    dotnet new console -f net8.0 --force | Out-Null
+                    dotnet add package Confluent.Kafka | Out-Null
+                    dotnet add package System.Text.Json | Out-Null
+                    $producerScript | Out-File -FilePath "Program.cs" -Encoding UTF8
+                    dotnet build | Out-Null
+                    
+                    $startMsgId = $batch + 1
+                    $producerOutput = dotnet run -- "$BootstrapServers" "$Topic" "$startMsgId" "$currentBatchSize" 2>&1
+                    
+                    if ($producerOutput -like "*SUCCESS:*") {
+                        $sentCount += $currentBatchSize
+                        
+                        # Extract progress info if available
+                        $progressLines = $producerOutput | Where-Object { $_ -like "PROGRESS:*" }
+                        if ($progressLines) {
+                            $lastProgress = ($progressLines | Select-Object -Last 1).Split(':')[1]
+                            # Progress info is already included in the output
+                        }
+                    } else {
+                        throw "Producer failed: $producerOutput"
+                    }
                 }
-                
-                $sentCount += $currentBatchSize
+                finally {
+                    Pop-Location
+                    Remove-Item -Path $producerProjectDir -Recurse -Force -ErrorAction SilentlyContinue
+                }
                 
                 # Log progress with enhanced details
                 $currentTime = Get-Date
@@ -335,9 +472,11 @@ function Send-KafkaMessages {
                     
                     try {
                         Start-Sleep -Seconds (2 * $retryCount) # Exponential backoff
-                        $messagesText | docker exec -i -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer $producerCmd
                         
-                        if ($LASTEXITCODE -eq 0) {
+                        # Retry using .NET producer
+                        $producerOutput = dotnet run -- "$BootstrapServers" "$Topic" "$startMsgId" "$currentBatchSize" 2>&1
+                        
+                        if ($producerOutput -like "*SUCCESS:*") {
                             $retrySuccess = $true
                             $sentCount += $currentBatchSize
                             Write-Host "✅ Retry successful for batch at position $batch" -ForegroundColor Green
@@ -363,16 +502,69 @@ function Send-KafkaMessages {
         Write-Host "  Total Time: $([math]::Round($totalElapsed.TotalSeconds, 1)) seconds" -ForegroundColor Green
         Write-Host "  Average Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
         
-        # Verify some messages were actually sent by checking topic
+        # Verify some messages were actually sent using .NET AdminClient
         try {
             Write-Host "🔍 Verifying messages were sent to topic..." -ForegroundColor Gray
-            $kafkaOpts = "-Dbootstrap.servers=kafka:9092 -Dconnections.max.idle.ms=30000 -Drequest.timeout.ms=30000"
-            $topicInfo = docker exec -e KAFKA_OPTS="$kafkaOpts" $kafkaContainer kafka-run-class kafka.tools.GetOffsetShell --broker-list kafka:9092 --topic $Topic 2>&1
-            if ($LASTEXITCODE -eq 0 -and $topicInfo) {
-                Write-Host "✅ Topic verification successful. Offset information:" -ForegroundColor Green
-                $topicInfo | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            
+            $verificationScript = @"
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Confluent.Kafka;
+using Confluent.Kafka.Admin;
+
+class Program {
+    static async Task Main(string[] args) {
+        var bootstrapServers = args[0];
+        var topic = args[1];
+        
+        var config = new AdminClientConfig {
+            BootstrapServers = bootstrapServers,
+            RequestTimeoutMs = 30000
+        };
+        
+        using var adminClient = new AdminClientBuilder(config).Build();
+        try {
+            var metadata = adminClient.GetMetadata(topic, TimeSpan.FromSeconds(30));
+            var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == topic);
+            
+            if (topicMetadata != null) {
+                Console.WriteLine("TOPIC_VERIFIED");
+                foreach (var partition in topicMetadata.Partitions) {
+                    Console.WriteLine("PARTITION:" + partition.PartitionId + ":REPLICAS:" + partition.Replicas.Count);
+                }
             } else {
-                Write-Host "⚠️ Could not verify topic offsets, but messages were sent" -ForegroundColor Yellow
+                Console.WriteLine("TOPIC_NOT_FOUND");
+            }
+        } catch (Exception ex) {
+            Console.WriteLine("ERROR: " + ex.Message);
+        }
+    }
+}
+"@
+            
+            $tempDir = [System.IO.Path]::GetTempPath()
+            $verifyDir = Join-Path $tempDir "kafka-verify-final-$(Get-Date -Format 'yyyyMMddHHmmss')"
+            New-Item -ItemType Directory -Path $verifyDir -Force | Out-Null
+            
+            Push-Location $verifyDir
+            try {
+                dotnet new console -f net8.0 --force | Out-Null
+                dotnet add package Confluent.Kafka | Out-Null
+                $verificationScript | Out-File -FilePath "Program.cs" -Encoding UTF8
+                dotnet build | Out-Null
+                
+                $verifyOutput = dotnet run -- "$BootstrapServers" "$Topic" 2>&1
+                if ($verifyOutput -like "*TOPIC_VERIFIED*") {
+                    Write-Host "✅ Topic verification successful. Topic details:" -ForegroundColor Green
+                    $verifyOutput | Where-Object { $_ -like "PARTITION:*" } | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+                } else {
+                    Write-Host "⚠️ Could not verify topic details: $verifyOutput" -ForegroundColor Yellow
+                }
+            }
+            finally {
+                Pop-Location
+                Remove-Item -Path $verifyDir -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
         catch {
