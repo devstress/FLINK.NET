@@ -45,33 +45,92 @@ namespace FlinkJobSimulator
         {
             _logger.LogInformation("🚀 TaskManager {TaskManagerId}: Starting Apache Flink-compliant Kafka consumption", _taskManagerId);
             
+            // Write consumer startup log to file for stress test monitoring
+            await WriteConsumerStartupLogAsync();
+            
             // Initialize Redis counter to indicate FlinkJobSimulator has started
             try
             {
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing Redis counter to indicate startup", _taskManagerId);
                 await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
                 _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counter initialized successfully", _taskManagerId);
+                
+                // Update startup log with Redis success
+                await UpdateStartupLogAsync("REDIS_CONNECTED", "Redis counter initialized successfully");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to initialize Redis counter", _taskManagerId);
+                await UpdateStartupLogAsync("REDIS_FAILED", $"Redis initialization failed: {ex.Message}");
                 throw;
             }
             
             try
             {
                 await InitializeFlinkKafkaConsumerGroup();
+                await UpdateStartupLogAsync("KAFKA_CONSUMING", "Kafka consumer group started successfully");
                 await ConsumeMessagesWithFlinkPatterns(stoppingToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Error in Kafka consumption for topic '{Topic}'", 
                     _taskManagerId, _kafkaTopic);
+                await UpdateStartupLogAsync("KAFKA_FAILED", $"Kafka consumption failed: {ex.Message}");
                 throw new InvalidOperationException($"TaskManager {_taskManagerId} failed during Kafka consumption", ex);
             }
             finally
             {
                 await CleanupResources();
+            }
+        }
+        
+        /// <summary>
+        /// Write consumer startup information to log file for stress test script to monitor
+        /// </summary>
+        private async Task WriteConsumerStartupLogAsync()
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_CONSUMER_LOG
+TaskManagerId: {_taskManagerId}
+StartTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+Topic: {_kafkaTopic}
+RedisKey: {_redisSinkCounterKey}
+Status: CONSUMER_STARTING
+Message: TaskManager Kafka consumer is starting
+";
+                
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_consumer.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                _logger.LogInformation("📝 CONSUMER LOG: Written to {LogPath}", logPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ CONSUMER LOG: Failed to write consumer startup log");
+            }
+        }
+        
+        /// <summary>
+        /// Update startup log with current status for stress test monitoring
+        /// </summary>
+        private async Task UpdateStartupLogAsync(string status, string message)
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_STATUS_UPDATE
+TaskManagerId: {_taskManagerId}
+UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+Status: {status}
+Message: {message}
+";
+                
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_status.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                _logger.LogInformation("📝 STATUS LOG: {Status} - {Message}", status, message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ STATUS LOG: Failed to write status update");
             }
         }
 

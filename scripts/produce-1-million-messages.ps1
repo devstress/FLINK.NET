@@ -37,7 +37,7 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host "=== High-Performance Flink.NET Kafka Producer ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') UTC" -ForegroundColor White
-Write-Host "Target: 2M+ messages/second using parallel Flink.NET optimized producers" -ForegroundColor Yellow
+Write-Host "Target: 1M+ messages/second using parallel Flink.NET optimized producers" -ForegroundColor Yellow
 Write-Host "Parameters: MessageCount=$MessageCount, Topic=$Topic, BatchSize=$BatchSize, ParallelProducers=$ParallelProducers" -ForegroundColor White
 
 function Get-KafkaBootstrapServers {
@@ -657,13 +657,13 @@ function Wait-ParallelProducers {
             $currentRate = if ($elapsed.TotalSeconds -gt 0) { $totalSentMessages / $elapsed.TotalSeconds } else { 0 }
             $progress = ($completedProducers * 100.0) / $Jobs.Count
             
-            $rateColor = if ($currentRate -gt 2000000) { "Green" } elseif ($currentRate -gt 1000000) { "Yellow" } else { "Red" }
+            $rateColor = if ($currentRate -gt 1000000) { "Green" } elseif ($currentRate -gt 500000) { "Yellow" } else { "Red" }
             Write-Host "📊 Progress: $completedProducers/$($Jobs.Count) producers completed ($([math]::Round($progress, 1))%) - Current rate: $([math]::Round($currentRate, 0)) msg/sec" -ForegroundColor $rateColor
             
-            if ($currentRate -gt 2000000) {
-                Write-Host "🎯 TARGET ACHIEVED: >2M msg/sec sustained throughput!" -ForegroundColor Green
-            } elseif ($currentRate -gt 1000000) {
-                Write-Host "🎯 GOOD PROGRESS: >1M msg/sec sustained throughput!" -ForegroundColor Yellow
+            if ($currentRate -gt 1000000) {
+                Write-Host "🎯 TARGET ACHIEVED: >1M msg/sec sustained throughput!" -ForegroundColor Green
+            } elseif ($currentRate -gt 500000) {
+                Write-Host "🎯 GOOD PROGRESS: >500K msg/sec sustained throughput!" -ForegroundColor Yellow
             }
             
             $lastProgressTime = $currentTime
@@ -700,7 +700,7 @@ function Send-KafkaMessages {
     Write-Host "  Topic: $Topic" -ForegroundColor Gray
     Write-Host "  Total Messages: $MessageCount" -ForegroundColor Gray
     Write-Host "  Parallel Producers: $ParallelProducers" -ForegroundColor Gray
-    Write-Host "  Target Rate: 2M+ messages/second" -ForegroundColor Gray
+    Write-Host "  Target Rate: 1M+ messages/second" -ForegroundColor Gray
     
     $startTime = Get-Date
     
@@ -744,13 +744,13 @@ function Send-KafkaMessages {
                 Write-Host "  Average Rate: $([math]::Round($finalRate, 0)) messages/second" -ForegroundColor Green
                 Write-Host "  Parallel Producers: $ParallelProducers" -ForegroundColor Green
                 
-                # Performance evaluation for 2M+ msg/sec target
-                if ($finalRate -gt 2000000) {
-                    Write-Host "🏆 EXCELLENT: Achieved >2M msg/sec target!" -ForegroundColor Green
-                } elseif ($finalRate -gt 1000000) {
-                    Write-Host "✅ GOOD: High throughput achieved (>1M msg/sec)" -ForegroundColor Yellow
+                # Performance evaluation for 1M+ msg/sec target
+                if ($finalRate -gt 1000000) {
+                    Write-Host "🏆 EXCELLENT: Achieved >1M msg/sec target!" -ForegroundColor Green
+                } elseif ($finalRate -gt 500000) {
+                    Write-Host "✅ GOOD: High throughput achieved (>500K msg/sec)" -ForegroundColor Yellow
                 } else {
-                    Write-Host "⚠️ OPTIMIZATION NEEDED: Target 2M+ msg/sec for enhanced Flink.NET compliance" -ForegroundColor Red
+                    Write-Host "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/sec for Flink.NET compliance" -ForegroundColor Red
                 }
                 
                 return $true

@@ -27,7 +27,37 @@ namespace FlinkJobSimulator
             Console.WriteLine($"  ConnectionStrings__kafka: {Environment.GetEnvironmentVariable("ConnectionStrings__kafka")}");
             Console.WriteLine($"  ConnectionStrings__redis: {Environment.GetEnvironmentVariable("ConnectionStrings__redis")}");
             
+            // Write startup log to file for stress test monitoring
+            await WriteStartupLogAsync();
+            
             await RunAsKafkaConsumerGroupAsync(args);
+        }
+        
+        /// <summary>
+        /// Write startup information to log file for stress test script to monitor
+        /// </summary>
+        private static async Task WriteStartupLogAsync()
+        {
+            try
+            {
+                var logContent = $@"FLINKJOBSIMULATOR_STARTUP_LOG
+StartTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
+ProcessId: {Environment.ProcessId}
+Status: STARTING
+Phase: INITIALIZATION
+Message: FlinkJobSimulator is initializing Kafka consumer group
+";
+                
+                // Write to project root for easy access by stress test scripts
+                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_startup.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                Console.WriteLine($"📝 STARTUP LOG: Written to {logPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ STARTUP LOG: Failed to write startup log - {ex.Message}");
+                // Don't fail startup if logging fails
+            }
         }
         
         /// <summary>

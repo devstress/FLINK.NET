@@ -123,6 +123,100 @@ function Cleanup-Resources {
     Write-Host "=== Cleanup Complete ===" -ForegroundColor Yellow
 }
 
+function Test-FlinkJobSimulatorStartup {
+    <#
+    .SYNOPSIS
+    Test for FlinkJobSimulator startup by reading log files written by the simulator.
+    
+    .DESCRIPTION
+    Checks for startup, consumer, and status log files written by FlinkJobSimulator
+    to verify that it has successfully started and is ready to process messages.
+    #>
+    
+    Write-Host "🔍 Checking FlinkJobSimulator startup logs..." -ForegroundColor Gray
+    
+    # Define log file paths (FlinkJobSimulator writes to current directory)
+    $startupLogPath = "flinkjobsimulator_startup.log"
+    $consumerLogPath = "flinkjobsimulator_consumer.log" 
+    $statusLogPath = "flinkjobsimulator_status.log"
+    
+    $startupDetected = $false
+    $maxAttempts = 6  # 30 seconds total check time
+    $attemptDelay = 5  # seconds between attempts
+    
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        Write-Host "  Attempt $attempt/$maxAttempts: Checking for FlinkJobSimulator logs..." -ForegroundColor Gray
+        
+        # Check startup log
+        if (Test-Path $startupLogPath) {
+            try {
+                $startupContent = Get-Content $startupLogPath -Raw
+                if ($startupContent -like "*FLINKJOBSIMULATOR_STARTUP_LOG*" -and $startupContent -like "*STARTING*") {
+                    Write-Host "  ✅ Startup log found: FlinkJobSimulator process started" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ Startup log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Check consumer log
+        if (Test-Path $consumerLogPath) {
+            try {
+                $consumerContent = Get-Content $consumerLogPath -Raw
+                if ($consumerContent -like "*FLINKJOBSIMULATOR_CONSUMER_LOG*" -and $consumerContent -like "*CONSUMER_STARTING*") {
+                    Write-Host "  ✅ Consumer log found: Kafka consumer starting" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ Consumer log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        # Check status log for Redis connection and Kafka consumption
+        if (Test-Path $statusLogPath) {
+            try {
+                $statusContent = Get-Content $statusLogPath -Raw
+                if ($statusContent -like "*REDIS_CONNECTED*") {
+                    Write-Host "  ✅ Status log found: Redis connection successful" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+                if ($statusContent -like "*KAFKA_CONSUMING*") {
+                    Write-Host "  ✅ Status log found: Kafka consumption started" -ForegroundColor Green
+                    $startupDetected = $true
+                }
+                if ($statusContent -like "*KAFKA_FAILED*" -or $statusContent -like "*REDIS_FAILED*") {
+                    Write-Host "  ❌ Status log shows failure: FlinkJobSimulator startup issues detected" -ForegroundColor Red
+                    return $false
+                }
+            }
+            catch {
+                Write-Host "  ⚠️ Status log exists but couldn't read: $_" -ForegroundColor Yellow
+            }
+        }
+        
+        if ($startupDetected) {
+            Write-Host "  🎯 FlinkJobSimulator startup verified through log files!" -ForegroundColor Green
+            return $true
+        }
+        
+        if ($attempt -lt $maxAttempts) {
+            Write-Host "  ⏳ No startup logs found yet, waiting $attemptDelay seconds..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $attemptDelay
+        }
+    }
+    
+    Write-Host "  ❌ FlinkJobSimulator startup logs not found after $maxAttempts attempts" -ForegroundColor Red
+    Write-Host "  📋 Log file status:" -ForegroundColor Gray
+    Write-Host "    Startup log ($startupLogPath): $(if (Test-Path $startupLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    Write-Host "    Consumer log ($consumerLogPath): $(if (Test-Path $consumerLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    Write-Host "    Status log ($statusLogPath): $(if (Test-Path $statusLogPath) { 'EXISTS' } else { 'NOT FOUND' })" -ForegroundColor Gray
+    
+    return $false
+}
+
 function Initialize-Environment {
     Write-Host "`n=== Environment Initialization ===" -ForegroundColor Yellow
     
@@ -393,8 +487,17 @@ try {
     Write-Host "Expected messages: $MessageCount"
     Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
     
-    # First, wait a bit for FlinkJobSimulator to start after health checks pass
-    Write-Host "⏳ Waiting 30 seconds for FlinkJobSimulator to start and begin processing..."
+    # Check for FlinkJobSimulator startup logs
+    Write-Host "🔍 Checking FlinkJobSimulator startup status..."
+    $startupDetected = Test-FlinkJobSimulatorStartup
+    if ($startupDetected) {
+        Write-Host "✅ FlinkJobSimulator startup detected successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️ WARNING: FlinkJobSimulator startup logs not found - proceeding with Redis monitoring" -ForegroundColor Yellow
+    }
+    
+    # Wait for FlinkJobSimulator to initialize and begin processing
+    Write-Host "⏳ Waiting 30 seconds for FlinkJobSimulator to initialize and begin processing..."
     Start-Sleep -Seconds 30
     
     $maxWaitSeconds = 60  # 1 minute max wait (reduced for faster fallback)
