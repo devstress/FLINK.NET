@@ -684,7 +684,7 @@ namespace IntegrationTestVerifier
                 
                 // Now check for the critical topic
                 testCoordinator.LogWhen("Topic verification", "Checking for flinkdotnet.sample.topic created by Aspire infrastructure");
-                bool topicExists = WaitForKafkaTopic(kafkaBootstrapServers, "flinkdotnet.sample.topic");
+                bool topicExists = WaitForKafkaTopic(kafkaBootstrapServers, "flinkdotnet.sample.topic", maxAttempts: 1);
                 
                 if (topicExists)
                 {
