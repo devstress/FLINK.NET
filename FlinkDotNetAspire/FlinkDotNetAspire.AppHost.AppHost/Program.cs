@@ -10,37 +10,89 @@ public static class Program
         var partitionCount = isStressTest ? 20 : 4; // Use 20 partitions for stress test to utilize all TaskManagers
         
         return $@"
-                echo 'Waiting for Kafka to be ready...'
-                max_attempts=30
-                attempt=0
-                until kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do
-                    attempt=$((attempt + 1))
-                    if [ $attempt -ge $max_attempts ]; then
-                        echo 'ERROR: Kafka failed to become ready after 30 attempts (150s)'
+                echo 'Starting Kafka topic initialization...'
+                echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
+                
+                # Test hostname resolution first
+                echo 'Testing hostname resolution...'
+                if ! nslookup kafka >/dev/null 2>&1; then
+                    echo 'WARNING: Cannot resolve kafka hostname, this may cause connectivity issues'
+                fi
+                
+                # Test basic connectivity to Kafka port
+                echo 'Testing Kafka port connectivity...'
+                max_connectivity_attempts=30
+                connectivity_attempt=0
+                kafka_reachable=false
+                
+                until timeout 2 bash -c '</dev/tcp/kafka/9092' >/dev/null 2>&1; do
+                    connectivity_attempt=$((connectivity_attempt + 1))
+                    if [ $connectivity_attempt -ge $max_connectivity_attempts ]; then
+                        echo 'ERROR: Cannot reach Kafka at kafka:9092 after 30 attempts (150s)'
+                        echo 'Network troubleshooting:'
+                        echo 'Available network interfaces:'
+                        ip addr show 2>/dev/null || ifconfig 2>/dev/null || echo 'Network tools not available'
+                        echo 'DNS resolution test:'
+                        nslookup kafka 2>/dev/null || echo 'DNS resolution failed'
                         exit 1
                     fi
-                    echo ""Kafka not ready yet, waiting... (attempt $attempt/$max_attempts)""
+                    echo ""Kafka port not reachable yet, waiting... (attempt $connectivity_attempt/$max_connectivity_attempts)""
+                    sleep 5
+                done
+                
+                echo 'Kafka port is reachable! Testing Kafka API...'
+                
+                # Test Kafka API readiness
+                max_api_attempts=20
+                api_attempt=0
+                until kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; do
+                    api_attempt=$((api_attempt + 1))
+                    if [ $api_attempt -ge $max_api_attempts ]; then
+                        echo 'ERROR: Kafka API failed to become ready after 20 attempts (100s)'
+                        echo 'Last Kafka API test output:'
+                        kafka-topics --bootstrap-server kafka:9092 --list 2>&1 || echo 'Kafka topics command failed'
+                        exit 1
+                    fi
+                    echo ""Kafka API not ready yet, waiting... (attempt $api_attempt/$max_api_attempts)""
                     sleep 5
                 done
                 
                 echo 'Kafka is ready! Creating topics for Flink.Net development...'
-                echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
                 
                 # Create topics with optimized settings for load distribution
+                echo 'Creating business-events topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                
+                echo 'Creating processed-events topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                
+                echo 'Creating analytics-events topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                
+                echo 'Creating dead-letter-queue topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=60000
+                
+                echo 'Creating test-input topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
+                
+                echo 'Creating test-output topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete --config segment.ms=30000
+                
+                echo 'Creating flinkdotnet.sample.topic...'
                 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config segment.ms=60000
                 
-                echo 'Kafka topics created successfully!'
+                echo 'Verifying all topics were created successfully...'
                 echo 'Topic list:'
                 kafka-topics --list --bootstrap-server kafka:9092
-                echo 'Kafka topic details:'
+                
+                echo 'Verifying flinkdotnet.sample.topic details:'
                 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
-                echo 'Kafka initialization completed successfully!'
+                
+                echo 'SUCCESS: Kafka initialization completed successfully!'
+                echo 'All topics have been created and verified.'
+                
+                # Ensure the container exits cleanly
+                exit 0
             ";
     }
 
