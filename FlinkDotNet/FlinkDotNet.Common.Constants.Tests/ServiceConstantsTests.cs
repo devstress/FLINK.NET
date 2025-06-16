@@ -57,13 +57,13 @@ public class ServiceConstantsTests
     {
         // Set Aspire connection string environment variables
         Environment.SetEnvironmentVariable("DOTNET_KAFKA_BOOTSTRAP_SERVERS", "localhost:19092");
-        Environment.SetEnvironmentVariable("DOTNET_REDIS_URL", "localhost:16379,password=test123");
+        Environment.SetEnvironmentVariable("DOTNET_REDIS_URL", "localhost:16379");
         
         try
         {
             // Verify that the URIs use Aspire environment variables
             Assert.Equal("localhost:19092", ServiceUris.KafkaBootstrapServers);
-            Assert.Equal("localhost:16379,password=test123", ServiceUris.RedisConnectionString);
+            Assert.Equal("localhost:16379", ServiceUris.RedisConnectionString);
         }
         finally
         {
