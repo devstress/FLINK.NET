@@ -67,13 +67,27 @@ namespace FlinkJobSimulator
             
             try
             {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting Kafka consumer group initialization", _taskManagerId);
                 await InitializeFlinkKafkaConsumerGroup();
                 await UpdateStartupLogAsync("KAFKA_CONSUMING", "Kafka consumer group started successfully");
+                
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption", _taskManagerId);
                 await ConsumeMessagesWithFlinkPatterns(stoppingToken);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Failed to connect to Kafka"))
+            {
+                // Kafka connection timeout - log detailed error and keep service alive for Aspire
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Kafka connection failed after retry timeout for topic '{Topic}'", 
+                    _taskManagerId, _kafkaTopic);
+                await UpdateStartupLogAsync("KAFKA_CONNECTION_TIMEOUT", $"Kafka connection timeout: {ex.Message}");
+                
+                // Keep the service alive but not consuming - Aspire will restart if needed
+                _logger.LogWarning("💓 TaskManager {TaskManagerId}: Entering heartbeat mode due to Kafka connection failure", _taskManagerId);
+                await KeepServiceAliveAsync(stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Error in Kafka consumption for topic '{Topic}'", 
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Unexpected error in Kafka consumption for topic '{Topic}'", 
                     _taskManagerId, _kafkaTopic);
                 await UpdateStartupLogAsync("KAFKA_FAILED", $"Kafka consumption failed: {ex.Message}");
                 throw new InvalidOperationException($"TaskManager {_taskManagerId} failed during Kafka consumption", ex);
@@ -174,10 +188,155 @@ Message: {message}
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing FlinkKafkaConsumerGroup with servers: {BootstrapServers}", 
                 _taskManagerId, bootstrapServers);
 
-            _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig, _logger);
-            await _consumerGroup.InitializeAsync(new[] { _kafkaTopic });
+            // Retry logic for 2 minutes until able to connect to Kafka
+            await InitializeWithRetryAsync(consumerConfig, TimeSpan.FromMinutes(2));
 
             _logger.LogInformation("✅ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup initialized successfully", _taskManagerId);
+        }
+
+        /// <summary>
+        /// Initialize FlinkKafkaConsumerGroup with retry logic for 2 minutes until able to connect.
+        /// Catches Kafka exceptions and logs warnings while retrying.
+        /// </summary>
+        private async Task InitializeWithRetryAsync(ConsumerConfig consumerConfig, TimeSpan retryTimeout)
+        {
+            var startTime = DateTime.UtcNow;
+            var retryCount = 0;
+            var retryInterval = TimeSpan.FromSeconds(10); // Retry every 10 seconds
+            
+            while ((DateTime.UtcNow - startTime) < retryTimeout)
+            {
+                retryCount++;
+                var elapsed = DateTime.UtcNow - startTime;
+                
+                try
+                {
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Kafka connection attempt {RetryCount} " +
+                                         "(elapsed: {Elapsed:mm\\:ss})", _taskManagerId, retryCount, elapsed);
+                    
+                    _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig, _logger);
+                    await _consumerGroup.InitializeAsync(new[] { _kafkaTopic });
+                    
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Kafka connection successful on attempt {RetryCount} " +
+                                         "after {Elapsed:mm\\:ss}", _taskManagerId, retryCount, elapsed);
+                    return; // Success! Exit retry loop
+                }
+                catch (Exception ex) when (IsKafkaConnectionException(ex))
+                {
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Kafka connection failed on attempt {RetryCount} " +
+                                     "after {Elapsed:mm\\:ss} - {ErrorType}: {ErrorMessage}", 
+                                     _taskManagerId, retryCount, elapsed, ex.GetType().Name, ex.Message);
+                    
+                    // Clean up failed consumer group attempt
+                    _consumerGroup?.Dispose();
+                    _consumerGroup = null;
+                    
+                    // Check if we should continue retrying
+                    var timeRemaining = retryTimeout - elapsed;
+                    if (timeRemaining <= TimeSpan.Zero)
+                    {
+                        _logger.LogError("❌ TaskManager {TaskManagerId}: Kafka connection timeout after {RetryCount} attempts " +
+                                       "over {Elapsed:mm\\:ss}. Final error: {ErrorMessage}", 
+                                       _taskManagerId, retryCount, elapsed, ex.Message);
+                        throw new InvalidOperationException(
+                            $"Failed to connect to Kafka after {retryCount} attempts over {elapsed:mm\\:ss}. " +
+                            $"Bootstrap servers: {consumerConfig.BootstrapServers}. " +
+                            $"Last error: {ex.Message}", ex);
+                    }
+                    
+                    // Log next retry info
+                    var nextRetryIn = TimeSpan.FromSeconds(Math.Min(retryInterval.TotalSeconds, timeRemaining.TotalSeconds));
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Retrying Kafka connection in {RetryDelay:ss}s " +
+                                         "(time remaining: {TimeRemaining:mm\\:ss})", 
+                                         _taskManagerId, nextRetryIn, timeRemaining);
+                    
+                    // Wait before next retry
+                    await Task.Delay(nextRetryIn);
+                }
+                catch (Exception ex)
+                {
+                    // Non-Kafka exceptions (like Redis issues) should not be retried here
+                    _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Non-Kafka error during initialization: {ErrorMessage}", 
+                                   _taskManagerId, ex.Message);
+                    throw;
+                }
+            }
+            
+            // This should not be reached due to the timeout check above, but included for safety
+            throw new InvalidOperationException(
+                $"Kafka connection timeout after {retryCount} attempts over {retryTimeout:mm\\:ss}. " +
+                $"Bootstrap servers: {consumerConfig.BootstrapServers}");
+        }
+
+        /// <summary>
+        /// Determine if an exception is related to Kafka connectivity and should be retried.
+        /// </summary>
+        private static bool IsKafkaConnectionException(Exception ex)
+        {
+            // Check for Kafka-specific exceptions that indicate connection issues
+            return ex is KafkaException ||
+                   ex is ConsumeException ||
+                   ex.GetType().Name.StartsWith("ProduceException") ||
+                   ex.Message.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("kafka", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("bootstrap", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("ApiVersion", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("security.protocol", StringComparison.OrdinalIgnoreCase) ||
+                   ex.InnerException != null && IsKafkaConnectionException(ex.InnerException);
+        }
+
+        /// <summary>
+        /// Keep the service alive with heartbeat when Kafka connection fails.
+        /// This prevents Aspire from considering the service failed while allowing restart mechanisms to work.
+        /// </summary>
+        private async Task KeepServiceAliveAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("💓 TaskManager {TaskManagerId}: Starting heartbeat mode (Kafka unavailable)", _taskManagerId);
+            
+            var heartbeatCount = 0;
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested && heartbeatCount < 360) // 360 * 10s = 1 hour max
+                {
+                    heartbeatCount++;
+                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                    
+                    _logger.LogInformation("💓 TaskManager {TaskManagerId}: Heartbeat {Count} - Kafka unavailable, service alive", 
+                        _taskManagerId, heartbeatCount);
+                    
+                    // Periodically try to reconnect to Kafka
+                    if (heartbeatCount % 6 == 0) // Every 60 seconds
+                    {
+                        _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Attempting Kafka reconnection (heartbeat {Count})", 
+                            _taskManagerId, heartbeatCount);
+                        
+                        try
+                        {
+                            await InitializeFlinkKafkaConsumerGroup();
+                            _logger.LogInformation("✅ TaskManager {TaskManagerId}: Kafka reconnection successful, resuming consumption", 
+                                _taskManagerId);
+                            
+                            // If reconnection successful, resume normal consumption
+                            await ConsumeMessagesWithFlinkPatterns(stoppingToken);
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Kafka reconnection failed: {ErrorMessage}", 
+                                _taskManagerId, ex.Message);
+                            // Continue heartbeat mode
+                        }
+                    }
+                }
+                
+                _logger.LogWarning("💓 TaskManager {TaskManagerId}: Heartbeat mode timeout reached, service will exit", _taskManagerId);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("💓 TaskManager {TaskManagerId}: Heartbeat mode cancelled", _taskManagerId);
+            }
         }
 
         private async Task ConsumeMessagesWithFlinkPatterns(CancellationToken stoppingToken)

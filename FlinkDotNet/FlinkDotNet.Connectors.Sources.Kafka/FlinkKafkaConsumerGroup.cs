@@ -112,36 +112,63 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             while ((DateTime.UtcNow - startTime) < timeout)
             {
                 retryCount++;
+                var elapsed = DateTime.UtcNow - startTime;
+                
                 try
                 {
-                    using var testConsumer = new ConsumerBuilder<Ignore, byte[]>(testConsumerConfig).Build();
+                    using var testConsumer = new ConsumerBuilder<Ignore, byte[]>(testConsumerConfig)
+                        .SetErrorHandler((consumer, error) => {
+                            _logger?.LogDebug("Kafka readiness test error: {ErrorCode} - {Reason}", error.Code, error.Reason);
+                        })
+                        .Build();
                     
-                    // Try to subscribe - this will fail if Kafka is not ready
+                    // Try to subscribe to test topic - this will fail if Kafka is not ready
                     testConsumer.Subscribe("__consumer_offsets"); // Use internal topic for testing
                     
-                    // If we can subscribe without error, Kafka is ready
+                    // Try a simple consume operation with short timeout to verify connectivity
+                    _ = testConsumer.Consume(TimeSpan.FromSeconds(2));
+                    // We don't care about the result, just that no exception was thrown
+                    
                     _logger?.LogInformation("✅ Kafka setup verified - broker connectivity established after {Elapsed}ms (attempt {Attempt})", 
                         (DateTime.UtcNow - startTime).TotalMilliseconds, retryCount);
                     return; // Kafka is ready
                 }
                 catch (Exception ex)
                 {
-                    var elapsed = DateTime.UtcNow - startTime;
+                    var errorMessage = ex.Message;
+                    if (ex.InnerException != null)
+                        errorMessage = $"{errorMessage} (Inner: {ex.InnerException.Message})";
+                    
                     _logger?.LogDebug(ex, "⏳ Kafka not ready yet - attempt {Attempt}/{MaxRetries} after {Elapsed}ms: {Error}", 
-                        retryCount, maxRetries, elapsed.TotalMilliseconds, ex.Message);
+                        retryCount, maxRetries, elapsed.TotalMilliseconds, errorMessage);
                     
-                    if (elapsed >= timeout)
+                    // Log specific error types for better diagnostics
+                    if (ex.Message.Contains("ApiVersion"))
                     {
-                        _logger?.LogWarning("⚠️ Kafka setup wait timeout ({Timeout}) exceeded, proceeding anyway", timeout);
-                        return; // Proceed even if timeout exceeded to allow fallback mechanisms
+                        _logger?.LogDebug("🔍 Kafka diagnostics: ApiVersion request issue detected - broker may be starting up");
                     }
-                    
-                    // Wait before retry
-                    await Task.Delay(TimeSpan.FromSeconds(5));
+                    else if (ex.Message.Contains("security.protocol"))
+                    {
+                        _logger?.LogWarning("🔍 Kafka diagnostics: Security protocol mismatch detected - check SSL/plaintext configuration");
+                    }
+                    else if (ex.Message.Contains("broker") && ex.Message.Contains("down"))
+                    {
+                        _logger?.LogDebug("🔍 Kafka diagnostics: All brokers down - waiting for Kafka startup");
+                    }
                 }
+                
+                if ((DateTime.UtcNow - startTime) >= timeout)
+                {
+                    _logger?.LogWarning("⚠️ Kafka setup wait timeout ({Timeout}) exceeded after {RetryCount} attempts, proceeding anyway", 
+                        timeout, retryCount);
+                    return; // Proceed even if timeout exceeded to allow fallback mechanisms
+                }
+                
+                // Wait before retry
+                await Task.Delay(TimeSpan.FromSeconds(5));
             }
             
-            _logger?.LogWarning("⚠️ Kafka setup wait completed with timeout, proceeding with consumer initialization");
+            _logger?.LogWarning("⚠️ Kafka setup wait completed with timeout after {RetryCount} attempts, proceeding with consumer initialization", retryCount);
         }
 
         /// <summary>
