@@ -283,6 +283,10 @@ function Test-KafkaConnection {
     # Method 1: Try basic TCP connection test first
     try {
         $serverParts = $BootstrapServers.Split(':')
+        if ($serverParts.Length -lt 2) {
+            Write-Host "❌ Invalid BootstrapServers format: $BootstrapServers" -ForegroundColor Red
+            return $false
+        }
         $kafkaHost = $serverParts[0]
         $kafkaPort = [int]$serverParts[1]
         
@@ -784,18 +788,30 @@ function Wait-ParallelProducers {
                 if ($newOutput) {
                     foreach ($line in $newOutput) {
                         if ($line -like "PROGRESS:*") {
-                            # Parse: PROGRESS:producerId:messageCount
+                            # Parse: PROGRESS:producerId:messageCount with safe bounds checking
                             $parts = $line.Split(':')
-                            if ($parts.Length -eq 3) {
-                                $producerId = [int]$parts[1]
-                                $currentProgress = [long]$parts[2]
-                                $producerProgress[$producerId] = $currentProgress
-                                Write-Host "   📊 Producer $($producerId + 1): $currentProgress messages" -ForegroundColor DarkGray
+                            if ($parts.Length -eq 3 -and $parts[1] -and $parts[2] -and $parts[1].Trim() -ne '' -and $parts[2].Trim() -ne '') {
+                                try {
+                                    $producerId = [int]$parts[1].Trim()
+                                    $currentProgress = [long]$parts[2].Trim()
+                                    $producerProgress[$producerId] = $currentProgress
+                                    Write-Host "   📊 Producer $($producerId + 1): $currentProgress messages" -ForegroundColor DarkGray
+                                } catch {
+                                    Write-Host "   ⚠️ Invalid PROGRESS format: $line" -ForegroundColor Yellow
+                                }
                             }
                         }
                         elseif ($line -like "PRODUCER_START:*") {
-                            $producerId = [int]$line.Split(':')[1]
-                            Write-Host "   🚀 Producer $($producerId + 1) started" -ForegroundColor DarkGreen
+                            # Safe parsing with bounds checking
+                            $startParts = $line.Split(':')
+                            if ($startParts.Length -gt 1 -and $startParts[1] -and $startParts[1].Trim() -ne '') {
+                                try {
+                                    $producerId = [int]$startParts[1].Trim()
+                                    Write-Host "   🚀 Producer $($producerId + 1) started" -ForegroundColor DarkGreen
+                                } catch {
+                                    Write-Host "   ⚠️ Invalid PRODUCER_START format: $line" -ForegroundColor Yellow
+                                }
+                            }
                         }
                     }
                 }
