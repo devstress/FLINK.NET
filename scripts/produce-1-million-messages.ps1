@@ -30,7 +30,7 @@ param(
     [long]$MessageCount = 1000000,  # 1 million messages 
     [string]$Topic = "flinkdotnet.sample.topic",
     [int]$BatchSize = 100000,  # Ultra-high-throughput batch size for 1M+ msg/sec
-    [int]$ParallelProducers = 20  # Number of parallel producer instances for maximum throughput (increased for 2M+ msg/sec target)
+    [int]$ParallelProducers = 20  # Number of parallel producer instances for maximum throughput (targeting 1M+ msg/sec)
 )
 
 $ErrorActionPreference = 'Stop'
