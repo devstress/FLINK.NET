@@ -815,9 +815,11 @@ function Wait-ParallelProducers {
                 if ($result.ExitCode -eq 0 -and $result.Output -like "*SUCCESS:*") {
                     $successLine = $result.Output | Where-Object { $_ -like "SUCCESS:*" } | Select-Object -First 1
                     if ($successLine) {
-                        $sentMessages = $successLine.Split(':')[2]
+                        # Safe parsing of SUCCESS line with bounds checking
+                        $successParts = $successLine.Split(':')
+                        $sentMessages = if ($successParts.Length -gt 2 -and $successParts[2]) { [long]$successParts[2] } else { 0 }
                         # Use the final progress from the producer, not the SUCCESS count (which might be different)
-                        $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { [long]$sentMessages }
+                        $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { $sentMessages }
                         Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages" -ForegroundColor Green
                     } else {
                         # No SUCCESS line found, use progress tracking value
@@ -838,7 +840,8 @@ function Wait-ParallelProducers {
         }
         
         # Progress reporting every 2 seconds for more responsive feedback
-        if (($currentTime - $lastProgressTime).TotalSeconds -ge 2) {
+        # Only show progress if there's meaningful activity (producers completed or messages sent)
+        if (($currentTime - $lastProgressTime).TotalSeconds -ge 2 -and ($completedProducers -gt 0 -or $realTimeTotalSent -gt 0)) {
             $elapsed = $currentTime - $StartTime
             $currentRate = if ($elapsed.TotalSeconds -gt 0) { $realTimeTotalSent / $elapsed.TotalSeconds } else { 0 }
             $progress = ($completedProducers * 100.0) / $Jobs.Count
