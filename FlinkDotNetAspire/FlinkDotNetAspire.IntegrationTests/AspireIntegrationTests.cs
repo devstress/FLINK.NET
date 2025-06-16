@@ -410,7 +410,7 @@ public class AspireIntegrationTests
         
         // Verify that the script includes error handling and validation
         Assert.Contains("Step 5: Creating critical flinkdotnet.sample.topic", appHostContent);
-        Assert.Contains("timeout 45", appHostContent);
+        Assert.Contains("timeout 60", appHostContent);
         
         // Verify that topic verification is included
         Assert.Contains("kafka-topics --describe", appHostContent);

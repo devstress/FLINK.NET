@@ -17,16 +17,24 @@ public static class Program
                 echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
                 echo 'Container hostname:' $(hostname)
                 echo 'Container IP:' $(hostname -i 2>/dev/null || echo 'IP not available')
+                echo 'Current time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+                echo 'Container environment variables:'
+                env | grep -E '^(KAFKA|ZOOKEEPER)' | sort || echo 'No Kafka/ZooKeeper env vars found'
                 
                 # Function to handle script exit and provide diagnostics
                 cleanup_and_exit() {{
                     local exit_code=$1
                     echo ""=== KAFKA INITIALIZATION CLEANUP (exit code: $exit_code) ===""
+                    echo 'Cleanup time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                     
                     if [ $exit_code -eq 0 ]; then
                         echo 'SUCCESS: Kafka initialization completed successfully!'
                         echo 'Final topic verification:'
-                        timeout 10 kafka-topics --list --bootstrap-server kafka:9092 2>/dev/null || echo 'Final verification failed'
+                        if timeout 15 kafka-topics --list --bootstrap-server kafka:9092 2>&1; then
+                            echo 'Final verification completed'
+                        else
+                            echo 'Final verification failed - this may be normal during cleanup'
+                        fi
                     else
                         echo 'ERROR: Kafka initialization failed!'
                         echo 'Diagnostics:'
@@ -34,9 +42,12 @@ public static class Program
                         timeout 5 netstat -tuln 2>/dev/null || echo 'netstat not available'
                         echo 'Kafka process status:'
                         timeout 5 ps aux | grep kafka 2>/dev/null || echo 'ps not available'
+                        echo 'Container logs (last 50 lines):'
+                        timeout 5 tail -n 50 /dev/null 2>/dev/null || echo 'Container logs not available'
                     fi
                     
                     echo '=== KAFKA INITIALIZATION END ==='
+                    echo 'Exit time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                     exit $exit_code
                 }}
                 
@@ -45,7 +56,8 @@ public static class Program
                 
                 # Test hostname resolution first
                 echo 'Step 1: Testing hostname resolution...'
-                if ! timeout 5 nslookup kafka >/dev/null 2>&1; then
+                echo 'DNS resolution test time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+                if ! timeout 10 nslookup kafka >/dev/null 2>&1; then
                     echo 'WARNING: Cannot resolve kafka hostname'
                     echo 'Attempting to continue with IP resolution...'
                     # Try to get kafka container IP from /etc/hosts
@@ -54,57 +66,69 @@ public static class Program
                         grep kafka /etc/hosts
                     else
                         echo 'Kafka not found in /etc/hosts'
+                        echo 'Checking all entries in /etc/hosts:'
+                        cat /etc/hosts
                     fi
                 fi
                 
                 # Test basic connectivity to Kafka port
                 echo 'Step 2: Testing Kafka port connectivity...'
-                max_connectivity_attempts=20  # Reduced from 30 to fail faster
+                echo 'Port connectivity test time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+                max_connectivity_attempts=25  # Increased attempts for better reliability
                 connectivity_attempt=0
                 
-                until timeout 3 bash -c '</dev/tcp/kafka/9092' >/dev/null 2>&1; do
+                until timeout 5 bash -c '</dev/tcp/kafka/9092' >/dev/null 2>&1; do
                     connectivity_attempt=$((connectivity_attempt + 1))
                     if [ $connectivity_attempt -ge $max_connectivity_attempts ]; then
                         echo ""ERROR: Cannot reach Kafka at kafka:9092 after $max_connectivity_attempts attempts""
                         echo 'Network troubleshooting:'
-                        timeout 5 ping -c 2 kafka 2>/dev/null || echo 'Ping to kafka failed'
-                        timeout 5 telnet kafka 9092 </dev/null 2>/dev/null || echo 'Telnet to kafka:9092 failed'
+                        echo 'Ping test:'
+                        timeout 5 ping -c 3 kafka 2>&1 || echo 'Ping to kafka failed'
+                        echo 'Telnet test:'
+                        timeout 5 telnet kafka 9092 </dev/null 2>&1 || echo 'Telnet to kafka:9092 failed'
+                        echo 'Available network interfaces:'
+                        timeout 5 ip addr show 2>/dev/null || echo 'Network interfaces not available'
                         cleanup_and_exit 1
                     fi
                     echo ""Kafka port not reachable yet, waiting... (attempt $connectivity_attempt/$max_connectivity_attempts)""
-                    sleep 3  # Reduced sleep time
+                    sleep 4  # Slightly longer sleep for better stability
                 done
                 
                 echo 'SUCCESS: Kafka port is reachable!'
+                echo 'Port connection success time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                 
                 # Test Kafka API readiness with enhanced error handling
                 echo 'Step 3: Testing Kafka API readiness...'
-                max_api_attempts=15  # Reduced from 20
+                echo 'API readiness test time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+                max_api_attempts=20  # Increased for better reliability
                 api_attempt=0
                 
                 while [ $api_attempt -lt $max_api_attempts ]; do
                     api_attempt=$((api_attempt + 1))
-                    echo ""Testing Kafka API (attempt $api_attempt/$max_api_attempts)...""
+                    echo ""Testing Kafka API (attempt $api_attempt/$max_api_attempts)... Time: $(date -u '+%H:%M:%S')""
                     
                     # Use timeout to prevent hanging and capture output
-                    if api_output=$(timeout 15 kafka-topics --bootstrap-server kafka:9092 --list 2>&1); then
+                    if api_output=$(timeout 20 kafka-topics --bootstrap-server kafka:9092 --list 2>&1); then
                         echo 'SUCCESS: Kafka API is ready!'
                         echo ""API test output: $api_output""
+                        echo 'API ready time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                         break
                     else
                         echo ""Kafka API test failed, output: $api_output""
                         
                         if [ $api_attempt -ge $max_api_attempts ]; then
                             echo ""ERROR: Kafka API failed to become ready after $max_api_attempts attempts""
+                            echo 'Failed API test time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                             cleanup_and_exit 1
                         fi
                         
                         echo ""Kafka API not ready yet, waiting... (attempt $api_attempt/$max_api_attempts)""
-                        sleep 4
+                        sleep 5  # Longer sleep between API attempts
                     fi
                 done
                 
                 echo 'Step 4: Creating topics for Flink.Net development...'
+                echo 'Topic creation start time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                 
                 # Function to create topic with error handling
                 create_topic_safe() {{
@@ -113,26 +137,46 @@ public static class Program
                     local retention_ms=$3
                     local segment_ms=$4
                     
-                    echo ""Creating topic: $topic_name (partitions: $partitions)...""
+                    echo ""Creating topic: $topic_name (partitions: $partitions)... Time: $(date -u '+%H:%M:%S')""
                     
-                    if topic_result=$(timeout 45 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic ""$topic_name"" --partitions ""$partitions"" --replication-factor 1 --config retention.ms=""$retention_ms"" --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=""$segment_ms"" 2>&1); then
-                        echo ""SUCCESS: Topic $topic_name created""
-                        echo ""Result: $topic_result""
+                    # Use longer timeout for topic creation in potentially slow CI environments
+                    if topic_result=$(timeout 60 kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic ""$topic_name"" --partitions ""$partitions"" --replication-factor 1 --config retention.ms=""$retention_ms"" --config cleanup.policy=delete --config min.insync.replicas=1 --config segment.ms=""$segment_ms"" 2>&1); then
+                        echo ""SUCCESS: Topic $topic_name created successfully""
+                        echo ""Creation result: $topic_result""
+                        
+                        # Immediate verification that the topic was created
+                        echo ""Verifying topic $topic_name immediately after creation...""
+                        if verification_result=$(timeout 15 kafka-topics --describe --bootstrap-server kafka:9092 --topic ""$topic_name"" 2>&1); then
+                            echo ""VERIFIED: Topic $topic_name exists and is properly configured""
+                            echo ""Verification details: $verification_result""
+                        else
+                            echo ""WARNING: Topic $topic_name creation succeeded but immediate verification failed""
+                            echo ""Verification output: $verification_result""
+                        fi
                     else
                         echo ""WARNING: Topic $topic_name creation may have failed""
-                        echo ""Result: $topic_result""
+                        echo ""Creation result: $topic_result""
                         
                         # Check if topic exists anyway (--if-not-exists might cause 'already exists' message)
-                        if timeout 10 kafka-topics --describe --bootstrap-server kafka:9092 --topic ""$topic_name"" >/dev/null 2>&1; then
-                            echo ""Topic $topic_name exists despite creation warning""
+                        echo ""Checking if topic $topic_name exists despite creation warning...""
+                        if fallback_result=$(timeout 15 kafka-topics --describe --bootstrap-server kafka:9092 --topic ""$topic_name"" 2>&1); then
+                            echo ""SUCCESS: Topic $topic_name exists despite creation warning""
+                            echo ""Fallback verification: $fallback_result""
                         else
                             echo ""ERROR: Topic $topic_name does not exist after creation attempt""
+                            echo ""Fallback verification failed: $fallback_result""
+                            
+                            # List all topics for debugging
+                            echo ""Available topics for debugging:""
+                            timeout 15 kafka-topics --list --bootstrap-server kafka:9092 2>&1 || echo 'Could not list topics'
+                            
                             cleanup_and_exit 1
                         fi
                     fi
                 }}
                 
                 # Create all topics with enhanced error handling
+                echo 'Creating standard Flink development topics...'
                 create_topic_safe 'business-events' '{partitionCount}' '3600000' '60000'
                 create_topic_safe 'processed-events' '{partitionCount}' '3600000' '60000'
                 create_topic_safe 'analytics-events' '2' '3600000' '60000'
@@ -142,38 +186,100 @@ public static class Program
                 
                 # Create the critical flinkdotnet.sample.topic with extra validation
                 echo 'Step 5: Creating critical flinkdotnet.sample.topic...'
+                echo 'Critical topic creation time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                 create_topic_safe 'flinkdotnet.sample.topic' '{partitionCount}' '3600000' '60000'
                 
-                # Verify the critical topic exists
-                echo 'Step 6: Verifying flinkdotnet.sample.topic exists...'
-                if timeout 20 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic >/dev/null 2>&1; then
-                    echo 'SUCCESS: flinkdotnet.sample.topic verified to exist!'
-                    
-                    # Get detailed topic information
-                    echo 'Topic details:'
-                    timeout 15 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic 2>/dev/null || echo 'Could not get topic details'
+                # Extra verification for the critical topic
+                echo 'Step 6: Comprehensive verification of flinkdotnet.sample.topic...'
+                echo 'Critical topic verification time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+                
+                # Try multiple verification approaches
+                verification_success=false
+                
+                # Method 1: Direct topic describe
+                echo 'Verification method 1: Direct topic describe...'
+                if describe_result=$(timeout 25 kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic 2>&1); then
+                    echo 'SUCCESS: flinkdotnet.sample.topic verified via describe!'
+                    echo ""Topic describe result: $describe_result""
+                    verification_success=true
                 else
-                    echo 'ERROR: flinkdotnet.sample.topic verification failed!'
-                    echo 'Available topics:'
-                    timeout 15 kafka-topics --list --bootstrap-server kafka:9092 2>/dev/null || echo 'Could not list topics'
+                    echo ""WARNING: Direct describe failed: $describe_result""
+                fi
+                
+                # Method 2: List all topics and search
+                echo 'Verification method 2: List all topics and search...'
+                if list_result=$(timeout 25 kafka-topics --list --bootstrap-server kafka:9092 2>&1); then
+                    echo ""All topics: $list_result""
+                    if echo ""$list_result"" | grep -q 'flinkdotnet.sample.topic'; then
+                        echo 'SUCCESS: flinkdotnet.sample.topic found in topic list!'
+                        verification_success=true
+                    else
+                        echo 'WARNING: flinkdotnet.sample.topic not found in topic list'
+                    fi
+                else
+                    echo ""WARNING: Could not list topics: $list_result""
+                fi
+                
+                # Method 3: Try to get topic metadata
+                echo 'Verification method 3: Topic metadata check...'
+                if metadata_result=$(timeout 25 kafka-topics --bootstrap-server kafka:9092 --describe --topic flinkdotnet.sample.topic 2>&1); then
+                    echo ""Topic metadata: $metadata_result""
+                    if echo ""$metadata_result"" | grep -q 'Topic.*flinkdotnet.sample.topic'; then
+                        echo 'SUCCESS: Topic metadata verification passed!'
+                        verification_success=true
+                    fi
+                else
+                    echo ""Metadata check failed: $metadata_result""
+                fi
+                
+                if [ ""$verification_success"" = false ]; then
+                    echo 'ERROR: All verification methods failed for flinkdotnet.sample.topic!'
+                    echo 'This indicates a serious issue with topic creation or Kafka state'
+                    echo 'Dumping final diagnostic information:'
+                    
+                    echo 'Final diagnostic - all topics:'
+                    timeout 20 kafka-topics --list --bootstrap-server kafka:9092 2>&1 || echo 'Could not list topics'
+                    
+                    echo 'Final diagnostic - broker info:'
+                    timeout 20 kafka-broker-api-versions --bootstrap-server kafka:9092 2>&1 || echo 'Could not get broker info'
+                    
                     cleanup_and_exit 1
                 fi
                 
-                echo 'Step 7: Final verification of all topics...'
+                echo 'Step 7: Final comprehensive verification of all topics...'
+                echo 'Final verification time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
                 echo 'All topics created:'
-                if topic_list=$(timeout 20 kafka-topics --list --bootstrap-server kafka:9092 2>&1); then
+                if topic_list=$(timeout 25 kafka-topics --list --bootstrap-server kafka:9092 2>&1); then
                     echo ""$topic_list""
                     
                     # Verify flinkdotnet.sample.topic is in the list
                     if echo ""$topic_list"" | grep -q 'flinkdotnet.sample.topic'; then
-                        echo 'SUCCESS: flinkdotnet.sample.topic found in topic list!'
+                        echo 'SUCCESS: flinkdotnet.sample.topic found in final topic list!'
                     else
-                        echo 'ERROR: flinkdotnet.sample.topic not found in topic list!'
+                        echo 'ERROR: flinkdotnet.sample.topic not found in final topic list!'
+                        echo 'This should not happen after successful verification'
                         cleanup_and_exit 1
                     fi
+                    
+                    # Count total topics created
+                    topic_count=$(echo ""$topic_list"" | wc -l)
+                    echo ""Total topics created: $topic_count""
+                    
                 else
                     echo ""WARNING: Could not list topics for final verification: $topic_list""
+                    echo 'Proceeding anyway since individual verifications passed'
                 fi
+                
+                echo 'SUCCESS: All Kafka initialization steps completed!'
+                echo 'Completion time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+                
+                # Final summary
+                echo '=== KAFKA INITIALIZATION SUMMARY ==='
+                echo 'Status: COMPLETED SUCCESSFULLY'
+                echo 'Critical topic: flinkdotnet.sample.topic - VERIFIED'
+                echo 'Partition count: {partitionCount}'
+                echo 'All standard topics: CREATED'
+                echo '===================================='
                 
                 # Success exit will be handled by trap
                 exit 0
