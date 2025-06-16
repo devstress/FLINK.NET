@@ -33,7 +33,7 @@ This will start:
 - **Topic Initialization** - Automatically creates all required topics
 - **JobManager** - Flink.Net job coordination
 - **TaskManagers** (20 instances) - Flink.Net parallel processing
-- **FlinkJobSimulator** - Sample application
+- **FlinkJobSimulator** - Simplified Kafka consumer group background service
 
 **Verify the environment:**
 ```bash
@@ -46,7 +46,7 @@ This will start:
 This starts the complete Flink.Net cluster with:
 - 1 JobManager
 - 20 TaskManagers  
-- FlinkJobSimulator configured for high-volume testing
+- FlinkJobSimulator configured as Kafka consumer group for real-world message processing
 
 The Aspire dashboard provides access to all services and their endpoints. Navigate to the Kafka UI through the dashboard to monitor:
 
