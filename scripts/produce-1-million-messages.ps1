@@ -172,7 +172,15 @@ function Get-SystemInfo {
 
 Write-Host "=== High-Performance Flink.NET Kafka Producer (50 Producers × 1000 Messages) ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') UTC" -ForegroundColor White
-Write-Host "Configuration: 50 parallel producers, 1000 messages per producer = 50,000 total messages" -ForegroundColor Yellow
+
+# Enforce 1000 messages per producer when using 50 producers as requested
+if ($ParallelProducers -eq 50) {
+    $MessageCount = 50000  # 50 × 1000 = 50,000 total
+    $BatchSize = 1000      # 1000 messages per producer
+    Write-Host "🔧 Configuration enforced: 50 producers × 1000 messages each = 50,000 total messages (as requested)" -ForegroundColor Green
+}
+
+Write-Host "Configuration: $ParallelProducers parallel producers, $([math]::Round($MessageCount / $ParallelProducers)) messages per producer = $MessageCount total messages" -ForegroundColor Yellow
 Write-Host "Parameters: MessageCount=$MessageCount, Topic=$Topic, BatchSize=$BatchSize, ParallelProducers=$ParallelProducers" -ForegroundColor White
 
 function Get-KafkaBootstrapServers {
@@ -815,9 +823,16 @@ function Wait-ParallelProducers {
                 if ($result.ExitCode -eq 0 -and $result.Output -like "*SUCCESS:*") {
                     $successLine = $result.Output | Where-Object { $_ -like "SUCCESS:*" } | Select-Object -First 1
                     if ($successLine) {
-                        # Safe parsing of SUCCESS line with bounds checking
+                        # Safe parsing of SUCCESS line with comprehensive null/empty checking
                         $successParts = $successLine.Split(':')
-                        $sentMessages = if ($successParts.Length -gt 2 -and $successParts[2]) { [long]$successParts[2] } else { 0 }
+                        $sentMessages = 0
+                        if ($successParts.Length -gt 2 -and $successParts[2] -and $successParts[2].Trim() -ne '') {
+                            try {
+                                $sentMessages = [long]$successParts[2].Trim()
+                            } catch {
+                                $sentMessages = 0
+                            }
+                        }
                         # Use the final progress from the producer, not the SUCCESS count (which might be different)
                         $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { $sentMessages }
                         Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages" -ForegroundColor Green
@@ -840,7 +855,7 @@ function Wait-ParallelProducers {
         }
         
         # Progress reporting every 2 seconds for more responsive feedback
-        # Only show progress if there's meaningful activity (producers completed or messages sent)
+        # Only show progress if there's meaningful activity (producers completed or messages sent) AND meaningful rates
         if (($currentTime - $lastProgressTime).TotalSeconds -ge 2 -and ($completedProducers -gt 0 -or $realTimeTotalSent -gt 0)) {
             $elapsed = $currentTime - $StartTime
             $currentRate = if ($elapsed.TotalSeconds -gt 0) { $realTimeTotalSent / $elapsed.TotalSeconds } else { 0 }
@@ -849,16 +864,19 @@ function Wait-ParallelProducers {
             # Calculate msg/ms for granular progress display as requested
             $rateMsgPerMs = if ($elapsed.TotalMilliseconds -gt 0) { $realTimeTotalSent / $elapsed.TotalMilliseconds } else { 0 }
             
-            $rateColor = if ($currentRate -gt 1000000) { "Green" } elseif ($currentRate -gt 500000) { "Yellow" } else { "Red" }
-            Write-Host "📊 Progress: $completedProducers/$($Jobs.Count) producers completed ($([math]::Round($progress, 1))%) - Current rate: $([math]::Round($currentRate, 0)) msg/sec ($([math]::Round($rateMsgPerMs, 2)) msg/ms)" -ForegroundColor $rateColor
-            
-            # Show real-time message breakdown
-            Write-Host "   📈 Real-time status: $realTimeTotalSent/$MessageCount messages sent ($([math]::Round(($realTimeTotalSent * 100.0) / $MessageCount, 1))%)" -ForegroundColor Gray
-            
-            if ($currentRate -gt 1000000) {
-                Write-Host "🎯 TARGET ACHIEVED: >1M msg/sec sustained throughput!" -ForegroundColor Green
-            } elseif ($currentRate -gt 500000) {
-                Write-Host "🎯 GOOD PROGRESS: >500K msg/sec sustained throughput!" -ForegroundColor Yellow
+            # Only show progress when there are meaningful rates (avoid showing 0 msg/sec)
+            if ($currentRate -gt 0 -or $rateMsgPerMs -gt 0) {
+                $rateColor = if ($currentRate -gt 1000000) { "Green" } elseif ($currentRate -gt 500000) { "Yellow" } else { "Red" }
+                Write-Host "📊 Progress: $completedProducers/$($Jobs.Count) producers completed ($([math]::Round($progress, 1))%) - Current rate: $([math]::Round($currentRate, 0)) msg/sec ($([math]::Round($rateMsgPerMs, 2)) msg/ms)" -ForegroundColor $rateColor
+                
+                # Show real-time message breakdown
+                Write-Host "   📈 Real-time status: $realTimeTotalSent/$MessageCount messages sent ($([math]::Round(($realTimeTotalSent * 100.0) / $MessageCount, 1))%)" -ForegroundColor Gray
+                
+                if ($currentRate -gt 1000000) {
+                    Write-Host "🎯 TARGET ACHIEVED: >1M msg/sec sustained throughput!" -ForegroundColor Green
+                } elseif ($currentRate -gt 500000) {
+                    Write-Host "🎯 GOOD PROGRESS: >500K msg/sec sustained throughput!" -ForegroundColor Yellow
+                }
             }
             
             $lastProgressTime = $currentTime
