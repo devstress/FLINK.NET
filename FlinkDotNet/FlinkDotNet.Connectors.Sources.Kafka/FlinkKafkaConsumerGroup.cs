@@ -28,7 +28,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         
         // Apache Flink 2.0 resumption state
         private IEnumerable<string>? _subscribedTopics;
-        private DateTime _lastFailureTime = DateTime.MinValue;
+        private DateTime _lastConsumerFailureTimestamp = DateTime.MinValue; // Tracks failure timestamps for recovery state
         private int _consecutiveFailures = 0;
         private bool _isInRecoveryMode = false;
         private readonly object _recoveryLock = new object();
@@ -249,12 +249,12 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             lock (_recoveryLock)
             {
                 _consecutiveFailures++;
-                _lastFailureTime = DateTime.UtcNow;
+                _lastConsumerFailureTimestamp = DateTime.UtcNow;
                 
                 // Check if error indicates need for consumer resumption
                 if (IsConsumerResumptionNeeded(ex))
                 {
-                    var timeSinceLastFailure = DateTime.UtcNow - _lastFailureTime;
+                    var timeSinceLastFailure = DateTime.UtcNow - _lastConsumerFailureTimestamp;
                     _logger?.LogWarning("🔄 FlinkKafkaConsumerGroup: Resumption needed due to error: {Error} (Failure #{FailureCount}, last failure: {TimeSinceLastFailure}ms ago)", 
                         ex.Error.Reason, _consecutiveFailures, timeSinceLastFailure.TotalMilliseconds);
                     
@@ -575,7 +575,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 lock (_recoveryLock)
                 {
                     _consecutiveFailures++;
-                    _lastFailureTime = DateTime.UtcNow;
+                    _lastConsumerFailureTimestamp = DateTime.UtcNow;
                 }
                 
                 _logger?.LogWarning("Non-fatal Kafka error (failure #{FailureCount}): {ErrorCode} - {Reason}", 
