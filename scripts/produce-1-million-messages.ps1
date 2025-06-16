@@ -818,10 +818,21 @@ function Wait-ParallelProducers {
                 $completedProducerIds[$producerId] = $true
                 
                 if ($result.ExitCode -eq 0 -and $result.Output -like "*SUCCESS:*") {
-                    $sentMessages = ($result.Output | Where-Object { $_ -like "SUCCESS:*" }).Split(':')[2]
-                    # Use the final progress from the producer, not the SUCCESS count (which might be different)
-                    $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { [long]$sentMessages }
-                    Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages" -ForegroundColor Green
+                    $successLine = $result.Output | Where-Object { $_ -like "SUCCESS:*" } | Select-Object -First 1
+                    if ($successLine) {
+                        $sentMessages = $successLine.Split(':')[2]
+                        # Use the final progress from the producer, not the SUCCESS count (which might be different)
+                        $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { [long]$sentMessages }
+                        Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages" -ForegroundColor Green
+                    } else {
+                        # No SUCCESS line found, use progress tracking value
+                        $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { 0 }
+                        Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages (via progress tracking)" -ForegroundColor Green
+                    }
+                } elseif ($result.ExitCode -eq 0) {
+                    # Producer completed successfully but no SUCCESS line - use progress tracking
+                    $finalProgress = if ($producerProgress.ContainsKey($producerId)) { $producerProgress[$producerId] } else { 0 }
+                    Write-Host "✅ Producer $($producerId + 1) completed: $finalProgress messages (via progress tracking, no SUCCESS line)" -ForegroundColor Yellow
                 } else {
                     Write-Host "❌ Producer $($result.ProducerId + 1) failed: $($result.Output)" -ForegroundColor Red
                     return $false

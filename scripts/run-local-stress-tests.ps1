@@ -153,7 +153,7 @@ function Test-FlinkJobSimulatorStartup {
     Write-Host ""
     
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        Write-Host "  Attempt $attempt/$maxAttempts: Checking for FlinkJobSimulator logs and states..." -ForegroundColor Gray
+        Write-Host "  Attempt $attempt/$maxAttempts - Checking for FlinkJobSimulator logs and states..." -ForegroundColor Gray
         
         # Check startup log
         if (Test-Path $startupLogPath) {
