@@ -181,9 +181,9 @@ class Program {
     static async Task Main() {
         var config = new ProducerConfig {
             BootstrapServers = "$BootstrapServers",
-            RequestTimeoutMs = 30000,
+            SocketTimeoutMs = 30000,
             MessageTimeoutMs = 30000,
-            Retries = 3
+            SecurityProtocol = SecurityProtocol.Plaintext
         };
         
         using var producer = new ProducerBuilder<string, string>(config).Build();
@@ -269,7 +269,9 @@ class Program {
     static async Task Main() {
         var config = new AdminClientConfig {
             BootstrapServers = "$BootstrapServers",
-            RequestTimeoutMs = 30000
+            SocketTimeoutMs = 30000,
+            ApiVersionRequestTimeoutMs = 30000,
+            SecurityProtocol = SecurityProtocol.Plaintext
         };
         
         using var adminClient = new AdminClientBuilder(config).Build();
@@ -354,10 +356,10 @@ class Program {
             BatchSize = 16384,
             LingerMs = 10,
             CompressionType = CompressionType.Snappy,
-            RequestTimeoutMs = 30000,
+            SocketTimeoutMs = 30000,
             MessageTimeoutMs = 60000,
-            Retries = 5,
-            MaxInFlight = 1
+            MaxInFlight = 1,
+            SecurityProtocol = SecurityProtocol.Plaintext
         };
         
         using var producer = new ProducerBuilder<string, string>(config).Build();
@@ -520,7 +522,9 @@ class Program {
         
         var config = new AdminClientConfig {
             BootstrapServers = bootstrapServers,
-            RequestTimeoutMs = 30000
+            SocketTimeoutMs = 30000,
+            ApiVersionRequestTimeoutMs = 30000,
+            SecurityProtocol = SecurityProtocol.Plaintext
         };
         
         using var adminClient = new AdminClientBuilder(config).Build();
