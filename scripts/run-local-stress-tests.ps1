@@ -308,7 +308,8 @@ try {
     $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE = 'flinkdotnet:global_sequence_id'
     $env:SIMULATOR_REDIS_KEY_SINK_COUNTER = 'flinkdotnet:sample:processed_message_counter'
     $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
-    $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
+    # Remove Redis password since we're using null password configuration
+    # $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
     # Disable simplified mode for stress test - we need full Kafka functionality
     $env:USE_SIMPLIFIED_MODE = 'false'
@@ -569,7 +570,7 @@ try {
     while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
         try {
             # Check completion status first
-            $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
+            $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli get `"flinkdotnet:job_completion_status`""
             $completionStatus = Invoke-Expression $statusCommand 2>$null
             
             if ($completionStatus -eq "SUCCESS") {
@@ -585,7 +586,7 @@ try {
             }
             
             # Check for execution errors
-            $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
+            $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli get `"flinkdotnet:job_execution_error`""
             $errorValue = Invoke-Expression $errorCommand 2>$null
             if ($errorValue -and $errorValue -ne "(nil)") {
                 Write-Host "❌ Found job execution error in Redis: $errorValue"
@@ -595,7 +596,7 @@ try {
             }
             
             # Check message counter progress
-            $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+            $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
             $counterValue = Invoke-Expression $redisCommand 2>$null
             
             if ($counterValue -match '^\d+$') {
