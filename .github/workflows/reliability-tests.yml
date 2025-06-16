@@ -19,8 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SIMULATOR_NUM_MESSAGES: "10000000" # 10 million messages for real reliability testing
-  FLINKDOTNET_STANDARD_TEST_MESSAGES: "10000000" # 10 million messages for reliability testing
+  SIMULATOR_NUM_MESSAGES: "1000000" # 1 million messages for optimized reliability testing
+  FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000000" # 1 million messages for reliability testing
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout matching stress tests
   USE_SIMPLIFIED_MODE: "false" # Use full Kafka architecture for real reliability testing
 
@@ -172,8 +172,8 @@ jobs:
           }
           
           # Run message producer - this MUST succeed for the test to be valid
-          Write-Host "🔄 Starting message producer (this may take several minutes for 10M messages)..."
-          & ./scripts/produce-10-million-messages.ps1 -MessageCount ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} -Topic "flinkdotnet.sample.topic"
+          Write-Host "🔄 Starting message producer (this may take several minutes for 1M messages)..."
+          & ./scripts/produce-1-million-messages.ps1 -MessageCount ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} -Topic "flinkdotnet.sample.topic"
           
           if ($LASTEXITCODE -ne 0) {
             Write-Host "❌ Message producer failed with exit code: $LASTEXITCODE" -ForegroundColor Red

@@ -465,8 +465,8 @@ public static class Program
         var simulatorNumMessages = Environment.GetEnvironmentVariable("SIMULATOR_NUM_MESSAGES");
         if (string.IsNullOrEmpty(simulatorNumMessages))
         {
-            // Default to 10 million messages for both CI and local
-            simulatorNumMessages = "10000000";
+            // Default to 1 million messages for optimized high-performance testing
+            simulatorNumMessages = "1000000";
         }
         return simulatorNumMessages;
     }

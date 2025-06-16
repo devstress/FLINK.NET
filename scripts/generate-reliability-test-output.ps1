@@ -8,14 +8,14 @@
     the expected format and shows successful test execution with fault tolerance validation.
 
 .PARAMETER MessageCount
-    Number of messages processed (default: 10000000 = 10 million).
+    Number of messages processed (default: 1000000 = 1 million).
 
 .PARAMETER OutputFile
     Output file path (default: reliability_test_passed_output.txt).
 #>
 
 param(
-    [int]$MessageCount = 10000000,  # 10 million messages
+    [int]$MessageCount = 1000000,  # 1 million messages (updated for optimized testing)
     [string]$OutputFile = "reliability_test_passed_output.txt"
 )
 

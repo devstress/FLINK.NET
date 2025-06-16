@@ -82,14 +82,20 @@ namespace FlinkJobSimulator
             {
                 BootstrapServers = bootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext,
-                SocketTimeoutMs = 10000,
-                // High throughput settings for stress testing
-                LingerMs = 5,
-                BatchNumMessages = 1000,
-                CompressionType = CompressionType.Snappy,
-                // Reliability settings
+                SocketTimeoutMs = 60000,
+                // High throughput settings optimized for 1M+ msg/sec
+                LingerMs = 1,                    // Minimal latency for immediate sending
+                BatchSize = 65536,               // Large batches for high throughput  
+                BatchNumMessages = 10000,        // High message batching
+                CompressionType = CompressionType.Lz4, // Fast compression
+                MaxInFlight = 100,               // High parallelism like Flink TaskManagers
+                // Reliability settings for exactly-once semantics
                 Acks = Acks.All,
-                MessageTimeoutMs = 30000
+                EnableIdempotence = true,
+                MessageTimeoutMs = 120000,
+                // Performance optimizations
+                SocketSendBufferBytes = 131072,   // 128KB send buffer
+                SocketReceiveBufferBytes = 131072 // 128KB receive buffer
             };
 
             _logger.LogInformation("Creating Kafka producer for bootstrap servers: {BootstrapServers}", bootstrapServers);
@@ -113,35 +119,54 @@ namespace FlinkJobSimulator
             {
                 for (long i = 1; i <= _numberOfMessages && !stoppingToken.IsCancellationRequested; i++)
                 {
-                    var message = $"Message-{i:D6}-{DateTime.UtcNow:yyyy-MM-dd-HH-mm-ss}";
+                    var timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+                    
+                    // Enhanced message with Flink.NET compliance fields for exactly-once processing
+                    var message = new {
+                        id = i,
+                        redis_ordered_id = i,
+                        timestamp = timestamp,
+                        job_id = "flink-job-1",
+                        task_id = "task-" + i,
+                        kafka_partition = i % 20,  // Distributed across TaskManagers
+                        kafka_offset = i,
+                        processing_stage = "source->map->sink",
+                        payload = "high-throughput-data-" + i,
+                        checksum = (i * 31 + timestamp.GetHashCode()) % 1000000  // Data integrity
+                    };
+                    
+                    var jsonMessage = System.Text.Json.JsonSerializer.Serialize(message);
                     
                     var deliveryResult = await _producer.ProduceAsync(_topic, new Message<Null, string>
                     {
-                        Value = message
+                        Value = jsonMessage,
+                        Timestamp = new Timestamp(DateTime.UtcNow)
                     }, stoppingToken);
                     
                     messagesProduced++;
                     
-                    // Log production progress
-                    if (messagesProduced % 100 == 0 || (DateTime.UtcNow - lastLogTime).TotalSeconds > 10)
+                    // Log production progress with high-throughput focus
+                    if (messagesProduced % 10000 == 0 || (DateTime.UtcNow - lastLogTime).TotalSeconds > 5)
                     {
                         var elapsed = DateTime.UtcNow - startTime;
                         var messagesPerSecond = messagesProduced / elapsed.TotalSeconds;
                         
+                        var rateMessage = messagesPerSecond > 1000000 ? 
+                            $"🏆 EXCELLENT: {messagesPerSecond:F0} msg/s (>1M target achieved!)" :
+                            messagesPerSecond > 500000 ?
+                            $"✅ GOOD: {messagesPerSecond:F0} msg/s (approaching 1M target)" :
+                            $"⚠️ OPTIMIZING: {messagesPerSecond:F0} msg/s (target: 1M+ msg/s)";
+                        
                         _logger.LogInformation("📊 Produced {ProducedCount}/{TotalCount} messages " +
                                              "(partition: {Partition}, offset: {Offset}) " +
-                                             "Rate: {Rate:F1} msg/s",
+                                             "{RateMessage}",
                                              messagesProduced, _numberOfMessages,
                                              deliveryResult.Partition.Value, deliveryResult.Offset.Value,
-                                             messagesPerSecond);
+                                             rateMessage);
                         lastLogTime = DateTime.UtcNow;
                     }
                     
-                    // Small delay between messages to simulate realistic production
-                    if (i % 100 == 0)
-                    {
-                        await Task.Delay(50, stoppingToken); // 50ms pause every 100 messages
-                    }
+                    // No artificial delays - maximize throughput for Flink.NET compliance
                 }
                 
                 // Flush any remaining messages
@@ -150,10 +175,17 @@ namespace FlinkJobSimulator
                 var totalElapsed = DateTime.UtcNow - startTime;
                 var finalRate = messagesProduced / totalElapsed.TotalSeconds;
                 
-                _logger.LogInformation("🏁 Message production completed! " +
+                var performanceLevel = finalRate > 1000000 ? 
+                    "🏆 EXCELLENT: >1M msg/s target achieved!" :
+                    finalRate > 500000 ?
+                    "✅ GOOD: High throughput achieved" :
+                    "⚠️ OPTIMIZATION NEEDED: Target 1M+ msg/s for Flink.NET compliance";
+                
+                _logger.LogInformation("🏁 High-performance message production completed! " +
                                      "Produced {TotalMessages} messages in {Duration:F1}s " +
-                                     "Final rate: {Rate:F1} msg/s",
-                                     messagesProduced, totalElapsed.TotalSeconds, finalRate);
+                                     "Final rate: {Rate:F0} msg/s " +
+                                     "{PerformanceLevel}",
+                                     messagesProduced, totalElapsed.TotalSeconds, finalRate, performanceLevel);
             }
             catch (ProduceException<Null, string> ex)
             {
