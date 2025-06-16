@@ -99,7 +99,7 @@ function Get-RedisConnectionInfo {
             }
 
             $envOutput = docker inspect $containerId 2>/dev/null | ConvertFrom-Json
-            $connectionString = "redis://:@localhost:$redisPort"
+            $connectionString = "redis://localhost:$redisPort"
             $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
             if ($testResult -eq "PONG") {
                 Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
