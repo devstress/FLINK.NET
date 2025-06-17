@@ -120,8 +120,8 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
                 EnableAutoCommit = false,
                 AutoOffsetReset = AutoOffsetReset.Latest,
                 SecurityProtocol = _consumerConfig.SecurityProtocol,
-                SessionTimeoutMs = 5000, // Short timeout for readiness check
-                SocketTimeoutMs = 5000    // Short socket timeout
+                SessionTimeoutMs = 10000, // Use 10s minimum session timeout for Kafka compatibility
+                SocketTimeoutMs = 5000     // Short socket timeout
             };
 
             var retryCount = 0;
