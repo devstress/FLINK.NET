@@ -48,8 +48,9 @@ Phase: INITIALIZATION
 Message: FlinkJobSimulator is initializing Kafka consumer group
 ";
                 
-                // Write to project root for easy access by stress test scripts
-                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_startup.log");
+                // Find project root (where .git directory exists) for stress test scripts
+                var projectRoot = FindProjectRoot();
+                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_startup.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 Console.WriteLine($"📝 STARTUP LOG: Written to {logPath}");
             }
@@ -76,7 +77,8 @@ Message: FlinkJobSimulator is actively running and processing messages
 PreviousState: FlinkJobSimulatorNotStarted
 ";
                 
-                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_state.log");
+                var projectRoot = FindProjectRoot();
+                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_state.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 Console.WriteLine($"📝 STATE LOG: FlinkJobSimulator now in RUNNING state - {logPath}");
             }
@@ -84,6 +86,29 @@ PreviousState: FlinkJobSimulatorNotStarted
             {
                 Console.WriteLine($"⚠️ STATE LOG: Failed to write running state log - {ex.Message}");
             }
+        }
+        
+        /// <summary>
+        /// Find the project root directory by looking for .git directory
+        /// </summary>
+        private static string FindProjectRoot()
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            var directory = new DirectoryInfo(currentDir);
+            
+            // Walk up the directory tree to find the .git directory
+            while (directory != null)
+            {
+                if (Directory.Exists(Path.Combine(directory.FullName, ".git")))
+                {
+                    return directory.FullName;
+                }
+                directory = directory.Parent;
+            }
+            
+            // If we can't find .git, fall back to current directory
+            Console.WriteLine($"⚠️ Could not find project root (.git directory), using current directory: {currentDir}");
+            return currentDir;
         }
         
         /// <summary>

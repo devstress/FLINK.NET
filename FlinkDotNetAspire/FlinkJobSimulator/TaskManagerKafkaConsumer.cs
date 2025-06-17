@@ -98,6 +98,28 @@ namespace FlinkJobSimulator
         }
         
         /// <summary>
+        /// Find the project root directory by looking for .git directory
+        /// </summary>
+        private static string FindProjectRoot()
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            var directory = new DirectoryInfo(currentDir);
+            
+            // Walk up the directory tree to find the .git directory
+            while (directory != null)
+            {
+                if (Directory.Exists(Path.Combine(directory.FullName, ".git")))
+                {
+                    return directory.FullName;
+                }
+                directory = directory.Parent;
+            }
+            
+            // If we can't find .git, fall back to current directory
+            return currentDir;
+        }
+        
+        /// <summary>
         /// Write consumer startup information to log file for stress test script to monitor
         /// </summary>
         private async Task WriteConsumerStartupLogAsync()
@@ -113,7 +135,8 @@ Status: CONSUMER_STARTING
 Message: TaskManager Kafka consumer is starting
 ";
                 
-                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_consumer.log");
+                var projectRoot = FindProjectRoot();
+                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_consumer.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 _logger.LogInformation("📝 CONSUMER LOG: Written to {LogPath}", logPath);
             }
@@ -137,7 +160,8 @@ Status: {status}
 Message: {message}
 ";
                 
-                var logPath = Path.Combine(Directory.GetCurrentDirectory(), "flinkjobsimulator_status.log");
+                var projectRoot = FindProjectRoot();
+                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_status.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 _logger.LogInformation("📝 STATUS LOG: {Status} - {Message}", status, message);
             }
