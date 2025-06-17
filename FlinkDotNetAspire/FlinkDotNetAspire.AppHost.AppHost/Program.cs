@@ -4,70 +4,45 @@ public static class Program
 {
     private static string GetKafkaInitializationScript()
     {
-        var isStressTest = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
-        var partitionCount = isStressTest ? 20 : 4; // Use 20 partitions for stress test to utilize all TaskManagers
-        
-        // Simplified, Windows-compatible Kafka initialization script
-        // Uses fewer Linux-specific commands and shorter timeouts
+        var partitionCount = 100; // Matches producer tuning: 100 partitions for i9-12900K 64GB RAM
         return $@"
-                echo '=== KAFKA INITIALIZATION START ==='
-                echo 'Configuration: Stress Test Mode: {isStressTest}, Partition Count: {partitionCount}'
-                echo 'Container hostname:' $(hostname)
-                echo 'Current time:' $(date -u '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null || date)
-                
-                # Test Kafka API readiness with shorter timeout for Windows compatibility
-                echo 'Testing Kafka API readiness...'
-                max_attempts=10
-                attempt=0
-                
-                while [ $attempt -lt $max_attempts ]; do
-                    attempt=$((attempt + 1))
-                    echo ""Testing Kafka API (attempt $attempt/$max_attempts)...""
-                    
-                    if kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; then
-                        echo 'SUCCESS: Kafka API is ready!'
-                        break
-                    else
-                        if [ $attempt -ge $max_attempts ]; then
-                            echo ""ERROR: Kafka API failed after $max_attempts attempts""
-                            exit 1
-                        fi
-                        echo ""Kafka API not ready, waiting... (attempt $attempt/$max_attempts)""
-                        sleep 3
-                    fi
-                done
-                
-                echo 'Creating topics for Flink.Net development...'
-                
-                # Create topics with simplified error handling for Windows compatibility
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic business-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic processed-events --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic analytics-events --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic dead-letter-queue --partitions 2 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-input --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic test-output --partitions 2 --replication-factor 1 --config retention.ms=1800000 --config cleanup.policy=delete
-                
-                # Create the critical flinkdotnet.sample.topic
-                echo 'Creating critical flinkdotnet.sample.topic...'
-                kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic --partitions {partitionCount} --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete --config min.insync.replicas=1
-                
-                # Verify critical topic exists
-                echo 'Verifying flinkdotnet.sample.topic...'
-                if kafka-topics --bootstrap-server kafka:9092 --describe --topic flinkdotnet.sample.topic >/dev/null 2>&1; then
-                    echo 'SUCCESS: flinkdotnet.sample.topic verified!'
+            echo '=== KAFKA ULTRA-SAFE INITIALIZATION START ==='
+            echo 'Hostname: ' $(hostname)
+            echo 'UTC Time: ' $(date -u '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null || date)
+
+            max_attempts=30
+            attempt=0
+            while [ $attempt -lt $max_attempts ]; do
+                attempt=$((attempt + 1))
+                echo ""[WAIT] Checking Kafka API... Attempt $attempt/$max_attempts""
+                if kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1; then
+                    echo '[READY] Kafka API is available.'
+                    break
                 else
-                    echo 'ERROR: flinkdotnet.sample.topic verification failed!'
-                    echo 'Available topics:'
-                    kafka-topics --list --bootstrap-server kafka:9092 || echo 'Could not list topics'
-                    exit 1
+                    sleep 2
                 fi
-                
-                echo 'All topics created:'
-                kafka-topics --list --bootstrap-server kafka:9092
-                
-                echo 'SUCCESS: Kafka initialization completed!'
-                echo '=== KAFKA INITIALIZATION END ==='
-            ";
+            done
+
+            if [ $attempt -eq $max_attempts ]; then
+                echo '[ERROR] Kafka API still not ready after $max_attempts attempts!'
+                exit 1
+            fi
+
+            echo 'Creating flinkdotnet.sample.topic...'
+            kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+                --topic flinkdotnet.sample.topic \
+                --partitions {partitionCount} \
+                --replication-factor 1 \
+                --config retention.ms=3600000 \
+                --config cleanup.policy=delete \
+                --config min.insync.replicas=1 \
+                --config message.max.bytes=52428800
+
+            echo 'Validating topic...'
+            kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
+
+            echo '=== KAFKA ULTRA-SAFE INITIALIZATION COMPLETE ==='
+        ";
     }
 
     public static async Task Main(string[] args)
@@ -77,12 +52,12 @@ public static class Program
         // Log platform and environment information for debugging
         var isWindows = IsRunningOnWindows();
         var isCI = IsRunningInCI();
-        
+
         Console.WriteLine($"🖥️  Platform: {(isWindows ? "Windows" : "Unix/Linux")}");
         Console.WriteLine($"🔧 CI Environment: {isCI}");
         Console.WriteLine($"📦 .NET Version: {Environment.Version}");
         Console.WriteLine($"🐳 Docker Host: {Environment.GetEnvironmentVariable("DOCKER_HOST") ?? "default"}");
-        
+
         if (isWindows)
         {
             Console.WriteLine("🪟 Windows-specific optimizations enabled:");
@@ -95,16 +70,16 @@ public static class Program
         // Add Redis and Kafka infrastructure
         var redis = AddRedisInfrastructure(builder);
         var kafka = AddKafkaInfrastructure(builder);
-        
+
         // Add Kafka initialization container
         var kafkaInit = AddKafkaInitialization(builder, kafka);
-        
+
         // Add Kafka UI for local development only
         AddKafkaUIForLocalDevelopment(builder, kafka);
 
         // Configure Flink cluster based on environment
         var simulatorNumMessages = ConfigureFlinkCluster(builder);
-        
+
         // Add and configure FlinkJobSimulator
         ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages, kafkaInit);
 
@@ -119,56 +94,50 @@ public static class Program
         return redis.PublishAsContainer(); // Ensure Redis is accessible from host
     }
 
+
     private static IResourceBuilder<KafkaServerResource> AddKafkaInfrastructure(IDistributedApplicationBuilder builder)
     {
-        var isCI = IsRunningInCI();
-        var isWindows = IsRunningOnWindows();
-        
         var kafka = builder.AddKafka("kafka")
-            .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")
-            .WithEnvironment("KAFKA_NUM_PARTITIONS", isCI ? "4" : "8") // Reduced for CI
-            .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
-            .WithEnvironment("KAFKA_LOG_RETENTION_HOURS", isCI ? "1" : "168") // Reduced for CI
-            .WithEnvironment("KAFKA_LOG_SEGMENT_BYTES", isCI ? "104857600" : "1073741824") // 100MB for CI, 1GB for local
-            .WithEnvironment("KAFKA_MESSAGE_MAX_BYTES", isCI ? "1048576" : "10485760") // 1MB for CI, 10MB for local
-            .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", isCI ? "1048576" : "10485760") // 1MB for CI, 10MB for local
-            .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
-            .WithEnvironment("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1") // CI compatibility
-            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MESSAGES", isCI ? "1000" : "10000") // Faster flushing for CI
-            .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MS", isCI ? "1000" : "5000"); // Faster flushing for CI
-            
-        // Windows-specific configuration for better compatibility
-        if (isWindows)
-        {
-            kafka = kafka
-                .WithEnvironment("KAFKA_HEAP_OPTS", "-Xmx512m -Xms256m") // Reduced memory for Windows
-                .WithEnvironment("KAFKA_JVM_PERFORMANCE_OPTS", "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35") // Optimized GC for Windows
-                .WithEnvironment("KAFKA_LOG4J_LOGGERS", "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO") // Reduced logging for Windows
-                .WithEnvironment("KAFKA_LOG4J_ROOT_LOGLEVEL", "WARN"); // Reduced root log level for Windows
-        }
-        
-        return kafka.PublishAsContainer(); // Ensure Kafka is accessible from host
+        .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")   // Allow client to clean/create topics freely
+        .WithEnvironment("KAFKA_NUM_PARTITIONS", "100")
+        .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
+        .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
+        .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
+        .WithEnvironment("KAFKA_LOG_RETENTION_HOURS", "168")
+        .WithEnvironment("KAFKA_LOG_SEGMENT_BYTES", "134217728")
+        .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MESSAGES", "10000")
+        .WithEnvironment("KAFKA_LOG_FLUSH_INTERVAL_MS", "100")
+        .WithEnvironment("KAFKA_LOG_FLUSH_START_OFFSET_CHECKPOINT_INTERVAL_MS", "100")
+        .WithEnvironment("KAFKA_LOG_FLUSH_OFFSET_CHECKPOINT_INTERVAL_MS", "100")
+        .WithEnvironment("KAFKA_MESSAGE_MAX_BYTES", "52428800")
+        .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", "52428800")
+        .WithEnvironment("KAFKA_SOCKET_REQUEST_MAX_BYTES", "268435456")
+        .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
+        .WithEnvironment("KAFKA_HEAP_OPTS", "-Xmx16G -Xms16G")
+        .WithEnvironment("KAFKA_NUM_IO_THREADS", "256")
+        .WithEnvironment("KAFKA_NUM_NETWORK_THREADS", "64")
+        .WithEnvironment("KAFKA_NUM_REPLICA_FETCHERS", "8")
+        .WithEnvironment("KAFKA_SOCKET_SEND_BUFFER_BYTES", "16777216")
+        .WithEnvironment("KAFKA_SOCKET_RECEIVE_BUFFER_BYTES", "16777216")
+        .WithEnvironment("KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE", "false")
+        .WithEnvironment("KAFKA_JVM_PERFORMANCE_OPTS", "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=10 -XX:InitiatingHeapOccupancyPercent=20")
+        .WithEnvironment("KAFKA_LOG4J_ROOT_LOGLEVEL", "WARN");
+
+#pragma warning disable S125 // Test WithVolume vs without
+        //kafka.WithVolume("kafka-volume", "/var/lib/kafka/data");
+#pragma warning restore S125
+
+        return kafka.PublishAsContainer();
     }
 
     private static IResourceBuilder<ContainerResource> AddKafkaInitialization(IDistributedApplicationBuilder builder, IResourceBuilder<KafkaServerResource> kafka)
     {
         var kafkaInitScript = GetKafkaInitializationScript();
-        var isWindows = IsRunningOnWindows();
-        
-        var kafkaInit = builder.AddContainer("kafka-init", "confluentinc/cp-kafka", "7.4.0");
-        
-        // Use simpler shell invocation for better Windows compatibility
-        if (isWindows)
-        {
-            kafkaInit = kafkaInit.WithArgs("sh", "-c", kafkaInitScript.Replace("\r",""));
-        }
-        else
-        {
-            kafkaInit = kafkaInit.WithArgs("bash", "-c", kafkaInitScript);
-        }
-        
+
+        var kafkaInit = builder.AddContainer("kafka-init", "confluentinc/cp-kafka:7.4.0");
+
+        kafkaInit = kafkaInit.WithArgs("bash", "-c", kafkaInitScript.Replace("\r", ""));
+
         return kafkaInit.WaitFor(kafka);
     }
 
@@ -214,9 +183,9 @@ public static class Program
         return simulatorNumMessages;
     }
 
-    private static void ConfigureFlinkJobSimulator(IDistributedApplicationBuilder builder, 
-        IResourceBuilder<RedisResource> redis, 
-        IResourceBuilder<KafkaServerResource> kafka, 
+    private static void ConfigureFlinkJobSimulator(IDistributedApplicationBuilder builder,
+        IResourceBuilder<RedisResource> redis,
+        IResourceBuilder<KafkaServerResource> kafka,
         string simulatorNumMessages,
         IResourceBuilder<ContainerResource> kafkaInit)
     {
@@ -224,16 +193,16 @@ public static class Program
         var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
                                Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
                                Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
-        
+
         // Check if we should use Kafka source for TaskManager load testing
         var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
-        
+
         Console.WriteLine($"🔍 APPHOST CONFIG: USE_SIMPLIFIED_MODE={Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: CI={Environment.GetEnvironmentVariable("CI")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: GITHUB_ACTIONS={Environment.GetEnvironmentVariable("GITHUB_ACTIONS")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: Final useSimplifiedMode: {useSimplifiedMode}");
         Console.WriteLine($"🔍 APPHOST CONFIG: useKafkaSource: {useKafkaSource}");
-        
+
         var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
@@ -241,22 +210,11 @@ public static class Program
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
             .WithEnvironment("SIMULATOR_KAFKA_TOPIC", "flinkdotnet.sample.topic")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-            .WaitFor(redis); // Always wait for Redis since we need it even in simplified mode
-            
-        // Only add Kafka dependencies if not in simplified mode
-        if (!useSimplifiedMode)
-        {
-            Console.WriteLine("🔄 STANDARD MODE: Adding Kafka dependencies");
-            flinkJobSimulator
-                .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
-                .WaitFor(kafka) // Wait for Kafka to be ready
-                .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
-        }
-        else
-        {
-            Console.WriteLine("🎯 SIMPLIFIED MODE: Skipping Kafka dependencies for reliable execution");
-        }
-            
+            .WaitFor(redis) // Always wait for Redis since we need it even in simplified mode
+            .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
+            .WaitFor(kafka) // Wait for Kafka to be ready
+            .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+
         // Pass simplified mode flag if set
         var useSimplifiedModeEnv = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
         if (!string.IsNullOrEmpty(useSimplifiedModeEnv))
@@ -264,7 +222,7 @@ public static class Program
             Console.WriteLine($"🎯 SIMPLIFIED MODE: Enabling simplified mode in FlinkJobSimulator: {useSimplifiedModeEnv}");
             flinkJobSimulator.WithEnvironment("USE_SIMPLIFIED_MODE", useSimplifiedModeEnv);
         }
-            
+
         // Enable Kafka source mode for TaskManager load distribution testing if requested (only in non-simplified mode)
         if (useKafkaSource && !useSimplifiedMode)
         {

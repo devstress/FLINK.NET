@@ -172,7 +172,6 @@ jobs:
           Write-Host "Producing ${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }} messages to Kafka..."
           Write-Host "Environment check before production:"
           Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
           
           # Ensure environment variables are available to the producer script
           if (-not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
