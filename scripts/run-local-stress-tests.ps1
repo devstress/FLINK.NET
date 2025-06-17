@@ -570,7 +570,7 @@ try {
     $completed = $false
     $completionReason = "Unknown"
     $counterNotInitializedAttempts = 0
-    $maxCounterNotInitializedAttempts = 3
+    $maxCounterNotInitializedAttempts = 1
     
     while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
         try {
@@ -616,8 +616,18 @@ try {
                     $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
                     $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
                     
-                    # Only log progress every 10% or at significant milestones
-                    if ($progressPercent -eq 0 -or $progressPercent % 10 -eq 0 -or $currentCount % [math]::Max(1, $expectedMessages / 10) -eq 0) {
+                    # Only log progress every 10% milestones to prevent spam
+                    # Special handling: log once at 0%, then only at 10%, 20%, etc.
+                    $shouldLog = $false
+                    if ($currentCount -eq 0 -and $counterNotInitializedAttempts -eq 0) {
+                        $shouldLog = $true  # Log once when first reaching 0
+                    } elseif ($currentCount -gt 0 -and $progressPercent % 10 -eq 0) {
+                        $shouldLog = $true  # Log at 10%, 20%, 30%, etc.
+                    } elseif ($currentCount -gt 0 -and $currentCount % [math]::Max(1, $expectedMessages / 10) -eq 0) {
+                        $shouldLog = $true  # Log at message count milestones
+                    }
+                    
+                    if ($shouldLog) {
                         Write-Host "📊 Current message count: $currentCount / $expectedMessages"
                         Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
                     }
