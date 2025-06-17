@@ -199,15 +199,27 @@ Message: {message}
 
         private async Task InitializeFlinkKafkaConsumerGroup()
         {
-            // Multi-strategy Kafka bootstrap server discovery
-            string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+            // CRITICAL: Use same Kafka discovery method as producer script to ensure compatibility
+            string? bootstrapServers = await DiscoverKafkaBootstrapServersLikeProducerScript();
+            
             if (string.IsNullOrEmpty(bootstrapServers))
             {
-                bootstrapServers = _configuration["ConnectionStrings__kafka"];
+                // Fallback to environment variables if direct discovery fails
+                bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
                 if (string.IsNullOrEmpty(bootstrapServers))
                 {
-                    bootstrapServers = "localhost:9092";
+                    bootstrapServers = _configuration["ConnectionStrings__kafka"];
+                    if (string.IsNullOrEmpty(bootstrapServers))
+                    {
+                        bootstrapServers = "localhost:9092";
+                    }
                 }
+                
+                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Using fallback bootstrap servers: {BootstrapServers}", _taskManagerId, bootstrapServers);
+            }
+            else
+            {
+                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Discovered Kafka bootstrap servers using producer script method: {BootstrapServers}", _taskManagerId, bootstrapServers);
             }
 
             // Fix IPv6 issue by forcing IPv4 localhost resolution
@@ -523,6 +535,73 @@ Message: {message}
             }
         }
 
+        /// <summary>
+        /// Discover Kafka bootstrap servers using the exact same method as the producer script
+        /// to ensure both producer and consumer connect to the same Kafka instance
+        /// </summary>
+        private async Task<string?> DiscoverKafkaBootstrapServersLikeProducerScript()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Discovering Kafka bootstrap servers using producer script method", _taskManagerId);
+                
+                // Use the exact same logic as produce-1-million-messages.ps1
+                var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "docker",
+                        Arguments = "ps --filter \"name=kafka\" --format \"{{.Ports}}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                
+                process.Start();
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                
+                if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+                {
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Docker ps command failed or no output. Exit code: {ExitCode}, Error: {Error}", 
+                        _taskManagerId, process.ExitCode, error);
+                    return null;
+                }
+                
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Docker ps output: {Output}", _taskManagerId, output.Trim());
+                
+                // Parse ports using same logic as producer script
+                var portsArray = output.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                var matchingPorts = portsArray.Where(portMapping => 
+                    System.Text.RegularExpressions.Regex.IsMatch(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp"));
+                
+                foreach (var portMapping in matchingPorts)
+                {
+                    // Match pattern: 127.0.0.1:PORT->9092/tcp
+                    var match = System.Text.RegularExpressions.Regex.Match(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp");
+                    if (match.Success)
+                    {
+                        var hostPort = match.Groups[1].Value;
+                        var bootstrapServers = $"127.0.0.1:{hostPort}";
+                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Discovered Kafka bootstrap server: {BootstrapServers}", _taskManagerId, bootstrapServers);
+                        return bootstrapServers;
+                    }
+                }
+                
+                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Unable to parse Kafka 9092 port mapping from: {Output}", _taskManagerId, output);
+                return null;
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Exception during Kafka bootstrap server discovery", _taskManagerId);
+                return null;
+            }
+        }
+        
         private async Task LogTopicMessageAvailability()
         {
             try
