@@ -335,6 +335,7 @@ try {
     Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE" -ForegroundColor Gray
     Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER" -ForegroundColor Gray
     Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_PASSWORD: $env:SIMULATOR_REDIS_PASSWORD" -ForegroundColor Gray
     Write-Host "  🎯 STRESS_TEST_MODE: $env:STRESS_TEST_MODE (enables 20-partition load sharing)" -ForegroundColor Cyan
     Write-Host "  🎯 STRESS_TEST_USE_KAFKA_SOURCE: $env:STRESS_TEST_USE_KAFKA_SOURCE (utilizes all TaskManagers)" -ForegroundColor Cyan
     Write-Host "  🔍 OBSERVABILITY_CONSOLE_METRICS: $env:FLINK_OBSERVABILITY_ENABLE_CONSOLE_METRICS" -ForegroundColor Cyan
@@ -388,6 +389,7 @@ try {
     if ($env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE) { $envVars["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] = $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE }
     if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $envVars["SIMULATOR_REDIS_KEY_SINK_COUNTER"] = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER }
     if ($env:SIMULATOR_KAFKA_TOPIC) { $envVars["SIMULATOR_KAFKA_TOPIC"] = $env:SIMULATOR_KAFKA_TOPIC }
+    if ($env:SIMULATOR_REDIS_PASSWORD) { $envVars["SIMULATOR_REDIS_PASSWORD"] = $env:SIMULATOR_REDIS_PASSWORD }
     if ($env:DOTNET_ENVIRONMENT) { $envVars["DOTNET_ENVIRONMENT"] = $env:DOTNET_ENVIRONMENT }
     
     # ✨ STRESS TEST SPECIFIC CONFIGURATION
@@ -569,7 +571,7 @@ try {
     while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
         try {
             # Check completion status first
-            $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
+            $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_completion_status`""
             $completionStatus = Invoke-Expression $statusCommand 2>$null
             
             if ($completionStatus -eq "SUCCESS") {
@@ -585,7 +587,7 @@ try {
             }
             
             # Check for execution errors
-            $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
+            $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_execution_error`""
             $errorValue = Invoke-Expression $errorCommand 2>$null
             if ($errorValue -and $errorValue -ne "(nil)") {
                 Write-Host "❌ Found job execution error in Redis: $errorValue"
@@ -595,7 +597,7 @@ try {
             }
             
             # Check message counter progress
-            $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+            $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
             $counterValue = Invoke-Expression $redisCommand 2>$null
             
             if ($counterValue -match '^\d+$') {
@@ -716,6 +718,7 @@ try {
                 if ($env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE) { $envVars["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] = $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE }
                 if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $envVars["SIMULATOR_REDIS_KEY_SINK_COUNTER"] = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER }
                 if ($env:SIMULATOR_KAFKA_TOPIC) { $envVars["SIMULATOR_KAFKA_TOPIC"] = $env:SIMULATOR_KAFKA_TOPIC }
+                if ($env:SIMULATOR_REDIS_PASSWORD) { $envVars["SIMULATOR_REDIS_PASSWORD"] = $env:SIMULATOR_REDIS_PASSWORD }
                 if ($env:DOTNET_ENVIRONMENT) { $envVars["DOTNET_ENVIRONMENT"] = $env:DOTNET_ENVIRONMENT }
                 
                 # ✨ STRESS TEST SPECIFIC CONFIGURATION

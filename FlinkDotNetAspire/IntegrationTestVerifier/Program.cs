@@ -2222,6 +2222,20 @@ namespace IntegrationTestVerifier
             {
                 ExtractPasswordFromUserInfo(uri.UserInfo, options);
             }
+            else
+            {
+                // No credentials in URI - check environment variable as fallback
+                var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
+                if (!string.IsNullOrEmpty(envPassword))
+                {
+                    options.Password = envPassword;
+                    Console.WriteLine($"Redis: No credentials in URI, using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
+                }
+                else
+                {
+                    Console.WriteLine($"Redis: No credentials in URI and no SIMULATOR_REDIS_PASSWORD environment variable - no authentication will be used");
+                }
+            }
             
             Console.WriteLine($"Redis: Parsed URI - Host: {uri.Host}, Port: {uri.Port}");
         }
@@ -2236,6 +2250,20 @@ namespace IntegrationTestVerifier
                 {
                     options.Password = password;
                     Console.WriteLine($"Redis: Extracted password from URI (length: {password.Length})");
+                }
+                else
+                {
+                    // Empty password in URI - check environment variable as fallback
+                    var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
+                    if (!string.IsNullOrEmpty(envPassword))
+                    {
+                        options.Password = envPassword;
+                        Console.WriteLine($"Redis: Empty password in URI, using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Redis: Empty password detected in URI and no SIMULATOR_REDIS_PASSWORD environment variable - no authentication will be used");
+                    }
                 }
             }
             else

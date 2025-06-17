@@ -113,7 +113,9 @@ public static class Program
 
     private static IResourceBuilder<RedisResource> AddRedisInfrastructure(IDistributedApplicationBuilder builder)
     {
-        var redis = builder.AddRedis("redis");
+        // Use the same password that workflows and local tests expect
+        var redisPassword = builder.AddParameter("redis-password", value: "FlinkDotNet_Redis_CI_Password_2024", secret: false);
+        var redis = builder.AddRedis("redis", password: redisPassword);
         return redis.PublishAsContainer(); // Ensure Redis is accessible from host
     }
 

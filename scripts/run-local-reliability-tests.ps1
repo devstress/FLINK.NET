@@ -176,6 +176,10 @@ try {
     $env:MAX_ALLOWED_TIME_MS = $MaxTimeMs.ToString()
     $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = 'true'
     $env:DOTNET_ENVIRONMENT = 'Development'
+    $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE = 'flinkdotnet:global_sequence_id'
+    $env:SIMULATOR_REDIS_KEY_SINK_COUNTER = 'flinkdotnet:sample:processed_message_counter'
+    $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
+    $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
     # Disable simplified mode for reliability test - we need full Kafka functionality
     $env:USE_SIMPLIFIED_MODE = 'false'
@@ -201,6 +205,10 @@ try {
     Write-Host "  MAX_ALLOWED_TIME_MS: $env:MAX_ALLOWED_TIME_MS" -ForegroundColor Gray
     Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT" -ForegroundColor Gray
     Write-Host "  DOTNET_ENVIRONMENT: $env:DOTNET_ENVIRONMENT" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC" -ForegroundColor Gray
+    Write-Host "  SIMULATOR_REDIS_PASSWORD: $env:SIMULATOR_REDIS_PASSWORD" -ForegroundColor Gray
     Write-Host "  🛡️ RELIABILITY_TEST_MODE: $env:RELIABILITY_TEST_MODE (world-class standards)" -ForegroundColor Cyan
     Write-Host "  🛡️ RELIABILITY_FAULT_TOLERANCE_LEVEL: $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL" -ForegroundColor Cyan
     Write-Host "  🛡️ RELIABILITY_FAULT_INJECTION_RATE: $env:RELIABILITY_TEST_FAULT_INJECTION_RATE" -ForegroundColor Cyan
@@ -243,8 +251,25 @@ try {
         '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
     )
     
-    # Start the process with output redirection
-    $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru
+    # Create hashtable of environment variables to pass to AppHost
+    $envVars = @{}
+    if ($env:DOTNET_REDIS_URL) { $envVars["DOTNET_REDIS_URL"] = $env:DOTNET_REDIS_URL }
+    if ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) { $envVars["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] = $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS }
+    if ($env:SIMULATOR_NUM_MESSAGES) { $envVars["SIMULATOR_NUM_MESSAGES"] = $env:SIMULATOR_NUM_MESSAGES }
+    if ($env:FLINKDOTNET_STANDARD_TEST_MESSAGES) { $envVars["FLINKDOTNET_STANDARD_TEST_MESSAGES"] = $env:FLINKDOTNET_STANDARD_TEST_MESSAGES }
+    if ($env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE) { $envVars["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] = $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE }
+    if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $envVars["SIMULATOR_REDIS_KEY_SINK_COUNTER"] = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER }
+    if ($env:SIMULATOR_KAFKA_TOPIC) { $envVars["SIMULATOR_KAFKA_TOPIC"] = $env:SIMULATOR_KAFKA_TOPIC }
+    if ($env:SIMULATOR_REDIS_PASSWORD) { $envVars["SIMULATOR_REDIS_PASSWORD"] = $env:SIMULATOR_REDIS_PASSWORD }
+    if ($env:DOTNET_ENVIRONMENT) { $envVars["DOTNET_ENVIRONMENT"] = $env:DOTNET_ENVIRONMENT }
+    
+    # ✨ RELIABILITY TEST SPECIFIC CONFIGURATION
+    if ($env:RELIABILITY_TEST_MODE) { $envVars["RELIABILITY_TEST_MODE"] = $env:RELIABILITY_TEST_MODE }
+    if ($env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL) { $envVars["RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL"] = $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL }
+    if ($env:RELIABILITY_TEST_FAULT_INJECTION_RATE) { $envVars["RELIABILITY_TEST_FAULT_INJECTION_RATE"] = $env:RELIABILITY_TEST_FAULT_INJECTION_RATE }
+    
+    # Start the process with output redirection and environment variables
+    $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru -Environment $envVars
     $global:AppHostPid = $proc.Id
     $proc.Id | Out-File apphost.pid -Encoding utf8
     
@@ -405,7 +430,24 @@ try {
                     '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
                 )
                 
-                $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -NoNewWindow -PassThru
+                # Create hashtable of environment variables to pass to AppHost
+                $envVars = @{}
+                if ($env:DOTNET_REDIS_URL) { $envVars["DOTNET_REDIS_URL"] = $env:DOTNET_REDIS_URL }
+                if ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) { $envVars["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] = $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS }
+                if ($env:SIMULATOR_NUM_MESSAGES) { $envVars["SIMULATOR_NUM_MESSAGES"] = $env:SIMULATOR_NUM_MESSAGES }
+                if ($env:FLINKDOTNET_STANDARD_TEST_MESSAGES) { $envVars["FLINKDOTNET_STANDARD_TEST_MESSAGES"] = $env:FLINKDOTNET_STANDARD_TEST_MESSAGES }
+                if ($env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE) { $envVars["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] = $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE }
+                if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $envVars["SIMULATOR_REDIS_KEY_SINK_COUNTER"] = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER }
+                if ($env:SIMULATOR_KAFKA_TOPIC) { $envVars["SIMULATOR_KAFKA_TOPIC"] = $env:SIMULATOR_KAFKA_TOPIC }
+                if ($env:SIMULATOR_REDIS_PASSWORD) { $envVars["SIMULATOR_REDIS_PASSWORD"] = $env:SIMULATOR_REDIS_PASSWORD }
+                if ($env:DOTNET_ENVIRONMENT) { $envVars["DOTNET_ENVIRONMENT"] = $env:DOTNET_ENVIRONMENT }
+                
+                # ✨ RELIABILITY TEST SPECIFIC CONFIGURATION
+                if ($env:RELIABILITY_TEST_MODE) { $envVars["RELIABILITY_TEST_MODE"] = $env:RELIABILITY_TEST_MODE }
+                if ($env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL) { $envVars["RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL"] = $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL }
+                if ($env:RELIABILITY_TEST_FAULT_INJECTION_RATE) { $envVars["RELIABILITY_TEST_FAULT_INJECTION_RATE"] = $env:RELIABILITY_TEST_FAULT_INJECTION_RATE }
+                
+                $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput apphost.out.log -RedirectStandardError apphost.err.log -NoNewWindow -PassThru -Environment $envVars
                 $global:AppHostPid = $proc.Id
                 $proc.Id | Out-File apphost.pid -Encoding utf8
                 
