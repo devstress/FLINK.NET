@@ -210,11 +210,20 @@ Message: {message}
                 await ResetConsumerGroupToEarliest(bootstrapServers);
             }
 
+            // Create unique consumer group ID when forcing reset to ensure AutoOffsetReset = Earliest takes effect
+            var baseGroupId = "flink-taskmanager-consumer-group";
+            var consumerGroupId = shouldForceReset 
+                ? $"{baseGroupId}-reset-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}" 
+                : baseGroupId;
+                
+            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using consumer group ID: {GroupId} (ForceReset: {ForceReset})", 
+                _taskManagerId, consumerGroupId, shouldForceReset);
+
             // Apache Flink-compliant consumer configuration
             var consumerConfig = new ConsumerConfig
             {
                 BootstrapServers = bootstrapServers,
-                GroupId = "flink-taskmanager-consumer-group", // Unified consumer group for all TaskManagers
+                GroupId = consumerGroupId, // Use unique group ID when forcing reset
                 SecurityProtocol = SecurityProtocol.Plaintext,
                 
                 // Apache Flink 2.0 optimal settings (these will be enhanced by FlinkKafkaConsumerGroup)
@@ -394,6 +403,17 @@ Message: {message}
             }
             else
             {
+                // Log debugging info when no message is received
+                if ((DateTime.UtcNow - context.LastLogTime).TotalSeconds >= 30)
+                {
+                    _logger.LogInformation("🔍 TaskManager {TaskManagerId}: No messages received in last 30s - consumer assignment: {AssignmentCount} partitions", 
+                        _taskManagerId, _consumerGroup?.GetAssignment().Count ?? 0);
+                    
+                    // Check consumer group status periodically
+                    LogConsumerGroupStatus();
+                    context.LastLogTime = DateTime.UtcNow;
+                }
+                
                 await Task.Delay(100, stoppingToken);
             }
         }
@@ -438,7 +458,7 @@ Message: {message}
         {
             try
             {
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Resetting consumer group 'flink-taskmanager-consumer-group' to earliest position", _taskManagerId);
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Verifying topic availability for consumption from earliest", _taskManagerId);
                 
                 var adminConfig = new AdminClientConfig 
                 { 
@@ -450,29 +470,26 @@ Message: {message}
                 
                 using var admin = new AdminClientBuilder(adminConfig).Build();
                 
-                // First, get topic metadata to find all partitions
+                // Verify topic exists and get metadata  
                 var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
                 var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
                 
-                if (topicMetadata == null)
+                if (topicMetadata != null)
                 {
-                    _logger.LogWarning("⚠️ Topic {KafkaTopic} not found in metadata, skipping consumer group reset", _kafkaTopic);
-                    return Task.CompletedTask;
+                    _logger.LogInformation("📊 Topic {Topic} metadata: {PartitionCount} partitions available for consumption", 
+                        _kafkaTopic, topicMetadata.Partitions.Count);
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic verified - unique consumer group will ensure consumption from earliest", _taskManagerId);
                 }
-                
-                var partitions = topicMetadata.Partitions.Select(p => new TopicPartition(_kafkaTopic, p.PartitionId)).ToList();
-                _logger.LogInformation("📊 Found {PartitionCount} partitions for topic {Topic}: {Partitions}", 
-                    partitions.Count, _kafkaTopic, string.Join(", ", partitions.Select(p => p.Partition)));
-                
-                // Instead of trying to get watermarks (which returns Unset), we'll rely on AutoOffsetReset = Earliest
-                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Consumer will start from earliest due to AutoOffsetReset = Earliest configuration", _taskManagerId);
-                _logger.LogInformation("🔄 Consumer group reset relies on AutoOffsetReset rather than manual offset commit");
+                else
+                {
+                    _logger.LogWarning("⚠️ Topic {KafkaTopic} not found in metadata", _kafkaTopic);
+                }
                 
                 return Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to reset consumer group to earliest - will proceed with normal startup", _taskManagerId);
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to verify topic metadata - will proceed with normal startup", _taskManagerId);
                 return Task.CompletedTask;
             }
         }
@@ -543,8 +560,6 @@ Message: {message}
                 {
                     _logger.LogInformation("📊 Topic {Topic} metadata: {PartitionCount} partitions", 
                         _kafkaTopic, topicMetadata.Partitions.Count);
-                    
-                    var partitions = topicMetadata.Partitions.Select(p => new TopicPartition(_kafkaTopic, p.PartitionId)).ToList();
                     
                     // Use kafka-console-consumer to get actual message counts as watermarks API is unreliable
                     _logger.LogInformation("📊 Topic {Topic} ready for consumption (watermark API shows 'Unset' due to Kafka client limitations)", _kafkaTopic);

@@ -624,7 +624,7 @@ jobs:
           
           if (-not $completed) {
             Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
-            Write-Host "⏰ TIMEOUT REACHED - Generating fallback output for stress test validation..."
+            Write-Host "⏰ TIMEOUT REACHED - This indicates FlinkJobSimulator failed to process messages"
             
             # Final comprehensive check
             try {
@@ -641,32 +641,33 @@ jobs:
               if ($finalErrorValue -and $finalErrorValue -ne "(nil)") {
                 Write-Host "📊 Final error marker: $finalErrorValue"
               }
+              
+              # Check if any messages were actually processed
+              if ($finalCounterValue -match '^\d+$' -and [int]$finalCounterValue -gt 0) {
+                Write-Host "📊 FlinkJobSimulator processed $finalCounterValue messages (partial success)" -ForegroundColor Yellow
+                $completed = $true
+                $completionReason = "PartialCompletion"
+              } else {
+                Write-Host "❌ FlinkJobSimulator processed 0 messages - this is a FAILURE" -ForegroundColor Red
+                $completionReason = "NoMessagesProcessed"
+                throw "FlinkJobSimulator failed to process any messages within timeout period"
+              }
             } catch {
               Write-Host "💥 Could not perform final Redis check: $($_.Exception.Message)"
-            }
-            
-            # Generate fallback output for testing validation instead of failing
-            Write-Host "🎯 Generating fallback stress test output for Apache Flink compliance validation..." -ForegroundColor Yellow
-            try {
-              & ./scripts/generate-stress-test-output.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -OutputFile "stress_test_passed_output.txt"
-              $completed = $true
-              $completionReason = "FallbackGenerated"
-            }
-            catch {
-              Write-Host "💥 Failed to generate fallback output: $($_.Exception.Message)" -ForegroundColor Red
-              throw "FlinkJobSimulator completion timeout and fallback generation failed"
+              $completionReason = "TimeoutWithErrors"
+              throw "FlinkJobSimulator completion timeout - unable to verify message processing"
             }
           }
           
           # Check final success condition
-          if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached" -or $completionReason -eq "FallbackGenerated") {
-            if ($completionReason -eq "FallbackGenerated") {
-              Write-Host "✅ Stress test completed using fallback output generation!" -ForegroundColor Green
+          if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached" -or $completionReason -eq "PartialCompletion") {
+            if ($completionReason -eq "PartialCompletion") {
+              Write-Host "⚠️ FlinkJobSimulator completed with partial message processing!" -ForegroundColor Yellow
             } else {
               Write-Host "✅ FlinkJobSimulator completed successfully!"
             }
           } else {
-            Write-Host "❌ FlinkJobSimulator completed with issues: $completionReason"
+            Write-Host "❌ FlinkJobSimulator failed: $completionReason"
             throw "FlinkJobSimulator execution failed"
           }
 
@@ -841,17 +842,11 @@ jobs:
         run: |
           Write-Host "🔍 Checking for stress test output file..."
           if (-not (Test-Path "stress_test_passed_output.txt")) {
-            Write-Host "⚠️ Stress test output file not found, generating fallback output..." -ForegroundColor Yellow
-            try {
-              & ./scripts/generate-stress-test-output.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -OutputFile "stress_test_passed_output.txt"
-              Write-Host "✅ Generated stress_test_passed_output.txt as fallback" -ForegroundColor Green
-            }
-            catch {
-              Write-Host "💥 Failed to generate fallback output: $_" -ForegroundColor Red
-              exit 1
-            }
+            Write-Host "❌ Stress test output file not found - this indicates the test failed" -ForegroundColor Red
+            Write-Host "💡 This is expected behavior when FlinkJobSimulator fails to process messages" -ForegroundColor Yellow
+            exit 1
           } else {
-            Write-Host "✅ Stress test output file already exists" -ForegroundColor Green
+            Write-Host "✅ Stress test output file exists" -ForegroundColor Green
           }
           
           # Show the file size and first few lines
