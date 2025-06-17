@@ -613,7 +613,7 @@ class UltraHighPerformanceProducer {
         
         try {
             var totalPartitions = 50; // Optimized for 50 parallel producers (1 partition per producer)
-            var partitionsPerProducer = 2; // Each producer handles 2 partitions for optimal load distribution
+            var partitionsPerProducer = Math.Max(1, 2); // Each producer handles 2 partitions for optimal load distribution, ensure minimum 1
             var assignedPartitions = GetAssignedPartitions(producerId, totalPartitions, partitionsPerProducer);
             
             Console.WriteLine("PARTITIONS:" + producerId + ":" + string.Join(",", assignedPartitions));
@@ -628,7 +628,8 @@ class UltraHighPerformanceProducer {
                 var msgId = startMsgId + i;
                 
                 // Assign message to one of this producer's partitions using FIFO-preserving algorithm
-                var partition = assignedPartitions[msgId % assignedPartitions.Length];
+                // Add defensive check to prevent array index errors
+                var partition = assignedPartitions.Length > 0 ? assignedPartitions[msgId % assignedPartitions.Length] : 0;
                 
                 var task = ProduceMessageAsync(producer, topic, msgId, partition, semaphore);
                 tasks.Add(task);
@@ -662,6 +663,10 @@ class UltraHighPerformanceProducer {
     }
     
     static int[] GetAssignedPartitions(int producerId, int totalPartitions, int partitionsPerProducer) {
+        // Defensive check: ensure we have at least 1 partition per producer
+        if (partitionsPerProducer <= 0) {
+            partitionsPerProducer = 1;
+        }
         var startPartition = (producerId * partitionsPerProducer) % totalPartitions;
         var result = new int[partitionsPerProducer];
         for (int i = 0; i < partitionsPerProducer; i++) {

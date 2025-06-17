@@ -338,8 +338,9 @@ function Get-TestProgress($logPath, $testName) {
 # Main monitoring loop with progress bars
 $allCompleted = $false
 $refreshCount = 0
+$maxRefreshCount = 1800  # 1800 * 2 seconds = 60 minutes timeout
 
-while (-not $allCompleted) {
+while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
     $allCompleted = $true
     $activeJobs = 0
     
@@ -362,6 +363,12 @@ while (-not $allCompleted) {
         $testName = $config.Name
         $job = $jobs[$testName]
         $logPath = "$logsDir/$($config.LogFile)"
+        
+        # Defensive check: ensure job exists
+        if (-not $job) {
+            Write-Host "[WARNING] Job for $testName not found, marking as completed" -ForegroundColor Yellow
+            continue
+        }
         
         if ($job.State -eq "Running") {
             $allCompleted = $false
@@ -386,6 +393,16 @@ while (-not $allCompleted) {
             Write-Host "[ERROR] $testName failed" -ForegroundColor Red
             Remove-Job $job
             $jobs.Remove($testName)
+        } else {
+            # Handle other job states (Stopped, Blocked, etc.)
+            Write-Host "[WARNING] $testName in unexpected state: $($job.State)" -ForegroundColor Yellow
+            $allCompleted = $false
+            $activeJobs++
+            
+            # If job has been in non-standard state for too long, consider it failed
+            if ($refreshCount % 30 -eq 0) {  # Check every minute
+                Write-Host "[WARNING] $testName has been in state '$($job.State)' for extended time" -ForegroundColor Yellow
+            }
         }
     }
     
@@ -396,6 +413,23 @@ while (-not $allCompleted) {
     
     Start-Sleep -Seconds 2
     $refreshCount++
+}
+
+# Check for timeout
+if ($refreshCount -ge $maxRefreshCount) {
+    Write-Host ""
+    Write-Host "[WARNING] Test execution timed out after 60 minutes. Stopping remaining jobs..." -ForegroundColor Yellow
+    
+    # Clean up any remaining jobs
+    foreach ($jobName in @($jobs.Keys)) {
+        $job = $jobs[$jobName]
+        if ($job.State -eq "Running") {
+            Write-Host "[INFO] Stopping job: $jobName" -ForegroundColor Gray
+            Stop-Job $job
+        }
+        Remove-Job $job -Force
+        $jobs.Remove($jobName)
+    }
 }
 
 # Clear all progress bars
