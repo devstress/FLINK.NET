@@ -149,6 +149,23 @@ Pass an optional argument to control the number of simulated messages. The scrip
 
 **CI Workflow**: Stress tests run via `.github/workflows/stress-tests.yml` and process 1 million messages to validate high-throughput performance.
 
+### Performance Benchmarks
+
+**Production Tuning Results (i9-12900k Setup)**:
+
+System configuration:
+- **CPU**: Intel i9-12900k 12th Gen 3.19GHz
+- **Memory**: 64GB RAM Speed 5200MHz  
+- **Storage**: 1500W/5000R SSD
+- **OS**: Windows with Docker Desktop
+
+Benchmark results using `produce-1-million-messages.ps1`:
+```
+[FINISH] Total: 1,000,000 Time: 2.454s Rate: 407,500 msg/sec
+```
+
+This demonstrates Flink.NET's micro-batch autotuned architecture achieving **407,500 messages/second** throughput on optimized hardware. For scaling to 1+ million messages/second targets, see [Advanced Performance Tuning](./docs/wiki/Advanced-Performance-Tuning.md) for multi-server Kubernetes optimization strategies.
+
 ### Configuring JobManager Ports
 
 The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `8088` and `50051` by default. To override these values set the environment variables `JOBMANAGER_HTTP_PORT` and `JOBMANAGER_GRPC_PORT`. The TaskManager gRPC port can be configured with `TASKMANAGER_GRPC_PORT`.
