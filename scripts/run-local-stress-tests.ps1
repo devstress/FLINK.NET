@@ -515,6 +515,10 @@ try {
     Write-Host "  Max attempts: $maxAttempts" -ForegroundColor Gray
     Write-Host "  Delay between attempts: $delaySeconds seconds" -ForegroundColor Gray
     Write-Host "  Total max time: $($maxAttempts * $delaySeconds) seconds" -ForegroundColor Gray
+    Write-Host "  Environment variables:" -ForegroundColor Gray
+    Write-Host "    DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
+    Write-Host "    DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
+    Write-Host "    SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES" -ForegroundColor Gray
     
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---" -ForegroundColor White
