@@ -228,17 +228,24 @@ Message: {message}
             // Fix IPv6 issue by forcing IPv4 localhost resolution
             bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
 
-            // CRITICAL FIX: Simplified consumer group reset strategy
+            // PRODUCTION-GRADE APACHE FLINK PATTERN: Use consistent consumer group for continuous consumption
+            // Unlike batch processing, continuous consumers should maintain group membership for proper coordination
+            var baseGroupId = "flink-taskmanager-consumer-group";
             var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
             var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
             
-            // Always use a fresh consumer group when forcing reset to ensure clean start
-            var baseGroupId = "flink-taskmanager-consumer-group";
-            var consumerGroupId = shouldForceReset 
-                ? $"{baseGroupId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{Environment.ProcessId}" 
-                : baseGroupId;
+            // Use stable consumer group ID for production-grade continuous consumption
+            // Only create unique ID if explicitly testing isolated consumption scenarios
+            var consumerGroupId = baseGroupId;
+            
+            // PRODUCTION-GRADE PATTERN: Reset consumer group offsets if requested for fresh consumption
+            if (shouldForceReset)
+            {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Resetting consumer group offsets to earliest for fresh consumption", _taskManagerId);
+                await ResetConsumerGroupOffsetsToEarliest(bootstrapServers, consumerGroupId);
+            }
                 
-            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using consumer group ID: {GroupId} (ForceReset: {ForceReset})", 
+            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using stable consumer group ID: {GroupId} for production-grade continuous consumption (ForceReset: {ForceReset})", 
                 _taskManagerId, consumerGroupId, shouldForceReset);
 
             // CRITICAL FIX: Enhanced consumer configuration with Apache Flink 2.0 optimizations
@@ -1059,43 +1066,87 @@ Message: {message}
         /// <summary>
         /// Reset consumer group offsets to earliest position to ensure we consume all available messages
         /// </summary>
-        private Task ResetConsumerGroupToEarliest(string bootstrapServers)
+        private async Task ResetConsumerGroupOffsetsToEarliest(string bootstrapServers, string consumerGroupId)
         {
             try
             {
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Verifying topic availability for consumption from earliest", _taskManagerId);
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Resetting consumer group '{GroupId}' offsets to earliest", _taskManagerId, consumerGroupId);
                 
-                var adminConfig = new AdminClientConfig 
-                { 
+                // Create temporary consumer to perform offset reset
+                var resetConsumerConfig = new ConsumerConfig
+                {
                     BootstrapServers = bootstrapServers,
+                    GroupId = consumerGroupId,
                     SecurityProtocol = SecurityProtocol.Plaintext,
-                    SocketTimeoutMs = 10000,
-                    ApiVersionRequestTimeoutMs = 10000
+                    SessionTimeoutMs = 10000,
+                    EnableAutoCommit = false
                 };
                 
-                using var admin = new AdminClientBuilder(adminConfig).Build();
+                using var resetConsumer = new ConsumerBuilder<Ignore, byte[]>(resetConsumerConfig).Build();
                 
-                // Verify topic exists and get metadata  
-                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
-                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                // Subscribe to get partition assignment
+                resetConsumer.Subscribe(_kafkaTopic);
                 
-                if (topicMetadata != null)
+                // Wait for assignment
+                var maxWaitTime = TimeSpan.FromSeconds(15);
+                var startTime = DateTime.UtcNow;
+                List<TopicPartition> assignment = new();
+                
+                while ((DateTime.UtcNow - startTime) < maxWaitTime && assignment.Count == 0)
                 {
-                    _logger.LogInformation("📊 Topic {Topic} metadata: {PartitionCount} partitions available for consumption", 
-                        _kafkaTopic, topicMetadata.Partitions.Count);
-                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic verified - unique consumer group will ensure consumption from earliest", _taskManagerId);
+                    try
+                    {
+                        var result = resetConsumer.Consume(TimeSpan.FromMilliseconds(1000));
+                        assignment = resetConsumer.Assignment.ToList();
+                        if (assignment.Count > 0) break;
+                    }
+                    catch (ConsumeException)
+                    {
+                        // Expected during assignment
+                    }
+                    await Task.Delay(500);
+                }
+                
+                if (assignment.Count > 0)
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Got assignment for reset - {PartitionCount} partitions", _taskManagerId, assignment.Count);
+                    
+                    // Get earliest offsets for all assigned partitions
+                    var partitionsWithEarliestOffsets = new List<TopicPartitionOffset>();
+                    foreach (var partition in assignment)
+                    {
+                        try
+                        {
+                            var watermarks = resetConsumer.QueryWatermarkOffsets(partition, TimeSpan.FromSeconds(5));
+                            var earliestOffset = watermarks.Low;
+                            partitionsWithEarliestOffsets.Add(new TopicPartitionOffset(partition, earliestOffset));
+                            _logger.LogInformation("📍 TaskManager {TaskManagerId}: Partition {Partition} earliest offset: {Offset}", 
+                                _taskManagerId, partition.Partition, earliestOffset);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Could not get watermarks for partition {Partition}, using Offset.Beginning", 
+                                _taskManagerId, partition.Partition);
+                            partitionsWithEarliestOffsets.Add(new TopicPartitionOffset(partition, Offset.Beginning));
+                        }
+                    }
+                    
+                    // Commit earliest offsets
+                    if (partitionsWithEarliestOffsets.Count > 0)
+                    {
+                        resetConsumer.Commit(partitionsWithEarliestOffsets);
+                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Successfully reset {PartitionCount} partition offsets to earliest", 
+                            _taskManagerId, partitionsWithEarliestOffsets.Count);
+                    }
                 }
                 else
                 {
-                    _logger.LogWarning("⚠️ Topic {KafkaTopic} not found in metadata", _kafkaTopic);
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: No partitions assigned for offset reset within timeout", _taskManagerId);
                 }
-                
-                return Task.CompletedTask;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to verify topic metadata - will proceed with normal startup", _taskManagerId);
-                return Task.CompletedTask;
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to reset consumer group offsets - will rely on AutoOffsetReset", _taskManagerId);
             }
         }
 
