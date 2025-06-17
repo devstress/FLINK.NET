@@ -166,8 +166,18 @@ PreviousState: FlinkJobSimulatorNotStarted
                         }
                         else
                         {
-                            options.Password = ""; // Empty password
-                            Console.WriteLine("🔐 REDIS CONFIG: Using empty password from URI");
+                            // Empty password in URI - check environment variable as fallback
+                            var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
+                            if (!string.IsNullOrEmpty(envPassword))
+                            {
+                                options.Password = envPassword;
+                                Console.WriteLine($"🔐 REDIS CONFIG: Empty password in URI, using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
+                            }
+                            else
+                            {
+                                options.Password = ""; // Empty password
+                                Console.WriteLine("🔐 REDIS CONFIG: Empty password in URI and no SIMULATOR_REDIS_PASSWORD environment variable, using empty password");
+                            }
                         }
                     }
                     else
@@ -179,9 +189,18 @@ PreviousState: FlinkJobSimulatorNotStarted
                 }
                 else
                 {
-                    // No credentials in URI
-                    options.Password = "";
-                    Console.WriteLine("🔐 REDIS CONFIG: No password specified in URI, using empty password");
+                    // No credentials in URI - check environment variable as fallback
+                    var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
+                    if (!string.IsNullOrEmpty(envPassword))
+                    {
+                        options.Password = envPassword;
+                        Console.WriteLine($"🔐 REDIS CONFIG: No credentials in URI, using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
+                    }
+                    else
+                    {
+                        options.Password = "";
+                        Console.WriteLine("🔐 REDIS CONFIG: No password specified in URI and no SIMULATOR_REDIS_PASSWORD environment variable, using empty password");
+                    }
                 }
                 
                 // Set optimal connection parameters
