@@ -159,12 +159,14 @@ System configuration:
 - **Storage**: 1500W/5000R SSD
 - **OS**: Windows with Docker Desktop
 
+**Important Note**: The benchmark results below are from `produce-1-million-messages.ps1` (a specialized Kafka producer script), not from Flink.NET itself. Flink.NET provides additional capabilities like FIFO processing, exactly-once semantics, and advanced state management.
+
 Benchmark results using `produce-1-million-messages.ps1`:
 ```
 [FINISH] Total: 1,000,000 Time: 2.454s Rate: 407,500 msg/sec
 ```
 
-This demonstrates Flink.NET's micro-batch autotuned architecture achieving **407,500 messages/second** throughput on optimized hardware. For scaling to 1+ million messages/second targets, see [Advanced Performance Tuning](./docs/wiki/Advanced-Performance-Tuning.md) for multi-server Kubernetes optimization strategies.
+This demonstrates the achievable throughput on optimized hardware with a micro-batch autotuned Kafka producer. Flink.NET aims to achieve similar performance while providing exactly-once processing, state management, and FIFO guarantees that the simple producer script does not offer. For scaling to 1+ million messages/second targets with full Flink.NET features, see [Advanced Performance Tuning](./docs/wiki/Advanced-Performance-Tuning.md) for multi-server Kubernetes optimization strategies.
 
 ### Configuring JobManager Ports
 

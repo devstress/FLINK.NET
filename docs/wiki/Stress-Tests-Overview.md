@@ -46,11 +46,12 @@ Our stress tests validate FLINK.NET's ability to handle high-volume message proc
 
 **Hardware Optimization Results**:
 - **Tested Configuration**: i9-12900k (3.19GHz), 64GB DDR4-5200, NVMe SSD
-- **Achieved Throughput**: 407,500 messages/second sustained performance
+- **Achieved Throughput**: 407,500 messages/second sustained performance using `produce-1-million-messages.ps1` (specialized Kafka producer script)
 - **Processing Time**: 1M messages in 2.454 seconds using autotuned micro-batch architecture
+- **Important Note**: These numbers are from the producer script, not from Flink.NET which provides additional FIFO processing and state management capabilities
 
 **Multi-Server Scaling Strategy**:
-- **Target**: 1+ million messages processed in <1 second
+- **Target**: 1+ million messages processed in <1 second with full Flink.NET features
 - **Approach**: Kubernetes + Linux multi-node deployment
 - **Recommended Setup**: 3-5 nodes, 16+ cores per node, 10Gbps+ networking
 - **Projected Performance**: 2M+ msg/sec with optimized container orchestration

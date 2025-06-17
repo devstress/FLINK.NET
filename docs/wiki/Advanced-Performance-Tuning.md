@@ -13,8 +13,36 @@ This page provides guidance and best practices for tuning the performance of Fli
 - **OS**: Windows 11 with Docker Desktop
 - **Infrastructure**: Aspire-managed Kafka + Redis containers
 
-**Tuning Strategy:**
-The FlinkDotNetAspire.AppHost.AppHost server and `produce-1-million-messages.ps1` client were specifically tuned for this hardware configuration to achieve optimal performance.
+**Important Note**: The benchmark results below are from `produce-1-million-messages.ps1` (a specialized Kafka producer script), not from Flink.NET itself. Flink.NET provides additional capabilities like FIFO processing, exactly-once semantics, and advanced state management that the simple producer script does not offer.
+
+**Producer Configuration (produce-1-million-messages.ps1):**
+```csharp
+var config = new ProducerConfig
+{
+    BootstrapServers = bootstrap,
+    Acks = Acks.None,                    // No acknowledgment for maximum speed
+    LingerMs = 2,                        // 2ms batching delay
+    BatchSize = 524288,                  // 512KB batch size
+    CompressionType = CompressionType.None,  // No compression for speed
+    QueueBufferingMaxKbytes = 64 * 1024 * 1024,      // 64MB buffer
+    QueueBufferingMaxMessages = 20_000_000,            // 20M message buffer
+    SocketTimeoutMs = 60000,
+    SocketKeepaliveEnable = true,
+    EnableDeliveryReports = false        // Disable reports for speed
+};
+
+// Execution Parameters:
+// - ParallelProducers: 64
+// - Partitions: 100
+// - Message payload: 32 bytes (8 bytes key + 8 bytes timestamp + 16 bytes random)
+```
+
+**Server Configuration (Aspire AppHost + Kafka):**
+- **Kafka Version**: Confluent Platform 7.4.0 via Docker
+- **Kafka Memory**: Default Docker allocation with page cache warming
+- **Topic Configuration**: 100 partitions for high parallelism
+- **Network**: Docker Desktop bridge networking (localhost:dynamic_port)
+- **Disk Warmup**: Pre-cache Kafka data directory before benchmark
 
 **Results:**
 ```
@@ -33,6 +61,7 @@ The FlinkDotNetAspire.AppHost.AppHost server and `produce-1-million-messages.ps1
 2. **Memory Speed Utilization**: 5200MHz RAM provides exceptional throughput for large message buffers
 3. **NVMe Storage**: High-speed storage reduces Kafka log flush latency
 4. **Container Optimization**: Aspire orchestration minimizes container networking overhead
+5. **No Acknowledgments**: Acks.None eliminates round-trip latency (at-least-once semantics)
 
 ## Scaling to 1+ Million Messages/Second
 
@@ -89,6 +118,44 @@ Based on the single-machine 407,500 msg/sec result:
 4. **Serialization**: Enhance MemoryPack serialization for complex message types
 5. **Backpressure**: Fine-tune credit-based flow control for sustained high loads
 
+**Recommended FlinkDotNetConsumerGroup Configuration** (to achieve similar 400k+ msg/sec with state management):
+```csharp
+// FlinkDotNet Consumer Configuration for High Throughput
+var consumerConfig = new ConsumerConfig
+{
+    BootstrapServers = bootstrapServers,
+    GroupId = "flinkdotnet-high-throughput-group",
+    EnableAutoCommit = false,               // Manual commit for exactly-once
+    FetchMinBytes = 524288,                 // 512KB minimum fetch (match producer batch)
+    FetchMaxWaitMs = 2,                     // 2ms max wait (match producer linger)
+    MaxPartitionFetchBytes = 10485760,      // 10MB per partition
+    SessionTimeoutMs = 30000,
+    MaxPollRecords = 10000,                 // Large poll size for batching
+    AutoOffsetReset = AutoOffsetReset.Earliest
+};
+
+// FlinkDotNet Batching Strategy
+var streamConfig = new StreamExecutionEnvironment()
+    .SetParallelism(64)                     // Match producer parallelism
+    .SetMaxParallelism(128)                 // Allow scaling up
+    .EnableCheckpointing(TimeSpan.FromSeconds(10))  // 10s checkpoint interval
+    .SetStateBackend(new RocksDBStateBackend())
+    .SetRestartStrategy(RestartStrategies.FixedDelayRestart(3, TimeSpan.FromSeconds(5)));
+
+// Batch Processing Configuration
+var batchedStream = kafkaSource
+    .CountWindow(1000)                      // 1000 message batches
+    .Or(TimeWindow.Of(TimeSpan.FromMilliseconds(50)))  // 50ms time windows
+    .Apply(new HighThroughputBatchProcessor());
+```
+
+**Key Differences from produce-1-million-messages.ps1**:
+- **Exactly-Once Semantics**: Manual offset commits with state checkpointing vs. Acks.None
+- **FIFO Guarantees**: Ordered processing within partitions maintained
+- **State Management**: Persistent state across restarts vs. stateless producer
+- **Fault Tolerance**: Automatic recovery and replay vs. fire-and-forget approach
+- **Complex Processing**: Windowing, aggregations, joins vs. simple message sending
+
 **Why Flink.NET > produce-1-million-messages.ps1**:
 - **Apache Flink 2.0 Features**: Implements exactly-once processing semantics vs. at-least-once in the PowerShell script
 - **State Management**: Built-in checkpointing and recovery capabilities
@@ -96,6 +163,7 @@ Based on the single-machine 407,500 msg/sec result:
 - **Operator Chaining**: Reduces serialization overhead between processing steps
 - **Adaptive Scheduling**: Dynamic resource allocation based on workload
 - **Advanced Features**: Windowing, complex event processing, and stateful operations not available in simple producer scripts
+- **FIFO + High Throughput**: Maintains message ordering while achieving high performance with state management
 
 ## Key Areas for Performance Tuning
 

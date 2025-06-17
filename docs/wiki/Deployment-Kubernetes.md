@@ -6,7 +6,7 @@ This page provides comprehensive guidance on deploying Flink.NET applications to
 
 ### Optimized Cluster Setup for 1M+ msg/s Target
 
-Based on proven performance results (407,500 msg/sec on single i9-12900k node), the following multi-node Kubernetes configuration is recommended to achieve 1+ million messages processed in under 1 second:
+Based on proven performance results (407,500 msg/sec achieved by `produce-1-million-messages.ps1` on single i9-12900k node), the following multi-node Kubernetes configuration is recommended to achieve 1+ million messages processed in under 1 second with full Flink.NET features (exactly-once semantics, state management, FIFO processing):
 
 **Cluster Requirements:**
 ```yaml
