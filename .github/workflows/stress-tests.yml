@@ -509,7 +509,7 @@ jobs:
           Write-Host "Expected messages: ${{ env.SIMULATOR_NUM_MESSAGES }}"
           Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
           
-          $maxWaitSeconds = 420  # 7 minutes max wait (increased for reliability)
+          $maxWaitSeconds = 10
           $checkIntervalSeconds = 5
           $expectedMessages = [int]"${{ env.SIMULATOR_NUM_MESSAGES }}"
           $waitStartTime = Get-Date
