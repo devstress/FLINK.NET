@@ -495,9 +495,9 @@ Message: {message}
                 var processedMessage = $"PROCESSED:{messageContent}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
                 var messageBytes = System.Text.Encoding.UTF8.GetBytes(processedMessage);
                 
-                // High-performance produce (synchronous for maximum speed like produce-1-million-messages.ps1)
+                // High-performance produce (asynchronous as recommended by SonarQube)
                 var message = new Message<Null, byte[]> { Value = messageBytes };
-                _producer.Produce(_outputTopic, message);
+                await _producer.ProduceAsync(_outputTopic, message);
                 
                 // Log success only for first few messages or milestones
                 var currentCount = Interlocked.Read(ref _messagesProcessed);

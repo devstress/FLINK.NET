@@ -220,7 +220,7 @@ jobs:
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
           SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
-          $maxAttempts = 5  # Increased attempts for CI reliability
+          $maxAttempts = 2  # Reduced attempts as requested (1 retry)
           $delaySeconds = 10  # Adequate delay for CI environment
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 

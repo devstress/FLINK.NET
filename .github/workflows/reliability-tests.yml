@@ -129,7 +129,7 @@ jobs:
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
           
-          $maxAttempts = 5
+          $maxAttempts = 2
           $delaySeconds = 10
           
           Write-Host "`n=== Health Check Configuration ===" 
