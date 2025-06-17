@@ -267,10 +267,10 @@ Message: {message}
                 // CRITICAL: Use cooperative sticky for better load balancing
                 PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
                 
-                // CRITICAL FIX: Performance settings optimized for high-throughput
-                FetchMinBytes = 1024,      // Increased from 1 byte to reduce polling overhead
-                FetchWaitMaxMs = 50,       // Reduced from 100ms for lower latency
-                FetchMaxBytes = 52428800,  // 50MB max fetch
+                // PRODUCTION-GRADE: Performance settings optimized for instant message consumption  
+                FetchMinBytes = 1,             // Minimum 1 byte - return immediately if any data available
+                FetchWaitMaxMs = 10,           // Wait only 10ms for more data - prioritize low latency over batching
+                FetchMaxBytes = 52428800,      // 50MB max fetch
                 MaxPartitionFetchBytes = 1048576, // 1MB per partition
                 
                 // CRITICAL: Network optimization
@@ -568,8 +568,9 @@ Message: {message}
             {
                 try
                 {
-                    // CRITICAL FIX: Enhanced timeout and polling strategy
-                    var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(2000)); // Increased to 2s
+                    // PRODUCTION-GRADE: Use minimal timeout for instant message consumption
+                    // Consumer will immediately return null if no messages available, allowing tight polling
+                    var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(100)); // Fast 100ms timeout for instant response
                     
                     if (consumeResult?.Message != null)
                     {
@@ -597,8 +598,9 @@ Message: {message}
                             lastProgressLogTime = DateTime.UtcNow;
                         }
                         
-                        // Brief pause to prevent tight polling
-                        await Task.Delay(100, stoppingToken);
+                        // PRODUCTION-GRADE: Minimal delay for instant message consumption
+                        // Brief pause only to prevent 100% CPU usage while maintaining responsiveness
+                        await Task.Delay(10, stoppingToken); // Reduced from 100ms to 10ms for instant response
                     }
                     
                     // Check if consumer group is in recovery mode
@@ -608,15 +610,15 @@ Message: {message}
                         _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup in recovery mode (failures: {FailureCount})", 
                             _taskManagerId, failureCount);
                         
-                        // Brief pause to allow recovery
-                        await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                        // PRODUCTION-GRADE: Brief pause to allow recovery while maintaining responsiveness
+                        await Task.Delay(TimeSpan.FromMilliseconds(500), stoppingToken); // Reduced from 2s to 500ms
                     }
                 }
                 catch (ConsumeException ex)
                 {
                     _logger.LogWarning(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException - will be handled by FlinkKafkaConsumerGroup: {Error}",
                         _taskManagerId, ex.Error.Reason);
-                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(200), stoppingToken); // Reduced from 1s to 200ms for faster recovery
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -626,7 +628,7 @@ Message: {message}
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Unexpected error during consumption", _taskManagerId);
-                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken); // Keep 1s delay for unexpected errors
                 }
             }
             
