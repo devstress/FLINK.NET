@@ -268,7 +268,10 @@ Message: {message}
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing high-performance producer for output topic: {OutputTopic}", 
                 _taskManagerId, _outputTopic);
 
-            _producer = new ProducerBuilder<Null, byte[]>(producerConfig).Build();
+            _producer = new ProducerBuilder<Null, byte[]>(producerConfig)
+                .SetKeySerializer(Serializers.Null)
+                .SetValueSerializer(Serializers.ByteArray)
+                .Build();
             
             // Create output topic if needed
             await EnsureTopicExistsAsync(bootstrapServers, _outputTopic);
@@ -492,9 +495,9 @@ Message: {message}
                 var processedMessage = $"PROCESSED:{messageContent}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
                 var messageBytes = System.Text.Encoding.UTF8.GetBytes(processedMessage);
                 
-                // High-performance produce (fire-and-forget for maximum speed)
+                // High-performance produce (synchronous for maximum speed like produce-1-million-messages.ps1)
                 var message = new Message<Null, byte[]> { Value = messageBytes };
-                await _producer.ProduceAsync(_outputTopic, message);
+                _producer.Produce(_outputTopic, message);
                 
                 // Log success only for first few messages or milestones
                 var currentCount = Interlocked.Read(ref _messagesProcessed);
@@ -509,6 +512,9 @@ Message: {message}
                 _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to produce to output topic: {OutputTopic}", 
                     _taskManagerId, _outputTopic);
             }
+            
+            // Make it async for compatibility but no actual async work
+            await Task.CompletedTask;
         }
 
         private async Task UpdateRedisCountersWithFlinkPatterns()

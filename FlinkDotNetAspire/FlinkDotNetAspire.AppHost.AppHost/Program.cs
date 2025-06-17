@@ -38,8 +38,19 @@ public static class Program
                 --config min.insync.replicas=1 \
                 --config message.max.bytes=52428800
 
-            echo 'Validating topic...'
+            echo 'Creating flinkdotnet.sample.out.topic for FlinkJobSimulator output...'
+            kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+                --topic flinkdotnet.sample.out.topic \
+                --partitions {partitionCount} \
+                --replication-factor 1 \
+                --config retention.ms=3600000 \
+                --config cleanup.policy=delete \
+                --config min.insync.replicas=1 \
+                --config message.max.bytes=52428800
+
+            echo 'Validating topics...'
             kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
+            kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.out.topic
 
             echo '=== KAFKA ULTRA-SAFE INITIALIZATION COMPLETE ==='
         ";
