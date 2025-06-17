@@ -125,6 +125,7 @@ jobs:
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
           SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
+          SIMULATOR_FORCE_RESET_TO_EARLIEST: "true"  # Force consumer group reset to ensure fresh consumption
         run: |
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"

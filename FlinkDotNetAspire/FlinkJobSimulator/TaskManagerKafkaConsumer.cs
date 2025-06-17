@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using FlinkDotNet.Connectors.Sources.Kafka;
 using FlinkDotNet.Core.Abstractions.Sources;
 using Microsoft.Extensions.Configuration;
@@ -199,6 +200,16 @@ Message: {message}
             // Fix IPv6 issue by forcing IPv4 localhost resolution
             bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
 
+            // Check if we should force reset consumer group to earliest
+            var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
+            var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
+            
+            if (shouldForceReset)
+            {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Forcing consumer group reset to earliest (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId);
+                await ResetConsumerGroupToEarliest(bootstrapServers);
+            }
+
             // Apache Flink-compliant consumer configuration
             var consumerConfig = new ConsumerConfig
             {
@@ -331,6 +342,9 @@ Message: {message}
 
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns and automatic resumption", _taskManagerId);
             
+            // Log current consumer group assignment and offsets for debugging
+            LogConsumerGroupStatus();
+            
             var consumptionContext = new ConsumptionContext(DateTime.UtcNow);
 
             while (!stoppingToken.IsCancellationRequested)
@@ -415,6 +429,185 @@ Message: {message}
                                  "Processed {TotalMessages} messages in {Duration:F1}s " +
                                  "Final rate: {Rate:F1} msg/s",
                                  _taskManagerId, finalCount, finalElapsed.TotalSeconds, finalRate);
+        }
+
+        /// <summary>
+        /// Reset consumer group offsets to earliest position to ensure we consume all available messages
+        /// </summary>
+        private async Task ResetConsumerGroupToEarliest(string bootstrapServers)
+        {
+            try
+            {
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Resetting consumer group 'flink-taskmanager-consumer-group' to earliest position", _taskManagerId);
+                
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000,
+                    ApiVersionRequestTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                
+                // First, get topic metadata to find all partitions
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
+                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                
+                if (topicMetadata == null)
+                {
+                    _logger.LogWarning("⚠️ Topic {KafkaTopic} not found in metadata, skipping consumer group reset", _kafkaTopic);
+                    return;
+                }
+                
+                var partitions = topicMetadata.Partitions.Select(p => new TopicPartition(_kafkaTopic, p.PartitionId)).ToList();
+                _logger.LogInformation("📊 Found {PartitionCount} partitions for topic {Topic}: {Partitions}", 
+                    partitions.Count, _kafkaTopic, string.Join(", ", partitions.Select(p => p.Partition)));
+                
+                // Create temporary consumer to reset offsets
+                var tempConsumerConfig = new ConsumerConfig
+                {
+                    BootstrapServers = bootstrapServers,
+                    GroupId = "flink-taskmanager-consumer-group",
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    EnableAutoCommit = false,
+                    AutoOffsetReset = AutoOffsetReset.Earliest
+                };
+                
+                using var tempConsumer = new ConsumerBuilder<Ignore, byte[]>(tempConsumerConfig).Build();
+                
+                // Get earliest offsets for all partitions
+                var offsetsToReset = new List<TopicPartitionOffset>();
+                
+                foreach (var partition in partitions)
+                {
+                    var watermarks = tempConsumer.GetWatermarkOffsets(partition);
+                    var earliestOffset = watermarks.Low;
+                    offsetsToReset.Add(new TopicPartitionOffset(partition, earliestOffset));
+                    _logger.LogInformation("🔄 Will reset {Topic}:{Partition} to earliest offset {Offset}", 
+                        partition.Topic, partition.Partition, earliestOffset);
+                }
+                
+                if (offsetsToReset.Count > 0)
+                {
+                    // Commit the earliest offsets to reset the consumer group
+                    tempConsumer.Assign(offsetsToReset.Select(tpo => tpo.TopicPartition));
+                    tempConsumer.Commit(offsetsToReset);
+                    
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Reset consumer group to earliest offsets for {PartitionCount} partitions", 
+                        _taskManagerId, offsetsToReset.Count);
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ No partitions found to reset for topic {Topic}", _kafkaTopic);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to reset consumer group to earliest - will proceed with normal startup", _taskManagerId);
+            }
+        }
+
+        private void LogConsumerGroupStatus()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Logging consumer group status for debugging", _taskManagerId);
+                
+                // Get current assignment
+                var assignment = _consumerGroup!.GetAssignment();
+                _logger.LogInformation("📊 Consumer assignment: {PartitionCount} partitions: {Partitions}", 
+                    assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                
+                // Get current checkpoint state
+                var checkpointState = _consumerGroup.GetCheckpointState();
+                _logger.LogInformation("💾 Current checkpoint state: {OffsetCount} tracked offsets", checkpointState.Count);
+                foreach (var kvp in checkpointState)
+                {
+                    _logger.LogInformation("  📍 {Topic}:{Partition} -> Offset {Offset}", 
+                        kvp.Key.Topic, kvp.Key.Partition, kvp.Value);
+                }
+                
+                // Log consumer group ID
+                var consumerGroupId = _consumerGroup.GetConsumerGroupId();
+                _logger.LogInformation("👥 Consumer group ID: {ConsumerGroupId}", consumerGroupId);
+                
+                // Additional debug: Check topic partition high water marks
+                LogTopicPartitionStatus();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to log consumer group status");
+            }
+        }
+        
+        private void LogTopicPartitionStatus()
+        {
+            try
+            {
+                // Multi-strategy Kafka bootstrap server discovery
+                string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+                if (string.IsNullOrEmpty(bootstrapServers))
+                {
+                    bootstrapServers = _configuration["ConnectionStrings__kafka"];
+                    if (string.IsNullOrEmpty(bootstrapServers))
+                    {
+                        bootstrapServers = "localhost:9092";
+                    }
+                }
+                
+                bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+                
+                var tempConsumerConfig = new ConsumerConfig
+                {
+                    BootstrapServers = bootstrapServers,
+                    GroupId = $"debug-consumer-{Guid.NewGuid()}",
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    EnableAutoCommit = false
+                };
+                
+                using var tempConsumer = new ConsumerBuilder<Ignore, byte[]>(tempConsumerConfig).Build();
+                
+                // Get metadata for the topic using the admin client
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                
+                if (topicMetadata != null)
+                {
+                    _logger.LogInformation("📊 Topic {Topic} metadata: {PartitionCount} partitions", 
+                        _kafkaTopic, topicMetadata.Partitions.Count);
+                    
+                    var partitions = topicMetadata.Partitions.Select(p => new TopicPartition(_kafkaTopic, p.PartitionId)).ToList();
+                    
+                    long totalMessages = 0;
+                    foreach (var partition in partitions)
+                    {
+                        var watermarks = tempConsumer.GetWatermarkOffsets(partition);
+                        var messageCount = watermarks.High.Value - watermarks.Low.Value;
+                        totalMessages += messageCount;
+                        _logger.LogInformation("  📈 {Topic}:{Partition} -> Low: {Low}, High: {High}, Available: {Available} messages", 
+                            partition.Topic, partition.Partition, watermarks.Low, watermarks.High, messageCount);
+                    }
+                    
+                    _logger.LogInformation("📊 Total available messages in topic {Topic}: {TotalMessages}", _kafkaTopic, totalMessages);
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ Topic {Topic} not found in metadata", _kafkaTopic);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to log topic partition status");
+            }
         }
 
         private sealed class ConsumptionContext
