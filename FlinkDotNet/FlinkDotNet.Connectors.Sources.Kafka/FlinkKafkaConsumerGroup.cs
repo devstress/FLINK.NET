@@ -71,7 +71,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
         /// <summary>
         /// Initialize consumer with proper error handling and partition assignment callbacks.
-        /// Waits for Kafka setup with 1-minute timeout for maximum reliability.
+        /// Waits for Kafka setup with enhanced timeout and retry logic for maximum reliability.
         /// Stores subscription topics for resumption capabilities.
         /// </summary>
         public async Task InitializeAsync(IEnumerable<string> topics)
@@ -81,8 +81,8 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
             _subscribedTopics = topics.ToList(); // Store for resumption
 
-            // Wait for Kafka setup with 1-minute timeout
-            await WaitForKafkaSetupAsync(TimeSpan.FromMinutes(1));
+            // CRITICAL FIX: Enhanced Kafka setup waiting with better error handling
+            await WaitForKafkaSetupAsync(TimeSpan.FromMinutes(2)); // Increased timeout
 
             _consumer = new ConsumerBuilder<Ignore, byte[]>(_consumerConfig)
                 .SetErrorHandler(OnError)
@@ -95,6 +95,9 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             _logger?.LogInformation("FlinkKafkaConsumerGroup initialized and subscribed to topics: {Topics}", 
                 string.Join(", ", topics));
             
+            // CRITICAL FIX: Wait for initial partition assignment with timeout
+            await WaitForPartitionAssignment();
+            
             // Reset recovery state on successful initialization
             lock (_recoveryLock)
             {
@@ -103,6 +106,49 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             }
             
             await Task.CompletedTask;
+        }
+        
+        /// <summary>
+        /// Wait for consumer to get partition assignments after subscription
+        /// </summary>
+        private async Task WaitForPartitionAssignment()
+        {
+            _logger?.LogInformation("🔄 FlinkKafkaConsumerGroup: Waiting for partition assignment...");
+            
+            var maxWaitTime = TimeSpan.FromSeconds(30);
+            var startTime = DateTime.UtcNow;
+            var checkInterval = TimeSpan.FromSeconds(1);
+            
+            while ((DateTime.UtcNow - startTime) < maxWaitTime)
+            {
+                try
+                {
+                    var assignment = _consumer?.Assignment ?? new List<TopicPartition>();
+                    if (assignment.Count > 0)
+                    {
+                        _logger?.LogInformation("✅ FlinkKafkaConsumerGroup: Got partition assignment - {PartitionCount} partitions: {Partitions}", 
+                            assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                        return;
+                    }
+                    
+                    // Trigger a consume operation to force partition assignment
+                    var result = _consumer?.Consume(TimeSpan.FromMilliseconds(500));
+                        if (result != null)
+                        {
+                            _logger?.LogDebug("FlinkKafkaConsumerGroup: Got message during assignment wait: partition {Partition}, offset {Offset}", 
+                                result.Partition, result.Offset);
+                        }
+                    
+                    await Task.Delay(checkInterval);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "FlinkKafkaConsumerGroup: Exception during partition assignment wait");
+                    await Task.Delay(checkInterval);
+                }
+            }
+            
+            _logger?.LogWarning("⚠️ FlinkKafkaConsumerGroup: Partition assignment wait timeout - proceeding anyway");
         }
 
         /// <summary>

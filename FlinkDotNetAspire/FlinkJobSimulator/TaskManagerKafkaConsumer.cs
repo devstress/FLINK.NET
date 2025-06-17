@@ -81,16 +81,19 @@ namespace FlinkJobSimulator
             {
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting FlinkKafkaConsumerGroup and producer initialization", _taskManagerId);
                 
-                // Check if we should add a delay for producer-consumer coordination
+                // CRITICAL FIX: Enhanced producer-consumer coordination timing
                 var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
                 var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
                 
                 if (shouldForceReset)
                 {
-                    // Add delay to allow producer time to generate messages first
-                    var delaySeconds = 15; // Allow 15 seconds for producer to start and generate some messages
-                    _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Adding {DelaySeconds}s delay for producer-consumer coordination (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId, delaySeconds);
+                    // CRITICAL: Add coordination delay and verify messages exist
+                    var delaySeconds = 20; // Increased delay for better coordination
+                    _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Adding {DelaySeconds}s coordination delay for producer-consumer sync (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId, delaySeconds);
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                    
+                    // CRITICAL FIX: Verify that messages actually exist before starting consumer
+                    await VerifyMessagesAvailableInKafka();
                 }
                 
                 await InitializeFlinkKafkaConsumerGroup();
@@ -225,54 +228,211 @@ Message: {message}
             // Fix IPv6 issue by forcing IPv4 localhost resolution
             bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
 
-            // Check if we should force reset consumer group to earliest
+            // CRITICAL FIX: Simplified consumer group reset strategy
             var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
             var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
             
-            if (shouldForceReset)
-            {
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Forcing consumer group reset to earliest (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId);
-                await ResetConsumerGroupToEarliest(bootstrapServers);
-            }
-
-            // Create unique consumer group ID when forcing reset to ensure AutoOffsetReset = Earliest takes effect
+            // Always use a fresh consumer group when forcing reset to ensure clean start
             var baseGroupId = "flink-taskmanager-consumer-group";
             var consumerGroupId = shouldForceReset 
-                ? $"{baseGroupId}-reset-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}" 
+                ? $"{baseGroupId}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{Environment.ProcessId}" 
                 : baseGroupId;
                 
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using consumer group ID: {GroupId} (ForceReset: {ForceReset})", 
                 _taskManagerId, consumerGroupId, shouldForceReset);
 
-            // Apache Flink-compliant consumer configuration
+            // CRITICAL FIX: Enhanced consumer configuration with Apache Flink 2.0 optimizations
             var consumerConfig = new ConsumerConfig
             {
                 BootstrapServers = bootstrapServers,
-                GroupId = consumerGroupId, // Use unique group ID when forcing reset
+                GroupId = consumerGroupId, 
                 SecurityProtocol = SecurityProtocol.Plaintext,
                 
-                // Apache Flink 2.0 optimal settings (these will be enhanced by FlinkKafkaConsumerGroup)
+                // CRITICAL: Ensure we start from earliest when resetting
                 EnableAutoCommit = false, // Flink manages offsets through checkpoints
-                AutoOffsetReset = AutoOffsetReset.Earliest,
-                SessionTimeoutMs = 30000,
-                HeartbeatIntervalMs = 10000,
-                MaxPollIntervalMs = 300000,
+                AutoOffsetReset = AutoOffsetReset.Earliest, // Always start from beginning for new consumer groups
+                
+                // CRITICAL FIX: Optimize session timeouts for faster startup
+                SessionTimeoutMs = 10000,  // Reduced from 30s to 10s for faster recovery
+                HeartbeatIntervalMs = 3000, // Reduced from 10s to 3s for better responsiveness
+                MaxPollIntervalMs = 300000, // Keep 5 minutes for processing
+                
+                // CRITICAL: Use cooperative sticky for better load balancing
                 PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
                 
-                // Performance settings for high-throughput
-                FetchMinBytes = 1,
-                FetchWaitMaxMs = 100,
-                SocketTimeoutMs = 10000
+                // CRITICAL FIX: Performance settings optimized for high-throughput
+                FetchMinBytes = 1024,      // Increased from 1 byte to reduce polling overhead
+                FetchWaitMaxMs = 50,       // Reduced from 100ms for lower latency
+                FetchMaxBytes = 52428800,  // 50MB max fetch
+                MaxPartitionFetchBytes = 1048576, // 1MB per partition
+                
+                // CRITICAL: Network optimization
+                SocketTimeoutMs = 10000,
+                MetadataMaxAgeMs = 300000, // 5 minutes
             };
 
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing FlinkKafkaConsumerGroup with servers: {BootstrapServers}", 
                 _taskManagerId, bootstrapServers);
+
+            // CRITICAL FIX: Add topic verification before consumer initialization
+            await VerifyTopicExistsAndHasMessages(bootstrapServers);
 
             // Simple initialization - FlinkKafkaConsumerGroup now handles resumption internally
             _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig, _logger);
             await _consumerGroup.InitializeAsync(new[] { _kafkaTopic });
 
             _logger.LogInformation("✅ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup initialized with built-in resumption", _taskManagerId);
+            
+            // CRITICAL FIX: Verify consumer group assignment after initialization
+            await VerifyConsumerGroupAssignment();
+        }
+        
+        /// <summary>
+        /// Verify that the topic exists and has messages before starting consumption
+        /// </summary>
+        private async Task VerifyTopicExistsAndHasMessages(string bootstrapServers)
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Verifying topic {Topic} exists and has messages", _taskManagerId, _kafkaTopic);
+                
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000,
+                    ApiVersionRequestTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                
+                // Get topic metadata  
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
+                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                
+                if (topicMetadata != null)
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic {Topic} found with {PartitionCount} partitions", 
+                        _taskManagerId, _kafkaTopic, topicMetadata.Partitions.Count);
+                    
+                    // Log partition details
+                    foreach (var partition in topicMetadata.Partitions)
+                    {
+                        _logger.LogInformation("  📍 Partition {PartitionId}: Leader={Leader}, Error={Error}", 
+                            partition.PartitionId, partition.Leader, partition.Error?.Code ?? ErrorCode.NoError);
+                    }
+                    
+                    // CRITICAL: Check if topic has any messages using a simple consumer
+                    await CheckTopicMessageCount(bootstrapServers);
+                }
+                else
+                {
+                    _logger.LogError("❌ TaskManager {TaskManagerId}: Topic {Topic} not found in Kafka metadata!", _taskManagerId, _kafkaTopic);
+                    throw new InvalidOperationException($"Topic {_kafkaTopic} does not exist");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to verify topic {Topic}", _taskManagerId, _kafkaTopic);
+                throw;
+            }
+        }
+        
+        /// <summary>
+        /// Check if the topic has messages by attempting to consume with a temporary consumer
+        /// </summary>
+        private async Task CheckTopicMessageCount(string bootstrapServers)
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Checking if topic {Topic} has messages", _taskManagerId, _kafkaTopic);
+                
+                var tempConsumerConfig = new ConsumerConfig
+                {
+                    BootstrapServers = bootstrapServers,
+                    GroupId = $"temp-message-check-{Guid.NewGuid()}",
+                    AutoOffsetReset = AutoOffsetReset.Earliest,
+                    EnableAutoCommit = false,
+                    SessionTimeoutMs = 6000,
+                    SocketTimeoutMs = 5000
+                };
+                
+                using var tempConsumer = new ConsumerBuilder<Ignore, byte[]>(tempConsumerConfig).Build();
+                tempConsumer.Subscribe(_kafkaTopic);
+                
+                // Wait for assignment
+                await Task.Delay(3000);
+                
+                // Try to consume a few messages
+                int messageCount = 0;
+                var timeout = TimeSpan.FromSeconds(10);
+                var startTime = DateTime.UtcNow;
+                
+                while ((DateTime.UtcNow - startTime) < timeout && messageCount < 5)
+                {
+                    try
+                    {
+                        var result = tempConsumer.Consume(TimeSpan.FromSeconds(1));
+                        if (result?.Message != null)
+                        {
+                            messageCount++;
+                            _logger.LogInformation("  ✅ Found message {MessageCount} in partition {Partition} at offset {Offset}", 
+                                messageCount, result.Partition.Value, result.Offset.Value);
+                        }
+                    }
+                    catch (ConsumeException ex)
+                    {
+                        _logger.LogDebug("Consume attempt resulted in: {Error}", ex.Error.Reason);
+                    }
+                }
+                
+                if (messageCount > 0)
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic {Topic} has messages available - found {MessageCount} messages", 
+                        _taskManagerId, _kafkaTopic, messageCount);
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Topic {Topic} appears to have no messages available for consumption", 
+                        _taskManagerId, _kafkaTopic);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Could not check topic message count for {Topic}", _taskManagerId, _kafkaTopic);
+            }
+        }
+        
+        /// <summary>
+        /// Verify that the consumer group gets proper partition assignment
+        /// </summary>
+        private async Task VerifyConsumerGroupAssignment()
+        {
+            try
+            {
+                // Wait for consumer group rebalance to complete
+                await Task.Delay(5000);
+                
+                var assignment = _consumerGroup!.GetAssignment();
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Consumer group assignment verification:", _taskManagerId);
+                _logger.LogInformation("  📊 Assigned {PartitionCount} partitions: {Partitions}", 
+                    assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                
+                if (assignment.Count == 0)
+                {
+                    _logger.LogError("❌ TaskManager {TaskManagerId}: Consumer group has NO partition assignments - this will prevent message consumption", _taskManagerId);
+                    throw new InvalidOperationException("Consumer group failed to get partition assignments");
+                }
+                else
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Consumer group has valid partition assignments", _taskManagerId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to verify consumer group assignment", _taskManagerId);
+                throw;
+            }
         }
 
         private async Task InitializeHighPerformanceProducer()
@@ -389,20 +549,50 @@ Message: {message}
                                  "localhost:9092";
             _logger.LogInformation("  📋 Bootstrap Servers: {BootstrapServers}", bootstrapServers);
             
-            // Check if messages are available in the topic before starting consumption
-            await LogTopicMessageAvailability();
-            
-            // Log current consumer group assignment and offsets for debugging
-            LogConsumerGroupStatus();
+            // CRITICAL FIX: Enhanced consumer group debugging
+            await LogDetailedConsumerGroupStatus();
             
             var consumptionContext = new ConsumptionContext(DateTime.UtcNow);
+            var consecutiveNullResults = 0;
+            var maxConsecutiveNulls = 60; // Allow 60 consecutive null results before enhanced logging
+            var lastProgressLogTime = DateTime.UtcNow;
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(1000));
-                    await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
+                    // CRITICAL FIX: Enhanced timeout and polling strategy
+                    var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(2000)); // Increased to 2s
+                    
+                    if (consumeResult?.Message != null)
+                    {
+                        // Reset null counter on successful consumption
+                        consecutiveNullResults = 0;
+                        await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
+                    }
+                    else
+                    {
+                        consecutiveNullResults++;
+                        
+                        // CRITICAL FIX: Enhanced null result debugging
+                        if (consecutiveNullResults >= maxConsecutiveNulls)
+                        {
+                            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: {ConsecutiveNulls} consecutive null results - diagnosing consumption issues", 
+                                _taskManagerId, consecutiveNullResults);
+                            
+                            await DiagnoseConsumptionIssues();
+                            consecutiveNullResults = 0; // Reset counter after diagnosis
+                        }
+                        else if ((DateTime.UtcNow - lastProgressLogTime).TotalSeconds >= 30)
+                        {
+                            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: No messages received in last 30s (null results: {NullCount}) - consumer assignment: {AssignmentCount} partitions", 
+                                _taskManagerId, consecutiveNullResults, _consumerGroup?.GetAssignment().Count ?? 0);
+                            lastProgressLogTime = DateTime.UtcNow;
+                        }
+                        
+                        // Brief pause to prevent tight polling
+                        await Task.Delay(100, stoppingToken);
+                    }
                     
                     // Check if consumer group is in recovery mode
                     if (_consumerGroup.IsInRecoveryMode())
@@ -412,13 +602,14 @@ Message: {message}
                             _taskManagerId, failureCount);
                         
                         // Brief pause to allow recovery
-                        await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                        await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
                     }
                 }
                 catch (ConsumeException ex)
                 {
-                    _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException handled by FlinkKafkaConsumerGroup: {Error}",
+                    _logger.LogWarning(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException - will be handled by FlinkKafkaConsumerGroup: {Error}",
                         _taskManagerId, ex.Error.Reason);
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -433,6 +624,170 @@ Message: {message}
             }
             
             LogFinalConsumptionStats(consumptionContext.StartTime);
+        }
+        
+        /// <summary>
+        /// Enhanced debugging for consumption issues
+        /// </summary>
+        private async Task DiagnoseConsumptionIssues()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: DIAGNOSING CONSUMPTION ISSUES", _taskManagerId);
+                
+                // Check consumer group assignment
+                var assignment = _consumerGroup!.GetAssignment();
+                _logger.LogInformation("  📊 Current assignment: {PartitionCount} partitions: {Partitions}", 
+                    assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                
+                if (assignment.Count == 0)
+                {
+                    _logger.LogError("  ❌ NO PARTITION ASSIGNMENTS - Consumer group is not assigned to any partitions!");
+                    
+                    // Try to trigger rebalance by re-subscribing
+                    _logger.LogInformation("  🔄 Attempting to trigger rebalance...");
+                    // Note: FlinkKafkaConsumerGroup handles this internally
+                }
+                
+                // Check current offsets
+                var checkpointState = _consumerGroup.GetCheckpointState();
+                _logger.LogInformation("  💾 Current checkpoint state: {OffsetCount} tracked offsets", checkpointState.Count);
+                foreach (var kvp in checkpointState)
+                {
+                    _logger.LogInformation("    📍 {Topic}:{Partition} -> Offset {Offset}", 
+                        kvp.Key.Topic, kvp.Key.Partition, kvp.Value);
+                }
+                
+                // Check if consumer group is in recovery mode
+                if (_consumerGroup.IsInRecoveryMode())
+                {
+                    var failures = _consumerGroup.GetConsecutiveFailureCount();
+                    _logger.LogWarning("  ⚠️ Consumer group is in RECOVERY MODE with {FailureCount} consecutive failures", failures);
+                }
+                
+                // Additional diagnostic: Check Redis connectivity
+                try
+                {
+                    var redisTest = await _redisDatabase.PingAsync();
+                    _logger.LogInformation("  ✅ Redis connectivity: {Latency}ms", redisTest.TotalMilliseconds);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "  ❌ Redis connectivity failed");
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to diagnose consumption issues", _taskManagerId);
+            }
+        }
+        
+        /// <summary>
+        /// Enhanced consumer group status logging
+        /// </summary>
+        private async Task LogDetailedConsumerGroupStatus()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: DETAILED CONSUMER GROUP STATUS", _taskManagerId);
+                
+                // Wait a moment for initialization to complete
+                await Task.Delay(2000);
+                
+                // Get current assignment
+                var assignment = _consumerGroup!.GetAssignment();
+                _logger.LogInformation("📊 Consumer assignment: {PartitionCount} partitions: {Partitions}", 
+                    assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                
+                // Get current checkpoint state
+                var checkpointState = _consumerGroup.GetCheckpointState();
+                _logger.LogInformation("💾 Current checkpoint state: {OffsetCount} tracked offsets", checkpointState.Count);
+                foreach (var kvp in checkpointState)
+                {
+                    _logger.LogInformation("  📍 {Topic}:{Partition} -> Offset {Offset}", 
+                        kvp.Key.Topic, kvp.Key.Partition, kvp.Value);
+                }
+                
+                // Log consumer group ID
+                var consumerGroupId = _consumerGroup.GetConsumerGroupId();
+                _logger.LogInformation("👥 Consumer group ID: {ConsumerGroupId}", consumerGroupId);
+                
+                // CRITICAL: Verify topic exists and check basic metadata
+                await LogEnhancedTopicStatus();
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to log detailed consumer group status");
+            }
+        }
+        
+        /// <summary>
+        /// Enhanced topic status logging
+        /// </summary>
+        private async Task LogEnhancedTopicStatus()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: ENHANCED TOPIC STATUS CHECK", _taskManagerId);
+                
+                // Multi-strategy Kafka bootstrap server discovery
+                string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+                if (string.IsNullOrEmpty(bootstrapServers))
+                {
+                    bootstrapServers = _configuration["ConnectionStrings__kafka"];
+                    if (string.IsNullOrEmpty(bootstrapServers))
+                    {
+                        bootstrapServers = "localhost:9092";
+                    }
+                }
+                
+                bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+                _logger.LogInformation("  🔗 Using bootstrap servers: {BootstrapServers}", bootstrapServers);
+                
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                
+                _logger.LogInformation("  📊 Kafka cluster: {BrokerCount} brokers, {TopicCount} topics", 
+                    metadata.Brokers.Count, metadata.Topics.Count);
+                
+                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                if (topicMetadata != null)
+                {
+                    _logger.LogInformation("  ✅ Topic {Topic} found with {PartitionCount} partitions", 
+                        _kafkaTopic, topicMetadata.Partitions.Count);
+                    
+                    foreach (var partition in topicMetadata.Partitions)
+                    {
+                        var partitionInfo = $"Partition {partition.PartitionId}: Leader={partition.Leader}, Error={partition.Error?.Code ?? ErrorCode.NoError}";
+                        _logger.LogInformation("    📍 {PartitionInfo}", partitionInfo);
+                    }
+                }
+                else
+                {
+                    _logger.LogError("  ❌ Topic {Topic} NOT FOUND in Kafka metadata!", _kafkaTopic);
+                    
+                    // List all available topics for debugging
+                    _logger.LogInformation("  📋 Available topics:");
+                    foreach (var topic in metadata.Topics)
+                    {
+                        _logger.LogInformation("    - {TopicName}", topic.Topic);
+                    }
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Failed to log enhanced topic status");
+            }
         }
 
         private async Task ProcessConsumeResult(ConsumeResult<Ignore, byte[]>? consumeResult, ConsumptionContext context, CancellationToken stoppingToken)
@@ -493,6 +848,215 @@ Message: {message}
         }
 
         /// <summary>
+        /// Verify that messages actually exist in Kafka before starting the consumer
+        /// This is critical to ensure the consumer isn't starting before the producer finishes
+        /// </summary>
+        private async Task VerifyMessagesAvailableInKafka()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Verifying messages are available in Kafka topic {Topic}", _taskManagerId, _kafkaTopic);
+                
+                // Discover bootstrap servers using same method as consumer will use
+                string? bootstrapServers = await DiscoverKafkaBootstrapServersLikeProducerScript();
+                if (string.IsNullOrEmpty(bootstrapServers))
+                {
+                    bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] ?? 
+                                     _configuration["ConnectionStrings__kafka"] ?? 
+                                     "localhost:9092";
+                }
+                bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+                
+                var maxAttempts = 5;
+                var retryDelay = TimeSpan.FromSeconds(5);
+                
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
+                {
+                    try
+                    {
+                        _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Message verification attempt {Attempt}/{MaxAttempts}", _taskManagerId, attempt, maxAttempts);
+                        
+                        var tempConsumerConfig = new ConsumerConfig
+                        {
+                            BootstrapServers = bootstrapServers,
+                            GroupId = $"message-verification-{Guid.NewGuid()}",
+                            AutoOffsetReset = AutoOffsetReset.Earliest,
+                            EnableAutoCommit = false,
+                            SessionTimeoutMs = 6000,
+                            SocketTimeoutMs = 5000,
+                            FetchWaitMaxMs = 1000,
+                            MetadataMaxAgeMs = 30000
+                        };
+                        
+                        using var tempConsumer = new ConsumerBuilder<Ignore, byte[]>(tempConsumerConfig).Build();
+                        tempConsumer.Subscribe(_kafkaTopic);
+                        
+                        // Wait for consumer to get assignment
+                        await Task.Delay(3000);
+                        
+                        // Check assignment
+                        var assignment = tempConsumer.Assignment;
+                        _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Verification consumer assigned to {PartitionCount} partitions", _taskManagerId, assignment.Count);
+                        
+                        if (assignment.Count == 0)
+                        {
+                            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Verification consumer has no partition assignments on attempt {Attempt}", _taskManagerId, attempt);
+                            if (attempt < maxAttempts)
+                            {
+                                await Task.Delay(retryDelay);
+                                continue;
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException("Verification consumer failed to get partition assignments");
+                            }
+                        }
+                        
+                        // Try to consume messages with increased timeout
+                        int messageCount = 0;
+                        var verificationTimeout = TimeSpan.FromSeconds(15);
+                        var startTime = DateTime.UtcNow;
+                        
+                        _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Starting message verification scan (timeout: {Timeout}s)", _taskManagerId, verificationTimeout.TotalSeconds);
+                        
+                        while ((DateTime.UtcNow - startTime) < verificationTimeout)
+                        {
+                            try
+                            {
+                                var result = tempConsumer.Consume(TimeSpan.FromSeconds(2));
+                                if (result?.Message != null)
+                                {
+                                    messageCount++;
+                                    _logger.LogInformation("  ✅ TaskManager {TaskManagerId}: Found message {MessageCount} in partition {Partition} at offset {Offset}", 
+                                        _taskManagerId, messageCount, result.Partition.Value, result.Offset.Value);
+                                    
+                                    // Found messages, we can proceed
+                                    if (messageCount >= 3)
+                                    {
+                                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Message verification SUCCESSFUL - found {MessageCount} messages in topic {Topic}", 
+                                            _taskManagerId, messageCount, _kafkaTopic);
+                                        return;
+                                    }
+                                }
+                                else
+                                {
+                                    // Brief pause between consume attempts
+                                    await Task.Delay(500);
+                                }
+                            }
+                            catch (ConsumeException ex)
+                            {
+                                _logger.LogDebug("TaskManager {TaskManagerId}: Consume attempt resulted in: {Error}", _taskManagerId, ex.Error.Reason);
+                            }
+                        }
+                        
+                        if (messageCount > 0)
+                        {
+                            _logger.LogInformation("✅ TaskManager {TaskManagerId}: Message verification completed - found {MessageCount} messages (partial verification)", 
+                                _taskManagerId, messageCount);
+                            return;
+                        }
+                        else
+                        {
+                            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: No messages found in verification attempt {Attempt}/{MaxAttempts}", _taskManagerId, attempt, maxAttempts);
+                            
+                            if (attempt < maxAttempts)
+                            {
+                                _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Waiting {Delay}s before retry...", _taskManagerId, retryDelay.TotalSeconds);
+                                await Task.Delay(retryDelay);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Exception during message verification attempt {Attempt}", _taskManagerId, attempt);
+                        
+                        if (attempt < maxAttempts)
+                        {
+                            await Task.Delay(retryDelay);
+                        }
+                    }
+                }
+                
+                // If we get here, no messages were found after all attempts
+                _logger.LogError("❌ TaskManager {TaskManagerId}: Message verification FAILED - no messages found in topic {Topic} after {MaxAttempts} attempts", 
+                    _taskManagerId, _kafkaTopic, maxAttempts);
+                
+                // Log additional diagnostic information
+                await LogKafkaTopicDiagnostics(bootstrapServers);
+                
+                throw new InvalidOperationException($"No messages found in topic {_kafkaTopic} during verification - producer may not have completed or topic may be empty");
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to verify messages in Kafka topic {Topic}", _taskManagerId, _kafkaTopic);
+                throw;
+            }
+        }
+        
+        /// <summary>
+        /// Log detailed Kafka topic diagnostics for troubleshooting
+        /// </summary>
+        private async Task LogKafkaTopicDiagnostics(string bootstrapServers)
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Performing Kafka topic diagnostics", _taskManagerId);
+                
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000,
+                    ApiVersionRequestTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                
+                // Get cluster metadata
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
+                _logger.LogInformation("  📊 Kafka cluster: {BrokerCount} brokers, {TopicCount} total topics", 
+                    metadata.Brokers.Count, metadata.Topics.Count);
+                
+                // Find our specific topic
+                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                if (topicMetadata != null)
+                {
+                    _logger.LogInformation("  ✅ Topic {Topic} exists with {PartitionCount} partitions", 
+                        _kafkaTopic, topicMetadata.Partitions.Count);
+                    
+                    foreach (var partition in topicMetadata.Partitions)
+                    {
+                        var partitionInfo = $"Partition {partition.PartitionId}: Leader={partition.Leader}, Error={partition.Error?.Code ?? ErrorCode.NoError}";
+                        _logger.LogInformation("    📍 {PartitionInfo}", partitionInfo);
+                    }
+                }
+                else
+                {
+                    _logger.LogError("  ❌ Topic {Topic} NOT FOUND in cluster metadata!", _kafkaTopic);
+                    
+                    // List available topics
+                    _logger.LogInformation("  📋 Available topics in cluster:");
+                    foreach (var topic in metadata.Topics.Take(10)) // Show first 10 topics
+                    {
+                        _logger.LogInformation("    - {TopicName} ({PartitionCount} partitions)", topic.Topic, topic.Partitions.Count);
+                    }
+                    
+                    if (metadata.Topics.Count > 10)
+                    {
+                        _logger.LogInformation("    ... and {RemainingCount} more topics", metadata.Topics.Count - 10);
+                    }
+                }
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to perform Kafka diagnostics", _taskManagerId);
+            }
+        }
+
+        /// <summary>
         /// Reset consumer group offsets to earliest position to ensure we consume all available messages
         /// </summary>
         private Task ResetConsumerGroupToEarliest(string bootstrapServers)
@@ -545,60 +1109,129 @@ Message: {message}
             {
                 _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Discovering Kafka bootstrap servers using producer script method", _taskManagerId);
                 
-                // Use the exact same logic as produce-1-million-messages.ps1
-                var process = new System.Diagnostics.Process
+                // CRITICAL FIX: Add retry logic since producer and consumer may run at different times
+                var maxAttempts = 3;
+                var retryDelay = TimeSpan.FromSeconds(2);
+                
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
                 {
-                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    try
                     {
-                        FileName = "docker",
-                        Arguments = "ps --filter \"name=kafka\" --format \"{{.Ports}}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
+                        // Use the exact same logic as produce-1-million-messages.ps1
+                        var process = new System.Diagnostics.Process
+                        {
+                            StartInfo = new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "docker",
+                                Arguments = "ps --filter \"name=kafka\" --format \"{{.Ports}}\"",
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            }
+                        };
+                        
+                        process.Start();
+                        var output = await process.StandardOutput.ReadToEndAsync();
+                        var error = await process.StandardError.ReadToEndAsync();
+                        await process.WaitForExitAsync();
+                        
+                        if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+                        {
+                            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Docker ps attempt {Attempt}/{MaxAttempts} failed. Exit code: {ExitCode}, Error: {Error}", 
+                                _taskManagerId, attempt, maxAttempts, process.ExitCode, error);
+                            
+                            if (attempt < maxAttempts)
+                            {
+                                await Task.Delay(retryDelay);
+                                continue;
+                            }
+                            return null;
+                        }
+                        
+                        _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Docker ps output (attempt {Attempt}): {Output}", _taskManagerId, attempt, output.Trim());
+                        
+                        // Parse ports using same logic as producer script
+                        var portsArray = output.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                        var matchingPorts = portsArray.Where(portMapping => 
+                            System.Text.RegularExpressions.Regex.IsMatch(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp"));
+                        
+                        foreach (var portMapping in matchingPorts)
+                        {
+                            // Match pattern: 127.0.0.1:PORT->9092/tcp
+                            var match = System.Text.RegularExpressions.Regex.Match(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp");
+                            if (match.Success)
+                            {
+                                var hostPort = match.Groups[1].Value;
+                                var bootstrapServers = $"127.0.0.1:{hostPort}";
+                                
+                                // CRITICAL FIX: Verify connectivity before returning
+                                if (await VerifyKafkaConnectivity(bootstrapServers))
+                                {
+                                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Verified Kafka bootstrap server: {BootstrapServers}", _taskManagerId, bootstrapServers);
+                                    return bootstrapServers;
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Discovered server {BootstrapServers} but connectivity verification failed", _taskManagerId, bootstrapServers);
+                                }
+                            }
+                        }
+                        
+                        _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Unable to parse valid Kafka 9092 port mapping from: {Output}", _taskManagerId, output);
+                        
+                        if (attempt < maxAttempts)
+                        {
+                            await Task.Delay(retryDelay);
+                        }
                     }
-                };
-                
-                process.Start();
-                var output = await process.StandardOutput.ReadToEndAsync();
-                var error = await process.StandardError.ReadToEndAsync();
-                await process.WaitForExitAsync();
-                
-                if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
-                {
-                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Docker ps command failed or no output. Exit code: {ExitCode}, Error: {Error}", 
-                        _taskManagerId, process.ExitCode, error);
-                    return null;
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Exception during discovery attempt {Attempt}/{MaxAttempts}", _taskManagerId, attempt, maxAttempts);
+                        if (attempt < maxAttempts)
+                        {
+                            await Task.Delay(retryDelay);
+                        }
+                    }
                 }
                 
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Docker ps output: {Output}", _taskManagerId, output.Trim());
-                
-                // Parse ports using same logic as producer script
-                var portsArray = output.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                var matchingPorts = portsArray.Where(portMapping => 
-                    System.Text.RegularExpressions.Regex.IsMatch(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp"));
-                
-                foreach (var portMapping in matchingPorts)
-                {
-                    // Match pattern: 127.0.0.1:PORT->9092/tcp
-                    var match = System.Text.RegularExpressions.Regex.Match(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp");
-                    if (match.Success)
-                    {
-                        var hostPort = match.Groups[1].Value;
-                        var bootstrapServers = $"127.0.0.1:{hostPort}";
-                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Discovered Kafka bootstrap server: {BootstrapServers}", _taskManagerId, bootstrapServers);
-                        return bootstrapServers;
-                    }
-                }
-                
-                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Unable to parse Kafka 9092 port mapping from: {Output}", _taskManagerId, output);
                 return null;
                 
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Exception during Kafka bootstrap server discovery", _taskManagerId);
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Fatal exception during Kafka bootstrap server discovery", _taskManagerId);
                 return null;
+            }
+        }
+        
+        /// <summary>
+        /// Verify that we can actually connect to the discovered Kafka bootstrap server
+        /// </summary>
+        private async Task<bool> VerifyKafkaConnectivity(string bootstrapServers)
+        {
+            try
+            {
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 5000,
+                    ApiVersionRequestTimeoutMs = 5000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(10));
+                
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Kafka connectivity verified - {BrokerCount} brokers, {TopicCount} topics", 
+                    _taskManagerId, metadata.Brokers.Count, metadata.Topics.Count);
+                
+                return metadata.Brokers.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Kafka connectivity verification failed for {BootstrapServers}", _taskManagerId, bootstrapServers);
+                return false;
             }
         }
         
