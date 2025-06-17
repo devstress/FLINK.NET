@@ -149,6 +149,46 @@ Pass an optional argument to control the number of simulated messages. The scrip
 
 **CI Workflow**: Stress tests run via `.github/workflows/stress-tests.yml` and process 1 million messages to validate high-throughput performance.
 
+### Performance Benchmarks
+
+**Production Tuning Results (i9-12900k Setup)**:
+
+System configuration:
+- **CPU**: Intel i9-12900k 12th Gen 3.19GHz (20 cores, 24 threads)
+- **Memory**: 64GB DDR4 Speed 5200MHz  
+- **Storage**: NVMe SSD (1500W/5000R IOPS specifications)
+- **OS**: Windows 11 with Docker Desktop + Aspire orchestration
+
+**Important Note**: The benchmark results below are from `produce-1-million-messages.ps1` (a specialized Kafka producer script), not from Flink.NET itself. Flink.NET provides additional capabilities like FIFO processing, exactly-once semantics, and advanced state management.
+
+**Key Configuration Settings for 407k+ msg/sec:**
+
+Producer optimizations:
+- **64 parallel producers** (optimized for 20-core CPU)
+- **100 Kafka partitions** (maximum parallelism)
+- **Acks.None** (no broker acknowledgment for speed)
+- **512KB batch size** (network-optimized batching)
+- **64MB producer buffers** (prevents I/O blocking)
+- **Pre-generated messages** (eliminates runtime allocation)
+
+Server optimizations:
+- **Kafka disk warming**: `cat /var/lib/kafka/data/*/* > /dev/null` (page cache preload)
+- **Docker resource allocation**: 16GB memory, 20 CPU cores
+- **Confluent Kafka 7.4.0** (latest optimizations)
+- **Dynamic port discovery** (localhost networking)
+
+Benchmark results using `produce-1-million-messages.ps1`:
+```
+🔧 Warming up Kafka Broker disk & page cache...
+🛠️ Building .NET Producer...
+[PROGRESS] Sent=1,000,000 Rate=407,500 msg/sec
+[FINISH] Total: 1,000,000 Time: 2.454s Rate: 407,500 msg/sec
+```
+
+This demonstrates the achievable throughput on optimized hardware with comprehensive system tuning including disk warming, page cache optimization, and micro-batch autotuned Kafka producer configuration. Flink.NET aims to achieve similar performance while providing exactly-once processing, state management, and FIFO guarantees that the simple producer script does not offer. 
+
+For complete configuration details including every producer setting, server optimization, and system preparation step, see [Advanced Performance Tuning](./docs/wiki/Advanced-Performance-Tuning.md). For scaling to 1+ million messages/second targets with full Flink.NET features, see the multi-server Kubernetes optimization strategies in the same document.
+
 ### Configuring JobManager Ports
 
 The Aspire AppHost exposes the JobManager's REST and gRPC services on ports `8088` and `50051` by default. To override these values set the environment variables `JOBMANAGER_HTTP_PORT` and `JOBMANAGER_GRPC_PORT`. The TaskManager gRPC port can be configured with `TASKMANAGER_GRPC_PORT`.

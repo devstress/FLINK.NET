@@ -41,14 +41,32 @@ $kafkaContainer = Get-KafkaContainerName
 Write-Host "🔧 Warming up Kafka Broker disk & page cache..." -ForegroundColor Yellow
 docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
 
+function Get-PlatformInfo {
+    if ($IsWindows -or ($env:OS -eq "Windows_NT")) {
+        return @{
+            RuntimeId = "win-x64"
+            ExecutableName = "producer-rc720-microbatch.exe"
+            PathSeparator = "\"
+        }
+    } else {
+        return @{
+            RuntimeId = "linux-x64"
+            ExecutableName = "producer-rc720-microbatch"
+            PathSeparator = "/"
+        }
+    }
+}
+
 function Build-Producer {
     Write-Host "🛠️ Building .NET Producer..."
+    $platform = Get-PlatformInfo
     $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc720-microbatch"
     if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
     New-Item -ItemType Directory -Path $tempDir | Out-Null
 
     dotnet new console -f net8.0 --force --output $tempDir | Out-Null
-    dotnet add "$tempDir\producer-rc720-microbatch.csproj" package Confluent.Kafka | Out-Null
+    $projectFile = Join-Path $tempDir "producer-rc720-microbatch.csproj"
+    dotnet add "$projectFile" package Confluent.Kafka | Out-Null
 
 @"
 using System;
@@ -159,8 +177,8 @@ class Program
 "@ | Out-File (Join-Path $tempDir "Program.cs") -Encoding UTF8
 
     $publishOutputDir = Join-Path $tempDir "publish"
-    dotnet publish "$tempDir\producer-rc720-microbatch.csproj" -c Release -r win-x64 --self-contained true -o $publishOutputDir | Out-Null
-    return Join-Path $publishOutputDir "producer-rc720-microbatch.exe"
+    dotnet publish "$projectFile" -c Release -r $platform.RuntimeId --self-contained true -o $publishOutputDir | Out-Null
+    return Join-Path $publishOutputDir $platform.ExecutableName
 }
 
 function Run-Producers {
