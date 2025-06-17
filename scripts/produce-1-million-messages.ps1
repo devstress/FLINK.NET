@@ -1,119 +1,175 @@
 ﻿#!/usr/bin/env pwsh
-<#
-Flink.NET Kafka Producer RC4.1 — Progress Full Edition
-#>
 
 param(
     [long]$MessageCount = 1000000,
     [string]$Topic = "flinkdotnet.sample.topic",
-    [int]$ParallelProducers = 50
+    [int]$Partitions = 100,
+    [int]$ParallelProducers = 64
 )
 
 $ErrorActionPreference = 'Stop'
+Write-Host "=== Flink.NET Kafka Producer RC7.2.0 MICRO-BATCH AUTOTUNED BUILD ===" -ForegroundColor Cyan
 
-Write-Host "=== Flink.NET Kafka Producer RC4.1 ===" -ForegroundColor Cyan
-
-# Kafka discovery (stable)
 function Get-KafkaBootstrapServers {
     Write-Host "🔍 Discovering Kafka bootstrap servers..."
-    $bootstrapServers = $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS
-    if ($bootstrapServers) { return $bootstrapServers.Replace("localhost", "127.0.0.1") }
-    $bootstrapServers = $env:ConnectionStrings__kafka
-    if ($bootstrapServers) { return $bootstrapServers.Replace("localhost", "127.0.0.1") }
-    foreach ($port in @(9092, 32769, 32770, 49303)) {
-        try { $client = New-Object System.Net.Sockets.TcpClient; $client.Connect("127.0.0.1", $port); if ($client.Connected) { $client.Close(); return "127.0.0.1:$port" }} catch {}
+    $containerPorts = docker ps --filter "name=kafka" --format "{{.Ports}}"
+    if ([string]::IsNullOrWhiteSpace($containerPorts)) { Write-Error "❌ Kafka container not found."; exit 1 }
+    $portsArray = $containerPorts -split '\s+'
+    foreach ($portMapping in $portsArray) {
+        if ($portMapping -match "127\.0\.0\.1:(\d+)->9092/tcp") {
+            $hostPort = $matches[1]
+            $bootstrapServers = "127.0.0.1:$hostPort"
+            Write-Host "✅ Discovered Kafka bootstrap server: $bootstrapServers"
+            return $bootstrapServers
+        }
     }
-    return "127.0.0.1:9092"
+    Write-Error "❌ Unable to parse Kafka 9092 port mapping."; exit 1
 }
 
-# Build once
+function Get-KafkaContainerName {
+    Write-Host "🔍 Discovering Kafka container name..."
+    $containerName = docker ps --filter "ancestor=confluentinc/cp-kafka:7.4.0" --format "{{.Names}}"
+    if ([string]::IsNullOrWhiteSpace($containerName)) { Write-Error "❌ Kafka container not found."; exit 1 }
+    Write-Host "✅ Kafka container found: $containerName"
+    return $containerName
+}
+
+$bootstrapServers = Get-KafkaBootstrapServers
+Write-Host "📡 Kafka Broker: $bootstrapServers" -ForegroundColor Green
+
+$kafkaContainer = Get-KafkaContainerName
+Write-Host "🔧 Warming up Kafka Broker disk & page cache..." -ForegroundColor Yellow
+docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
+
 function Build-Producer {
-    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc41"
+    Write-Host "🛠️ Building .NET Producer..."
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc720-microbatch"
     if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
     New-Item -ItemType Directory -Path $tempDir | Out-Null
 
-    Push-Location $tempDir
-    dotnet new console -f net8.0 --force | Out-Null
-    dotnet add package Confluent.Kafka | Out-Null
-    dotnet add package System.Text.Json | Out-Null
+    dotnet new console -f net8.0 --force --output $tempDir | Out-Null
+    dotnet add "$tempDir\producer-rc720-microbatch.csproj" package Confluent.Kafka | Out-Null
 
 @"
 using System;
-using System.Text.Json;
+using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
 using Confluent.Kafka;
 
-class Program {
-    static async Task Main(string[] args) {
+class Program
+{
+    static async Task Main(string[] args)
+    {
         string bootstrap = args[0];
         string topic = args[1];
-        long totalMessages = long.Parse(args[2]);
+        long messageCount = long.Parse(args[2]);
         int producers = int.Parse(args[3]);
+        int partitions = int.Parse(args[4]);
 
-        var options = new ParallelOptions { MaxDegreeOfParallelism = producers };
-        long globalCounter = 0;
-        object lockObj = new();
+        PreheatPartitions(bootstrap, topic, partitions);
+        var payloads = PreGeneratePayloads(messageCount);
+
+        var perProducerCounter = new long[producers];
         var sw = Stopwatch.StartNew();
 
-        Parallel.For(0, producers, options, producerId => {
-            var config = new ProducerConfig {
-                BootstrapServers = bootstrap,
-                EnableIdempotence = true,
-                Acks = Acks.All
-            };
-            using var producer = new ProducerBuilder<string, string>(config).Build();
-
-            long perProducer = totalMessages / producers;
-            long localSent = 0;
-
-            for (long i = 0; i < perProducer; i++) {
-                var id = producerId * perProducer + i;
-                var payload = JsonSerializer.Serialize(new { id = id, msg = $"hello-{id}" });
-                producer.Produce(topic, new Message<string, string> { Key = id.ToString(), Value = payload });
-                localSent++;
-
-                if (localSent % 1000 == 0) {
-                    lock (lockObj) {
-                        globalCounter += 1000;
-                        double percent = globalCounter * 100.0 / totalMessages;
-                        double rate = globalCounter / sw.Elapsed.TotalSeconds;
-                        Console.WriteLine($"[PROGRESS] {percent:F2}% - TotalSent={globalCounter} - Rate={rate:F0} msg/sec");
-                    }
-                }
+        var progressTask = Task.Run(() =>
+        {
+            while (true)
+            {
+                long totalSent = perProducerCounter.Sum();
+                double elapsed = sw.Elapsed.TotalSeconds;
+                double rate = totalSent / (elapsed > 0 ? elapsed : 1);
+                Console.Write($"\r[PROGRESS] Sent={totalSent:N0}  Rate={rate:N0} msg/sec");
+                if (totalSent >= messageCount && !sw.IsRunning) break;
+                Thread.Sleep(200);
             }
-            producer.Flush();
-            lock (lockObj) { globalCounter += (perProducer - localSent); }
-            Console.WriteLine($"[DONE] Producer {producerId} finished - sent {perProducer}");
         });
 
+        var tasks = Enumerable.Range(0, producers).Select(id => Task.Run(() =>
+        {
+            var config = new ProducerConfig
+            {
+                BootstrapServers = bootstrap,
+                Acks = Acks.None,
+                LingerMs = 2,
+                BatchSize = 524288,
+                CompressionType = CompressionType.None,
+                QueueBufferingMaxKbytes = 64 * 1024 * 1024,
+                QueueBufferingMaxMessages = 20_000_000,
+                SocketTimeoutMs = 60000,
+                SocketKeepaliveEnable = true,
+                ClientId = $"producer-{id}",
+                EnableDeliveryReports = false
+            };
+
+            using var producer = new ProducerBuilder<long, byte[]>(config)
+                .SetKeySerializer(Serializers.Int64)
+                .SetValueSerializer(Serializers.ByteArray)
+                .Build();
+
+            long sliceSize = messageCount / producers;
+            long sliceStart = id * sliceSize;
+            long sliceEnd = sliceStart + sliceSize;
+
+            for (long i = sliceStart; i < sliceEnd; i++)
+            {
+                producer.Produce(topic, new Message<long, byte[]> { Key = i, Value = payloads[i] });
+                perProducerCounter[id]++;
+            }
+
+            producer.Flush(TimeSpan.FromSeconds(10));
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
         sw.Stop();
-        double finalRate = globalCounter / sw.Elapsed.TotalSeconds;
-        Console.WriteLine($"[SUMMARY] ✅ All producers finished.");
-        Console.WriteLine($"[SUMMARY] Total Sent: {globalCounter}, Time: {sw.Elapsed.TotalSeconds:F1}s, Final Rate: {finalRate:F0} msg/sec");
+        await progressTask;
+
+        long finalSent = perProducerCounter.Sum();
+        Console.WriteLine($"\n[FINISH] Total: {finalSent:N0} Time: {sw.Elapsed.TotalSeconds:F3}s Rate: {finalSent / sw.Elapsed.TotalSeconds:N0} msg/sec");
+    }
+
+    static byte[][] PreGeneratePayloads(long totalMessages)
+    {
+        var payloads = new byte[totalMessages][];
+        Parallel.For(0, (int)totalMessages, i =>
+        {
+            var buffer = new byte[32];
+            BitConverter.TryWriteBytes(buffer.AsSpan(0, 8), i);
+            BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            Random.Shared.NextBytes(buffer.AsSpan(16, 16));
+            payloads[i] = buffer;
+        });
+        return payloads;
+    }
+
+    static void PreheatPartitions(string bootstrap, string topic, int partitions)
+    {
+        var config = new ProducerConfig { BootstrapServers = bootstrap };
+        using var producer = new ProducerBuilder<Null, byte[]>(config).SetValueSerializer(Serializers.ByteArray).Build();
+        var payload = new byte[16];
+        for (int pid = 0; pid < partitions; pid++)
+        {
+            producer.Produce(new TopicPartition(topic, new Partition(pid)), new Message<Null, byte[]> { Value = payload });
+        }
+        producer.Flush(TimeSpan.FromSeconds(10));
     }
 }
-"@ | Out-File "Program.cs" -Encoding UTF8
+"@ | Out-File (Join-Path $tempDir "Program.cs") -Encoding UTF8
 
-    dotnet build -c Release | Out-Null
-    Pop-Location
-    return $tempDir
+    $publishOutputDir = Join-Path $tempDir "publish"
+    dotnet publish "$tempDir\producer-rc720-microbatch.csproj" -c Release -r win-x64 --self-contained true -o $publishOutputDir | Out-Null
+    return Join-Path $publishOutputDir "producer-rc720-microbatch.exe"
 }
 
-# Execute
 function Run-Producers {
-    param($ProjectDir, $BootstrapServers, $Topic, $MessageCount, $ParallelProducers)
-    Push-Location $ProjectDir
-    dotnet run --configuration Release -- $BootstrapServers $Topic $MessageCount $ParallelProducers
-    Pop-Location
+    param($ExecutablePath, $BootstrapServers, $Topic, $MessageCount, $Partitions, $ParallelProducers)
+    & "$ExecutablePath" "$BootstrapServers" "$Topic" "$MessageCount" "$ParallelProducers" "$Partitions"
 }
 
-# Main
-$bootstrapServers = Get-KafkaBootstrapServers
-Write-Host "📡 Using Kafka: $bootstrapServers" -ForegroundColor Green
+# Build and run the producer
+$exePath = Build-Producer
+Run-Producers $exePath $bootstrapServers $Topic $MessageCount $Partitions $ParallelProducers
 
-$projectDir = Build-Producer
-try { Run-Producers $projectDir $bootstrapServers $Topic $MessageCount $ParallelProducers }
-finally { Remove-Item $projectDir -Recurse -Force -ErrorAction SilentlyContinue }
+Remove-Item (Split-Path $exePath -Parent) -Recurse -Force -ErrorAction SilentlyContinue

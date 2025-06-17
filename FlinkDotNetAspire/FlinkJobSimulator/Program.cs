@@ -166,84 +166,62 @@ PreviousState: FlinkJobSimulatorNotStarted
                 await KeepProcessAliveOnError();
             }
         }
-        
+
         private static StackExchange.Redis.ConfigurationOptions CreateRedisConfigurationOptions(string connectionString)
         {
+            var options = new StackExchange.Redis.ConfigurationOptions();
+
             if (connectionString.StartsWith("redis://"))
             {
-                // Parse Redis URI format manually to handle password extraction properly
                 var uri = new Uri(connectionString);
-                var options = new StackExchange.Redis.ConfigurationOptions();
                 options.EndPoints.Add(uri.Host, uri.Port);
-                
-                // Extract password from URI - handle both redis://:password@host:port and redis://user:password@host:port
-                if (!string.IsNullOrEmpty(uri.UserInfo))
-                {
-                    var userInfo = uri.UserInfo;
-                    if (userInfo.Contains(':'))
-                    {
-                        // Format: redis://user:password@host:port or redis://:password@host:port
-                        var password = userInfo.Split(':')[1];
-                        if (!string.IsNullOrEmpty(password))
-                        {
-                            options.Password = password;
-                            Console.WriteLine($"🔐 REDIS CONFIG: Extracted password from URI (length: {password.Length})");
-                        }
-                        else
-                        {
-                            // Empty password in URI - check environment variable as fallback
-                            var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
-                            if (!string.IsNullOrEmpty(envPassword))
-                            {
-                                options.Password = envPassword;
-                                Console.WriteLine($"🔐 REDIS CONFIG: Empty password in URI, using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
-                            }
-                            else
-                            {
-                                options.Password = ""; // Empty password
-                                Console.WriteLine("🔐 REDIS CONFIG: Empty password in URI and no SIMULATOR_REDIS_PASSWORD environment variable, using empty password");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Format: redis://password@host:port (no colon, treat as password)
-                        options.Password = userInfo;
-                        Console.WriteLine($"🔐 REDIS CONFIG: Extracted password from URI without colon (length: {userInfo.Length})");
-                    }
-                }
-                else
-                {
-                    // No credentials in URI - check environment variable as fallback
-                    var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
-                    if (!string.IsNullOrEmpty(envPassword))
-                    {
-                        options.Password = envPassword;
-                        Console.WriteLine($"🔐 REDIS CONFIG: No credentials in URI, using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
-                    }
-                    else
-                    {
-                        options.Password = "";
-                        Console.WriteLine("🔐 REDIS CONFIG: No password specified in URI and no SIMULATOR_REDIS_PASSWORD environment variable, using empty password");
-                    }
-                }
-                
-                // Set optimal connection parameters
-                options.ConnectTimeout = 15000;
-                options.SyncTimeout = 15000;
-                options.AbortOnConnectFail = false;
-                options.ConnectRetry = 3;
-                
-                return options;
+                options.Password = ExtractPasswordFromUri(uri);
             }
             else
             {
-                // Fall back to standard parsing for non-URI formats
                 Console.WriteLine("🔄 REDIS CONFIG: Using standard ConfigurationOptions.Parse for non-URI connection string");
-                return StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
+                options = StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
             }
+
+            ApplyDefaultRedisOptions(options);
+            return options;
         }
-        
+
+        private static string? ExtractPasswordFromUri(Uri uri)
+        {
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var userInfo = uri.UserInfo;
+                if (userInfo.Contains(':'))
+                {
+                    var password = userInfo.Split(':')[1];
+                    return string.IsNullOrEmpty(password) ? GetFallbackPassword() : password;
+                }
+                return userInfo;
+            }
+            return GetFallbackPassword();
+        }
+
+        private static string? GetFallbackPassword()
+        {
+            var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
+            if (!string.IsNullOrEmpty(envPassword))
+            {
+                Console.WriteLine($"🔐 REDIS CONFIG: Using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
+                return envPassword;
+            }
+            Console.WriteLine("🔐 REDIS CONFIG: No password specified, using empty password");
+            return "";
+        }
+
+        private static void ApplyDefaultRedisOptions(StackExchange.Redis.ConfigurationOptions options)
+        {
+            options.ConnectTimeout = 15000;
+            options.SyncTimeout = 15000;
+            options.AbortOnConnectFail = false;
+            options.ConnectRetry = 3;
+        }
+
         private static async Task KeepProcessAliveOnError()
         {
             Console.WriteLine("💓 KEEPALIVE: Starting error mode heartbeat");
