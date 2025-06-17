@@ -510,8 +510,8 @@ jobs:
           Write-Host "Expected messages: ${{ env.SIMULATOR_NUM_MESSAGES }}"
           Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
           
-          $maxWaitSeconds = 3600  # 1 hour timeout for processing 1M messages as requested
-          $checkIntervalSeconds = 5   # Quick polling interval for immediate feedback
+          $maxWaitSeconds = 10  # Short timeout forces consumer to be responsive like production systems
+          $checkIntervalSeconds = 5  # Quick polling interval for immediate feedback
           $expectedMessages = [int]"${{ env.SIMULATOR_NUM_MESSAGES }}"
           $waitStartTime = Get-Date
           

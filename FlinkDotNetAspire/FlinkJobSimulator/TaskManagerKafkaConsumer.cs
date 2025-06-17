@@ -87,13 +87,11 @@ namespace FlinkJobSimulator
                 
                 if (shouldForceReset)
                 {
-                    // Apache Flink 2.0 pattern: Brief coordination delay only (2s max, not 20s)
-                    var delaySeconds = 2; // Reduced from 20s to 2s for Apache Flink 2.0 responsiveness
-                    _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Apache Flink 2.0 brief coordination delay: {DelaySeconds}s (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId, delaySeconds);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                    // Apache Flink 2.0 pattern: NO coordination delay - consumers should start immediately
+                    _logger.LogInformation("🚀 TaskManager {TaskManagerId}: Apache Flink 2.0 immediate startup (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId);
                     
-                    // Apache Flink 2.0 pattern: Quick message availability check (no extensive verification)
-                    await QuickKafkaMessageCheck();
+                    // Apache Flink 2.0 pattern: No message verification - consumers should be resilient to empty topics
+                    _logger.LogInformation("💡 TaskManager {TaskManagerId}: Consumer will continuously poll for messages as they arrive (Apache Flink 2.0 pattern)", _taskManagerId);
                 }
                 
                 await InitializeFlinkKafkaConsumerGroup();
@@ -229,24 +227,26 @@ Message: {message}
             bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
 
             // PRODUCTION-GRADE APACHE FLINK PATTERN: Use consistent consumer group for continuous consumption
-            // Unlike batch processing, continuous consumers should maintain group membership for proper coordination
+            // PRODUCTION-GRADE APACHE FLINK PATTERN: Use unique consumer group for stress testing
+            // This ensures each test run starts fresh and consumes all available messages
             var baseGroupId = "flink-taskmanager-consumer-group";
             var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
             var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
             
-            // Use stable consumer group ID for production-grade continuous consumption
-            // Only create unique ID if explicitly testing isolated consumption scenarios
-            var consumerGroupId = baseGroupId;
+            // For stress testing: Use unique consumer group ID to ensure fresh consumption
+            // For production: Would use stable consumer group ID for proper coordination
+            var consumerGroupId = shouldForceReset 
+                ? $"{baseGroupId}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N[..8]}"
+                : baseGroupId;
             
-            // PRODUCTION-GRADE PATTERN: Reset consumer group offsets if requested for fresh consumption
+            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using consumer group ID: {GroupId} (ForceReset: {ForceReset})", 
+                _taskManagerId, consumerGroupId, shouldForceReset);
+
+            // With unique consumer group ID, AutoOffsetReset.Earliest will work automatically
             if (shouldForceReset)
             {
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Resetting consumer group offsets to earliest for fresh consumption", _taskManagerId);
-                await ResetConsumerGroupOffsetsToEarliest(bootstrapServers, consumerGroupId);
+                _logger.LogInformation("💡 TaskManager {TaskManagerId}: Using unique consumer group for guaranteed fresh consumption", _taskManagerId);
             }
-                
-            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using stable consumer group ID: {GroupId} for production-grade continuous consumption (ForceReset: {ForceReset})", 
-                _taskManagerId, consumerGroupId, shouldForceReset);
 
             // APACHE FLINK 2.0 KAFKASOURCE CONFIGURATION: Exact same settings as Apache Flink KafkaSource
             var consumerConfig = new ConsumerConfig
@@ -281,8 +281,8 @@ Message: {message}
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing FlinkKafkaConsumerGroup with servers: {BootstrapServers}", 
                 _taskManagerId, bootstrapServers);
 
-            // Apache Flink 2.0 pattern: Minimal topic verification (no extensive message checking)
-            await QuickTopicVerification(bootstrapServers);
+            // Apache Flink 2.0 pattern: No topic verification - resilient consumers handle all scenarios
+            _logger.LogInformation("💡 TaskManager {TaskManagerId}: Using Apache Flink 2.0 resilient consumer pattern - no pre-verification needed", _taskManagerId);
 
             // Simple initialization - FlinkKafkaConsumerGroup now handles resumption internally
             _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig, _logger);
