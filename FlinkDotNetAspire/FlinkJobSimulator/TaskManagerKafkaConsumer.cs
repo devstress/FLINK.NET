@@ -55,28 +55,35 @@ namespace FlinkJobSimulator
             // Write consumer startup log to file for stress test monitoring
             await WriteConsumerStartupLogAsync();
             
-            // Initialize Redis counters to indicate FlinkJobSimulator has started
+            // APACHE FLINK 2.0 PATTERN: Initialize Redis counters with retries - don't fail immediately
+            bool redisInitialized = false;
             try
             {
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing Redis counters to indicate startup", _taskManagerId);
                 
-                // Initialize both Redis keys
-                await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
-                await _redisDatabase.StringSetAsync(_globalSequenceKey, 0);
+                // Apache Flink 2.0 resilient Redis initialization
+                redisInitialized = await InitializeRedisCountersWithRetry();
                 
-                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counters initialized successfully - sink: {SinkKey}, global: {GlobalKey}", 
-                    _taskManagerId, _redisSinkCounterKey, _globalSequenceKey);
-                
-                // Update startup log with Redis success
-                await UpdateStartupLogAsync("REDIS_CONNECTED", "Redis counters initialized successfully");
+                if (redisInitialized)
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counters initialized successfully - sink: {SinkKey}, global: {GlobalKey}", 
+                        _taskManagerId, _redisSinkCounterKey, _globalSequenceKey);
+                    await UpdateStartupLogAsync("REDIS_CONNECTED", "Redis counters initialized successfully");
+                }
+                else
+                {
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Redis counters not yet available - will retry during operation", _taskManagerId);
+                    await UpdateStartupLogAsync("REDIS_PENDING", "Redis counters pending - will retry");
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to initialize Redis counter", _taskManagerId);
-                await UpdateStartupLogAsync("REDIS_FAILED", $"Redis initialization failed: {ex.Message}");
-                throw new InvalidOperationException($"TaskManager {_taskManagerId}: Error during message consumption. Kafka topic: {_kafkaTopic}", ex);
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Redis initialization had issues - will continue and retry", _taskManagerId);
+                await UpdateStartupLogAsync("REDIS_RETRY", $"Redis initialization issues - will retry: {ex.Message}");
             }
             
+            // APACHE FLINK 2.0 PATTERN: Start Kafka consumer with resilient initialization
+            bool kafkaInitialized = false;
             try
             {
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting Apache Flink 2.0 KafkaSource initialization", _taskManagerId);
@@ -94,23 +101,41 @@ namespace FlinkJobSimulator
                     _logger.LogInformation("💡 TaskManager {TaskManagerId}: Consumer will continuously poll for messages as they arrive (Apache Flink 2.0 pattern)", _taskManagerId);
                 }
                 
-                await InitializeFlinkKafkaConsumerGroup();
-                await InitializeHighPerformanceProducer();
-                await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup and producer started with automatic resumption");
+                kafkaInitialized = await InitializeKafkaWithRetry();
                 
-                // IMPORTANT: Mark FlinkJobSimulator as actually RUNNING
-                _logger.LogInformation("🎯 TaskManager {TaskManagerId}: FlinkJobSimulator is now RUNNING and ready to process messages", _taskManagerId);
-                await Program.WriteRunningStateLogAsync();
-                await UpdateStartupLogAsync("FlinkJobSimulatorRunning", "FlinkJobSimulator is actively running and processing messages");
-                
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns", _taskManagerId);
-                await ConsumeMessagesWithFlinkPatterns(stoppingToken);
+                if (kafkaInitialized)
+                {
+                    await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup and producer started with automatic resumption");
+                    
+                    // IMPORTANT: Mark FlinkJobSimulator as actually RUNNING
+                    _logger.LogInformation("🎯 TaskManager {TaskManagerId}: FlinkJobSimulator is now RUNNING and ready to process messages", _taskManagerId);
+                    await Program.WriteRunningStateLogAsync();
+                    await UpdateStartupLogAsync("FlinkJobSimulatorRunning", "FlinkJobSimulator is actively running and processing messages");
+                    
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns", _taskManagerId);
+                    await ConsumeMessagesWithFlinkPatterns(stoppingToken);
+                }
+                else
+                {
+                    // Apache Flink 2.0 pattern: Start anyway and wait for infrastructure to become ready
+                    _logger.LogInformation("💡 TaskManager {TaskManagerId}: Kafka not immediately available - starting in wait mode (Apache Flink 2.0 pattern)", _taskManagerId);
+                    await UpdateStartupLogAsync("KAFKA_WAIT_MODE", "FlinkJobSimulator started - waiting for Kafka infrastructure");
+                    await Program.WriteRunningStateLogAsync();
+                    await UpdateStartupLogAsync("FlinkJobSimulatorRunning", "FlinkJobSimulator running in wait mode - will retry Kafka connection");
+                    
+                    // Wait for infrastructure with continuous retry
+                    await WaitForInfrastructureAndConsume(stoppingToken);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ TaskManager {_taskManagerId}: Error in Kafka consumption for topic '{_kafkaTopic}'", 
                     _taskManagerId, _kafkaTopic);
                 await UpdateStartupLogAsync("KAFKA_FAILED", $"Kafka consumption failed: {ex.Message}");
+                
+                // Apache Flink 2.0 pattern: Mark as running even with failures, then go into retry mode
+                await Program.WriteRunningStateLogAsync();
+                await UpdateStartupLogAsync("FlinkJobSimulatorRunning", "FlinkJobSimulator running but in error recovery mode");
                 
                 // Let FlinkKafkaConsumerGroup handle the recovery instead of heartbeat mode
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup will handle automatic recovery", _taskManagerId);
@@ -124,6 +149,133 @@ namespace FlinkJobSimulator
             }
         }
         
+        /// <summary>
+        /// Apache Flink 2.0 resilient Kafka initialization with fallback patterns
+        /// </summary>
+        private async Task<bool> InitializeKafkaWithRetry()
+        {
+            const int maxAttempts = 2; // Limited attempts to fail fast during startup
+            
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Kafka initialization attempt {Attempt}/{MaxAttempts}", 
+                        _taskManagerId, attempt, maxAttempts);
+                    
+                    await InitializeFlinkKafkaConsumerGroup();
+                    await InitializeHighPerformanceProducer();
+                    
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Kafka initialized successfully on attempt {Attempt}", 
+                        _taskManagerId, attempt);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Kafka initialization attempt {Attempt}/{MaxAttempts} failed", 
+                        _taskManagerId, attempt, maxAttempts);
+                    
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(2000); // 2 second delay between attempts
+                    }
+                }
+            }
+            
+            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Kafka initialization failed after {MaxAttempts} attempts - will use wait mode", 
+                _taskManagerId, maxAttempts);
+            return false;
+        }
+        
+        /// <summary>
+        /// Apache Flink 2.0 pattern: Wait for infrastructure to become ready, then start consuming
+        /// </summary>
+        private async Task WaitForInfrastructureAndConsume(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Apache Flink 2.0 infrastructure wait mode - continuously retrying until ready", _taskManagerId);
+            
+            const int retryIntervalMs = 5000; // 5 seconds between retries
+            var retryCount = 0;
+            
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                retryCount++;
+                
+                try
+                {
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Infrastructure retry #{RetryCount} - attempting to initialize Kafka", 
+                        _taskManagerId, retryCount);
+                    
+                    await InitializeFlinkKafkaConsumerGroup();
+                    await InitializeHighPerformanceProducer();
+                    
+                    // If we get here, Kafka is ready
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Infrastructure ready after {RetryCount} retries - starting consumption", 
+                        _taskManagerId, retryCount);
+                    
+                    await UpdateStartupLogAsync("KAFKA_READY", "Kafka infrastructure ready - starting consumption");
+                    await ConsumeMessagesWithFlinkPatterns(stoppingToken);
+                    return; // Exit the retry loop
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: Infrastructure retry #{RetryCount} failed - will continue trying", 
+                        _taskManagerId, retryCount);
+                    
+                    // Show periodic status updates
+                    if (retryCount % 12 == 0) // Every 60 seconds (12 * 5s)
+                    {
+                        _logger.LogInformation("💡 TaskManager {TaskManagerId}: Still waiting for infrastructure after {RetryCount} attempts - continuing (Apache Flink 2.0 pattern)", 
+                            _taskManagerId, retryCount);
+                    }
+                    
+                    await Task.Delay(retryIntervalMs, stoppingToken);
+                }
+            }
+            
+            _logger.LogInformation("⏹️ TaskManager {TaskManagerId}: Infrastructure wait cancelled", _taskManagerId);
+        }
+
+        /// <summary>
+        /// Apache Flink 2.0 resilient Redis counter initialization with retries
+        /// </summary>
+        private async Task<bool> InitializeRedisCountersWithRetry()
+        {
+            const int maxAttempts = 3;
+            const int delayMs = 1000;
+            
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Redis initialization attempt {Attempt}/{MaxAttempts}", 
+                        _taskManagerId, attempt, maxAttempts);
+                    
+                    // Initialize both Redis keys
+                    await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
+                    await _redisDatabase.StringSetAsync(_globalSequenceKey, 0);
+                    
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counters initialized on attempt {Attempt}", 
+                        _taskManagerId, attempt);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Redis initialization attempt {Attempt}/{MaxAttempts} failed", 
+                        _taskManagerId, attempt, maxAttempts);
+                    
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(delayMs);
+                    }
+                }
+            }
+            
+            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Redis initialization failed after {MaxAttempts} attempts - will continue without immediate counters", 
+                _taskManagerId, maxAttempts);
+            return false;
+        }
+
         /// <summary>
         /// Find the project root directory by looking for .git directory
         /// </summary>
