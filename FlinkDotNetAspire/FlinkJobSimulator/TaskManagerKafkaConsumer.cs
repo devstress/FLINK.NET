@@ -80,6 +80,19 @@ namespace FlinkJobSimulator
             try
             {
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting FlinkKafkaConsumerGroup and producer initialization", _taskManagerId);
+                
+                // Check if we should add a delay for producer-consumer coordination
+                var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
+                var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
+                
+                if (shouldForceReset)
+                {
+                    // Add delay to allow producer time to generate messages first
+                    var delaySeconds = 15; // Allow 15 seconds for producer to start and generate some messages
+                    _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Adding {DelaySeconds}s delay for producer-consumer coordination (SIMULATOR_FORCE_RESET_TO_EARLIEST=true)", _taskManagerId, delaySeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                }
+                
                 await InitializeFlinkKafkaConsumerGroup();
                 await InitializeHighPerformanceProducer();
                 await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup and producer started with automatic resumption");
@@ -351,6 +364,22 @@ Message: {message}
 
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns and automatic resumption", _taskManagerId);
             
+            // Add detailed debugging information
+            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Consumer Configuration Debug Info:", _taskManagerId);
+            _logger.LogInformation("  📋 Topic: {Topic}", _kafkaTopic);
+            _logger.LogInformation("  📋 Consumer Group: {GroupId}", _consumerGroup.GetConsumerGroupId());
+            _logger.LogInformation("  📋 Redis Counter Key: {CounterKey}", _redisSinkCounterKey);
+            _logger.LogInformation("  📋 Global Sequence Key: {GlobalKey}", _globalSequenceKey);
+            
+            // Log bootstrap servers being used for comparison with producer
+            var bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"] ?? 
+                                 _configuration["ConnectionStrings__kafka"] ?? 
+                                 "localhost:9092";
+            _logger.LogInformation("  📋 Bootstrap Servers: {BootstrapServers}", bootstrapServers);
+            
+            // Check if messages are available in the topic before starting consumption
+            await LogTopicMessageAvailability();
+            
             // Log current consumer group assignment and offsets for debugging
             LogConsumerGroupStatus();
             
@@ -494,6 +523,59 @@ Message: {message}
             }
         }
 
+        private async Task LogTopicMessageAvailability()
+        {
+            try
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Checking topic message availability", _taskManagerId);
+                
+                // Multi-strategy Kafka bootstrap server discovery
+                string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+                if (string.IsNullOrEmpty(bootstrapServers))
+                {
+                    bootstrapServers = _configuration["ConnectionStrings__kafka"];
+                }
+                if (string.IsNullOrEmpty(bootstrapServers))
+                {
+                    bootstrapServers = "localhost:9092";
+                }
+                
+                // Fix IPv6 issue by forcing IPv4 localhost resolution
+                bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+                
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                var metadata = admin.GetMetadata(_kafkaTopic, TimeSpan.FromSeconds(10));
+                
+                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
+                if (topicMetadata != null)
+                {
+                    _logger.LogInformation("📊 Topic {Topic} found with {PartitionCount} partitions", 
+                        _kafkaTopic, topicMetadata.Partitions.Count);
+                    
+                    foreach (var partition in topicMetadata.Partitions)
+                    {
+                        _logger.LogInformation("  📍 Partition {PartitionId}: Status = {PartitionError}", 
+                            partition.PartitionId, partition.Error?.Code ?? ErrorCode.NoError);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("❌ Topic {Topic} not found in metadata!", _kafkaTopic);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to check topic availability", _taskManagerId);
+            }
+        }
+        
         private void LogConsumerGroupStatus()
         {
             try
