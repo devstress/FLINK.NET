@@ -19,9 +19,12 @@ namespace FlinkJobSimulator
         private readonly ILogger<TaskManagerKafkaConsumer> _logger;
         private readonly IDatabase _redisDatabase;
         private readonly string _kafkaTopic;
+        private readonly string _outputTopic;
         private readonly string _redisSinkCounterKey;
+        private readonly string _globalSequenceKey;
         private readonly string _taskManagerId;
         private FlinkKafkaConsumerGroup? _consumerGroup;
+        private IProducer<Null, byte[]>? _producer;
         private long _messagesProcessed = 0;
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 
@@ -35,10 +38,13 @@ namespace FlinkJobSimulator
             _redisDatabase = redisDatabase ?? throw new ArgumentNullException(nameof(redisDatabase));
             
             _kafkaTopic = _configuration["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.sample.topic";
+            _outputTopic = _kafkaTopic.EndsWith(".topic") ? _kafkaTopic.Replace(".topic", ".out.topic") : _kafkaTopic + ".out";
             _redisSinkCounterKey = _configuration["SIMULATOR_REDIS_KEY_SINK_COUNTER"] ?? "flinkdotnet:sample:processed_message_counter";
+            _globalSequenceKey = _configuration["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
             _taskManagerId = Environment.GetEnvironmentVariable("TaskManagerId") ?? "TM-Unknown";
             
-            _logger.LogInformation("TaskManagerKafkaConsumer initialized for TaskManager: {TaskManagerId}", _taskManagerId);
+            _logger.LogInformation("TaskManagerKafkaConsumer initialized for TaskManager: {TaskManagerId}, Input: {InputTopic}, Output: {OutputTopic}", 
+                _taskManagerId, _kafkaTopic, _outputTopic);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -48,15 +54,20 @@ namespace FlinkJobSimulator
             // Write consumer startup log to file for stress test monitoring
             await WriteConsumerStartupLogAsync();
             
-            // Initialize Redis counter to indicate FlinkJobSimulator has started
+            // Initialize Redis counters to indicate FlinkJobSimulator has started
             try
             {
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing Redis counter to indicate startup", _taskManagerId);
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing Redis counters to indicate startup", _taskManagerId);
+                
+                // Initialize both Redis keys
                 await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
-                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counter initialized successfully", _taskManagerId);
+                await _redisDatabase.StringSetAsync(_globalSequenceKey, 0);
+                
+                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counters initialized successfully - sink: {SinkKey}, global: {GlobalKey}", 
+                    _taskManagerId, _redisSinkCounterKey, _globalSequenceKey);
                 
                 // Update startup log with Redis success
-                await UpdateStartupLogAsync("REDIS_CONNECTED", "Redis counter initialized successfully");
+                await UpdateStartupLogAsync("REDIS_CONNECTED", "Redis counters initialized successfully");
             }
             catch (Exception ex)
             {
@@ -67,9 +78,10 @@ namespace FlinkJobSimulator
             
             try
             {
-                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting FlinkKafkaConsumerGroup initialization", _taskManagerId);
+                _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting FlinkKafkaConsumerGroup and producer initialization", _taskManagerId);
                 await InitializeFlinkKafkaConsumerGroup();
-                await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup started with automatic resumption");
+                await InitializeHighPerformanceProducer();
+                await UpdateStartupLogAsync("KAFKA_CONSUMING", "FlinkKafkaConsumerGroup and producer started with automatic resumption");
                 
                 // IMPORTANT: Mark FlinkJobSimulator as actually RUNNING
                 _logger.LogInformation("🎯 TaskManager {TaskManagerId}: FlinkJobSimulator is now RUNNING and ready to process messages", _taskManagerId);
@@ -218,6 +230,97 @@ Message: {message}
             _logger.LogInformation("✅ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup initialized with built-in resumption", _taskManagerId);
         }
 
+        private async Task InitializeHighPerformanceProducer()
+        {
+            // Multi-strategy Kafka bootstrap server discovery
+            string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+            if (string.IsNullOrEmpty(bootstrapServers))
+            {
+                bootstrapServers = _configuration["ConnectionStrings__kafka"];
+                if (string.IsNullOrEmpty(bootstrapServers))
+                {
+                    bootstrapServers = "localhost:9092";
+                }
+            }
+
+            // Fix IPv6 issue by forcing IPv4 localhost resolution
+            bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
+
+            // High-performance producer configuration based on produce-1-million-messages.ps1
+            var producerConfig = new ProducerConfig
+            {
+                BootstrapServers = bootstrapServers,
+                SecurityProtocol = SecurityProtocol.Plaintext,
+                
+                // High-performance settings from produce-1-million-messages.ps1
+                Acks = Acks.None,                              // Maximum speed, no delivery confirmation
+                LingerMs = 2,                                   // Micro-batching for performance  
+                BatchSize = 524288,                             // 512KB batch size
+                CompressionType = CompressionType.None,         // No compression for speed
+                QueueBufferingMaxKbytes = 64 * 1024 * 1024,     // 64MB internal buffer
+                QueueBufferingMaxMessages = 20_000_000,         // 20M message buffer capacity
+                SocketTimeoutMs = 60000,                        // 60s socket timeout
+                SocketKeepaliveEnable = true,                   // TCP keepalive
+                EnableDeliveryReports = false,                  // No delivery reports for performance
+                ClientId = $"flinkjobsim-producer-{_taskManagerId}"
+            };
+
+            _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing high-performance producer for output topic: {OutputTopic}", 
+                _taskManagerId, _outputTopic);
+
+            _producer = new ProducerBuilder<Null, byte[]>(producerConfig).Build();
+            
+            // Create output topic if needed
+            await EnsureTopicExistsAsync(bootstrapServers, _outputTopic);
+
+            _logger.LogInformation("✅ TaskManager {TaskManagerId}: High-performance producer initialized for topic: {OutputTopic}", 
+                _taskManagerId, _outputTopic);
+        }
+
+        private async Task EnsureTopicExistsAsync(string bootstrapServers, string topicName)
+        {
+            try
+            {
+                var adminConfig = new AdminClientConfig 
+                { 
+                    BootstrapServers = bootstrapServers,
+                    SecurityProtocol = SecurityProtocol.Plaintext,
+                    SocketTimeoutMs = 10000,
+                    ApiVersionRequestTimeoutMs = 10000
+                };
+                
+                using var admin = new AdminClientBuilder(adminConfig).Build();
+                
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
+                var topicExists = metadata.Topics.Any(t => t.Topic == topicName);
+                
+                if (!topicExists)
+                {
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Creating output topic: {TopicName}", _taskManagerId, topicName);
+                    
+                    var topicSpec = new Confluent.Kafka.Admin.TopicSpecification
+                    {
+                        Name = topicName,
+                        NumPartitions = 8,  // Multiple partitions for high throughput
+                        ReplicationFactor = 1
+                    };
+
+                    await admin.CreateTopicsAsync(new[] { topicSpec });
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Output topic created: {TopicName}", _taskManagerId, topicName);
+                    
+                    await Task.Delay(2000); // Wait for topic to be available
+                }
+                else
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Output topic already exists: {TopicName}", _taskManagerId, topicName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Could not create/verify output topic: {TopicName}", _taskManagerId, topicName);
+            }
+        }
+
         private async Task ConsumeMessagesWithFlinkPatterns(CancellationToken stoppingToken)
         {
             if (_consumerGroup == null)
@@ -280,7 +383,8 @@ Message: {message}
 
         private void CheckAndLogProgress(ConsumeResult<Ignore, byte[]> consumeResult, ConsumptionContext context)
         {
-            if ((DateTime.UtcNow - context.LastLogTime).TotalSeconds >= 30)
+            // Reduced logging frequency for better performance
+            if ((DateTime.UtcNow - context.LastLogTime).TotalSeconds >= 60)
             {
                 var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
                 var messagesInPeriod = currentProcessedCount - context.LastProcessedCount;
@@ -288,7 +392,7 @@ Message: {message}
                 var totalRate = currentProcessedCount / elapsed.TotalSeconds;
                 
                 _logger.LogInformation("📊 TaskManager {TaskManagerId}: Processed {TotalMessages} messages " +
-                                     "(+{PeriodMessages} in last 30s) Rate: {Rate:F1} msg/s " +
+                                     "(+{PeriodMessages} in last 60s) Rate: {Rate:F1} msg/s " +
                                      "Partition: {Partition}",
                                      _taskManagerId, currentProcessedCount, messagesInPeriod, totalRate,
                                      consumeResult.Partition.Value);
@@ -331,13 +435,14 @@ Message: {message}
                 // Convert bytes to string (Apache Flink standard deserialization)
                 var messageContent = System.Text.Encoding.UTF8.GetString(consumeResult.Message.Value);
                 
-                // 🔄 ENHANCED KAFKA LOGGING: Log consumption for monitoring
-                if (_messagesProcessed < 10 || _messagesProcessed % 10000 == 0)
+                // Enhanced logging only for first few messages or significant milestones
+                var currentCount = Interlocked.Read(ref _messagesProcessed);
+                if (currentCount < 5 || currentCount % 50000 == 0)
                 {
                     _logger.LogDebug("🔄 KAFKA CONSUME: TaskManager {TaskManagerId} consumed message from " +
-                                   "topic: {Topic}, partition: {Partition}, offset: {Offset}, message: {Message}",
+                                   "topic: {Topic}, partition: {Partition}, offset: {Offset}",
                                    _taskManagerId, consumeResult.Topic, consumeResult.Partition.Value, 
-                                   consumeResult.Offset.Value, messageContent);
+                                   consumeResult.Offset.Value);
                 }
                 
                 // Process the message using Apache Flink sink patterns
@@ -346,11 +451,14 @@ Message: {message}
                 // Increment processed message counter
                 Interlocked.Increment(ref _messagesProcessed);
                 
-                // Update Redis counter using Apache Flink sink pattern
-                await UpdateRedisCounterWithFlinkPatterns(messageContent);
+                // Produce to output topic with high performance
+                await ProduceToOutputTopic(messageContent);
                 
-                // Periodic checkpoint simulation (Apache Flink pattern)
-                if (_messagesProcessed % 1000 == 0)
+                // Update Redis counters using Apache Flink sink pattern
+                await UpdateRedisCountersWithFlinkPatterns();
+                
+                // Periodic checkpoint simulation (Apache Flink pattern) - less frequent for performance
+                if (_messagesProcessed % 5000 == 0)
                 {
                     await SimulateFlinkCheckpoint();
                 }
@@ -364,6 +472,75 @@ Message: {message}
             }
         }
 
+        private async Task ProduceToOutputTopic(string messageContent)
+        {
+            if (_producer == null)
+            {
+                // Producer not available, log once but don't spam
+                var currentCount = Interlocked.Read(ref _messagesProcessed);
+                if (currentCount <= 5)
+                {
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Producer not available for output topic: {OutputTopic}", 
+                        _taskManagerId, _outputTopic);
+                }
+                return;
+            }
+
+            try
+            {
+                // Create processed message (could add transformation logic here)
+                var processedMessage = $"PROCESSED:{messageContent}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                var messageBytes = System.Text.Encoding.UTF8.GetBytes(processedMessage);
+                
+                // High-performance produce (fire-and-forget for maximum speed)
+                var message = new Message<Null, byte[]> { Value = messageBytes };
+                await _producer.ProduceAsync(_outputTopic, message);
+                
+                // Log success only for first few messages or milestones
+                var currentCount = Interlocked.Read(ref _messagesProcessed);
+                if (currentCount <= 5 || currentCount % 50000 == 0)
+                {
+                    _logger.LogDebug("✅ TaskManager {TaskManagerId}: Produced message to output topic: {OutputTopic}", 
+                        _taskManagerId, _outputTopic);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to produce to output topic: {OutputTopic}", 
+                    _taskManagerId, _outputTopic);
+            }
+        }
+
+        private async Task UpdateRedisCountersWithFlinkPatterns()
+        {
+            try
+            {
+                // Update both Redis counters efficiently
+                var pipeline = _redisDatabase.CreateBatch();
+                var sinkCounterTask = pipeline.StringIncrementAsync(_redisSinkCounterKey);
+                var globalSequenceTask = pipeline.StringIncrementAsync(_globalSequenceKey);
+                
+                pipeline.Execute();
+                
+                await sinkCounterTask;
+                var newGlobalCount = await globalSequenceTask;
+                
+                // Reduced logging frequency for performance
+                var currentCount = Interlocked.Read(ref _messagesProcessed);
+                if (currentCount <= 5 || currentCount % 50000 == 0)
+                {
+                    _logger.LogDebug("✅ REDIS SUCCESS: TaskManager {TaskManagerId} updated counters - " +
+                                   "sink: {SinkKey}, global: {GlobalKey} = {GlobalCount}",
+                                   _taskManagerId, _redisSinkCounterKey, _globalSequenceKey, newGlobalCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to update Redis counters", _taskManagerId);
+                // Continue processing - Redis update failures shouldn't stop message processing
+            }
+        }
+
         private static async Task ProcessThroughFlinkSinkFunction()
         {
             // Simulate Apache Flink sink function processing
@@ -371,34 +548,7 @@ Message: {message}
             await Task.Delay(1); // Minimal processing simulation
         }
 
-        private async Task UpdateRedisCounterWithFlinkPatterns(string messageContent)
-        {
-            try
-            {
-                // 🔄 ENHANCED REDIS LOGGING: Log Redis communication attempts  
-                if (_messagesProcessed < 10 || _messagesProcessed % 10000 == 0)
-                {
-                    _logger.LogDebug("🔄 REDIS SINK: TaskManager {TaskManagerId} updating Redis counter " +
-                                   "key: {RedisKey}, message: {Message}",
-                                   _taskManagerId, _redisSinkCounterKey, messageContent);
-                }
-                
-                var newCount = await _redisDatabase.StringIncrementAsync(_redisSinkCounterKey);
-                
-                // ✅ ENHANCED REDIS LOGGING: Log successful Redis operations
-                if (_messagesProcessed < 10 || _messagesProcessed % 10000 == 0)
-                {
-                    _logger.LogDebug("✅ REDIS SUCCESS: TaskManager {TaskManagerId} incremented Redis counter " +
-                                   "to {NewCount}",
-                                   _taskManagerId, newCount);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to update Redis counter", _taskManagerId);
-                // Continue processing - Redis update failures shouldn't stop message processing
-            }
-        }
+
 
         private async Task SimulateFlinkCheckpoint()
         {
@@ -424,6 +574,14 @@ Message: {message}
             {
                 _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Cleaning up resources", _taskManagerId);
                 
+                // Flush and dispose producer first
+                if (_producer != null)
+                {
+                    _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Flushing producer", _taskManagerId);
+                    _producer.Flush(TimeSpan.FromSeconds(10));
+                    _producer.Dispose();
+                }
+                
                 _consumerGroup?.Dispose();
                 _cancellationTokenSource.Dispose();
                 
@@ -439,6 +597,7 @@ Message: {message}
 
         public override void Dispose()
         {
+            _producer?.Dispose();
             _consumerGroup?.Dispose();
             _cancellationTokenSource.Dispose();
             base.Dispose();
