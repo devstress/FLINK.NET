@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting; // Ensured for AddServiceDefaults
 using FlinkDotNet.TaskManager.Services;
@@ -49,6 +50,17 @@ namespace FlinkDotNet.TaskManager
             if (!string.IsNullOrEmpty(envJobManagerAddress))
             {
                 JobManagerAddress = envJobManagerAddress;
+                Console.WriteLine($"Using JobManager address from Aspire service discovery: {JobManagerAddress}");
+            }
+            else
+            {
+                // Try the direct environment variable as fallback
+                var directJobManagerAddress = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS");
+                if (!string.IsNullOrEmpty(directJobManagerAddress))
+                {
+                    JobManagerAddress = directJobManagerAddress;
+                    Console.WriteLine($"Using JobManager address from environment variable: {JobManagerAddress}");
+                }
             }
 
             var envGrpcPort = Environment.GetEnvironmentVariable("TASKMANAGER_GRPC_PORT");
@@ -108,7 +120,10 @@ namespace FlinkDotNet.TaskManager
                     // Register TaskManagerCoreService (previously TaskManagerService)
                     // It needs to be an IHostedService to integrate with Generic Host lifecycle
                     services.AddSingleton(new TaskManagerCoreService.Config(TaskManagerId, JobManagerAddress));
-                    services.AddSingleton<TaskManagerCoreService>();
+                    services.AddSingleton<TaskManagerCoreService>(sp => 
+                        new TaskManagerCoreService(
+                            sp.GetRequiredService<TaskManagerCoreService.Config>(), 
+                            sp.GetRequiredService<IServer>()));
                     services.AddHostedService(sp => sp.GetRequiredService<TaskManagerCoreService>());
 
                     // Register TaskExecutor
