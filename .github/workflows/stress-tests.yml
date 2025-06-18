@@ -543,6 +543,11 @@ jobs:
           $maxCounterNotInitializedAttempts = 1
           $messageProcessingStarted = $false  # Track when message processing begins
           
+          # Progress stall detection: timeout if message count doesn't change for 5 seconds
+          $lastMessageCount = -1
+          $lastMessageCountTime = Get-Date
+          $stallTimeoutSeconds = 5  # Timeout if no progress for 5 seconds
+          
           while (-not $completed) {
             $currentElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
             
@@ -595,6 +600,22 @@ jobs:
               
               if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
+                
+                # Progress stall detection: check if message count has changed
+                if ($currentCount -ne $lastMessageCount) {
+                  $lastMessageCount = $currentCount
+                  $lastMessageCountTime = Get-Date
+                } else {
+                  # Message count hasn't changed - check for stall timeout
+                  $stallTime = ((Get-Date) - $lastMessageCountTime).TotalSeconds
+                  if ($messageProcessingStarted -and $stallTime -gt $stallTimeoutSeconds) {
+                    Write-Host "❌ Message processing stalled! No progress for $stallTime seconds"
+                    Write-Host "💡 Last message count: $currentCount (unchanged for ${stallTime}s)"
+                    $completed = $true
+                    $completionReason = "ProcessingStalled"
+                    break
+                  }
+                }
                 
                 # Mark that message processing has started if we see any count > 0
                 if ($currentCount -gt 0 -and -not $messageProcessingStarted) {
