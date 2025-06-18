@@ -28,6 +28,10 @@ namespace FlinkJobSimulator
         private IProducer<Null, byte[]>? _producer;
         private long _messagesProcessed = 0;
         private readonly CancellationTokenSource _cancellationTokenSource = new();
+        
+        // High-performance batch processing configuration for Redis updates
+        private long _pendingRedisUpdates = 0;  // Use Interlocked for thread-safe long operations
+        private readonly TimeSpan _redisUpdateInterval = TimeSpan.FromMilliseconds(100);  // 100ms Redis batching
 
         public TaskManagerKafkaConsumer(
             IConfiguration configuration, 
@@ -415,11 +419,11 @@ Message: {message}
                 // APACHE FLINK 2.0 PARTITION ASSIGNMENT: Cooperative sticky for minimal disruption
                 PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
                 
-                // APACHE FLINK 2.0 FETCH SETTINGS: Optimized for high-throughput low-latency streaming
-                FetchMinBytes = 1,             // Return immediately if any data available
-                FetchWaitMaxMs = 50,           // 50ms max wait (matches Apache Flink 2.0 KafkaSource)
-                FetchMaxBytes = 52428800,      // 50MB max fetch for high throughput
-                MaxPartitionFetchBytes = 1048576, // 1MB per partition
+                // HIGH-THROUGHPUT FETCH SETTINGS: Optimized for maximum performance like producer script
+                FetchMinBytes = 1048576,           // 1MB minimum fetch for efficiency (vs 1 byte)
+                FetchWaitMaxMs = 50,               // 50ms max wait (matches Apache Flink 2.0 KafkaSource)
+                FetchMaxBytes = 52428800,          // 50MB max fetch for high throughput
+                MaxPartitionFetchBytes = 16777216, // 16MB per partition (increased from 1MB)
                 
                 // APACHE FLINK 2.0 NETWORK OPTIMIZATION: Fast connectivity and metadata refresh
                 SocketTimeoutMs = 10000,       // 10s socket timeout
@@ -657,13 +661,13 @@ Message: {message}
                 BootstrapServers = bootstrapServers,
                 SecurityProtocol = SecurityProtocol.Plaintext,
                 
-                // High-performance settings from produce-1-million-messages.ps1
-                Acks = Acks.None,                              // Maximum speed, no delivery confirmation
-                LingerMs = 2,                                   // Micro-batching for performance  
-                BatchSize = 524288,                             // 512KB batch size
+                // MAXIMUM THROUGHPUT SETTINGS: Match produce-1-million-messages.ps1 for consistency
+                Acks = Acks.None,                              // Maximum speed, no delivery confirmation  
+                LingerMs = 5,                                   // Micro-batching for performance (increased from 2ms)
+                BatchSize = 1048576,                            // 1MB batch size (increased from 512KB)
                 CompressionType = CompressionType.None,         // No compression for speed
-                QueueBufferingMaxKbytes = 64 * 1024 * 1024,     // 64MB internal buffer
-                QueueBufferingMaxMessages = 20_000_000,         // 20M message buffer capacity
+                QueueBufferingMaxKbytes = 128 * 1024 * 1024,    // 128MB internal buffer (increased from 64MB)
+                QueueBufferingMaxMessages = 50_000_000,         // 50M message buffer capacity (increased from 20M)
                 SocketTimeoutMs = 60000,                        // 60s socket timeout
                 SocketKeepaliveEnable = true,                   // TCP keepalive
                 EnableDeliveryReports = false,                  // No delivery reports for performance
@@ -757,6 +761,9 @@ Message: {message}
             var maxConsecutiveNulls = 60; // Allow 60 consecutive null results before enhanced logging
             var lastProgressLogTime = DateTime.UtcNow;
 
+            // Start background Redis batch processor for high-throughput performance
+            var batchProcessorTask = ProcessRedisBatchUpdatesAsync(stoppingToken);
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -835,6 +842,16 @@ Message: {message}
                     await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken); // Keep 1s delay for unexpected errors
                 }
             }
+            
+            // Complete any pending Redis batch updates
+            var finalPendingUpdates = Interlocked.Exchange(ref _pendingRedisUpdates, 0);
+            if (finalPendingUpdates > 0)
+            {
+                await BatchUpdateRedisCountersAsync(finalPendingUpdates);
+            }
+            
+            // Wait for batch processor to complete
+            await batchProcessorTask;
             
             LogFinalConsumptionStats(consumptionContext.StartTime);
         }
@@ -1648,32 +1665,29 @@ Message: {message}
                 // Convert bytes to string (Apache Flink standard deserialization)
                 var messageContent = System.Text.Encoding.UTF8.GetString(consumeResult.Message.Value);
                 
-                // Enhanced logging for initial messages and milestones  
+                // Enhanced logging for initial messages and major milestones only  
                 var currentCount = Interlocked.Read(ref _messagesProcessed);
-                if (currentCount < 50 || currentCount % 10000 == 0)
+                if (currentCount < 10 || currentCount % 50000 == 0) // Reduced from every 10k to every 50k
                 {
-                    _logger.LogInformation("🔄 KAFKA CONSUME: TaskManager {TaskManagerId} consumed message from " +
+                    _logger.LogInformation("⚡ CONSUME: TaskManager {TaskManagerId} message {Count} from " +
                                            "topic: {Topic}, partition: {Partition}, offset: {Offset}",
-                                           _taskManagerId, consumeResult.Topic, consumeResult.Partition.Value, 
-                                           consumeResult.Offset.Value);
+                                           _taskManagerId, currentCount, consumeResult.Topic, 
+                                           consumeResult.Partition.Value, consumeResult.Offset.Value);
                 }
-                
-                // Process the message using Apache Flink sink patterns
-                await ProcessThroughFlinkSinkFunction();
                 
                 // Increment processed message counter
                 Interlocked.Increment(ref _messagesProcessed);
                 
-                // Produce to output topic with high performance
-                await ProduceToOutputTopic(messageContent);
+                // HIGH-PERFORMANCE: Batch Redis updates instead of individual operations per message
+                Interlocked.Increment(ref _pendingRedisUpdates);
                 
-                // Update Redis counters using Apache Flink sink pattern
-                await UpdateRedisCountersWithFlinkPatterns();
+                // Produce to output topic with fire-and-forget for maximum performance
+                ProduceToOutputTopicFireAndForget(messageContent);
                 
-                // Periodic checkpoint simulation (Apache Flink pattern) - less frequent for performance
-                if (_messagesProcessed % 5000 == 0)
+                // Periodic checkpoint simulation - less frequent for performance
+                if (_messagesProcessed % 25000 == 0) // Increased from every 5k to every 25k messages
                 {
-                    await SimulateFlinkCheckpoint();
+                    _ = Task.Run(async () => await SimulateFlinkCheckpoint());
                 }
             }
             catch (Exception ex)
@@ -1682,6 +1696,30 @@ Message: {message}
                                "partition {Partition}, offset {Offset}",
                                _taskManagerId, consumeResult.Partition.Value, consumeResult.Offset.Value);
                 // Continue processing other messages
+            }
+        }
+
+        private void ProduceToOutputTopicFireAndForget(string messageContent)
+        {
+            if (_producer == null) return;
+
+            try
+            {
+                // Create processed message (minimal transformation for performance)
+                var processedMessage = $"PROCESSED:{messageContent}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                var messageBytes = System.Text.Encoding.UTF8.GetBytes(processedMessage);
+                
+                // Fire-and-forget produce for maximum speed (synchronous like producer script)
+                var message = new Message<Null, byte[]> { Value = messageBytes };
+                _producer.Produce(_outputTopic, message);
+            }
+            catch (Exception ex)
+            {
+                // Minimal error logging to avoid performance impact
+                if (_messagesProcessed % 10000 == 0)
+                {
+                    _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Output topic production issues", _taskManagerId);
+                }
             }
         }
 
@@ -1754,6 +1792,69 @@ Message: {message}
             {
                 _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to update Redis counters", _taskManagerId);
                 // Continue processing - Redis update failures shouldn't stop message processing
+            }
+        }
+
+        /// <summary>
+        /// High-performance batch Redis counter updates - processes batches every 100ms
+        /// </summary>
+        private async Task ProcessRedisBatchUpdatesAsync(CancellationToken stoppingToken)
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(_redisUpdateInterval, stoppingToken);
+                    
+                    var pendingUpdates = Interlocked.Exchange(ref _pendingRedisUpdates, 0);
+                    if (pendingUpdates > 0)
+                    {
+                        await BatchUpdateRedisCountersAsync(pendingUpdates);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Redis batch processor error", _taskManagerId);
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Efficient batch Redis counter updates
+        /// </summary>
+        private async Task BatchUpdateRedisCountersAsync(long updateCount)
+        {
+            try
+            {
+                // Batch update both Redis counters efficiently
+                var pipeline = _redisDatabase.CreateBatch();
+                var sinkCounterTask = pipeline.StringIncrementAsync(_redisSinkCounterKey, updateCount);
+                var globalSequenceTask = pipeline.StringIncrementAsync(_globalSequenceKey, updateCount);
+                
+                pipeline.Execute();
+                
+                await sinkCounterTask;
+                var newGlobalCount = await globalSequenceTask;
+                
+                var currentCount = Interlocked.Read(ref _messagesProcessed);
+                
+                // Log only at significant milestones for performance
+                if (currentCount <= 100 || currentCount % 25000 == 0)
+                {
+                    _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} - " +
+                                   "total: {TotalCount}, global: {GlobalCount}",
+                                   _taskManagerId, updateCount, currentCount, newGlobalCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Batch Redis update failed for {UpdateCount} messages", 
+                    _taskManagerId, updateCount);
             }
         }
 
