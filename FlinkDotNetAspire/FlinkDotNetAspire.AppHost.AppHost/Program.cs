@@ -171,7 +171,7 @@ public static class Program
     {
         var isCI = IsRunningInCI();
         var simulatorNumMessages = GetSimulatorMessageCount();
-        var taskManagerCount = isCI ? 5 : 20; // Reduce TaskManager count in CI for resource efficiency
+        var taskManagerCount = 20; // Always use 20 TaskManagers for Apache Flink 2.0 compliance and high-throughput 1M+ msg/sec processing
 
         // Add JobManager (1 instance)
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
