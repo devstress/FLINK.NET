@@ -744,17 +744,14 @@ Message: {message}
             }
         }
 
-        private async Task ConsumeMessagesWithFlinkPatterns(CancellationToken stoppingToken)
+        private void LogConsumptionStartupInfo()
         {
-            if (_consumerGroup == null)
-                throw new InvalidOperationException("Consumer group not initialized");
-
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Starting message consumption with Apache Flink 2.0 patterns and automatic resumption", _taskManagerId);
             
             // Add detailed debugging information
             _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Consumer Configuration Debug Info:", _taskManagerId);
             _logger.LogInformation("  📋 Topic: {Topic}", _kafkaTopic);
-            _logger.LogInformation("  📋 Consumer Group: {GroupId}", _consumerGroup.GetConsumerGroupId());
+            _logger.LogInformation("  📋 Consumer Group: {GroupId}", _consumerGroup!.GetConsumerGroupId());
             _logger.LogInformation("  📋 Redis Counter Key: {CounterKey}", _redisSinkCounterKey);
             _logger.LogInformation("  📋 Global Sequence Key: {GlobalKey}", _globalSequenceKey);
             
@@ -763,8 +760,14 @@ Message: {message}
                                  _configuration["ConnectionStrings__kafka"] ?? 
                                  "localhost:9092";
             _logger.LogInformation("  📋 Bootstrap Servers: {BootstrapServers}", bootstrapServers);
-            
-            // CRITICAL FIX: Enhanced consumer group debugging
+        }
+
+        private async Task ConsumeMessagesWithFlinkPatterns(CancellationToken stoppingToken)
+        {
+            if (_consumerGroup == null)
+                throw new InvalidOperationException("Consumer group not initialized");
+
+            LogConsumptionStartupInfo();
             await LogDetailedConsumerGroupStatus();
             
             var consumptionContext = new ConsumptionContext(DateTime.UtcNow);
@@ -1698,78 +1701,6 @@ Message: {message}
                 {
                     _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Output topic production issues", _taskManagerId);
                 }
-            }
-        }
-
-        private async Task ProduceToOutputTopic(string messageContent)
-        {
-            if (_producer == null)
-            {
-                // Producer not available, log once but don't spam
-                var currentCount = Interlocked.Read(ref _messagesProcessed);
-                if (currentCount <= 5)
-                {
-                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Producer not available for output topic: {OutputTopic}", 
-                        _taskManagerId, _outputTopic);
-                }
-                return;
-            }
-
-            try
-            {
-                // Create processed message (could add transformation logic here)
-                var processedMessage = $"PROCESSED:{messageContent}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-                var messageBytes = System.Text.Encoding.UTF8.GetBytes(processedMessage);
-                
-                // High-performance produce (asynchronous as recommended by SonarQube)
-                var message = new Message<Null, byte[]> { Value = messageBytes };
-                await _producer.ProduceAsync(_outputTopic, message);
-                
-                // Log success for initial messages and milestones  
-                var currentCount = Interlocked.Read(ref _messagesProcessed);
-                if (currentCount <= 50 || currentCount % 10000 == 0)
-                {
-                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Produced message to output topic: {OutputTopic}", 
-                        _taskManagerId, _outputTopic);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to produce to output topic: {OutputTopic}", 
-                    _taskManagerId, _outputTopic);
-            }
-            
-            // Make it async for compatibility but no actual async work
-            await Task.CompletedTask;
-        }
-
-        private async Task UpdateRedisCountersWithFlinkPatterns()
-        {
-            try
-            {
-                // Update both Redis counters efficiently
-                var pipeline = _redisDatabase.CreateBatch();
-                var sinkCounterTask = pipeline.StringIncrementAsync(_redisSinkCounterKey);
-                var globalSequenceTask = pipeline.StringIncrementAsync(_globalSequenceKey);
-                
-                pipeline.Execute();
-                
-                await sinkCounterTask;
-                var newGlobalCount = await globalSequenceTask;
-                
-                // Enhanced logging for initial messages and milestones  
-                var currentCount = Interlocked.Read(ref _messagesProcessed);
-                if (currentCount <= 50 || currentCount % 10000 == 0)
-                {
-                    _logger.LogInformation("✅ REDIS SUCCESS: TaskManager {TaskManagerId} updated counters - " +
-                                   "sink: {SinkKey}, global: {GlobalKey} = {GlobalCount}",
-                                   _taskManagerId, _redisSinkCounterKey, _globalSequenceKey, newGlobalCount);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to update Redis counters", _taskManagerId);
-                // Continue processing - Redis update failures shouldn't stop message processing
             }
         }
 
