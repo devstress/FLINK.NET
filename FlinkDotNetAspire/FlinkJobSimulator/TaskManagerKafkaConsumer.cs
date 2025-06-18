@@ -358,7 +358,8 @@ MessagesProcessed: 0
         }
         
         /// <summary>
-        /// Write progress information to log file for stress test script to monitor
+        /// Write progress information to per-TaskManager log files for stress test script to monitor
+        /// Uses separate log files for each TaskManager to prevent overwrites with 20 parallel TaskManagers
         /// Matches the format from produce-1-million-messages.ps1 for consistency
         /// </summary>
         private async Task WriteProgressLogAsync(long currentCount, DateTime? processingStartTime = null)
@@ -375,7 +376,7 @@ MessagesProcessed: 0
                     rate = elapsedSeconds > 0 ? (int)Math.Round(currentCount / elapsedSeconds) : 0;
                 }
                 
-                // Write structured log for workflow script parsing
+                // Write structured log for workflow script parsing - PER TASKMANAGER
                 var logContent = $@"FLINKJOBSIMULATOR_PROGRESS_LOG
 TaskManagerId: {_taskManagerId}
 UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC
@@ -389,10 +390,11 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
 ";
                 
                 var projectRoot = FindProjectRoot();
-                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_progress.log");
+                // CHANGE: Write to per-TaskManager log files to prevent overwrites
+                var logPath = Path.Combine(projectRoot, $"flinkjobsimulator_progress_{_taskManagerId}.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 
-                // Write human-readable progress display matching producer script format EXACTLY
+                // Write human-readable progress display matching producer script format EXACTLY - PER TASKMANAGER
                 var displayLogContent = "";
                 if (currentCount > 0)
                 {
@@ -404,7 +406,8 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
                     displayLogContent = "[PROGRESS] Waiting for messages to arrive...\n";
                 }
                 
-                var displayLogPath = Path.Combine(projectRoot, "flinkjobsimulator_display.log");
+                // CHANGE: Write to per-TaskManager display log files to prevent overwrites
+                var displayLogPath = Path.Combine(projectRoot, $"flinkjobsimulator_display_{_taskManagerId}.log");
                 await File.WriteAllTextAsync(displayLogPath, displayLogContent);
                 
                 // Console output matching producer script format for major milestones
@@ -421,7 +424,7 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
         }
         
         /// <summary>
-        /// Write final completion log for stress test script monitoring
+        /// Write final completion log for stress test script monitoring - per TaskManager
         /// Matches the format from produce-1-million-messages.ps1 for consistency
         /// </summary>
         private async Task WriteCompletionLogAsync(long finalCount, double totalElapsedSeconds, int finalRate)
@@ -430,7 +433,7 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
             {
                 var progressPercent = finalCount > 0 ? Math.Round((double)finalCount / 1000000 * 100, 1) : 0.0;
                 
-                // Write structured log for workflow script parsing
+                // Write structured log for workflow script parsing - PER TASKMANAGER
                 var logContent = $@"FLINKJOBSIMULATOR_COMPLETION_LOG
 TaskManagerId: {_taskManagerId}
 CompletionTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC
@@ -445,14 +448,16 @@ Success: {(finalCount >= 1000000 ? "TRUE" : "FALSE")}
 ";
                 
                 var projectRoot = FindProjectRoot();
-                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_completion.log");
+                // CHANGE: Write to per-TaskManager completion log files to prevent overwrites
+                var logPath = Path.Combine(projectRoot, $"flinkjobsimulator_completion_{_taskManagerId}.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 
-                // Write human-readable finish display matching producer script format EXACTLY
+                // Write human-readable finish display matching producer script format EXACTLY - PER TASKMANAGER
                 // Producer format: "[FINISH] Total: {finalSent:N0} Time: {sw.Elapsed.TotalSeconds:F3}s Rate: {finalSent / sw.Elapsed.TotalSeconds:N0} msg/sec"
                 var displayLogContent = $"[FINISH] Total: {finalCount:N0} Time: {totalElapsedSeconds:F3}s Rate: {finalRate:N0} msg/sec\n";
                 
-                var displayLogPath = Path.Combine(projectRoot, "flinkjobsimulator_display.log");
+                // CHANGE: Write to per-TaskManager display log files to prevent overwrites
+                var displayLogPath = Path.Combine(projectRoot, $"flinkjobsimulator_display_{_taskManagerId}.log");
                 await File.WriteAllTextAsync(displayLogPath, displayLogContent);
                 
                 _logger.LogInformation("📝 COMPLETION LOG: Written final completion status to {LogPath}", logPath);

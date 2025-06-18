@@ -531,7 +531,7 @@ jobs:
           Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
           
           $maxWaitSeconds = 10  # Short timeout forces consumer to be responsive like production systems
-          $checkIntervalSeconds = 5  # Quick polling interval for immediate feedback
+          $checkIntervalSeconds = 1  # Poll every second for progress detection
           # Apache Flink 2.0 Pattern: FlinkJobSimulator starts before producer and waits for messages
           # This is normal behavior - consumers should be ready when messages arrive
           $expectedMessages = [int]"${{ env.SIMULATOR_NUM_MESSAGES }}"
@@ -618,7 +618,8 @@ jobs:
                   # Progress detected: extend timeout and update tracking
                   if ($lastMessageCount -ge 0) {  # Don't extend on first detection (from -1)
                     $dynamicTimeoutExtension += 5
-                    Write-Host "🔄 Progress detected! Redis counter changed from $lastMessageCount to $currentCount. Timeout extended by 5s (total extension: ${dynamicTimeoutExtension}s)"
+                    # Show progress change every second as requested
+                    Write-Host "🔄 Progress detected! Redis counter changed from $lastMessageCount to $currentCount"
                   }
                   $lastMessageCount = $currentCount
                   $lastMessageCountTime = Get-Date
@@ -754,13 +755,13 @@ jobs:
           Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
           Write-Host "Completion reason: $completionReason"
           Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
-          Write-Host "Original timeout: ${originalMaxWaitSeconds}s, Dynamic extensions: ${dynamicTimeoutExtension}s, Effective timeout: $($originalMaxWaitSeconds + $dynamicTimeoutExtension)s"
+          Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
           
           if (-not $completed) {
             $finalElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
             $effectiveFinalTimeout = $maxWaitSeconds + $dynamicTimeoutExtension
             if ($messageProcessingStarted) {
-              Write-Host "❌ FlinkJobSimulator did not complete processing within $effectiveFinalTimeout seconds after starting (original: ${originalMaxWaitSeconds}s + extensions: ${dynamicTimeoutExtension}s)"
+              Write-Host "❌ FlinkJobSimulator did not complete processing within $effectiveFinalTimeout seconds after starting"
               Write-Host "⏰ PROCESSING TIMEOUT - Messages started but processing didn't complete quickly enough despite dynamic timeout extensions"
             } else {
               Write-Host "❌ FlinkJobSimulator did not start processing messages within $([math]::Round($finalElapsed, 1)) seconds"

@@ -563,7 +563,7 @@ try {
     Start-Sleep -Seconds 30
     
     $maxWaitSeconds = 60  # 1 minute max wait (reduced for faster fallback)
-    $checkIntervalSeconds = 5
+    $checkIntervalSeconds = 1  # Poll every second for progress detection
     $expectedMessages = [int]$MessageCount
     $waitStartTime = Get-Date
     
@@ -572,12 +572,28 @@ try {
     $counterNotInitializedAttempts = 0
     $maxCounterNotInitializedAttempts = 1
     
+    # Progress stall detection: timeout if message count doesn't change for 5 seconds
+    $lastMessageCount = -1
+    $lastMessageCountTime = Get-Date
+    $stallTimeoutSeconds = 5  # Timeout if no progress for 5 seconds
+    
+    # Dynamic timeout extension: add 5 seconds whenever progress is detected
+    $dynamicTimeoutExtension = 0  # Additional seconds added due to progress
+    $originalMaxWaitSeconds = $maxWaitSeconds  # Keep track of original timeout
+    
     # Performance tracking like producer script
     $messageProcessingStarted = $false
     $processingStartTime = $null
     $lastProgressTime = Get-Date
     
-    while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
+    while (-not $completed) {
+        $currentElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
+        
+        # Dynamic timeout logic: extend timeout when progress is detected
+        $effectiveTimeout = $maxWaitSeconds + $dynamicTimeoutExtension
+        if ($currentElapsed -gt $effectiveTimeout) {
+            break
+        }
         try {
             # Check completion status first
             $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_completion_status`""
@@ -611,6 +627,28 @@ try {
             
             if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
+                
+                # Progress stall detection and dynamic timeout extension
+                if ($currentCount -ne $lastMessageCount) {
+                  # Progress detected: extend timeout and update tracking
+                  if ($lastMessageCount -ge 0) {  # Don't extend on first detection (from -1)
+                    $dynamicTimeoutExtension += 5
+                    # Show progress change every second as requested
+                    Write-Host "🔄 Progress detected! Redis counter changed from $lastMessageCount to $currentCount"
+                  }
+                  $lastMessageCount = $currentCount
+                  $lastMessageCountTime = Get-Date
+                } else {
+                  # Message count hasn't changed - check for stall timeout
+                  $stallTime = ((Get-Date) - $lastMessageCountTime).TotalSeconds
+                  if ($messageProcessingStarted -and $stallTime -gt $stallTimeoutSeconds) {
+                    Write-Host "❌ Message processing stalled! No progress for $stallTime seconds"
+                    Write-Host "💡 Last message count: $currentCount (unchanged for ${stallTime}s)"
+                    $completed = $true
+                    $completionReason = "ProcessingStalled"
+                    break
+                  }
+                }
                 
                 # Mark that message processing has started if we see any count > 0
                 if ($currentCount -gt 0 -and -not $messageProcessingStarted) {
