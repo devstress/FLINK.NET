@@ -593,7 +593,7 @@ Message: {message}
         /// <summary>
         /// Apache Flink 2.0 quick topic verification - just check existence, no message counting
         /// </summary>
-        private async Task QuickTopicVerification(string bootstrapServers)
+        private void QuickTopicVerification(string bootstrapServers)
         {
             try
             {
@@ -918,7 +918,7 @@ Message: {message}
                     
                     // APACHE FLINK 2.0 KAFKASOURCE PATTERN: Ultra-fast polling with 50ms timeout exactly like Apache Flink
                     // This matches the exact polling pattern used in Apache Flink 2.0 KafkaSource implementation
-                    var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(50)); // Apache Flink 2.0 standard: 50ms
+                    var consumeResult = _consumerGroup?.ConsumeMessage(TimeSpan.FromMilliseconds(50)); // Apache Flink 2.0 standard: 50ms
                     
                     if (consumeResult?.Message != null)
                     {
@@ -970,7 +970,7 @@ Message: {message}
                     }
                     
                     // Apache Flink 2.0 pattern: Minimal recovery mode handling
-                    if (_consumerGroup.IsInRecoveryMode())
+                    if (_consumerGroup?.IsInRecoveryMode() == true)
                     {
                         var failureCount = _consumerGroup.GetConsecutiveFailureCount();
                         _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Apache Flink 2.0 recovery mode (failures: {FailureCount})", 
@@ -1118,7 +1118,7 @@ Message: {message}
                 _logger.LogInformation("👥 Consumer group ID: {ConsumerGroupId}", consumerGroupId);
                 
                 // CRITICAL: Verify topic exists and check basic metadata
-                await LogEnhancedTopicStatus();
+                LogEnhancedTopicStatus();
                 
             }
             catch (Exception ex)
@@ -1130,7 +1130,7 @@ Message: {message}
         /// <summary>
         /// Enhanced topic status logging
         /// </summary>
-        private async Task LogEnhancedTopicStatus()
+        private void LogEnhancedTopicStatus()
         {
             try
             {
@@ -1387,7 +1387,7 @@ Message: {message}
                     _taskManagerId, _kafkaTopic, maxAttempts);
                 
                 // Log additional diagnostic information
-                await LogKafkaTopicDiagnostics(bootstrapServers);
+                LogKafkaTopicDiagnostics(bootstrapServers);
                 
                 throw new InvalidOperationException($"No messages found in topic {_kafkaTopic} during verification - producer may not have completed or topic may be empty");
                 
@@ -1402,7 +1402,7 @@ Message: {message}
         /// <summary>
         /// Log detailed Kafka topic diagnostics for troubleshooting
         /// </summary>
-        private async Task LogKafkaTopicDiagnostics(string bootstrapServers)
+        private void LogKafkaTopicDiagnostics(string bootstrapServers)
         {
             try
             {
@@ -1614,7 +1614,7 @@ Message: {message}
                                 var bootstrapServers = $"127.0.0.1:{hostPort}";
                                 
                                 // CRITICAL FIX: Verify connectivity before returning
-                                if (await VerifyKafkaConnectivity(bootstrapServers))
+                                if (VerifyKafkaConnectivity(bootstrapServers))
                                 {
                                     _logger.LogInformation("✅ TaskManager {TaskManagerId}: Verified Kafka bootstrap server: {BootstrapServers}", _taskManagerId, bootstrapServers);
                                     return bootstrapServers;
@@ -1656,7 +1656,7 @@ Message: {message}
         /// <summary>
         /// Verify that we can actually connect to the discovered Kafka bootstrap server
         /// </summary>
-        private async Task<bool> VerifyKafkaConnectivity(string bootstrapServers)
+        private bool VerifyKafkaConnectivity(string bootstrapServers)
         {
             try
             {
@@ -1683,7 +1683,7 @@ Message: {message}
             }
         }
         
-        private async Task LogTopicMessageAvailability()
+        private void LogTopicMessageAvailability()
         {
             try
             {
