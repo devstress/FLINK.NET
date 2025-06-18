@@ -169,7 +169,6 @@ public static class Program
 
     private static string ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
     {
-        var isCI = IsRunningInCI();
         var simulatorNumMessages = GetSimulatorMessageCount();
         var taskManagerCount = 20; // Always use 20 TaskManagers for Apache Flink 2.0 compliance and high-throughput 1M+ msg/sec processing
 

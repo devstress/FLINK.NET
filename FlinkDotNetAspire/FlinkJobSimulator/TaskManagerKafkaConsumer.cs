@@ -593,131 +593,6 @@ Message: {message}
         /// <summary>
         /// Apache Flink 2.0 quick topic verification - just check existence, no message counting
         /// </summary>
-        private void QuickTopicVerification(string bootstrapServers)
-        {
-            try
-            {
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Apache Flink 2.0 quick topic verification for {Topic}", _taskManagerId, _kafkaTopic);
-                
-                var adminConfig = new AdminClientConfig 
-                { 
-                    BootstrapServers = bootstrapServers,
-                    SecurityProtocol = SecurityProtocol.Plaintext,
-                    SocketTimeoutMs = 3000,  // Reduced from 10s to 3s
-                    ApiVersionRequestTimeoutMs = 3000  // Reduced from 10s to 3s
-                };
-                
-                using var admin = new AdminClientBuilder(adminConfig).Build();
-                
-                // Quick metadata check with minimal timeout
-                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5)); // Reduced from 15s to 5s
-                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
-                
-                if (topicMetadata != null)
-                {
-                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Apache Flink 2.0 topic verification - {Topic} exists with {PartitionCount} partitions", 
-                        _taskManagerId, _kafkaTopic, topicMetadata.Partitions.Count);
-                }
-                else
-                {
-                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Topic {Topic} not found - Apache Flink 2.0 consumers can handle non-existent topics", _taskManagerId, _kafkaTopic);
-                    // Apache Flink 2.0 pattern: Don't fail, let consumer handle missing topics
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Apache Flink 2.0 topic verification warning - proceeding anyway", _taskManagerId);
-                // Apache Flink 2.0 pattern: Don't fail on verification issues
-            }
-        }
-        
-        /// <summary>
-        /// Apache Flink 2.0 quick message availability check - minimal verification only
-        /// </summary>
-        private async Task QuickKafkaMessageCheck()
-        {
-            try
-            {
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Apache Flink 2.0 quick message availability check", _taskManagerId);
-                
-                // Apache Flink 2.0 pattern: Very brief check, no extensive verification
-                var checkDelay = 1; // Reduced from 20s to 1s
-                _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Brief Apache Flink 2.0 sync delay: {DelaySeconds}s", _taskManagerId, checkDelay);
-                await Task.Delay(TimeSpan.FromSeconds(checkDelay));
-                
-                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Apache Flink 2.0 quick check complete - ready for consumption", _taskManagerId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Apache Flink 2.0 quick check warning - proceeding anyway", _taskManagerId);
-                // Apache Flink 2.0 pattern: Always proceed
-            }
-        }
-        
-        /// <summary>
-        /// Check if the topic has messages by attempting to consume with a temporary consumer
-        /// </summary>
-        private async Task CheckTopicMessageCount(string bootstrapServers)
-        {
-            try
-            {
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Checking if topic {Topic} has messages", _taskManagerId, _kafkaTopic);
-                
-                var tempConsumerConfig = new ConsumerConfig
-                {
-                    BootstrapServers = bootstrapServers,
-                    GroupId = $"temp-message-check-{Guid.NewGuid()}",
-                    AutoOffsetReset = AutoOffsetReset.Earliest,
-                    EnableAutoCommit = false,
-                    SessionTimeoutMs = 6000,
-                    SocketTimeoutMs = 5000
-                };
-                
-                using var tempConsumer = new ConsumerBuilder<Ignore, byte[]>(tempConsumerConfig).Build();
-                tempConsumer.Subscribe(_kafkaTopic);
-                
-                // Wait for assignment
-                await Task.Delay(3000);
-                
-                // Try to consume a few messages
-                int messageCount = 0;
-                var timeout = TimeSpan.FromSeconds(10);
-                var startTime = DateTime.UtcNow;
-                
-                while ((DateTime.UtcNow - startTime) < timeout && messageCount < 5)
-                {
-                    try
-                    {
-                        var result = tempConsumer.Consume(TimeSpan.FromSeconds(1));
-                        if (result?.Message != null)
-                        {
-                            messageCount++;
-                            _logger.LogInformation("  ✅ Found message {MessageCount} in partition {Partition} at offset {Offset}", 
-                                messageCount, result.Partition.Value, result.Offset.Value);
-                        }
-                    }
-                    catch (ConsumeException ex)
-                    {
-                        _logger.LogDebug("Consume attempt resulted in: {Error}", ex.Error.Reason);
-                    }
-                }
-                
-                if (messageCount > 0)
-                {
-                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic {Topic} has messages available - found {MessageCount} messages", 
-                        _taskManagerId, _kafkaTopic, messageCount);
-                }
-                else
-                {
-                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Topic {Topic} appears to have no messages available for consumption", 
-                        _taskManagerId, _kafkaTopic);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Could not check topic message count for {Topic}", _taskManagerId, _kafkaTopic);
-            }
-        }
         
         /// <summary>
         /// Verify that the consumer group gets proper partition assignment
@@ -1033,59 +908,6 @@ Message: {message}
         /// <summary>
         /// Enhanced debugging for consumption issues
         /// </summary>
-        private async Task DiagnoseConsumptionIssues()
-        {
-            try
-            {
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: DIAGNOSING CONSUMPTION ISSUES", _taskManagerId);
-                
-                // Check consumer group assignment
-                var assignment = _consumerGroup!.GetAssignment();
-                _logger.LogInformation("  📊 Current assignment: {PartitionCount} partitions: {Partitions}", 
-                    assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
-                
-                if (assignment.Count == 0)
-                {
-                    _logger.LogError("  ❌ NO PARTITION ASSIGNMENTS - Consumer group is not assigned to any partitions!");
-                    
-                    // Try to trigger rebalance by re-subscribing
-                    _logger.LogInformation("  🔄 Attempting to trigger rebalance...");
-                    // Note: FlinkKafkaConsumerGroup handles this internally
-                }
-                
-                // Check current offsets
-                var checkpointState = _consumerGroup.GetCheckpointState();
-                _logger.LogInformation("  💾 Current checkpoint state: {OffsetCount} tracked offsets", checkpointState.Count);
-                foreach (var kvp in checkpointState)
-                {
-                    _logger.LogInformation("    📍 {Topic}:{Partition} -> Offset {Offset}", 
-                        kvp.Key.Topic, kvp.Key.Partition, kvp.Value);
-                }
-                
-                // Check if consumer group is in recovery mode
-                if (_consumerGroup.IsInRecoveryMode())
-                {
-                    var failures = _consumerGroup.GetConsecutiveFailureCount();
-                    _logger.LogWarning("  ⚠️ Consumer group is in RECOVERY MODE with {FailureCount} consecutive failures", failures);
-                }
-                
-                // Additional diagnostic: Check Redis connectivity
-                try
-                {
-                    var redisTest = await _redisDatabase.PingAsync();
-                    _logger.LogInformation("  ✅ Redis connectivity: {Latency}ms", redisTest.TotalMilliseconds);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "  ❌ Redis connectivity failed");
-                }
-                
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Failed to diagnose consumption issues", _taskManagerId);
-            }
-        }
         
         /// <summary>
         /// Enhanced consumer group status logging
@@ -1683,58 +1505,6 @@ Message: {message}
             }
         }
         
-        private void LogTopicMessageAvailability()
-        {
-            try
-            {
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Checking topic message availability", _taskManagerId);
-                
-                // Multi-strategy Kafka bootstrap server discovery
-                string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
-                if (string.IsNullOrEmpty(bootstrapServers))
-                {
-                    bootstrapServers = _configuration["ConnectionStrings__kafka"];
-                }
-                if (string.IsNullOrEmpty(bootstrapServers))
-                {
-                    bootstrapServers = "localhost:9092";
-                }
-                
-                // Fix IPv6 issue by forcing IPv4 localhost resolution
-                bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
-                
-                var adminConfig = new AdminClientConfig 
-                { 
-                    BootstrapServers = bootstrapServers,
-                    SecurityProtocol = SecurityProtocol.Plaintext,
-                    SocketTimeoutMs = 10000
-                };
-                
-                using var admin = new AdminClientBuilder(adminConfig).Build();
-                var metadata = admin.GetMetadata(_kafkaTopic, TimeSpan.FromSeconds(10));
-                
-                var topicMetadata = metadata.Topics.FirstOrDefault(t => t.Topic == _kafkaTopic);
-                if (topicMetadata != null)
-                {
-                    _logger.LogInformation("📊 Topic {Topic} found with {PartitionCount} partitions", 
-                        _kafkaTopic, topicMetadata.Partitions.Count);
-                    
-                    foreach (var partition in topicMetadata.Partitions)
-                    {
-                        _logger.LogInformation("  📍 Partition {PartitionId}: Status = {PartitionError}", 
-                            partition.PartitionId, partition.Error?.Code ?? ErrorCode.NoError);
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("❌ Topic {Topic} not found in metadata!", _kafkaTopic);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Failed to check topic availability", _taskManagerId);
-            }
-        }
         
         private void LogConsumerGroupStatus()
         {
@@ -1832,7 +1602,7 @@ Message: {message}
             }
         }
 
-        private async Task ProcessMessageWithFlinkPatterns(ConsumeResult<Ignore, byte[]> consumeResult)
+        private Task ProcessMessageWithFlinkPatterns(ConsumeResult<Ignore, byte[]> consumeResult)
         {
             try
             {
@@ -1903,6 +1673,8 @@ Message: {message}
                                _taskManagerId, consumeResult.Partition.Value, consumeResult.Offset.Value);
                 // Continue processing other messages
             }
+            
+            return Task.CompletedTask;
         }
 
         private void ProduceToOutputTopicFireAndForget(string messageContent)
@@ -2133,10 +1905,12 @@ Message: {message}
                 
                 if (result != null && result.Resp2Type == ResultType.Array)
                 {
-                    var resultArray = (RedisValue[])result;
-                    var newSinkCount = (long)resultArray[0];
-                    var newGlobalCount = (long)resultArray[1]; 
-                    var actualIncrement = (long)resultArray[2];
+                    var resultArray = result.AsRedisValueArray();
+                    if (resultArray != null && resultArray.Length >= 3)
+                    {
+                        var newSinkCount = (long)resultArray[0];
+                        var newGlobalCount = (long)resultArray[1]; 
+                        var actualIncrement = (long)resultArray[2];
                     
                     // Log only at significant milestones for performance
                     if (currentProcessedCount <= 100 || currentProcessedCount % 25000 == 0)
@@ -2163,6 +1937,7 @@ Message: {message}
                         await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 1000000);
                         await _redisDatabase.StringSetAsync(_globalSequenceKey, 1000000);
                     }
+                    }
                 }
             }
             catch (Exception ex)
@@ -2171,14 +1946,6 @@ Message: {message}
                     _taskManagerId, updateCount);
             }
         }
-
-        private static async Task ProcessThroughFlinkSinkFunction()
-        {
-            // Simulate Apache Flink sink function processing
-            // In a real implementation, this would go through the actual sink function
-            await Task.Delay(1); // Minimal processing simulation
-        }
-
 
 
         private async Task SimulateFlinkCheckpoint()
