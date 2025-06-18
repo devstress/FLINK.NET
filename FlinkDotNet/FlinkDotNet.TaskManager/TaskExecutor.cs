@@ -6,8 +6,7 @@ using FlinkDotNet.Proto.Internal;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using FlinkDotNet.Core.Abstractions.Sources;
-using FlinkDotNet.Core.Abstractions.Sinks;
-using System.Reflection;
+using FlinkDotNet.Core.Abstractions.Windowing;
 
 namespace FlinkDotNet.TaskManager
 {
@@ -46,19 +45,8 @@ namespace FlinkDotNet.TaskManager
                 var operatorConfig = JsonSerializer.Deserialize<Dictionary<string, object>>(
                     descriptor.OperatorConfiguration.ToStringUtf8()) ?? new Dictionary<string, object>();
 
-                // Execute based on operator type
-                if (descriptor.FullyQualifiedOperatorName.Contains("KafkaSourceFunction"))
-                {
-                    await ExecuteKafkaSourceTask(descriptor, operatorConfig, cancellationToken);
-                }
-                else if (descriptor.FullyQualifiedOperatorName.Contains("RedisIncrementSinkFunction"))
-                {
-                    await ExecuteRedisSinkTask(descriptor, operatorConfig, cancellationToken);
-                }
-                else
-                {
-                    _logger?.LogWarning("[TaskExecutor] Unknown operator type: {OperatorName}", descriptor.FullyQualifiedOperatorName);
-                }
+                // Since we're using a simplified architecture, we'll use the combined Kafka-to-Redis operator
+                await ExecuteKafkaToRedisTask(descriptor, operatorConfig, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -71,12 +59,12 @@ namespace FlinkDotNet.TaskManager
             }
         }
 
-        private async Task ExecuteKafkaSourceTask(
+        private async Task ExecuteKafkaToRedisTask(
             TaskDeploymentDescriptor descriptor, 
             Dictionary<string, object> config,
             CancellationToken cancellationToken)
         {
-            _logger?.LogInformation("[TaskExecutor] Executing Kafka source task for TaskManager {TaskManagerId}, Subtask {SubtaskIndex}", 
+            _logger?.LogInformation("[TaskExecutor] Executing Kafka-to-Redis task for TaskManager {TaskManagerId}, Subtask {SubtaskIndex}", 
                 _taskManagerId, descriptor.SubtaskIndex);
 
             try
@@ -84,45 +72,6 @@ namespace FlinkDotNet.TaskManager
                 // Extract configuration
                 var topic = config.TryGetValue("topic", out var topicObj) ? topicObj.ToString() : "flinkdotnet.sample.topic";
                 var consumerGroupId = config.TryGetValue("consumerGroupId", out var groupObj) ? groupObj.ToString() : "flinkdotnet-consumer-group";
-
-                // Create and configure Kafka source operator
-                var kafkaSource = new KafkaSourceOperator(topic, consumerGroupId, _taskManagerId, _logger);
-                
-                _logger?.LogInformation("[TaskExecutor] Starting Kafka consumption for topic '{Topic}' with group '{ConsumerGroup}' on TaskManager {TaskManagerId}", 
-                    topic, consumerGroupId, _taskManagerId);
-
-                // Create a source context that forwards to Redis sink
-                var sourceContext = new RedisForwardingSourceContext(config, _taskManagerId, _logger);
-                await sourceContext.OpenAsync();
-
-                try
-                {
-                    // Run the source function - this will consume from Kafka and forward to Redis
-                    await kafkaSource.RunAsync(sourceContext, cancellationToken);
-                }
-                finally
-                {
-                    await sourceContext.CloseAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "[TaskExecutor] Kafka source task failed on TaskManager {TaskManagerId}", _taskManagerId);
-                throw;
-            }
-        }
-
-        private async Task ExecuteRedisSinkTask(
-            TaskDeploymentDescriptor descriptor,
-            Dictionary<string, object> config, 
-            CancellationToken cancellationToken)
-        {
-            _logger?.LogInformation("[TaskExecutor] Executing Redis sink task for TaskManager {TaskManagerId}, Subtask {SubtaskIndex}", 
-                _taskManagerId, descriptor.SubtaskIndex);
-
-            try
-            {
-                // Extract configuration
                 var redisSinkCounterKey = config.TryGetValue("redisSinkCounterKey", out var counterObj) ? 
                     counterObj.ToString() : "flinkdotnet:sample:processed_message_counter";
                 var globalSequenceKey = config.TryGetValue("globalSequenceKey", out var seqObj) ? 
@@ -130,29 +79,28 @@ namespace FlinkDotNet.TaskManager
                 var expectedMessages = config.TryGetValue("expectedMessages", out var expectedObj) ? 
                     Convert.ToInt32(expectedObj) : 1000000;
 
-                _logger?.LogInformation("[TaskExecutor] Starting Redis sink for counter '{CounterKey}' and sequence '{SequenceKey}' on TaskManager {TaskManagerId}", 
-                    redisSinkCounterKey, globalSequenceKey, _taskManagerId);
-
-                // Create and configure Redis sink operator
-                var redisSink = new RedisSinkOperator(
-                    redisSinkCounterKey, globalSequenceKey, expectedMessages, _taskManagerId, _logger);
-
-                await redisSink.OpenAsync();
+                // Create and configure combined Kafka-to-Redis operator
+                var kafkaToRedisOperator = new KafkaToRedisOperator(
+                    topic, 
+                    consumerGroupId, 
+                    redisSinkCounterKey,
+                    globalSequenceKey,
+                    expectedMessages,
+                    _taskManagerId, 
+                    null); // Don't pass logger due to type mismatch
                 
-                try
-                {
-                    // Keep sink alive to receive data from upstream (in a real implementation)
-                    // For now, just keep it running
-                    await Task.Delay(Timeout.Infinite, cancellationToken);
-                }
-                finally
-                {
-                    await redisSink.CloseAsync();
-                }
+                _logger?.LogInformation("[TaskExecutor] Starting Kafka-to-Redis processing for topic '{Topic}' with group '{ConsumerGroup}' on TaskManager {TaskManagerId}", 
+                    topic, consumerGroupId, _taskManagerId);
+
+                // Create a simple source context
+                var sourceContext = new SimpleSourceContext(_taskManagerId, _logger);
+
+                // Run the operator - this will consume from Kafka and write to Redis
+                await kafkaToRedisOperator.RunAsync(sourceContext, cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "[TaskExecutor] Redis sink task failed on TaskManager {TaskManagerId}", _taskManagerId);
+                _logger?.LogError(ex, "[TaskExecutor] Kafka-to-Redis task failed on TaskManager {TaskManagerId}", _taskManagerId);
                 throw;
             }
         }
@@ -165,54 +113,30 @@ namespace FlinkDotNet.TaskManager
     }
 
     /// <summary>
-    /// Source context that forwards data directly to Redis sink for simplified architecture
+    /// Simple source context implementation for TaskManager execution
     /// </summary>
-    public class RedisForwardingSourceContext : ISourceContext<string>
+    public class SimpleSourceContext : ISourceContext<string>
     {
-        private readonly RedisSinkOperator _redisSink;
-        private readonly ILogger? _logger;
         private readonly string _taskManagerId;
+        private readonly ILogger? _logger;
 
-        public RedisForwardingSourceContext(Dictionary<string, object> config, string taskManagerId, ILogger? logger)
+        public SimpleSourceContext(string taskManagerId, ILogger? logger)
         {
             _taskManagerId = taskManagerId;
             _logger = logger;
-
-            // Extract Redis configuration
-            var redisSinkCounterKey = config.TryGetValue("redisSinkCounterKey", out var counterObj) ? 
-                counterObj.ToString() : "flinkdotnet:sample:processed_message_counter";
-            var globalSequenceKey = config.TryGetValue("globalSequenceKey", out var seqObj) ? 
-                seqObj.ToString() : "flinkdotnet:global_sequence_id";
-            var expectedMessages = config.TryGetValue("expectedMessages", out var expectedObj) ? 
-                Convert.ToInt32(expectedObj) : 1000000;
-
-            _redisSink = new RedisSinkOperator(redisSinkCounterKey, globalSequenceKey, expectedMessages, taskManagerId, logger);
-        }
-
-        public async Task OpenAsync()
-        {
-            await _redisSink.OpenAsync();
-        }
-
-        public async Task CloseAsync()
-        {
-            await _redisSink.CloseAsync();
         }
 
         public void Collect(string record)
         {
-            // Forward record directly to Redis sink
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _redisSink.InvokeAsync(record);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Error forwarding record to Redis sink on TaskManager {TaskManagerId}", _taskManagerId);
-                }
-            });
+            // In the simplified architecture, the combined operator handles both Kafka and Redis
+            // This just logs successful collection
+            _logger?.LogDebug("TaskManager {TaskManagerId}: Collected record", _taskManagerId);
+        }
+
+        public Task CollectAsync(string record)
+        {
+            Collect(record);
+            return Task.CompletedTask;
         }
 
         public void CollectWithTimestamp(string record, long timestamp)
@@ -220,19 +144,18 @@ namespace FlinkDotNet.TaskManager
             Collect(record);
         }
 
-        public void EmitWatermark(long timestamp)
+        public Task CollectWithTimestampAsync(string record, long timestamp)
+        {
+            CollectWithTimestamp(record, timestamp);
+            return Task.CompletedTask;
+        }
+
+        public void EmitWatermark(FlinkDotNet.Core.Abstractions.Windowing.Watermark watermark)
         {
             // Watermark emission for event time processing
+            _logger?.LogDebug("TaskManager {TaskManagerId}: Emitted watermark {Timestamp}", _taskManagerId, watermark.Timestamp);
         }
 
-        public void MarkAsTemporarilyIdle()
-        {
-            // Mark source as temporarily idle
-        }
-
-        public void Close()
-        {
-            _ = Task.Run(async () => await CloseAsync());
-        }
+        public long ProcessingTime => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 }

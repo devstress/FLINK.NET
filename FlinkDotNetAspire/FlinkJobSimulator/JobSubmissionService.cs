@@ -90,7 +90,7 @@ namespace FlinkJobSimulator
             {
                 Id = "kafka-source-vertex",
                 Name = "Kafka Source",
-                VertexType = VertexType.SOURCE,
+                VertexType = FlinkDotNet.Proto.Internal.VertexType.Source,
                 Parallelism = 20, // Distribute across all 20 TaskManagers
                 InputTypeName = "System.String",
                 OutputTypeName = "System.String",
@@ -114,7 +114,7 @@ namespace FlinkJobSimulator
             {
                 Id = "redis-sink-vertex", 
                 Name = "Redis Sink",
-                VertexType = VertexType.SINK,
+                VertexType = FlinkDotNet.Proto.Internal.VertexType.Sink,
                 Parallelism = 20, // Distribute across all 20 TaskManagers for high throughput
                 InputTypeName = "System.String",
                 OutputTypeName = "System.String",
@@ -143,7 +143,7 @@ namespace FlinkJobSimulator
                 Id = "source-to-sink-edge",
                 SourceVertexId = "kafka-source-vertex",
                 TargetVertexId = "redis-sink-vertex", 
-                ShuffleMode = ShuffleMode.HASH, // Hash partitioning for load balancing
+                ShuffleMode = FlinkDotNet.Proto.Internal.ShuffleMode.Hash, // Hash partitioning for load balancing
                 DataTypeName = "System.String",
                 SerializerTypeName = "FlinkDotNet.Core.Serializers.StringSerializer"
             };
