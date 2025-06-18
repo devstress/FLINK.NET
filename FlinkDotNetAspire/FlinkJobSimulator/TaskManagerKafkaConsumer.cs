@@ -32,6 +32,10 @@ namespace FlinkJobSimulator
         // High-performance batch processing configuration for Redis updates
         private long _pendingRedisUpdates = 0;  // Use Interlocked for thread-safe long operations
         private readonly TimeSpan _redisUpdateInterval = TimeSpan.FromMilliseconds(100);  // 100ms Redis batching
+        
+        // Processing timing tracking
+        private DateTime? _actualProcessingStartTime = null;
+        private readonly object _timingLock = new object();
 
         public TaskManagerKafkaConsumer(
             IConfiguration configuration, 
@@ -255,9 +259,30 @@ namespace FlinkJobSimulator
                     _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Redis initialization attempt {Attempt}/{MaxAttempts}", 
                         _taskManagerId, attempt, maxAttempts);
                     
-                    // Initialize both Redis keys
-                    await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0);
-                    await _redisDatabase.StringSetAsync(_globalSequenceKey, 0);
+                    // Initialize both Redis keys to 0 ONLY if they don't exist
+                    // Use SET NX to prevent overwriting existing values from other TaskManagers
+                    var sinkExists = await _redisDatabase.KeyExistsAsync(_redisSinkCounterKey);
+                    var globalExists = await _redisDatabase.KeyExistsAsync(_globalSequenceKey);
+                    
+                    if (!sinkExists)
+                    {
+                        await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 0, when: When.NotExists);
+                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Initialized sink counter key", _taskManagerId);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("💡 TaskManager {TaskManagerId}: Sink counter already exists (other TaskManager initialized it)", _taskManagerId);
+                    }
+                    
+                    if (!globalExists)
+                    {
+                        await _redisDatabase.StringSetAsync(_globalSequenceKey, 0, when: When.NotExists);
+                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Initialized global sequence key", _taskManagerId);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("💡 TaskManager {TaskManagerId}: Global sequence already exists (other TaskManager initialized it)", _taskManagerId);
+                    }
                     
                     _logger.LogInformation("✅ TaskManager {TaskManagerId}: Redis counters initialized on attempt {Attempt}", 
                         _taskManagerId, attempt);
@@ -316,6 +341,8 @@ Topic: {_kafkaTopic}
 RedisKey: {_redisSinkCounterKey}
 Status: CONSUMER_STARTING
 Message: TaskManager Kafka consumer is starting
+ProcessingStartTime: UNSET
+MessagesProcessed: 0
 ";
                 
                 var projectRoot = FindProjectRoot();
@@ -326,6 +353,86 @@ Message: TaskManager Kafka consumer is starting
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "⚠️ CONSUMER LOG: Failed to write consumer startup log");
+            }
+        }
+        
+        /// <summary>
+        /// Write progress information to log file for stress test script to monitor
+        /// </summary>
+        private async Task WriteProgressLogAsync(long currentCount, DateTime? processingStartTime = null)
+        {
+            try
+            {
+                var progressPercent = currentCount > 0 ? Math.Round((double)currentCount / 1000000 * 100, 1) : 0.0;
+                var rate = 0;
+                var elapsedSeconds = 0.0;
+                
+                if (processingStartTime.HasValue && currentCount > 0)
+                {
+                    elapsedSeconds = (DateTime.UtcNow - processingStartTime.Value).TotalSeconds;
+                    rate = elapsedSeconds > 0 ? (int)Math.Round(currentCount / elapsedSeconds) : 0;
+                }
+                
+                var logContent = $@"FLINKJOBSIMULATOR_PROGRESS_LOG
+TaskManagerId: {_taskManagerId}
+UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC
+MessagesProcessed: {currentCount}
+TotalExpected: 1000000
+ProgressPercent: {progressPercent:F1}%
+ElapsedSeconds: {elapsedSeconds:F3}
+MessageRate: {rate} msg/sec
+ProcessingStartTime: {(processingStartTime?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "UNSET")}
+Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
+";
+                
+                var projectRoot = FindProjectRoot();
+                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_progress.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                
+                // Also log major milestones to console
+                if (currentCount == 1 || currentCount % 100000 == 0 || currentCount >= 1000000)
+                {
+                    _logger.LogInformation("📊 [PROGRESS] TaskManager {TaskManagerId}: {Count:N0}/1,000,000 ({Percent:F1}%) Rate: {Rate:N0} msg/sec", 
+                        _taskManagerId, currentCount, progressPercent, rate);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ PROGRESS LOG: Failed to write progress log for TaskManager {TaskManagerId}", _taskManagerId);
+            }
+        }
+        
+        /// <summary>
+        /// Write final completion log for stress test script monitoring
+        /// </summary>
+        private async Task WriteCompletionLogAsync(long finalCount, double totalElapsedSeconds, int finalRate)
+        {
+            try
+            {
+                var progressPercent = finalCount > 0 ? Math.Round((double)finalCount / 1000000 * 100, 1) : 0.0;
+                
+                var logContent = $@"FLINKJOBSIMULATOR_COMPLETION_LOG
+TaskManagerId: {_taskManagerId}
+CompletionTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC
+FinalMessagesProcessed: {finalCount}
+TotalExpected: 1000000
+FinalProgressPercent: {progressPercent:F1}%
+TotalElapsedSeconds: {totalElapsedSeconds:F3}
+FinalMessageRate: {finalRate} msg/sec
+ProcessingStartTime: {(_actualProcessingStartTime?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "UNSET")}
+Status: COMPLETED
+Success: {(finalCount >= 1000000 ? "TRUE" : "FALSE")}
+";
+                
+                var projectRoot = FindProjectRoot();
+                var logPath = Path.Combine(projectRoot, "flinkjobsimulator_completion.log");
+                await File.WriteAllTextAsync(logPath, logContent);
+                
+                _logger.LogInformation("📝 COMPLETION LOG: Written final completion status to {LogPath}", logPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ COMPLETION LOG: Failed to write completion log for TaskManager {TaskManagerId}", _taskManagerId);
             }
         }
         
@@ -768,12 +875,29 @@ Message: {message}
             {
                 try
                 {
+                    // CRITICAL CHECK: Stop processing once we've reached exactly 1,000,000 messages
+                    var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
+                    if (currentProcessedCount >= 1000000)
+                    {
+                        _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Reached target of 1,000,000 messages ({CurrentCount}), stopping consumption", 
+                            _taskManagerId, currentProcessedCount);
+                        break;
+                    }
+                    
                     // APACHE FLINK 2.0 KAFKASOURCE PATTERN: Ultra-fast polling with 50ms timeout exactly like Apache Flink
                     // This matches the exact polling pattern used in Apache Flink 2.0 KafkaSource implementation
                     var consumeResult = _consumerGroup.ConsumeMessage(TimeSpan.FromMilliseconds(50)); // Apache Flink 2.0 standard: 50ms
                     
                     if (consumeResult?.Message != null)
                     {
+                        // Double-check we haven't exceeded limit before processing
+                        var beforeProcessCount = Interlocked.Read(ref _messagesProcessed);
+                        if (beforeProcessCount >= 1000000)
+                        {
+                            _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Reached limit just before processing message, skipping", _taskManagerId);
+                            break;
+                        }
+                        
                         // Reset null counter on successful consumption
                         consecutiveNullResults = 0;
                         await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
@@ -852,6 +976,21 @@ Message: {message}
             
             // Wait for batch processor to complete
             await batchProcessorTask;
+            
+            // Write final completion log
+            var finalCount = Interlocked.Read(ref _messagesProcessed);
+            if (_actualProcessingStartTime.HasValue && finalCount > 0)
+            {
+                var totalElapsed = (DateTime.UtcNow - _actualProcessingStartTime.Value).TotalSeconds;
+                var finalRate = totalElapsed > 0 ? (int)Math.Round(finalCount / totalElapsed) : 0;
+                
+                _logger.LogInformation("🏁 TaskManager {TaskManagerId}: FINAL PROCESSING COMPLETE - " +
+                                     "Total: {TotalCount:N0} messages, Time: {ElapsedTime:F3}s, Rate: {Rate:N0} msg/sec",
+                                     _taskManagerId, finalCount, totalElapsed, finalRate);
+                
+                // Write final progress log
+                await WriteCompletionLogAsync(finalCount, totalElapsed, finalRate);
+            }
             
             LogFinalConsumptionStats(consumptionContext.StartTime);
         }
@@ -1662,12 +1801,31 @@ Message: {message}
         {
             try
             {
+                // Increment processed message counter FIRST for accurate counting
+                var currentCount = Interlocked.Increment(ref _messagesProcessed);
+                
+                // Record actual processing start time when FIRST message is processed
+                if (!_actualProcessingStartTime.HasValue)
+                {
+                    lock (_timingLock)
+                    {
+                        if (!_actualProcessingStartTime.HasValue)
+                        {
+                            _actualProcessingStartTime = DateTime.UtcNow;
+                            _logger.LogInformation("🚀 TaskManager {TaskManagerId}: ACTUAL processing started at {StartTime}", 
+                                _taskManagerId, _actualProcessingStartTime.Value.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                            
+                            // Write initial progress log immediately
+                            _ = Task.Run(async () => await WriteProgressLogAsync(currentCount, _actualProcessingStartTime));
+                        }
+                    }
+                }
+                
                 // Convert bytes to string (Apache Flink standard deserialization)
                 var messageContent = System.Text.Encoding.UTF8.GetString(consumeResult.Message.Value);
                 
                 // Enhanced logging for initial messages and major milestones only  
-                var currentCount = Interlocked.Read(ref _messagesProcessed);
-                if (currentCount < 10 || currentCount % 50000 == 0) // Reduced from every 10k to every 50k
+                if (currentCount <= 10 || currentCount % 50000 == 0) // Reduced from every 10k to every 50k
                 {
                     _logger.LogInformation("⚡ CONSUME: TaskManager {TaskManagerId} message {Count} from " +
                                            "topic: {Topic}, partition: {Partition}, offset: {Offset}",
@@ -1675,17 +1833,20 @@ Message: {message}
                                            consumeResult.Partition.Value, consumeResult.Offset.Value);
                 }
                 
-                // Increment processed message counter
-                Interlocked.Increment(ref _messagesProcessed);
-                
                 // HIGH-PERFORMANCE: Batch Redis updates instead of individual operations per message
                 Interlocked.Increment(ref _pendingRedisUpdates);
+                
+                // Write progress log at major milestones
+                if (currentCount % 100000 == 0 || currentCount >= 1000000)
+                {
+                    _ = Task.Run(async () => await WriteProgressLogAsync(currentCount, _actualProcessingStartTime));
+                }
                 
                 // Produce to output topic with fire-and-forget for maximum performance
                 ProduceToOutputTopicFireAndForget(messageContent);
                 
                 // Periodic checkpoint simulation - less frequent for performance
-                if (_messagesProcessed % 25000 == 0) // Increased from every 5k to every 25k messages
+                if (currentCount % 25000 == 0) // Increased from every 5k to every 25k messages
                 {
                     _ = Task.Run(async () => await SimulateFlinkCheckpoint());
                 }
@@ -1825,30 +1986,61 @@ Message: {message}
         }
         
         /// <summary>
-        /// Efficient batch Redis counter updates
+        /// Efficient batch Redis counter updates with exact counting verification
         /// </summary>
         private async Task BatchUpdateRedisCountersAsync(long updateCount)
         {
             try
             {
+                // CRITICAL FIX: Only update Redis counter with exactly the number of messages processed
+                // Use a more precise approach to avoid over-counting
+                
+                var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
+                
+                // SAFETY CHECK: Don't let Redis counter exceed target of 1,000,000
+                // Get current Redis value to check if we would exceed the limit
+                var currentRedisValue = await _redisDatabase.StringGetAsync(_redisSinkCounterKey);
+                var currentRedisCount = currentRedisValue.HasValue ? (long)currentRedisValue : 0L;
+                
+                // Calculate how much we can safely increment without exceeding 1,000,000
+                var remainingCapacity = Math.Max(0, 1000000 - currentRedisCount);
+                var safeUpdateCount = Math.Min(updateCount, remainingCapacity);
+                
+                if (safeUpdateCount <= 0)
+                {
+                    _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Redis counter at limit ({RedisCount}), skipping batch update", 
+                        _taskManagerId, currentRedisCount);
+                    return;
+                }
+                
+                if (safeUpdateCount < updateCount)
+                {
+                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Limiting batch update from {RequestedUpdate} to {SafeUpdate} to avoid exceeding 1M limit", 
+                        _taskManagerId, updateCount, safeUpdateCount);
+                }
+                
                 // Batch update both Redis counters efficiently
                 var pipeline = _redisDatabase.CreateBatch();
-                var sinkCounterTask = pipeline.StringIncrementAsync(_redisSinkCounterKey, updateCount);
-                var globalSequenceTask = pipeline.StringIncrementAsync(_globalSequenceKey, updateCount);
+                var sinkCounterTask = pipeline.StringIncrementAsync(_redisSinkCounterKey, safeUpdateCount);
+                var globalSequenceTask = pipeline.StringIncrementAsync(_globalSequenceKey, safeUpdateCount);
                 
                 pipeline.Execute();
                 
-                await sinkCounterTask;
+                var newSinkCount = await sinkCounterTask;
                 var newGlobalCount = await globalSequenceTask;
                 
-                var currentCount = Interlocked.Read(ref _messagesProcessed);
-                
                 // Log only at significant milestones for performance
-                if (currentCount <= 100 || currentCount % 25000 == 0)
+                if (currentProcessedCount <= 100 || currentProcessedCount % 25000 == 0)
                 {
                     _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} - " +
-                                   "total: {TotalCount}, global: {GlobalCount}",
-                                   _taskManagerId, updateCount, currentCount, newGlobalCount);
+                                   "local: {LocalCount}, redis_sink: {RedisSinkCount}, redis_global: {RedisGlobalCount}",
+                                   _taskManagerId, safeUpdateCount, currentProcessedCount, newSinkCount, newGlobalCount);
+                }
+                
+                // Write progress log after Redis update
+                if (currentProcessedCount % 100000 == 0 || currentProcessedCount >= 1000000)
+                {
+                    _ = Task.Run(async () => await WriteProgressLogAsync(currentProcessedCount, _actualProcessingStartTime));
                 }
             }
             catch (Exception ex)
