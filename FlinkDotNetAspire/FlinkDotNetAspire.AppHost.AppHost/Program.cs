@@ -175,7 +175,8 @@ public static class Program
         // Add JobManager (1 instance)
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+            .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true");
 
         // Add TaskManagers with dynamic port allocation
         for (int i = 1; i <= taskManagerCount; i++)
@@ -186,6 +187,7 @@ public static class Program
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+                .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true")
                 .WithReference(jobManager) // Use service reference for proper Aspire discovery
                 .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Signal to use dynamic ports
         }
@@ -199,13 +201,14 @@ public static class Program
         string simulatorNumMessages,
         IResourceBuilder<ContainerResource> kafkaInit)
     {
-        // Check if we should use simplified mode
-        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
-                               Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
-                               Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
-
         // Check if we should use Kafka source for TaskManager load testing
         var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        
+        // Check if we should use simplified mode
+        // If stress test explicitly requests Kafka source, don't use simplified mode even in CI
+        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
+                               (!useKafkaSource && (Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
+                               Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true"));
 
         Console.WriteLine($"🔍 APPHOST CONFIG: USE_SIMPLIFIED_MODE={Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: CI={Environment.GetEnvironmentVariable("CI")}");
