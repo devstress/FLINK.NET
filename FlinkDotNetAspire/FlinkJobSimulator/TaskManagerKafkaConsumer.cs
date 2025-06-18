@@ -1,5 +1,4 @@
 using Confluent.Kafka;
-using Confluent.Kafka.Admin;
 using FlinkDotNet.Connectors.Sources.Kafka;
 using FlinkDotNet.Core.Abstractions.Sources;
 using Microsoft.Extensions.Configuration;
@@ -842,12 +841,22 @@ Message: {message}
             if (_consumerGroup == null)
                 throw new InvalidOperationException("Consumer group not initialized");
 
+            var (consumptionContext, consecutiveNullResults, lastProgressLogTime, batchProcessorTask, progressReporterTask) = 
+                await InitializeConsumptionContext(stoppingToken);
+
+            await RunMainConsumptionLoop(consumptionContext, consecutiveNullResults, lastProgressLogTime, stoppingToken);
+
+            await FinalizeConsumption(consumptionContext, batchProcessorTask, progressReporterTask);
+        }
+
+        private async Task<(ConsumptionContext context, int consecutiveNullResults, DateTime lastProgressLogTime, Task batchProcessorTask, Task progressReporterTask)> 
+            InitializeConsumptionContext(CancellationToken stoppingToken)
+        {
             LogConsumptionStartupInfo();
             await LogDetailedConsumerGroupStatus();
             
             var consumptionContext = new ConsumptionContext(DateTime.UtcNow);
             var consecutiveNullResults = 0;
-            var maxConsecutiveNulls = 60; // Allow 60 consecutive null results before enhanced logging
             var lastProgressLogTime = DateTime.UtcNow;
 
             // Start background Redis batch processor for high-throughput performance
@@ -855,6 +864,13 @@ Message: {message}
             
             // Start background progress reporter similar to producer script
             var progressReporterTask = ProcessProgressReportsAsync(stoppingToken);
+
+            return (consumptionContext, consecutiveNullResults, lastProgressLogTime, batchProcessorTask, progressReporterTask);
+        }
+
+        private async Task RunMainConsumptionLoop(ConsumptionContext consumptionContext, int consecutiveNullResults, DateTime lastProgressLogTime, CancellationToken stoppingToken)
+        {
+            var maxConsecutiveNulls = 60; // Allow 60 consecutive null results before enhanced logging
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -875,63 +891,15 @@ Message: {message}
                     
                     if (consumeResult?.Message != null)
                     {
-                        // Double-check we haven't exceeded limit before processing
-                        var beforeProcessCount = Interlocked.Read(ref _messagesProcessed);
-                        if (beforeProcessCount >= 1000000)
-                        {
-                            _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Reached limit just before processing message, skipping", _taskManagerId);
-                            break;
-                        }
-                        
-                        // Reset null counter on successful consumption
-                        consecutiveNullResults = 0;
-                        await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
+                        consecutiveNullResults = await ProcessMessage(consumeResult, consumptionContext, stoppingToken);
+                        if (consecutiveNullResults == -1) break; // Signal to break from main loop
                     }
                     else
                     {
-                        consecutiveNullResults++;
-                        
-                        // CRITICAL FIX: Enhanced null result handling with diagnostic logging
-                        if (consecutiveNullResults >= maxConsecutiveNulls)
-                        {
-                            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: {ConsecutiveNulls} consecutive null results - checking consumer status", 
-                                _taskManagerId, consecutiveNullResults);
-                            
-                            // Check if consumer group is still properly assigned
-                            var currentAssignment = _consumerGroup?.GetAssignment();
-                            _logger.LogInformation("  📊 Current assignment: {PartitionCount} partitions", currentAssignment?.Count ?? 0);
-                            
-                            // Check if consumer group is in recovery mode
-                            if (_consumerGroup?.IsInRecoveryMode() == true)
-                            {
-                                var failures = _consumerGroup.GetConsecutiveFailureCount();
-                                _logger.LogWarning("  ⚠️ Consumer group in recovery mode with {FailureCount} failures", failures);
-                            }
-                            
-                            consecutiveNullResults = 0; // Reset counter after logging
-                        }
-                        else if ((DateTime.UtcNow - lastProgressLogTime).TotalSeconds >= 30) // Reduced logging frequency
-                        {
-                            _logger.LogDebug("🔍 TaskManager {TaskManagerId}: Apache Flink 2.0 continuous polling - assignment: {AssignmentCount} partitions", 
-                                _taskManagerId, _consumerGroup?.GetAssignment().Count ?? 0);
-                            lastProgressLogTime = DateTime.UtcNow;
-                        }
-                        
-                        // APACHE FLINK 2.0 PATTERN: NO DELAY in tight polling loop for maximum responsiveness
-                        // Apache Flink 2.0 KafkaSource uses continuous polling without artificial delays
-                        // The 50ms timeout in ConsumeMessage already provides CPU breathing room
+                        consecutiveNullResults = HandleNullResult(consecutiveNullResults, maxConsecutiveNulls, ref lastProgressLogTime);
                     }
                     
-                    // Apache Flink 2.0 pattern: Minimal recovery mode handling
-                    if (_consumerGroup?.IsInRecoveryMode() == true)
-                    {
-                        var failureCount = _consumerGroup.GetConsecutiveFailureCount();
-                        _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Apache Flink 2.0 recovery mode (failures: {FailureCount})", 
-                            _taskManagerId, failureCount);
-                        
-                        // Apache Flink 2.0 pattern: Brief pause only for actual recovery, not normal operation
-                        await Task.Delay(TimeSpan.FromMilliseconds(100), stoppingToken); // Minimal 100ms recovery pause
-                    }
+                    await HandleRecoveryMode(stoppingToken);
                 }
                 catch (ConsumeException ex)
                 {
@@ -951,7 +919,76 @@ Message: {message}
                     await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken); // Keep 1s delay for unexpected errors
                 }
             }
+        }
+
+        private async Task<int> ProcessMessage(ConsumeResult<Ignore, byte[]>? consumeResult, ConsumptionContext consumptionContext, CancellationToken stoppingToken)
+        {
+            // Double-check we haven't exceeded limit before processing
+            var beforeProcessCount = Interlocked.Read(ref _messagesProcessed);
+            if (beforeProcessCount >= 1000000)
+            {
+                _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Reached limit just before processing message, skipping", _taskManagerId);
+                return -1; // Signal to break from main loop
+            }
             
+            // Reset null counter on successful consumption and process message
+            await ProcessConsumeResult(consumeResult, consumptionContext, stoppingToken);
+            return 0; // Reset null counter
+        }
+
+        private int HandleNullResult(int consecutiveNullResults, int maxConsecutiveNulls, ref DateTime lastProgressLogTime)
+        {
+            consecutiveNullResults++;
+            
+            // CRITICAL FIX: Enhanced null result handling with diagnostic logging
+            if (consecutiveNullResults >= maxConsecutiveNulls)
+            {
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: {ConsecutiveNulls} consecutive null results - checking consumer status", 
+                    _taskManagerId, consecutiveNullResults);
+                
+                // Check if consumer group is still properly assigned
+                var currentAssignment = _consumerGroup?.GetAssignment();
+                _logger.LogInformation("  📊 Current assignment: {PartitionCount} partitions", currentAssignment?.Count ?? 0);
+                
+                // Check if consumer group is in recovery mode
+                if (_consumerGroup?.IsInRecoveryMode() == true)
+                {
+                    var failures = _consumerGroup.GetConsecutiveFailureCount();
+                    _logger.LogWarning("  ⚠️ Consumer group in recovery mode with {FailureCount} failures", failures);
+                }
+                
+                return 0; // Reset counter after logging
+            }
+            else if ((DateTime.UtcNow - lastProgressLogTime).TotalSeconds >= 30) // Reduced logging frequency
+            {
+                _logger.LogDebug("🔍 TaskManager {TaskManagerId}: Apache Flink 2.0 continuous polling - assignment: {AssignmentCount} partitions", 
+                    _taskManagerId, _consumerGroup?.GetAssignment().Count ?? 0);
+                lastProgressLogTime = DateTime.UtcNow;
+            }
+            
+            // APACHE FLINK 2.0 PATTERN: NO DELAY in tight polling loop for maximum responsiveness
+            // Apache Flink 2.0 KafkaSource uses continuous polling without artificial delays
+            // The 50ms timeout in ConsumeMessage already provides CPU breathing room
+            
+            return consecutiveNullResults;
+        }
+
+        private async Task HandleRecoveryMode(CancellationToken stoppingToken)
+        {
+            // Apache Flink 2.0 pattern: Minimal recovery mode handling
+            if (_consumerGroup?.IsInRecoveryMode() == true)
+            {
+                var failureCount = _consumerGroup.GetConsecutiveFailureCount();
+                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Apache Flink 2.0 recovery mode (failures: {FailureCount})", 
+                    _taskManagerId, failureCount);
+                
+                // Apache Flink 2.0 pattern: Brief pause only for actual recovery, not normal operation
+                await Task.Delay(TimeSpan.FromMilliseconds(100), stoppingToken); // Minimal 100ms recovery pause
+            }
+        }
+
+        private async Task FinalizeConsumption(ConsumptionContext consumptionContext, Task batchProcessorTask, Task progressReporterTask)
+        {
             // Complete any pending Redis batch updates
             var finalPendingUpdates = Interlocked.Exchange(ref _pendingRedisUpdates, 0);
             if (finalPendingUpdates > 0)
