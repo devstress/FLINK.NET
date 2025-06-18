@@ -569,8 +569,18 @@ Message: {message}
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Initializing FlinkKafkaConsumerGroup with servers: {BootstrapServers}", 
                 _taskManagerId, bootstrapServers);
 
-            // Apache Flink 2.0 pattern: No topic verification - resilient consumers handle all scenarios
-            _logger.LogInformation("💡 TaskManager {TaskManagerId}: Using Apache Flink 2.0 resilient consumer pattern - no pre-verification needed", _taskManagerId);
+            // WAIT FOR TOPIC AVAILABILITY: Check if flinkdotnet.sample.topic exists before proceeding
+            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Checking topic availability: {Topic}", _taskManagerId, _kafkaTopic);
+            bool topicAvailable = await WaitForTopicAvailability(bootstrapServers, _kafkaTopic, maxWaitSeconds: 30);
+            
+            if (!topicAvailable)
+            {
+                throw new InvalidOperationException($"Topic '{_kafkaTopic}' not found after 30 seconds. " +
+                    "This topic should be created by Aspire infrastructure (kafka-init container). " +
+                    $"The topic is defined in AppHost Program.cs: create_topic_safe '{_kafkaTopic}'");
+            }
+            
+            _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic {Topic} is available, proceeding with consumer initialization", _taskManagerId, _kafkaTopic);
 
             // Simple initialization - FlinkKafkaConsumerGroup now handles resumption internally
             _consumerGroup = new FlinkKafkaConsumerGroup(consumerConfig, _logger);
@@ -742,6 +752,66 @@ Message: {message}
             {
                 _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Could not create/verify output topic: {TopicName}", _taskManagerId, topicName);
             }
+        }
+
+        private async Task<bool> WaitForTopicAvailability(string bootstrapServers, string topicName, int maxWaitSeconds = 30)
+        {
+            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Waiting for topic '{TopicName}' availability (max {MaxWaitSeconds}s)", 
+                _taskManagerId, topicName, maxWaitSeconds);
+            
+            var adminConfig = new AdminClientConfig 
+            { 
+                BootstrapServers = bootstrapServers,
+                SecurityProtocol = SecurityProtocol.Plaintext,
+                SocketTimeoutMs = 10000,
+                ApiVersionRequestTimeoutMs = 10000
+            };
+            
+            var startTime = DateTime.UtcNow;
+            var checkInterval = TimeSpan.FromSeconds(2);
+            var maxWaitTime = TimeSpan.FromSeconds(maxWaitSeconds);
+            var attempt = 0;
+            
+            while ((DateTime.UtcNow - startTime) < maxWaitTime)
+            {
+                attempt++;
+                try
+                {
+                    using var admin = new AdminClientBuilder(adminConfig).Build();
+                    var metadata = admin.GetMetadata(TimeSpan.FromSeconds(15));
+                    var topicExists = metadata.Topics.Any(t => t.Topic == topicName && t.Error.Code == ErrorCode.NoError);
+                    
+                    if (topicExists)
+                    {
+                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Topic '{TopicName}' found after {Attempt} attempts in {ElapsedSeconds:F1}s", 
+                            _taskManagerId, topicName, attempt, (DateTime.UtcNow - startTime).TotalSeconds);
+                        return true;
+                    }
+                    
+                    var elapsed = DateTime.UtcNow - startTime;
+                    _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Topic '{TopicName}' not found (attempt {Attempt}/{MaxAttempts}), waiting {CheckIntervalSeconds}s... (elapsed: {ElapsedSeconds:F1}s)", 
+                        _taskManagerId, topicName, attempt, maxWaitSeconds / 2, checkInterval.TotalSeconds, elapsed.TotalSeconds);
+                }
+                catch (Exception ex)
+                {
+                    var elapsed = DateTime.UtcNow - startTime;
+                    _logger.LogDebug(ex, "⚠️ TaskManager {TaskManagerId}: Topic check attempt {Attempt} failed (elapsed: {ElapsedSeconds:F1}s): {Message}", 
+                        _taskManagerId, attempt, elapsed.TotalSeconds, ex.Message);
+                }
+                
+                if ((DateTime.UtcNow - startTime) < maxWaitTime)
+                {
+                    await Task.Delay(checkInterval);
+                }
+            }
+            
+            _logger.LogWarning("❌ TaskManager {TaskManagerId}: Topic '{TopicName}' not found after {MaxWaitSeconds} seconds", 
+                _taskManagerId, topicName, maxWaitSeconds);
+            _logger.LogWarning("⚠️  WARNING: {TopicName} not found in Kafka broker", topicName);
+            _logger.LogWarning("⚠️  This topic should be created by Aspire infrastructure (kafka-init container)");
+            _logger.LogWarning("⚠️  The topic is defined in AppHost Program.cs line 190: create_topic_safe '{TopicName}'", topicName);
+            
+            return false;
         }
 
         private void LogConsumptionStartupInfo()
@@ -1614,7 +1684,7 @@ Message: {message}
                 if (currentCount >= 1000000)
                 {
                     _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Already at 1,000,000 messages limit, skipping message processing", _taskManagerId);
-                    return;
+                    return Task.CompletedTask;
                 }
                 
                 // Increment processed message counter FIRST for accurate counting
@@ -1625,7 +1695,7 @@ Message: {message}
                 {
                     Interlocked.Decrement(ref _messagesProcessed);
                     _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Hit exact 1,000,000 message limit, stopping processing", _taskManagerId);
-                    return;
+                    return Task.CompletedTask;
                 }
                 
                 // Record actual processing start time when FIRST message is processed
@@ -1836,7 +1906,8 @@ Message: {message}
                 
                 if (result != null && result.Resp2Type == ResultType.Array)
                 {
-                    var resultArray = result.AsRedisValueArray();
+                    // Use explicit cast to RedisValue[] 
+                    RedisValue[] resultArray = (RedisValue[])result;
                     if (resultArray != null && resultArray.Length >= 3)
                     {
                         var newSinkCount = (long)resultArray[0];

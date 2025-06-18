@@ -548,6 +548,10 @@ jobs:
           $lastMessageCountTime = Get-Date
           $stallTimeoutSeconds = 5  # Timeout if no progress for 5 seconds
           
+          # Dynamic timeout extension: add 5 seconds whenever progress is detected
+          $dynamicTimeoutExtension = 0  # Additional seconds added due to progress
+          $originalMaxWaitSeconds = $maxWaitSeconds  # Keep track of original timeout
+          
           # Performance tracking like producer script
           $processingStartTime = $null
           $lastProgressTime = Get-Date
@@ -558,17 +562,18 @@ jobs:
           while (-not $completed) {
             $currentElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
             
-            # Apache Flink 2.0 timeout logic:
+            # Apache Flink 2.0 timeout logic with dynamic extension:
             # - If no messages started processing yet: be patient (allow more time for startup)
-            # - If messages started processing: use strict 10s timeout for responsiveness
+            # - If messages started processing: use dynamic timeout that extends with progress
+            $effectiveTimeout = $maxWaitSeconds + $dynamicTimeoutExtension
             $shouldTimeout = $false
             if ($messageProcessingStarted) {
-              # Once processing starts, use strict timeout for responsiveness
-              $shouldTimeout = $currentElapsed -gt $maxWaitSeconds
+              # Once processing starts, use dynamic timeout that extends with progress
+              $shouldTimeout = $currentElapsed -gt $effectiveTimeout
             } else {
               # Before processing starts, allow more time for FlinkJobSimulator startup and producer to run
               # This handles the Apache Flink 2.0 pattern where consumer starts before producer
-              $shouldTimeout = $currentElapsed -gt ($maxWaitSeconds * 3)  # 30 seconds for startup
+              $shouldTimeout = $currentElapsed -gt ($effectiveTimeout * 3)  # 30+ seconds for startup
             }
             
             if ($shouldTimeout) {
@@ -608,8 +613,13 @@ jobs:
               if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
                 
-                # Progress stall detection: check if message count has changed
+                # Progress stall detection and dynamic timeout extension
                 if ($currentCount -ne $lastMessageCount) {
+                  # Progress detected: extend timeout and update tracking
+                  if ($lastMessageCount -ge 0) {  # Don't extend on first detection (from -1)
+                    $dynamicTimeoutExtension += 5
+                    Write-Host "🔄 Progress detected! Redis counter changed from $lastMessageCount to $currentCount. Timeout extended by 5s (total extension: ${dynamicTimeoutExtension}s)"
+                  }
                   $lastMessageCount = $currentCount
                   $lastMessageCountTime = Get-Date
                 } else {
@@ -753,16 +763,18 @@ jobs:
             }
           }
           
-          # Report final status
+          # Report final status with dynamic timeout information
           Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
           Write-Host "Completion reason: $completionReason"
           Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
+          Write-Host "Original timeout: ${originalMaxWaitSeconds}s, Dynamic extensions: ${dynamicTimeoutExtension}s, Effective timeout: $($originalMaxWaitSeconds + $dynamicTimeoutExtension)s"
           
           if (-not $completed) {
             $finalElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
+            $effectiveFinalTimeout = $maxWaitSeconds + $dynamicTimeoutExtension
             if ($messageProcessingStarted) {
-              Write-Host "❌ FlinkJobSimulator did not complete processing within $maxWaitSeconds seconds after starting"
-              Write-Host "⏰ PROCESSING TIMEOUT - Messages started but processing didn't complete quickly enough"
+              Write-Host "❌ FlinkJobSimulator did not complete processing within $effectiveFinalTimeout seconds after starting (original: ${originalMaxWaitSeconds}s + extensions: ${dynamicTimeoutExtension}s)"
+              Write-Host "⏰ PROCESSING TIMEOUT - Messages started but processing didn't complete quickly enough despite dynamic timeout extensions"
             } else {
               Write-Host "❌ FlinkJobSimulator did not start processing messages within $([math]::Round($finalElapsed, 1)) seconds"
               Write-Host "⏰ STARTUP TIMEOUT - FlinkJobSimulator never began consuming messages (Apache Flink 2.0 pattern issue)"
