@@ -695,9 +695,7 @@ namespace IntegrationTestVerifier
                     Console.WriteLine("⚠️  WARNING: flinkdotnet.sample.topic not found in Kafka broker");
                     Console.WriteLine("⚠️  This topic should be created by Aspire infrastructure (kafka-init container)");
                     Console.WriteLine("⚠️  The topic is defined in AppHost Program.cs line 190: create_topic_safe 'flinkdotnet.sample.topic'");
-                    Console.WriteLine("⚠️  Producer will create it if needed as fallback");
                     testCoordinator.LogThen("Topic availability", "Topic not found - Aspire kafka-init may not have completed or failed");
-                    testCoordinator.LogScenarioSuccess("Kafka is operational - producer has fallback creation capability");
                 }
             }
             else
