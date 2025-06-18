@@ -352,53 +352,49 @@ Message: {message}
 
         private async Task InitializeFlinkKafkaConsumerGroup()
         {
-            // CRITICAL: Use same Kafka discovery method as producer script to ensure compatibility
-            string? bootstrapServers = await DiscoverKafkaBootstrapServersLikeProducerScript();
+            // CRITICAL FIX: Use environment variable first (set by port discovery), then fallback to discovery
+            string? bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
             
             if (string.IsNullOrEmpty(bootstrapServers))
             {
-                // Fallback to environment variables if direct discovery fails
-                bootstrapServers = _configuration["DOTNET_KAFKA_BOOTSTRAP_SERVERS"];
+                // Use same Kafka discovery method as producer script as secondary option
+                bootstrapServers = await DiscoverKafkaBootstrapServersLikeProducerScript();
+            }
+            
+            if (string.IsNullOrEmpty(bootstrapServers))
+            {
+                // Final fallback to connection string or default
+                bootstrapServers = _configuration["ConnectionStrings__kafka"];
                 if (string.IsNullOrEmpty(bootstrapServers))
                 {
-                    bootstrapServers = _configuration["ConnectionStrings__kafka"];
-                    if (string.IsNullOrEmpty(bootstrapServers))
-                    {
-                        bootstrapServers = "localhost:9092";
-                    }
+                    bootstrapServers = "localhost:9092";
                 }
                 
-                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Using fallback bootstrap servers: {BootstrapServers}", _taskManagerId, bootstrapServers);
+                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Using final fallback bootstrap servers: {BootstrapServers}", _taskManagerId, bootstrapServers);
             }
             else
             {
-                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Discovered Kafka bootstrap servers using producer script method: {BootstrapServers}", _taskManagerId, bootstrapServers);
+                _logger.LogInformation("✅ TaskManager {TaskManagerId}: Using bootstrap servers: {BootstrapServers}", _taskManagerId, bootstrapServers);
             }
 
             // Fix IPv6 issue by forcing IPv4 localhost resolution
             bootstrapServers = bootstrapServers.Replace("localhost", "127.0.0.1");
 
-            // PRODUCTION-GRADE APACHE FLINK PATTERN: Use consistent consumer group for continuous consumption
-            // PRODUCTION-GRADE APACHE FLINK PATTERN: Use unique consumer group for stress testing
+            // PRODUCTION-GRADE APACHE FLINK PATTERN: Use timestamp-based consumer group for stress testing
             // This ensures each test run starts fresh and consumes all available messages
             var baseGroupId = "flink-taskmanager-consumer-group";
             var forceResetToEarliest = _configuration["SIMULATOR_FORCE_RESET_TO_EARLIEST"] ?? "true";
             var shouldForceReset = string.Equals(forceResetToEarliest, "true", StringComparison.OrdinalIgnoreCase);
             
-            // For stress testing: Use unique consumer group ID to ensure fresh consumption
-            // For production: Would use stable consumer group ID for proper coordination
-            var consumerGroupId = shouldForceReset 
-                ? $"{baseGroupId}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N[..8]}"
-                : baseGroupId;
+            // CRITICAL FIX: Always use timestamp-based unique consumer group for stress testing
+            // This ensures proper AutoOffsetReset.Earliest behavior since existing consumer groups with 
+            // committed offsets will ignore the AutoOffsetReset setting
+            var consumerGroupId = $"{baseGroupId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
             
             _logger.LogInformation("🔄 TaskManager {TaskManagerId}: Using consumer group ID: {GroupId} (ForceReset: {ForceReset})", 
                 _taskManagerId, consumerGroupId, shouldForceReset);
 
-            // With unique consumer group ID, AutoOffsetReset.Earliest will work automatically
-            if (shouldForceReset)
-            {
-                _logger.LogInformation("💡 TaskManager {TaskManagerId}: Using unique consumer group for guaranteed fresh consumption", _taskManagerId);
-            }
+            _logger.LogInformation("💡 TaskManager {TaskManagerId}: Using timestamp-based consumer group for guaranteed fresh consumption", _taskManagerId);
 
             // APACHE FLINK 2.0 KAFKASOURCE CONFIGURATION: Exact same settings as Apache Flink KafkaSource
             var consumerConfig = new ConsumerConfig
@@ -442,8 +438,16 @@ Message: {message}
 
             _logger.LogInformation("✅ TaskManager {TaskManagerId}: FlinkKafkaConsumerGroup initialized with built-in resumption", _taskManagerId);
             
-            // CRITICAL FIX: Verify consumer group assignment after initialization
-            await VerifyConsumerGroupAssignment();
+            // CRITICAL FIX: Enhanced consumer group assignment verification with timeout
+            await VerifyConsumerGroupAssignmentWithTimeout();
+            
+            // CRITICAL FIX: Log final configuration for debugging
+            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Final Consumer Configuration:", _taskManagerId);
+            _logger.LogInformation("  📋 Bootstrap Servers: {BootstrapServers}", consumerConfig.BootstrapServers);
+            _logger.LogInformation("  📋 Consumer Group ID: {GroupId}", consumerConfig.GroupId);
+            _logger.LogInformation("  📋 Topic: {Topic}", _kafkaTopic);
+            _logger.LogInformation("  📋 Auto Offset Reset: {AutoOffsetReset}", consumerConfig.AutoOffsetReset);
+            _logger.LogInformation("  📋 Enable Auto Commit: {EnableAutoCommit}", consumerConfig.EnableAutoCommit);
         }
         
         /// <summary>
@@ -579,34 +583,55 @@ Message: {message}
         /// Verify that the consumer group gets proper partition assignment
         /// </summary>
         /// <summary>
-        /// Apache Flink 2.0 consumer group assignment verification with minimal delay
+        /// Apache Flink 2.0 consumer group assignment verification with timeout and enhanced debugging
         /// </summary>
-        private async Task VerifyConsumerGroupAssignment()
+        private async Task VerifyConsumerGroupAssignmentWithTimeout()
         {
             try
             {
-                // Apache Flink 2.0 pattern: Brief assignment verification (1s max, not 5s)
-                await Task.Delay(1000);
+                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Verifying consumer group assignment...", _taskManagerId);
                 
-                var assignment = _consumerGroup!.GetAssignment();
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Apache Flink 2.0 consumer assignment:", _taskManagerId);
-                _logger.LogInformation("  📊 Assigned {PartitionCount} partitions: {Partitions}", 
-                    assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                // Apache Flink 2.0 pattern: Allow up to 10 seconds for partition assignment
+                var maxWaitTime = TimeSpan.FromSeconds(10);
+                var checkInterval = TimeSpan.FromMilliseconds(500);
+                var startTime = DateTime.UtcNow;
                 
-                if (assignment.Count == 0)
+                while ((DateTime.UtcNow - startTime) < maxWaitTime)
                 {
-                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: No partition assignments yet - Apache Flink 2.0 consumers can receive assignments during polling", _taskManagerId);
-                    // Apache Flink 2.0 pattern: Don't fail immediately, assignments can happen during polling
+                    var assignment = _consumerGroup!.GetAssignment();
+                    
+                    if (assignment.Count > 0)
+                    {
+                        _logger.LogInformation("✅ TaskManager {TaskManagerId}: Consumer group assignment verified:", _taskManagerId);
+                        _logger.LogInformation("  📊 Assigned {PartitionCount} partitions: {Partitions}", 
+                            assignment.Count, string.Join(", ", assignment.Select(tp => $"{tp.Topic}:{tp.Partition}")));
+                        return;
+                    }
+                    
+                    // Log progress every 2 seconds
+                    var elapsed = DateTime.UtcNow - startTime;
+                    if (elapsed.TotalSeconds % 2 < 0.5)
+                    {
+                        _logger.LogInformation("⏳ TaskManager {TaskManagerId}: Waiting for partition assignment... {Elapsed:F1}s elapsed", 
+                            _taskManagerId, elapsed.TotalSeconds);
+                    }
+                    
+                    await Task.Delay(checkInterval);
                 }
-                else
-                {
-                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Apache Flink 2.0 consumer has partition assignments", _taskManagerId);
-                }
+                
+                // If we get here, assignment verification timed out
+                _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Partition assignment verification timed out after {MaxWait}s", 
+                    _taskManagerId, maxWaitTime.TotalSeconds);
+                _logger.LogWarning("  💡 Note: Apache Flink 2.0 consumers can receive assignments during polling, so this may be normal");
+                
+                // Final attempt to log current assignment state
+                var finalAssignment = _consumerGroup!.GetAssignment();
+                _logger.LogInformation("  📊 Final assignment state: {PartitionCount} partitions", finalAssignment.Count);
+                
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Assignment verification warning - will proceed with Apache Flink 2.0 polling", _taskManagerId);
-                // Apache Flink 2.0 pattern: Don't throw, let the polling loop handle assignments
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Assignment verification encountered an exception - will proceed with polling", _taskManagerId);
             }
         }
 
@@ -750,14 +775,26 @@ Message: {message}
                     {
                         consecutiveNullResults++;
                         
-                        // Apache Flink 2.0 pattern: Minimal diagnostic logging to avoid performance impact
+                        // CRITICAL FIX: Enhanced null result handling with diagnostic logging
                         if (consecutiveNullResults >= maxConsecutiveNulls)
                         {
-                            _logger.LogDebug("🔍 TaskManager {TaskManagerId}: {ConsecutiveNulls} consecutive null results - normal in Apache Flink 2.0 continuous polling", 
+                            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: {ConsecutiveNulls} consecutive null results - checking consumer status", 
                                 _taskManagerId, consecutiveNullResults);
+                            
+                            // Check if consumer group is still properly assigned
+                            var currentAssignment = _consumerGroup?.GetAssignment();
+                            _logger.LogInformation("  📊 Current assignment: {PartitionCount} partitions", currentAssignment?.Count ?? 0);
+                            
+                            // Check if consumer group is in recovery mode
+                            if (_consumerGroup?.IsInRecoveryMode() == true)
+                            {
+                                var failures = _consumerGroup.GetConsecutiveFailureCount();
+                                _logger.LogWarning("  ⚠️ Consumer group in recovery mode with {FailureCount} failures", failures);
+                            }
+                            
                             consecutiveNullResults = 0; // Reset counter after logging
                         }
-                        else if ((DateTime.UtcNow - lastProgressLogTime).TotalSeconds >= 60) // Reduced logging frequency
+                        else if ((DateTime.UtcNow - lastProgressLogTime).TotalSeconds >= 30) // Reduced logging frequency
                         {
                             _logger.LogDebug("🔍 TaskManager {TaskManagerId}: Apache Flink 2.0 continuous polling - assignment: {AssignmentCount} partitions", 
                                 _taskManagerId, _consumerGroup?.GetAssignment().Count ?? 0);

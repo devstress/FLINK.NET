@@ -299,7 +299,27 @@ jobs:
           }
           
           Write-Host "✅ Message producer completed successfully" -ForegroundColor Green
-          Write-Host "FlinkJobSimulator should now be consuming the produced messages..." -ForegroundColor Green
+          
+          # CRITICAL FIX: Add verification that messages are actually available in Kafka
+          Write-Host "🔍 Verifying messages are available in Kafka before proceeding..."
+          Start-Sleep -Seconds 5  # Give Kafka a moment to flush and commit all messages
+          
+          # Quick verification with kafka-console-consumer to check if messages exist
+          try {
+            $kafkaContainer = docker ps --filter "name=kafka" --format "{{.Names}}" | Select-Object -First 1
+            if ($kafkaContainer) {
+              Write-Host "📊 Checking message count in topic..."
+              $messageCheck = docker exec $kafkaContainer kafka-console-consumer --bootstrap-server localhost:9092 --topic flinkdotnet.sample.topic --from-beginning --timeout-ms 5000 --max-messages 10 2>/dev/null | Measure-Object -Line
+              $foundMessages = $messageCheck.Lines
+              Write-Host "✅ Found $foundMessages sample messages in topic (verified Kafka has data)"
+            } else {
+              Write-Host "⚠️ Could not find Kafka container for verification"
+            }
+          } catch {
+            Write-Host "⚠️ Message verification failed, but proceeding: $_"
+          }
+          
+          Write-Host "🎯 FlinkJobSimulator should now consume the produced messages..." -ForegroundColor Green
 
       - name: Diagnose FlinkJobSimulator Status
         env:

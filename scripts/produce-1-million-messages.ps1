@@ -12,6 +12,15 @@ Write-Host "=== Flink.NET Kafka Producer RC7.2.0 MICRO-BATCH AUTOTUNED BUILD ===
 
 function Get-KafkaBootstrapServers {
     Write-Host "🔍 Discovering Kafka bootstrap servers..."
+    
+    # CRITICAL FIX: Use environment variable first (set by discover-aspire-ports.ps1) for consistency with consumer
+    if ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
+        Write-Host "✅ Using environment variable DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+        return $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS
+    }
+    
+    # Fallback to docker discovery if environment variable not available
+    Write-Host "⚠️ DOTNET_KAFKA_BOOTSTRAP_SERVERS not set, falling back to Docker discovery..."
     $containerPorts = docker ps --filter "name=kafka" --format "{{.Ports}}"
     if ([string]::IsNullOrWhiteSpace($containerPorts)) { Write-Error "❌ Kafka container not found."; exit 1 }
     $portsArray = $containerPorts -split '\s+'
@@ -19,7 +28,7 @@ function Get-KafkaBootstrapServers {
         if ($portMapping -match "127\.0\.0\.1:(\d+)->9092/tcp") {
             $hostPort = $matches[1]
             $bootstrapServers = "127.0.0.1:$hostPort"
-            Write-Host "✅ Discovered Kafka bootstrap server: $bootstrapServers"
+            Write-Host "✅ Discovered Kafka bootstrap server via Docker: $bootstrapServers"
             return $bootstrapServers
         }
     }
