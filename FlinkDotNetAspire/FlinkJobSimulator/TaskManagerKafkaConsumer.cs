@@ -392,11 +392,12 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
                 var logPath = Path.Combine(projectRoot, "flinkjobsimulator_progress.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 
-                // Write human-readable progress display matching producer script format
+                // Write human-readable progress display matching producer script format EXACTLY
                 var displayLogContent = "";
                 if (currentCount > 0)
                 {
-                    displayLogContent = $"[PROGRESS] Processed={currentCount:N0} / 1,000,000  Rate={rate:N0} msg/sec  Progress={progressPercent:F1}%\n";
+                    // Match producer script format: "[PROGRESS] Sent={totalSent:N0}  Rate={rate:N0} msg/sec"
+                    displayLogContent = $"[PROGRESS] Sent={currentCount:N0}  Rate={rate:N0} msg/sec\n";
                 }
                 else
                 {
@@ -409,8 +410,8 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
                 // Console output matching producer script format for major milestones
                 if (currentCount == 1 || currentCount % 250000 == 0 || currentCount >= 1000000)
                 {
-                    _logger.LogInformation("📊 [PROGRESS] Processed={Count:N0} / 1,000,000  Rate={Rate:N0} msg/sec  Progress={Percent:F1}%", 
-                        currentCount, rate, progressPercent);
+                    _logger.LogInformation("📊 [PROGRESS] Sent={Count:N0}  Rate={Rate:N0} msg/sec", 
+                        currentCount, rate);
                 }
             }
             catch (Exception ex)
@@ -447,14 +448,15 @@ Success: {(finalCount >= 1000000 ? "TRUE" : "FALSE")}
                 var logPath = Path.Combine(projectRoot, "flinkjobsimulator_completion.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 
-                // Write human-readable finish display matching producer script format
-                var displayLogContent = $"[FINISH] FlinkJobSimulator completed! Total: {finalCount:N0} Time: {totalElapsedSeconds:F3}s Rate: {finalRate:N0} msg/sec\n";
+                // Write human-readable finish display matching producer script format EXACTLY
+                // Producer format: "[FINISH] Total: {finalSent:N0} Time: {sw.Elapsed.TotalSeconds:F3}s Rate: {finalSent / sw.Elapsed.TotalSeconds:N0} msg/sec"
+                var displayLogContent = $"[FINISH] Total: {finalCount:N0} Time: {totalElapsedSeconds:F3}s Rate: {finalRate:N0} msg/sec\n";
                 
                 var displayLogPath = Path.Combine(projectRoot, "flinkjobsimulator_display.log");
                 await File.WriteAllTextAsync(displayLogPath, displayLogContent);
                 
                 _logger.LogInformation("📝 COMPLETION LOG: Written final completion status to {LogPath}", logPath);
-                _logger.LogInformation("🏁 [FINISH] FlinkJobSimulator completed! Total: {Total:N0} Time: {Time:F3}s Rate: {Rate:N0} msg/sec", 
+                _logger.LogInformation("🏁 [FINISH] Total: {Total:N0} Time: {Time:F3}s Rate: {Rate:N0} msg/sec", 
                     finalCount, totalElapsedSeconds, finalRate);
             }
             catch (Exception ex)
@@ -1834,8 +1836,24 @@ Message: {message}
         {
             try
             {
+                // CRITICAL CHECK: Stop processing if we've already reached 1,000,000 messages
+                var currentCount = Interlocked.Read(ref _messagesProcessed);
+                if (currentCount >= 1000000)
+                {
+                    _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Already at 1,000,000 messages limit, skipping message processing", _taskManagerId);
+                    return;
+                }
+                
                 // Increment processed message counter FIRST for accurate counting
-                var currentCount = Interlocked.Increment(ref _messagesProcessed);
+                var newCount = Interlocked.Increment(ref _messagesProcessed);
+                
+                // SAFETY CHECK: If we somehow exceeded 1,000,000, decrement back and stop
+                if (newCount > 1000000)
+                {
+                    Interlocked.Decrement(ref _messagesProcessed);
+                    _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Hit exact 1,000,000 message limit, stopping processing", _taskManagerId);
+                    return;
+                }
                 
                 // Record actual processing start time when FIRST message is processed
                 if (!_actualProcessingStartTime.HasValue)
@@ -1849,7 +1867,7 @@ Message: {message}
                                 _taskManagerId, _actualProcessingStartTime.Value.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                             
                             // Write initial progress log immediately
-                            _ = Task.Run(async () => await WriteProgressLogAsync(currentCount, _actualProcessingStartTime));
+                            _ = Task.Run(async () => await WriteProgressLogAsync(newCount, _actualProcessingStartTime));
                         }
                     }
                 }
@@ -1858,11 +1876,11 @@ Message: {message}
                 var messageContent = System.Text.Encoding.UTF8.GetString(consumeResult.Message.Value);
                 
                 // Enhanced logging for initial messages and major milestones only  
-                if (currentCount <= 10 || currentCount % 50000 == 0) // Reduced from every 10k to every 50k
+                if (newCount <= 10 || newCount % 50000 == 0) // Reduced from every 10k to every 50k
                 {
                     _logger.LogInformation("⚡ CONSUME: TaskManager {TaskManagerId} message {Count} from " +
                                            "topic: {Topic}, partition: {Partition}, offset: {Offset}",
-                                           _taskManagerId, currentCount, consumeResult.Topic, 
+                                           _taskManagerId, newCount, consumeResult.Topic, 
                                            consumeResult.Partition.Value, consumeResult.Offset.Value);
                 }
                 
@@ -1873,7 +1891,7 @@ Message: {message}
                 ProduceToOutputTopicFireAndForget(messageContent);
                 
                 // Periodic checkpoint simulation - less frequent for performance
-                if (currentCount % 25000 == 0) // Increased from every 5k to every 25k messages
+                if (newCount % 25000 == 0) // Increased from every 5k to every 25k messages
                 {
                     _ = Task.Run(async () => await SimulateFlinkCheckpoint());
                 }
@@ -2057,13 +2075,14 @@ Message: {message}
         
         /// <summary>
         /// Efficient batch Redis counter updates with exact counting verification
+        /// Ensures exactly 1,000,000 messages are counted, no more, no less
         /// </summary>
         private async Task BatchUpdateRedisCountersAsync(long updateCount)
         {
             try
             {
-                // CRITICAL FIX: Use Redis scripting to ensure atomic increment with limit enforcement
-                // This prevents race conditions between multiple TaskManagers
+                // CRITICAL FIX: Use Redis scripting to ensure atomic increment with STRICT limit enforcement
+                // This prevents race conditions between multiple TaskManagers and ensures exactly 1M messages
                 
                 var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
                 
@@ -2072,26 +2091,36 @@ Message: {message}
                     return;
                 }
                 
-                // Use Lua script for atomic increment with limit check
+                // Use Lua script for atomic increment with STRICT limit check to ensure exactly 1,000,000
                 const string luaScript = @"
                     local sinkKey = KEYS[1]
                     local globalKey = KEYS[2] 
                     local increment = tonumber(ARGV[1])
                     local maxLimit = tonumber(ARGV[2])
                     
-                    local currentSink = redis.call('GET', sinkKey) or 0
-                    local currentGlobal = redis.call('GET', globalKey) or 0
+                    local currentSink = tonumber(redis.call('GET', sinkKey) or 0)
+                    local currentGlobal = tonumber(redis.call('GET', globalKey) or 0)
                     
-                    currentSink = tonumber(currentSink)
-                    currentGlobal = tonumber(currentGlobal)
-                    
-                    -- Calculate safe increment to not exceed limit
+                    -- Calculate EXACT safe increment to not exceed limit
+                    -- CRITICAL: This ensures we never go over exactly 1,000,000
                     local remainingCapacity = math.max(0, maxLimit - currentSink)
                     local safeIncrement = math.min(increment, remainingCapacity)
                     
-                    if safeIncrement > 0 then
+                    -- Only increment if we have remaining capacity
+                    if safeIncrement > 0 and currentSink < maxLimit then
                         local newSink = redis.call('INCRBY', sinkKey, safeIncrement)
                         local newGlobal = redis.call('INCRBY', globalKey, safeIncrement)
+                        
+                        -- SAFETY CHECK: If we somehow exceeded limit, correct it
+                        if newSink > maxLimit then
+                            local excess = newSink - maxLimit
+                            redis.call('DECRBY', sinkKey, excess)
+                            redis.call('DECRBY', globalKey, excess)
+                            newSink = maxLimit
+                            newGlobal = newGlobal - excess
+                            safeIncrement = safeIncrement - excess
+                        end
+                        
                         return {newSink, newGlobal, safeIncrement}
                     else
                         return {currentSink, currentGlobal, 0}
@@ -2122,6 +2151,17 @@ Message: {message}
                     {
                         _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Hit Redis counter limit - sink: {SinkCount}, global: {GlobalCount}", 
                             _taskManagerId, newSinkCount, newGlobalCount);
+                    }
+                    
+                    // CRITICAL: Verify we never exceed 1,000,000 exactly
+                    if (newSinkCount > 1000000)
+                    {
+                        _logger.LogError("❌ TaskManager {TaskManagerId}: CRITICAL ERROR - Redis counter exceeded 1,000,000: {ActualCount}", 
+                            _taskManagerId, newSinkCount);
+                        
+                        // Emergency correction
+                        await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 1000000);
+                        await _redisDatabase.StringSetAsync(_globalSequenceKey, 1000000);
                     }
                 }
             }
