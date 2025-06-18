@@ -1,14 +1,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using StackExchange.Redis;
 
 namespace FlinkJobSimulator
 {
     /// <summary>
-    /// Simplified FlinkJobSimulator that runs ONLY as a Kafka consumer group background service.
-    /// This follows the new architecture where Aspire handles all infrastructure and K8s pods.
-    /// The only responsibility of FlinkJobSimulator is to consume messages from Kafka.
+    /// Apache Flink 2.0 compliant FlinkJobSimulator that submits jobs to JobManager.
+    /// This follows the proper Flink architecture: FlinkJobSimulator -> JobManager -> TaskManagers.
+    /// The JobManager deploys tasks to registered TaskManagers for distributed execution.
     /// </summary>
     public static class Program
     {
@@ -17,7 +16,7 @@ namespace FlinkJobSimulator
             Console.WriteLine("🌟 === FLINKJOBSIMULATOR STARTING ===");
             Console.WriteLine($"🌟 START TIME: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
             Console.WriteLine($"🌟 PROCESS ID: {Environment.ProcessId}");
-            Console.WriteLine("🌟 SIMPLIFIED TO KAFKA CONSUMER GROUP ONLY");
+            Console.WriteLine("🌟 APACHE FLINK 2.0 JOB SUBMISSION MODE");
             
             // Enhanced startup diagnostics
             Console.WriteLine("🔍 Environment Configuration:");
@@ -44,8 +43,9 @@ namespace FlinkJobSimulator
 StartTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
 ProcessId: {Environment.ProcessId}
 Status: FlinkJobSimulatorNotStarted
-Phase: INITIALIZATION
-Message: FlinkJobSimulator is initializing Kafka consumer group
+Phase: JOB_SUBMISSION_PREPARATION
+Message: FlinkJobSimulator is preparing to submit job to JobManager following Apache Flink 2.0 architecture
+Architecture: FlinkJobSimulator -> JobManager -> TaskManagers
 ";
                 
                 // Find project root (where .git directory exists) for stress test scripts
@@ -72,9 +72,10 @@ Message: FlinkJobSimulator is initializing Kafka consumer group
 UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
 ProcessId: {Environment.ProcessId}
 Status: FlinkJobSimulatorRunning
-Phase: MESSAGE_PROCESSING
-Message: FlinkJobSimulator is actively running and processing messages
+Phase: JOB_SUBMITTED_TO_JOBMANAGER
+Message: FlinkJobSimulator has successfully submitted job to JobManager - TaskManagers are now executing the job
 PreviousState: FlinkJobSimulatorNotStarted
+Architecture: Job is now running on 20 TaskManagers coordinated by JobManager
 ";
                 
                 var projectRoot = FindProjectRoot();
@@ -112,50 +113,46 @@ PreviousState: FlinkJobSimulatorNotStarted
         }
         
         /// <summary>
-        /// Simplified FlinkJobSimulator that runs ONLY as a Kafka consumer group.
-        /// This is the new architecture where Aspire handles all infrastructure.
+        /// Apache Flink 2.0 compliant job submission mode.
+        /// FlinkJobSimulator creates JobGraph and submits it to JobManager, which then deploys tasks to TaskManagers.
+        /// This follows the proper architecture: FlinkJobSimulator -> JobManager -> TaskManagers.
         /// </summary>
         private static async Task RunAsKafkaConsumerGroupAsync(string[] args)
         {
             try
             {
-                Console.WriteLine("🎯 KAFKA CONSUMER GROUP MODE: FlinkJobSimulator runs as background consumer");
+                Console.WriteLine("🎯 APACHE FLINK 2.0 MODE: FlinkJobSimulator submits jobs to JobManager for TaskManager execution");
                 
                 var builder = Host.CreateApplicationBuilder(args);
                 
-                // Configure Redis with Apache Flink 2.0 resilient startup patterns
-                builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
-                {
-                    var configuration = provider.GetRequiredService<IConfiguration>();
-                    
-                    // Apache Flink 2.0 pattern: Try multiple connection string sources
-                    string? connectionString = GetRedisConnectionString(configuration);
-                    
-                    if (string.IsNullOrEmpty(connectionString))
-                    {
-                        Console.WriteLine("⚠️ REDIS: No connection string found - using fallback localhost configuration");
-                        connectionString = "localhost:6379"; // Fallback for standalone operation
-                    }
-                    
-                    Console.WriteLine($"🔐 REDIS: Attempting connection to {connectionString}");
-                    
-                    // Apache Flink 2.0 pattern: Retry connection with exponential backoff
-                    return ConnectToRedisWithRetry(connectionString);
-                });
-                
-                builder.Services.AddSingleton<IDatabase>(provider =>
-                {
-                    var multiplexer = provider.GetRequiredService<IConnectionMultiplexer>();
-                    return multiplexer.GetDatabase();
-                });
-                
-                // Add the Kafka consumer as the main background service
-                builder.Services.AddHostedService<TaskManagerKafkaConsumer>();
+                // Add JobSubmissionService for proper Apache Flink 2.0 job submission
+                builder.Services.AddSingleton<JobSubmissionService>();
                 
                 var host = builder.Build();
                 
-                Console.WriteLine("🚀 STARTING: Kafka consumer group background service");
-                await host.RunAsync();
+                Console.WriteLine("🚀 STARTING: Apache Flink 2.0 compliant job submission");
+                
+                // Get the JobSubmissionService and submit the job
+                var jobSubmissionService = host.Services.GetRequiredService<JobSubmissionService>();
+                
+                Console.WriteLine("📤 Submitting Kafka-to-Redis streaming job to JobManager...");
+                bool jobSubmitted = await jobSubmissionService.SubmitKafkaToRedisStreamingJobAsync();
+                
+                if (jobSubmitted)
+                {
+                    Console.WriteLine("✅ Job successfully submitted to JobManager! TaskManagers will now execute the job.");
+                    Console.WriteLine("🔄 JobManager will deploy tasks to registered TaskManagers for distributed processing.");
+                    
+                    // Keep the FlinkJobSimulator alive to maintain the submitted job
+                    // In a real Flink cluster, the JobManager coordinates the job lifecycle
+                    Console.WriteLine("⏳ FlinkJobSimulator keeping job alive while TaskManagers process...");
+                    await host.RunAsync();
+                }
+                else
+                {
+                    Console.WriteLine("❌ Failed to submit job to JobManager");
+                    throw new InvalidOperationException("Job submission failed");
+                }
             }
             catch (Exception ex)
             {
@@ -165,133 +162,6 @@ PreviousState: FlinkJobSimulatorNotStarted
                 // Keep alive for Aspire orchestration
                 await KeepProcessAliveOnError();
             }
-        }
-
-        /// <summary>
-        /// Get Redis connection string from multiple sources following Apache Flink 2.0 patterns
-        /// </summary>
-        private static string? GetRedisConnectionString(IConfiguration configuration)
-        {
-            // Try Aspire connection string first
-            string? connectionString = configuration.GetConnectionString("redis");
-            if (!string.IsNullOrEmpty(connectionString))
-            {
-                Console.WriteLine("🔐 REDIS: Using Aspire connection string");
-                return connectionString;
-            }
-            
-            // Try environment variable
-            connectionString = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL");
-            if (!string.IsNullOrEmpty(connectionString))
-            {
-                Console.WriteLine("🔐 REDIS: Using DOTNET_REDIS_URL environment variable");
-                return connectionString;
-            }
-            
-            // Try alternative environment variable
-            connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__redis");
-            if (!string.IsNullOrEmpty(connectionString))
-            {
-                Console.WriteLine("🔐 REDIS: Using ConnectionStrings__redis environment variable");
-                return connectionString;
-            }
-            
-            return null;
-        }
-        
-        /// <summary>
-        /// Connect to Redis with Apache Flink 2.0 resilient retry pattern
-        /// </summary>
-        private static IConnectionMultiplexer ConnectToRedisWithRetry(string connectionString)
-        {
-            const int maxRetries = 5;
-            const int baseDelayMs = 1000; // Start with 1 second
-            
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
-            {
-                try
-                {
-                    Console.WriteLine($"🔄 REDIS: Connection attempt {attempt}/{maxRetries} to {connectionString}");
-                    
-                    var options = CreateRedisConfigurationOptions(connectionString);
-                    var multiplexer = ConnectionMultiplexer.Connect(options);
-                    
-                    Console.WriteLine("✅ REDIS: Connected successfully on attempt " + attempt);
-                    return multiplexer;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"❌ REDIS: Attempt {attempt}/{maxRetries} failed: {ex.Message}");
-                    
-                    if (attempt == maxRetries)
-                    {
-                        Console.WriteLine("💥 REDIS: All connection attempts failed - FlinkJobSimulator cannot start");
-                        throw new InvalidOperationException($"Failed to connect to Redis after {maxRetries} attempts: {ex.Message}", ex);
-                    }
-                    
-                    // Apache Flink 2.0 pattern: Exponential backoff
-                    var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1);
-                    Console.WriteLine($"⏳ REDIS: Waiting {delay}ms before retry...");
-                    Thread.Sleep(delay);
-                }
-            }
-            
-            throw new InvalidOperationException("Should never reach here");
-        }
-
-        private static StackExchange.Redis.ConfigurationOptions CreateRedisConfigurationOptions(string connectionString)
-        {
-            var options = new StackExchange.Redis.ConfigurationOptions();
-
-            if (connectionString.StartsWith("redis://"))
-            {
-                var uri = new Uri(connectionString);
-                options.EndPoints.Add(uri.Host, uri.Port);
-                options.Password = ExtractPasswordFromUri(uri);
-            }
-            else
-            {
-                Console.WriteLine("🔄 REDIS CONFIG: Using standard ConfigurationOptions.Parse for non-URI connection string");
-                options = StackExchange.Redis.ConfigurationOptions.Parse(connectionString);
-            }
-
-            ApplyDefaultRedisOptions(options);
-            return options;
-        }
-
-        private static string? ExtractPasswordFromUri(Uri uri)
-        {
-            if (!string.IsNullOrEmpty(uri.UserInfo))
-            {
-                var userInfo = uri.UserInfo;
-                if (userInfo.Contains(':'))
-                {
-                    var password = userInfo.Split(':')[1];
-                    return string.IsNullOrEmpty(password) ? GetFallbackPassword() : password;
-                }
-                return userInfo;
-            }
-            return GetFallbackPassword();
-        }
-
-        private static string? GetFallbackPassword()
-        {
-            var envPassword = Environment.GetEnvironmentVariable("SIMULATOR_REDIS_PASSWORD");
-            if (!string.IsNullOrEmpty(envPassword))
-            {
-                Console.WriteLine($"🔐 REDIS CONFIG: Using SIMULATOR_REDIS_PASSWORD environment variable (length: {envPassword.Length})");
-                return envPassword;
-            }
-            Console.WriteLine("🔐 REDIS CONFIG: No password specified, using empty password");
-            return "";
-        }
-
-        private static void ApplyDefaultRedisOptions(StackExchange.Redis.ConfigurationOptions options)
-        {
-            options.ConnectTimeout = 15000;
-            options.SyncTimeout = 15000;
-            options.AbortOnConnectFail = false;
-            options.ConnectRetry = 3;
         }
 
         private static async Task KeepProcessAliveOnError()
