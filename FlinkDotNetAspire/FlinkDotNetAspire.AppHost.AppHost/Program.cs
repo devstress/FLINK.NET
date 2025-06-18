@@ -175,7 +175,8 @@ public static class Program
         // Add JobManager (1 instance)
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
-            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development");
+            .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+            .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true");
 
         // Add TaskManagers with dynamic port allocation
         for (int i = 1; i <= taskManagerCount; i++)
@@ -186,6 +187,7 @@ public static class Program
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+                .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true")
                 .WithReference(jobManager) // Use service reference for proper Aspire discovery
                 .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Signal to use dynamic ports
         }
