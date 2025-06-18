@@ -36,6 +36,7 @@ namespace FlinkJobSimulator
         // Processing timing tracking
         private DateTime? _actualProcessingStartTime = null;
         private readonly object _timingLock = new object();
+        private DateTime _lastProgressUpdateTime = DateTime.MinValue;
 
         public TaskManagerKafkaConsumer(
             IConfiguration configuration, 
@@ -358,6 +359,7 @@ MessagesProcessed: 0
         
         /// <summary>
         /// Write progress information to log file for stress test script to monitor
+        /// Matches the format from produce-1-million-messages.ps1 for consistency
         /// </summary>
         private async Task WriteProgressLogAsync(long currentCount, DateTime? processingStartTime = null)
         {
@@ -373,6 +375,7 @@ MessagesProcessed: 0
                     rate = elapsedSeconds > 0 ? (int)Math.Round(currentCount / elapsedSeconds) : 0;
                 }
                 
+                // Write structured log for workflow script parsing
                 var logContent = $@"FLINKJOBSIMULATOR_PROGRESS_LOG
 TaskManagerId: {_taskManagerId}
 UpdateTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC
@@ -389,11 +392,25 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
                 var logPath = Path.Combine(projectRoot, "flinkjobsimulator_progress.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 
-                // Also log major milestones to console
-                if (currentCount == 1 || currentCount % 100000 == 0 || currentCount >= 1000000)
+                // Write human-readable progress display matching producer script format
+                var displayLogContent = "";
+                if (currentCount > 0)
                 {
-                    _logger.LogInformation("📊 [PROGRESS] TaskManager {TaskManagerId}: {Count:N0}/1,000,000 ({Percent:F1}%) Rate: {Rate:N0} msg/sec", 
-                        _taskManagerId, currentCount, progressPercent, rate);
+                    displayLogContent = $"[PROGRESS] Processed={currentCount:N0} / 1,000,000  Rate={rate:N0} msg/sec  Progress={progressPercent:F1}%\n";
+                }
+                else
+                {
+                    displayLogContent = "[PROGRESS] Waiting for messages to arrive...\n";
+                }
+                
+                var displayLogPath = Path.Combine(projectRoot, "flinkjobsimulator_display.log");
+                await File.WriteAllTextAsync(displayLogPath, displayLogContent);
+                
+                // Console output matching producer script format for major milestones
+                if (currentCount == 1 || currentCount % 250000 == 0 || currentCount >= 1000000)
+                {
+                    _logger.LogInformation("📊 [PROGRESS] Processed={Count:N0} / 1,000,000  Rate={Rate:N0} msg/sec  Progress={Percent:F1}%", 
+                        currentCount, rate, progressPercent);
                 }
             }
             catch (Exception ex)
@@ -404,6 +421,7 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
         
         /// <summary>
         /// Write final completion log for stress test script monitoring
+        /// Matches the format from produce-1-million-messages.ps1 for consistency
         /// </summary>
         private async Task WriteCompletionLogAsync(long finalCount, double totalElapsedSeconds, int finalRate)
         {
@@ -411,6 +429,7 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
             {
                 var progressPercent = finalCount > 0 ? Math.Round((double)finalCount / 1000000 * 100, 1) : 0.0;
                 
+                // Write structured log for workflow script parsing
                 var logContent = $@"FLINKJOBSIMULATOR_COMPLETION_LOG
 TaskManagerId: {_taskManagerId}
 CompletionTime: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC
@@ -428,7 +447,15 @@ Success: {(finalCount >= 1000000 ? "TRUE" : "FALSE")}
                 var logPath = Path.Combine(projectRoot, "flinkjobsimulator_completion.log");
                 await File.WriteAllTextAsync(logPath, logContent);
                 
+                // Write human-readable finish display matching producer script format
+                var displayLogContent = $"[FINISH] FlinkJobSimulator completed! Total: {finalCount:N0} Time: {totalElapsedSeconds:F3}s Rate: {finalRate:N0} msg/sec\n";
+                
+                var displayLogPath = Path.Combine(projectRoot, "flinkjobsimulator_display.log");
+                await File.WriteAllTextAsync(displayLogPath, displayLogContent);
+                
                 _logger.LogInformation("📝 COMPLETION LOG: Written final completion status to {LogPath}", logPath);
+                _logger.LogInformation("🏁 [FINISH] FlinkJobSimulator completed! Total: {Total:N0} Time: {Time:F3}s Rate: {Rate:N0} msg/sec", 
+                    finalCount, totalElapsedSeconds, finalRate);
             }
             catch (Exception ex)
             {
@@ -870,6 +897,9 @@ Message: {message}
 
             // Start background Redis batch processor for high-throughput performance
             var batchProcessorTask = ProcessRedisBatchUpdatesAsync(stoppingToken);
+            
+            // Start background progress reporter similar to producer script
+            var progressReporterTask = ProcessProgressReportsAsync(stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -976,6 +1006,9 @@ Message: {message}
             
             // Wait for batch processor to complete
             await batchProcessorTask;
+            
+            // Wait for progress reporter to complete
+            await progressReporterTask;
             
             // Write final completion log
             var finalCount = Interlocked.Read(ref _messagesProcessed);
@@ -1836,12 +1869,6 @@ Message: {message}
                 // HIGH-PERFORMANCE: Batch Redis updates instead of individual operations per message
                 Interlocked.Increment(ref _pendingRedisUpdates);
                 
-                // Write progress log at major milestones
-                if (currentCount % 100000 == 0 || currentCount >= 1000000)
-                {
-                    _ = Task.Run(async () => await WriteProgressLogAsync(currentCount, _actualProcessingStartTime));
-                }
-                
                 // Produce to output topic with fire-and-forget for maximum performance
                 ProduceToOutputTopicFireAndForget(messageContent);
                 
@@ -1957,6 +1984,49 @@ Message: {message}
         }
 
         /// <summary>
+        /// Background progress reporter - updates progress every second like producer script
+        /// </summary>
+        private async Task ProcessProgressReportsAsync(CancellationToken stoppingToken)
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(1000, stoppingToken); // Update every second like producer script
+                    
+                    var currentCount = Interlocked.Read(ref _messagesProcessed);
+                    var now = DateTime.UtcNow;
+                    
+                    // Skip if we just updated recently (avoid spam)
+                    if ((now - _lastProgressUpdateTime).TotalMilliseconds < 500)
+                    {
+                        continue;
+                    }
+                    
+                    _lastProgressUpdateTime = now;
+                    
+                    // Write progress log with current status
+                    await WriteProgressLogAsync(currentCount, _actualProcessingStartTime);
+                    
+                    // Stop reporting once we reach 1M messages
+                    if (currentCount >= 1000000)
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Progress reporter error", _taskManagerId);
+                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                }
+            }
+        }
+        
+        /// <summary>
         /// High-performance batch Redis counter updates - processes batches every 100ms
         /// </summary>
         private async Task ProcessRedisBatchUpdatesAsync(CancellationToken stoppingToken)
@@ -1992,55 +2062,67 @@ Message: {message}
         {
             try
             {
-                // CRITICAL FIX: Only update Redis counter with exactly the number of messages processed
-                // Use a more precise approach to avoid over-counting
+                // CRITICAL FIX: Use Redis scripting to ensure atomic increment with limit enforcement
+                // This prevents race conditions between multiple TaskManagers
                 
                 var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
                 
-                // SAFETY CHECK: Don't let Redis counter exceed target of 1,000,000
-                // Get current Redis value to check if we would exceed the limit
-                var currentRedisValue = await _redisDatabase.StringGetAsync(_redisSinkCounterKey);
-                var currentRedisCount = currentRedisValue.HasValue ? (long)currentRedisValue : 0L;
-                
-                // Calculate how much we can safely increment without exceeding 1,000,000
-                var remainingCapacity = Math.Max(0, 1000000 - currentRedisCount);
-                var safeUpdateCount = Math.Min(updateCount, remainingCapacity);
-                
-                if (safeUpdateCount <= 0)
+                if (updateCount <= 0)
                 {
-                    _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Redis counter at limit ({RedisCount}), skipping batch update", 
-                        _taskManagerId, currentRedisCount);
                     return;
                 }
                 
-                if (safeUpdateCount < updateCount)
+                // Use Lua script for atomic increment with limit check
+                const string luaScript = @"
+                    local sinkKey = KEYS[1]
+                    local globalKey = KEYS[2] 
+                    local increment = tonumber(ARGV[1])
+                    local maxLimit = tonumber(ARGV[2])
+                    
+                    local currentSink = redis.call('GET', sinkKey) or 0
+                    local currentGlobal = redis.call('GET', globalKey) or 0
+                    
+                    currentSink = tonumber(currentSink)
+                    currentGlobal = tonumber(currentGlobal)
+                    
+                    -- Calculate safe increment to not exceed limit
+                    local remainingCapacity = math.max(0, maxLimit - currentSink)
+                    local safeIncrement = math.min(increment, remainingCapacity)
+                    
+                    if safeIncrement > 0 then
+                        local newSink = redis.call('INCRBY', sinkKey, safeIncrement)
+                        local newGlobal = redis.call('INCRBY', globalKey, safeIncrement)
+                        return {newSink, newGlobal, safeIncrement}
+                    else
+                        return {currentSink, currentGlobal, 0}
+                    end
+                ";
+                
+                var result = await _redisDatabase.ScriptEvaluateAsync(luaScript, 
+                    new RedisKey[] { _redisSinkCounterKey, _globalSequenceKey },
+                    new RedisValue[] { updateCount, 1000000 });
+                
+                if (result != null && result.Resp2Type == ResultType.Array)
                 {
-                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Limiting batch update from {RequestedUpdate} to {SafeUpdate} to avoid exceeding 1M limit", 
-                        _taskManagerId, updateCount, safeUpdateCount);
-                }
-                
-                // Batch update both Redis counters efficiently
-                var pipeline = _redisDatabase.CreateBatch();
-                var sinkCounterTask = pipeline.StringIncrementAsync(_redisSinkCounterKey, safeUpdateCount);
-                var globalSequenceTask = pipeline.StringIncrementAsync(_globalSequenceKey, safeUpdateCount);
-                
-                pipeline.Execute();
-                
-                var newSinkCount = await sinkCounterTask;
-                var newGlobalCount = await globalSequenceTask;
-                
-                // Log only at significant milestones for performance
-                if (currentProcessedCount <= 100 || currentProcessedCount % 25000 == 0)
-                {
-                    _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} - " +
-                                   "local: {LocalCount}, redis_sink: {RedisSinkCount}, redis_global: {RedisGlobalCount}",
-                                   _taskManagerId, safeUpdateCount, currentProcessedCount, newSinkCount, newGlobalCount);
-                }
-                
-                // Write progress log after Redis update
-                if (currentProcessedCount % 100000 == 0 || currentProcessedCount >= 1000000)
-                {
-                    _ = Task.Run(async () => await WriteProgressLogAsync(currentProcessedCount, _actualProcessingStartTime));
+                    var resultArray = (RedisValue[])result;
+                    var newSinkCount = (long)resultArray[0];
+                    var newGlobalCount = (long)resultArray[1]; 
+                    var actualIncrement = (long)resultArray[2];
+                    
+                    // Log only at significant milestones for performance
+                    if (currentProcessedCount <= 100 || currentProcessedCount % 25000 == 0)
+                    {
+                        _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} (requested: {RequestedSize}) - " +
+                                       "local: {LocalCount}, redis_sink: {RedisSinkCount}, redis_global: {RedisGlobalCount}",
+                                       _taskManagerId, actualIncrement, updateCount, currentProcessedCount, newSinkCount, newGlobalCount);
+                    }
+                    
+                    // If we couldn't increment as much as requested, we've hit the limit
+                    if (actualIncrement < updateCount)
+                    {
+                        _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Hit Redis counter limit - sink: {SinkCount}, global: {GlobalCount}", 
+                            _taskManagerId, newSinkCount, newGlobalCount);
+                    }
                 }
             }
             catch (Exception ex)

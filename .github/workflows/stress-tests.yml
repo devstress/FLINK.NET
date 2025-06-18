@@ -552,6 +552,9 @@ jobs:
           $processingStartTime = $null
           $lastProgressTime = Get-Date
           
+          # Progress display tracking
+          $script:lastDisplayContent = ""
+          
           while (-not $completed) {
             $currentElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
             
@@ -628,7 +631,35 @@ jobs:
                   Write-Host "🚀 Message processing started! FlinkJobSimulator is consuming messages..."
                 }
                 
+                # Check for FlinkJobSimulator progress logs and display them
+                try {
+                  if (Test-Path "flinkjobsimulator_display.log") {
+                    $displayContent = Get-Content "flinkjobsimulator_display.log" -Raw -ErrorAction SilentlyContinue
+                    if ($displayContent -and $displayContent.Trim()) {
+                      # Only show progress if it's different from last time
+                      if ($displayContent -ne $script:lastDisplayContent) {
+                        Write-Host $displayContent.Trim()
+                        $script:lastDisplayContent = $displayContent
+                      }
+                    }
+                  }
+                } catch {
+                  # Ignore display log read errors - fall back to Redis-based display
+                }
+                
                 if ($currentCount -ge $expectedMessages) {
+                  # Check for completion log and display it
+                  try {
+                    if (Test-Path "flinkjobsimulator_display.log") {
+                      $displayContent = Get-Content "flinkjobsimulator_display.log" -Raw -ErrorAction SilentlyContinue
+                      if ($displayContent -and $displayContent.Trim() -and $displayContent.Contains("[FINISH]")) {
+                        Write-Host $displayContent.Trim()
+                      }
+                    }
+                  } catch {
+                    # Ignore completion log read errors - use fallback
+                  }
+                  
                   # Calculate final rate like producer script
                   if ($processingStartTime) {
                     $totalProcessingTime = ((Get-Date) - $processingStartTime).TotalSeconds
