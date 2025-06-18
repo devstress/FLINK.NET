@@ -572,6 +572,11 @@ try {
     $counterNotInitializedAttempts = 0
     $maxCounterNotInitializedAttempts = 1
     
+    # Performance tracking like producer script
+    $messageProcessingStarted = $false
+    $processingStartTime = $null
+    $lastProgressTime = Get-Date
+    
     while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
         try {
             # Check completion status first
@@ -607,8 +612,22 @@ try {
             if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
                 
+                # Mark that message processing has started if we see any count > 0
+                if ($currentCount -gt 0 -and -not $messageProcessingStarted) {
+                  $messageProcessingStarted = $true
+                  $processingStartTime = Get-Date
+                  Write-Host "🚀 Message processing started! FlinkJobSimulator is consuming messages..."
+                }
+                
                 if ($currentCount -ge $expectedMessages) {
-                    Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
+                    # Calculate final rate like producer script
+                    if ($processingStartTime) {
+                        $totalProcessingTime = ((Get-Date) - $processingStartTime).TotalSeconds
+                        $finalRate = if ($totalProcessingTime -gt 0) { [math]::Round($currentCount / $totalProcessingTime, 0) } else { 0 }
+                        Write-Host "✅ [FINISH] FlinkJobSimulator completed! Total: $($currentCount.ToString('N0')) Time: $($totalProcessingTime.ToString('F3'))s Rate: $($finalRate.ToString('N0')) msg/sec"
+                    } else {
+                        Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
+                    }
                     $completed = $true
                     $completionReason = "MessageCountReached"
                     break
@@ -628,8 +647,15 @@ try {
                     }
                     
                     if ($shouldLog) {
-                        Write-Host "📊 Current message count: $currentCount / $expectedMessages"
-                        Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                        # Calculate message rate like producer script
+                        if ($processingStartTime -and $messageProcessingStarted) {
+                            $elapsedProcessingSeconds = ((Get-Date) - $processingStartTime).TotalSeconds
+                            $rate = if ($elapsedProcessingSeconds -gt 0) { [math]::Round($currentCount / $elapsedProcessingSeconds, 0) } else { 0 }
+                            Write-Host "📊 [PROGRESS] Processed=$($currentCount.ToString('N0')) / $($expectedMessages.ToString('N0'))  Rate=$($rate.ToString('N0')) msg/sec  Progress=$progressPercent%"
+                        } else {
+                            Write-Host "📊 Current message count: $currentCount / $expectedMessages"
+                            Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                        }
                     }
                 }
             } else {

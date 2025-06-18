@@ -548,6 +548,10 @@ jobs:
           $lastMessageCountTime = Get-Date
           $stallTimeoutSeconds = 5  # Timeout if no progress for 5 seconds
           
+          # Performance tracking like producer script
+          $processingStartTime = $null
+          $lastProgressTime = Get-Date
+          
           while (-not $completed) {
             $currentElapsed = ((Get-Date) - $waitStartTime).TotalSeconds
             
@@ -620,11 +624,19 @@ jobs:
                 # Mark that message processing has started if we see any count > 0
                 if ($currentCount -gt 0 -and -not $messageProcessingStarted) {
                   $messageProcessingStarted = $true
+                  $processingStartTime = Get-Date
                   Write-Host "🚀 Message processing started! FlinkJobSimulator is consuming messages..."
                 }
                 
                 if ($currentCount -ge $expectedMessages) {
-                  Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
+                  # Calculate final rate like producer script
+                  if ($processingStartTime) {
+                    $totalProcessingTime = ((Get-Date) - $processingStartTime).TotalSeconds
+                    $finalRate = if ($totalProcessingTime -gt 0) { [math]::Round($currentCount / $totalProcessingTime, 0) } else { 0 }
+                    Write-Host "✅ [FINISH] FlinkJobSimulator completed! Total: $($currentCount.ToString('N0')) Time: $($totalProcessingTime.ToString('F3'))s Rate: $($finalRate.ToString('N0')) msg/sec"
+                  } else {
+                    Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
+                  }
                   $completed = $true
                   $completionReason = "MessageCountReached"
                   break
@@ -657,8 +669,16 @@ jobs:
                         $remainingSeconds = ($maxWaitSeconds * 3) - $currentElapsed  # Startup timeout
                       }
                       
-                      Write-Host "📊 Current message count: $currentCount / $expectedMessages"
-                      Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                      # Calculate message rate like producer script
+                      $currentTime = Get-Date
+                      if ($processingStartTime -and $messageProcessingStarted) {
+                        $elapsedProcessingSeconds = ($currentTime - $processingStartTime).TotalSeconds
+                        $rate = if ($elapsedProcessingSeconds -gt 0) { [math]::Round($currentCount / $elapsedProcessingSeconds, 0) } else { 0 }
+                        Write-Host "📊 [PROGRESS] Processed=$($currentCount.ToString('N0')) / $($expectedMessages.ToString('N0'))  Rate=$($rate.ToString('N0')) msg/sec  Progress=$progressPercent%"
+                      } else {
+                        Write-Host "📊 Current message count: $currentCount / $expectedMessages"
+                        Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                      }
                     }
                   }
                 }
@@ -735,9 +755,16 @@ jobs:
               
               # Check if any messages were actually processed
               if ($finalCounterValue -match '^\d+$' -and [int]$finalCounterValue -gt 0) {
-                Write-Host "📊 FlinkJobSimulator processed $finalCounterValue messages (partial success)" -ForegroundColor Yellow
-                $completed = $true
-                $completionReason = "PartialCompletion"
+                $processedCount = [int]$finalCounterValue
+                if ($processedCount -ge $expectedMessages) {
+                  Write-Host "✅ FlinkJobSimulator processed $processedCount messages (complete success - exceeded target)" -ForegroundColor Green
+                  $completed = $true
+                  $completionReason = "MessageCountReached"
+                } else {
+                  Write-Host "📊 FlinkJobSimulator processed $processedCount messages (partial success)" -ForegroundColor Yellow
+                  $completed = $true
+                  $completionReason = "PartialCompletion"
+                }
               } else {
                 Write-Host "❌ FlinkJobSimulator processed 0 messages - this is a FAILURE" -ForegroundColor Red
                 $completionReason = "NoMessagesProcessed"
@@ -754,8 +781,10 @@ jobs:
           if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached" -or $completionReason -eq "PartialCompletion") {
             if ($completionReason -eq "PartialCompletion") {
               Write-Host "⚠️ FlinkJobSimulator completed with partial message processing!" -ForegroundColor Yellow
+            } elseif ($completionReason -eq "MessageCountReached") {
+              Write-Host "✅ FlinkJobSimulator completed successfully! All expected messages processed." -ForegroundColor Green
             } else {
-              Write-Host "✅ FlinkJobSimulator completed successfully!"
+              Write-Host "✅ FlinkJobSimulator completed successfully!" -ForegroundColor Green
             }
           } else {
             Write-Host "❌ FlinkJobSimulator failed: $completionReason"
