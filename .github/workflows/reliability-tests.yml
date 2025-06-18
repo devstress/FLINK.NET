@@ -125,11 +125,12 @@ jobs:
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
           SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
+          SIMULATOR_FORCE_RESET_TO_EARLIEST: "true"  # Force consumer group reset to ensure fresh consumption
         run: |
           Write-Host "🧪 Running infrastructure health checks..."
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
           
-          $maxAttempts = 5
+          $maxAttempts = 2
           $delaySeconds = 10
           
           Write-Host "`n=== Health Check Configuration ===" 
@@ -249,7 +250,6 @@ jobs:
               
               if ($counterValue -match '^\d+$') {
                 $currentCount = [int]$counterValue
-                Write-Host "📊 Current message count: $currentCount / $expectedMessages"
                 
                 if ($currentCount -ge $expectedMessages) {
                   Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
@@ -259,7 +259,12 @@ jobs:
                 } else {
                   $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
                   $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
-                  Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                  
+                  # Only log progress every 10% or at significant milestones
+                  if ($progressPercent -eq 0 -or $progressPercent % 10 -eq 0 -or $currentCount % [math]::Max(1, $expectedMessages / 10) -eq 0) {
+                    Write-Host "📊 Current message count: $currentCount / $expectedMessages"
+                    Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                  }
                 }
               } else {
                 $counterNotInitializedAttempts++

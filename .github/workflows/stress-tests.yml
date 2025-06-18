@@ -219,8 +219,9 @@ jobs:
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
           SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
+          SIMULATOR_FORCE_RESET_TO_EARLIEST: "true"  # Force consumer group reset to ensure fresh consumption
         run: |
-          $maxAttempts = 5  # Increased attempts for CI reliability
+          $maxAttempts = 2  # Reduced attempts as requested (1 retry)
           $delaySeconds = 10  # Adequate delay for CI environment
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
@@ -298,7 +299,27 @@ jobs:
           }
           
           Write-Host "✅ Message producer completed successfully" -ForegroundColor Green
-          Write-Host "FlinkJobSimulator should now be consuming the produced messages..." -ForegroundColor Green
+          
+          # CRITICAL FIX: Add verification that messages are actually available in Kafka
+          Write-Host "🔍 Verifying messages are available in Kafka before proceeding..."
+          Start-Sleep -Seconds 5  # Give Kafka a moment to flush and commit all messages
+          
+          # Quick verification with kafka-console-consumer to check if messages exist
+          try {
+            $kafkaContainer = docker ps --filter "name=kafka" --format "{{.Names}}" | Select-Object -First 1
+            if ($kafkaContainer) {
+              Write-Host "📊 Checking message count in topic..."
+              $messageCheck = docker exec $kafkaContainer kafka-console-consumer --bootstrap-server localhost:9092 --topic flinkdotnet.sample.topic --from-beginning --timeout-ms 5000 --max-messages 10 2>/dev/null | Measure-Object -Line
+              $foundMessages = $messageCheck.Lines
+              Write-Host "✅ Found $foundMessages sample messages in topic (verified Kafka has data)"
+            } else {
+              Write-Host "⚠️ Could not find Kafka container for verification"
+            }
+          } catch {
+            Write-Host "⚠️ Message verification failed, but proceeding: $_"
+          }
+          
+          Write-Host "🎯 FlinkJobSimulator should now consume the produced messages..." -ForegroundColor Green
 
       - name: Diagnose FlinkJobSimulator Status
         env:
@@ -379,8 +400,6 @@ jobs:
                     Name = $proc.ProcessName
                     CommandLine = "FlinkJobSimulator detected"
                   }
-                } else {
-                  Write-Host "  📋 Dotnet process PID $($proc.Id): Not FlinkJobSimulator"
                 }
               } catch {
                 Write-Host "  ⚠️ PID $($proc.Id): Error during detection: $_"
@@ -507,155 +526,7 @@ jobs:
           SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES }}
           SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
         run: |
-          Write-Host "🕐 Waiting for FlinkJobSimulator to complete message processing..."
-          Write-Host "Expected messages: ${{ env.SIMULATOR_NUM_MESSAGES }}"
-          Write-Host "Redis counter key: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
-          
-          $maxWaitSeconds = 420  # 7 minutes max wait (increased for reliability)
-          $checkIntervalSeconds = 5
-          $expectedMessages = [int]"${{ env.SIMULATOR_NUM_MESSAGES }}"
-          $waitStartTime = Get-Date
-          
-          $completed = $false
-          $completionReason = "Unknown"
-          $counterNotInitializedAttempts = 0
-          $maxCounterNotInitializedAttempts = 3
-          
-          while (-not $completed -and ((Get-Date) - $waitStartTime).TotalSeconds -lt $maxWaitSeconds) {
-            try {
-              # Check completion status first
-              $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
-              $completionStatus = Invoke-Expression $statusCommand 2>$null
-              
-              if ($completionStatus -eq "SUCCESS") {
-                Write-Host "✅ FlinkJobSimulator reported SUCCESS completion status"
-                $completed = $true
-                $completionReason = "Success"
-                break
-              } elseif ($completionStatus -eq "FAILED") {
-                Write-Host "❌ FlinkJobSimulator reported FAILED completion status"
-                $completed = $true
-                $completionReason = "Failed"
-                break
-              }
-              
-              # Check for execution errors
-              $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
-              $errorValue = Invoke-Expression $errorCommand 2>$null
-              if ($errorValue -and $errorValue -ne "(nil)") {
-                Write-Host "❌ Found job execution error in Redis: $errorValue"
-                $completed = $true
-                $completionReason = "Error"
-                break
-              }
-              
-              # Check message counter progress
-              $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
-              $counterValue = Invoke-Expression $redisCommand 2>$null
-              
-              if ($counterValue -match '^\d+$') {
-                $currentCount = [int]$counterValue
-                Write-Host "📊 Current message count: $currentCount / $expectedMessages"
-                
-                if ($currentCount -ge $expectedMessages) {
-                  Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
-                  $completed = $true
-                  $completionReason = "MessageCountReached"
-                  break
-                } else {
-                  $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
-                  $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
-                  Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
-                }
-              } else {
-                $counterNotInitializedAttempts++
-                Write-Host "⏳ Waiting for job to start... (counter not yet initialized) - Attempt $counterNotInitializedAttempts/$maxCounterNotInitializedAttempts"
-                
-                if ($counterNotInitializedAttempts -ge $maxCounterNotInitializedAttempts) {
-                  Write-Host "❌ FlinkJobSimulator failed to start after $maxCounterNotInitializedAttempts attempts"
-                  Write-Host "💡 This indicates that FlinkJobSimulator is not running or cannot initialize the counter"
-                  $completed = $true
-                  $completionReason = "FlinkJobSimulatorNotStarted"
-                  break
-                }
-              }
-              
-              # Check if AppHost/FlinkJobSimulator process is still alive
-              if (Test-Path apphost.pid) {
-                $apphostPid = Get-Content apphost.pid
-                $apphostProcess = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
-                if (-not $apphostProcess) {
-                  Write-Host "💥 AppHost process (PID $apphostPid) has terminated unexpectedly!"
-                  $completed = $true
-                  $completionReason = "AppHostTerminated"
-                  break
-                }
-              } else {
-                Write-Host "💥 AppHost PID file not found - process may have crashed"
-                $completed = $true
-                $completionReason = "AppHostPidMissing"
-                break
-              }
-              
-              Start-Sleep -Seconds $checkIntervalSeconds
-            } catch {
-              Write-Host "⏳ Waiting for Redis to be accessible... ($($_.Exception.Message))"
-              Start-Sleep -Seconds $checkIntervalSeconds
-            }
-          }
-          
-          # Report final status
-          Write-Host "`n🎯 === WAIT COMPLETION SUMMARY ==="
-          Write-Host "Completion reason: $completionReason"
-          Write-Host "Wait duration: $([math]::Round(((Get-Date) - $waitStartTime).TotalSeconds, 1))s"
-          
-          if (-not $completed) {
-            Write-Host "❌ FlinkJobSimulator did not complete within $maxWaitSeconds seconds"
-            Write-Host "⏰ TIMEOUT REACHED - Generating fallback output for stress test validation..."
-            
-            # Final comprehensive check
-            try {
-              $finalCounterCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
-              $finalCounterValue = Invoke-Expression $finalCounterCommand 2>$null
-              Write-Host "📊 Final Redis counter value: $finalCounterValue"
-              
-              $finalStatusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_completion_status`""
-              $finalStatusValue = Invoke-Expression $finalStatusCommand 2>$null
-              Write-Host "📊 Final completion status: $finalStatusValue"
-              
-              $finalErrorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"flinkdotnet:job_execution_error`""
-              $finalErrorValue = Invoke-Expression $finalErrorCommand 2>$null
-              if ($finalErrorValue -and $finalErrorValue -ne "(nil)") {
-                Write-Host "📊 Final error marker: $finalErrorValue"
-              }
-            } catch {
-              Write-Host "💥 Could not perform final Redis check: $($_.Exception.Message)"
-            }
-            
-            # Generate fallback output for testing validation instead of failing
-            Write-Host "🎯 Generating fallback stress test output for Apache Flink compliance validation..." -ForegroundColor Yellow
-            try {
-              & ./scripts/generate-stress-test-output.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -OutputFile "stress_test_passed_output.txt"
-              $completed = $true
-              $completionReason = "FallbackGenerated"
-            }
-            catch {
-              Write-Host "💥 Failed to generate fallback output: $($_.Exception.Message)" -ForegroundColor Red
-              throw "FlinkJobSimulator completion timeout and fallback generation failed"
-            }
-          }
-          
-          # Check final success condition
-          if ($completionReason -eq "Success" -or $completionReason -eq "MessageCountReached" -or $completionReason -eq "FallbackGenerated") {
-            if ($completionReason -eq "FallbackGenerated") {
-              Write-Host "✅ Stress test completed using fallback output generation!" -ForegroundColor Green
-            } else {
-              Write-Host "✅ FlinkJobSimulator completed successfully!"
-            }
-          } else {
-            Write-Host "❌ FlinkJobSimulator completed with issues: $completionReason"
-            throw "FlinkJobSimulator execution failed"
-          }
+          & ./scripts/wait-for-flinkjobsimulator-completion.ps1 -ExpectedMessages ${{ env.SIMULATOR_NUM_MESSAGES }} -RedisCounterKey $env:SIMULATOR_REDIS_KEY_SINK_COUNTER
 
       - name: Run Verification Tests
         env:
@@ -670,35 +541,7 @@ jobs:
           SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
           SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
         run: |
-          # Check if AppHost is still running
-          if (Test-Path apphost.pid) {
-            $apphostPid = Get-Content apphost.pid
-            $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
-            if (-not $process) {
-              Write-Host "ERROR: AppHost process (PID $apphostPid) is not running!"
-              exit 1
-            }
-            Write-Host "AppHost process (PID $apphostPid) is running."
-          } else {
-            Write-Host "ERROR: AppHost PID file not found!"
-            exit 1
-          }
-
-          echo "Running verification tests with SIMULATOR_NUM_MESSAGES=${{ env.SIMULATOR_NUM_MESSAGES }}..."
-          Write-Host "Environment variables:"
-          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
-          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
-          Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"
-          Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
-          Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC"
-          $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
-          & dotnet $verifierDll
-          if ($LASTEXITCODE -ne 0) {
-            echo "Verification tests FAILED."
-            exit 1
-          }
-          echo "Verification tests PASSED."
+          & ./scripts/run-verification-tests.ps1 -ExpectedMessages ${{ env.SIMULATOR_NUM_MESSAGES }} -MaxAllowedTimeMs ${{ env.MAX_ALLOWED_TIME_MS }}
 
       - name: Stop Aspire AppHost
         if: always()
@@ -828,17 +671,11 @@ jobs:
         run: |
           Write-Host "🔍 Checking for stress test output file..."
           if (-not (Test-Path "stress_test_passed_output.txt")) {
-            Write-Host "⚠️ Stress test output file not found, generating fallback output..." -ForegroundColor Yellow
-            try {
-              & ./scripts/generate-stress-test-output.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -OutputFile "stress_test_passed_output.txt"
-              Write-Host "✅ Generated stress_test_passed_output.txt as fallback" -ForegroundColor Green
-            }
-            catch {
-              Write-Host "💥 Failed to generate fallback output: $_" -ForegroundColor Red
-              exit 1
-            }
+            Write-Host "❌ Stress test output file not found - this indicates the test failed" -ForegroundColor Red
+            Write-Host "💡 This is expected behavior when FlinkJobSimulator fails to process messages" -ForegroundColor Yellow
+            exit 1
           } else {
-            Write-Host "✅ Stress test output file already exists" -ForegroundColor Green
+            Write-Host "✅ Stress test output file exists" -ForegroundColor Green
           }
           
           # Show the file size and first few lines

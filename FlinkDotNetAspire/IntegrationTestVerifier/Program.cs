@@ -657,7 +657,19 @@ namespace IntegrationTestVerifier
             
             if (redisOk)
             {
-                testCoordinator.LogScenarioSuccess("Redis is fully operational and ready for stream processing");
+                // Additional health check: verify processed message counter starts at 0
+                testCoordinator.LogWhen("Redis state validation", "Checking that processed message counter starts at 0");
+                bool counterOk = await ValidateProcessedMessageCounterAsync(config, redisConnectionString, testCoordinator);
+                
+                if (counterOk)
+                {
+                    testCoordinator.LogScenarioSuccess("Redis is fully operational and ready for stream processing with clean state");
+                }
+                else
+                {
+                    testCoordinator.LogScenarioFailure("Redis connectivity succeeded but processed message counter validation failed");
+                    return false;
+                }
             }
             else
             {
@@ -2339,6 +2351,55 @@ namespace IntegrationTestVerifier
             else
             {
                 Console.WriteLine("❌ Redis ping timed out");
+                return false;
+            }
+        }
+
+        private static async Task<bool> ValidateProcessedMessageCounterAsync(IConfigurationRoot config, string connectionString, BddTestCoordinator testCoordinator)
+        {
+            try
+            {
+                var sinkCounterKey = config["SIMULATOR_REDIS_KEY_SINK_COUNTER"] ?? "flinkdotnet:sample:processed_message_counter";
+                testCoordinator.LogGiven("Counter validation", $"Processed message counter '{sinkCounterKey}' should start at 0");
+                
+                Console.WriteLine($"   🔍 Validating processed message counter state...");
+                Console.WriteLine($"   📌 Counter key: {sinkCounterKey}");
+                
+                var isCI = Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+                var options = CreateRedisOptions(connectionString, isCI);
+                
+                using var redis = await ConnectionMultiplexer.ConnectAsync(options);
+                var db = redis.GetDatabase();
+                
+                RedisValue counterValue = await db.StringGetAsync(sinkCounterKey);
+                
+                if (!counterValue.HasValue)
+                {
+                    Console.WriteLine($"   ✅ Counter key does not exist - clean state confirmed");
+                    testCoordinator.LogThen("Counter validation", "Processed message counter is in clean state (key not found)");
+                    return true;
+                }
+                
+                var currentValue = (long)counterValue;
+                Console.WriteLine($"   📊 Current counter value: {currentValue}");
+                
+                if (currentValue == 0)
+                {
+                    Console.WriteLine($"   ✅ Counter is correctly set to 0 - clean state confirmed");
+                    testCoordinator.LogThen("Counter validation", "Processed message counter is correctly initialized to 0");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"   ❌ Counter is set to {currentValue}, expected 0 - state is not clean");
+                    testCoordinator.LogThen("Counter validation", $"Processed message counter is {currentValue}, expected 0 - requires reset");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"   ❌ Counter validation failed: {ex.Message}");
+                testCoordinator.LogScenarioFailure($"Processed message counter validation failed: {ex.Message}", ex);
                 return false;
             }
         }

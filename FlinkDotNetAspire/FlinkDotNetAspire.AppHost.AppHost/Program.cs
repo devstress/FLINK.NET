@@ -38,8 +38,19 @@ public static class Program
                 --config min.insync.replicas=1 \
                 --config message.max.bytes=52428800
 
-            echo 'Validating topic...'
+            echo 'Creating flinkdotnet.sample.out.topic for FlinkJobSimulator output...'
+            kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 \
+                --topic flinkdotnet.sample.out.topic \
+                --partitions {partitionCount} \
+                --replication-factor 1 \
+                --config retention.ms=3600000 \
+                --config cleanup.policy=delete \
+                --config min.insync.replicas=1 \
+                --config message.max.bytes=52428800
+
+            echo 'Validating topics...'
             kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.topic
+            kafka-topics --describe --bootstrap-server kafka:9092 --topic flinkdotnet.sample.out.topic
 
             echo '=== KAFKA ULTRA-SAFE INITIALIZATION COMPLETE ==='
         ";
@@ -158,9 +169,8 @@ public static class Program
 
     private static string ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
     {
-        var isCI = IsRunningInCI();
         var simulatorNumMessages = GetSimulatorMessageCount();
-        var taskManagerCount = isCI ? 5 : 20; // Reduce TaskManager count in CI for resource efficiency
+        var taskManagerCount = 20; // Always use 20 TaskManagers for Apache Flink 2.0 compliance and high-throughput 1M+ msg/sec processing
 
         // Add JobManager (1 instance)
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
@@ -176,7 +186,7 @@ public static class Program
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-                .WithEnvironment("JOBMANAGER_GRPC_ADDRESS", jobManager.GetEndpoint("https"))
+                .WithReference(jobManager) // Use service reference for proper Aspire discovery
                 .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Signal to use dynamic ports
         }
 

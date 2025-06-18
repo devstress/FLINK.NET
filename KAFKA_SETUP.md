@@ -28,6 +28,7 @@ This setup provides a Kafka development environment optimized for Flink.Net stre
   - `dead-letter-queue` (2 partitions) - Failed message handling
   - `test-input` & `test-output` (4 partitions each) - Testing
   - `flinkdotnet.sample.topic` (8 partitions) - Default sample topic
+  - `flinkdotnet.sample.out.topic` (8 partitions) - FlinkJobSimulator output topic
 
 ## Management through Aspire
 

@@ -2,6 +2,8 @@ using Grpc.Net.Client;
 using FlinkDotNet.Proto.Internal; // Namespace from your .proto file
 using Microsoft.Extensions.Hosting; // For IHostedService
 using FlinkDotNet.Common.Constants;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 
 namespace FlinkDotNet.TaskManager
 {
@@ -22,6 +24,7 @@ namespace FlinkDotNet.TaskManager
         Dictionary<string, long> SourceOffsets);
 
     private readonly Config _config;
+    private readonly IServer _server;
     private Timer? _heartbeatTimer;
     private TaskManagerRegistration.TaskManagerRegistrationClient? _client;
     private JobManagerInternalService.JobManagerInternalServiceClient? _jobManagerInternalClient; // Added for ReportFailedCheckpoint
@@ -30,9 +33,10 @@ namespace FlinkDotNet.TaskManager
     private string _jobManagerId = string.Empty; // Added to store JM Id
 
     // public TaskManagerService(string taskManagerId, string jobManagerAddress) // old
-    public TaskManagerCoreService(Config config) // new
+    public TaskManagerCoreService(Config config, IServer server) // new - added IServer for port discovery
     {
         _config = config;
+        _server = server;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -41,7 +45,16 @@ namespace FlinkDotNet.TaskManager
         var linkedToken = _internalCts.Token;
 
         Console.WriteLine($"TaskManagerCoreService {_config.TaskManagerId} starting...");
-        var channel = GrpcChannel.ForAddress(_config.JobManagerGrpcAddress); // _jobManagerChannel could be a field
+        
+        // Resolve JobManager address for Aspire environments
+        var resolvedJobManagerAddress = await ResolveJobManagerAddressAsync();
+        Console.WriteLine($"Resolved JobManager address: {resolvedJobManagerAddress}");
+        
+        // Discover the actual assigned port when using dynamic allocation
+        var actualGrpcPort = GetActualGrpcPort();
+        Console.WriteLine($"TaskManager {_config.TaskManagerId} actual gRPC port: {actualGrpcPort}");
+        
+        var channel = GrpcChannel.ForAddress(resolvedJobManagerAddress); // Use resolved address
         _client = new TaskManagerRegistration.TaskManagerRegistrationClient(channel); // _jmRegistrationClient is _client
         _jobManagerInternalClient = new JobManagerInternalService.JobManagerInternalServiceClient(channel); // Initialize the new client
 
@@ -50,10 +63,10 @@ namespace FlinkDotNet.TaskManager
             var request = new RegisterTaskManagerRequest
             {
                 TaskManagerId = _config.TaskManagerId,
-                Address = ServiceHosts.Localhost, // Simplification: Assuming localhost. K8s would use pod IP.
-                Port = Program.GrpcPort // Use the port defined in Program.cs
+                Address = GetTaskManagerAddress(), // Use dynamic address discovery
+                Port = actualGrpcPort // Use the actual assigned port instead of Program.GrpcPort
             };
-            Console.WriteLine($"Attempting to register TaskManager {_config.TaskManagerId} (gRPC on port {Program.GrpcPort}) with JobManager at {_config.JobManagerGrpcAddress}...");
+            Console.WriteLine($"Attempting to register TaskManager {_config.TaskManagerId} (gRPC on port {actualGrpcPort}) with JobManager at {resolvedJobManagerAddress}...");
             var response = await _client.RegisterTaskManagerAsync(request, cancellationToken: linkedToken);
             if (response.Success)
             {
@@ -123,6 +136,188 @@ namespace FlinkDotNet.TaskManager
         _heartbeatTimer?.Dispose();
         _registered = false;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Resolve JobManager address for Aspire environments with service discovery
+    /// </summary>
+    private Task<string> ResolveJobManagerAddressAsync()
+    {
+        try
+        {
+            // First try Aspire service discovery patterns
+            var aspireJobManagerUrl = Environment.GetEnvironmentVariable("services__jobmanager__https__0");
+            if (!string.IsNullOrEmpty(aspireJobManagerUrl))
+            {
+                Console.WriteLine($"Using Aspire HTTPS service discovery: {aspireJobManagerUrl}");
+                return Task.FromResult(aspireJobManagerUrl);
+            }
+
+            var aspireJobManagerGrpc = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
+            if (!string.IsNullOrEmpty(aspireJobManagerGrpc))
+            {
+                Console.WriteLine($"Using Aspire gRPC service discovery: {aspireJobManagerGrpc}");
+                return Task.FromResult(aspireJobManagerGrpc);
+            }
+
+            // Try HTTP endpoint as fallback
+            var aspireJobManagerHttp = Environment.GetEnvironmentVariable("services__jobmanager__http__0");
+            if (!string.IsNullOrEmpty(aspireJobManagerHttp))
+            {
+                Console.WriteLine($"Using Aspire HTTP service discovery: {aspireJobManagerHttp}");
+                return Task.FromResult(aspireJobManagerHttp);
+            }
+
+            // Try alternative Aspire patterns
+            var aspireJobManager = Environment.GetEnvironmentVariable("ConnectionStrings__jobmanager");
+            if (!string.IsNullOrEmpty(aspireJobManager))
+            {
+                Console.WriteLine($"Using Aspire connection string: {aspireJobManager}");
+                return Task.FromResult(aspireJobManager);
+            }
+
+            // Fallback to the original config address
+            Console.WriteLine($"Using fallback JobManager address: {_config.JobManagerGrpcAddress}");
+            return Task.FromResult(_config.JobManagerGrpcAddress);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error resolving JobManager address: {ex.Message}");
+            return Task.FromResult(_config.JobManagerGrpcAddress);
+        }
+    }
+
+    /// <summary>
+    /// Discover the actual assigned gRPC port when using dynamic port allocation
+    /// </summary>
+    private int GetActualGrpcPort()
+    {
+        try
+        {
+            // If using fixed port, return it
+            if (Program.GrpcPort != 0)
+            {
+                return Program.GrpcPort;
+            }
+
+            // For dynamic ports, discover the actual assigned port
+            var discoveredPort = DiscoverDynamicPort();
+            return discoveredPort > 0 ? discoveredPort : Program.GrpcPort;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error discovering actual gRPC port: {ex.Message}");
+            return Program.GrpcPort;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to discover the dynamically assigned port from server features
+    /// </summary>
+    private int DiscoverDynamicPort()
+    {
+        const int maxAttempts = 10;
+        const int delayMs = 500;
+        
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var discoveredPort = TryGetPortFromServerAddresses(attempt, maxAttempts);
+            if (discoveredPort > 0)
+            {
+                return discoveredPort;
+            }
+
+            if (attempt < maxAttempts)
+            {
+                Thread.Sleep(delayMs);
+            }
+        }
+
+        Console.WriteLine($"Could not discover actual port after {maxAttempts} attempts, falling back to Program.GrpcPort: {Program.GrpcPort}");
+        return -1;
+    }
+
+    /// <summary>
+    /// Attempts to extract port from server addresses feature
+    /// </summary>
+    private int TryGetPortFromServerAddresses(int attempt, int maxAttempts)
+    {
+        var serverAddressesFeature = _server.Features.Get<IServerAddressesFeature>();
+        if (serverAddressesFeature?.Addresses == null || !serverAddressesFeature.Addresses.Any())
+        {
+            Console.WriteLine($"Server addresses not available yet (attempt {attempt}/{maxAttempts}), waiting...");
+            return -1;
+        }
+
+        foreach (var address in serverAddressesFeature.Addresses)
+        {
+            Console.WriteLine($"Server address (attempt {attempt}): {address}");
+            
+            var port = ExtractPortFromAddress(address);
+            if (port > 0)
+            {
+                return port;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Extracts port number from server address string
+    /// </summary>
+    private static int ExtractPortFromAddress(string address)
+    {
+        // Parse port from address like "http://[::]:5000" or "http://0.0.0.0:5000"
+        if (Uri.TryCreate(address, UriKind.Absolute, out var uri) && uri.Port > 0)
+        {
+            Console.WriteLine($"Discovered actual gRPC port: {uri.Port}");
+            return uri.Port;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Get the TaskManager address for registration - supports Aspire/K8s environments
+    /// </summary>
+    private static string GetTaskManagerAddress()
+    {
+        try
+        {
+            // In Aspire/K8s environments, use the pod/container IP if available
+            var aspireAddress = Environment.GetEnvironmentVariable("ASPIRE_TASKMANAGER_ADDRESS");
+            if (!string.IsNullOrEmpty(aspireAddress))
+            {
+                Console.WriteLine($"Using Aspire TaskManager address: {aspireAddress}");
+                return aspireAddress;
+            }
+
+            // Try to get pod IP for Kubernetes
+            var podIP = Environment.GetEnvironmentVariable("POD_IP");
+            if (!string.IsNullOrEmpty(podIP))
+            {
+                Console.WriteLine($"Using Kubernetes pod IP: {podIP}");
+                return podIP;
+            }
+
+            // Try to get hostname for Docker environments
+            var hostname = Environment.GetEnvironmentVariable("HOSTNAME");
+            if (!string.IsNullOrEmpty(hostname) && hostname != "localhost")
+            {
+                Console.WriteLine($"Using container hostname: {hostname}");
+                return hostname;
+            }
+
+            // Default to localhost for local development
+            Console.WriteLine($"Using default address: {ServiceHosts.Localhost}");
+            return ServiceHosts.Localhost;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error determining TaskManager address: {ex.Message}");
+            return ServiceHosts.Localhost;
+        }
     }
 
     public async Task SendAcknowledgeCheckpointAsync(CheckpointAcknowledgment acknowledgment)

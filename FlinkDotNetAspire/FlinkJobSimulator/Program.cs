@@ -123,24 +123,24 @@ PreviousState: FlinkJobSimulatorNotStarted
                 
                 var builder = Host.CreateApplicationBuilder(args);
                 
-                // Configure Redis
+                // Configure Redis with Apache Flink 2.0 resilient startup patterns
                 builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
                 {
                     var configuration = provider.GetRequiredService<IConfiguration>();
-                    var connectionString = configuration.GetConnectionString("redis");
+                    
+                    // Apache Flink 2.0 pattern: Try multiple connection string sources
+                    string? connectionString = GetRedisConnectionString(configuration);
                     
                     if (string.IsNullOrEmpty(connectionString))
                     {
-                        throw new InvalidOperationException("Redis connection string not found");
+                        Console.WriteLine("⚠️ REDIS: No connection string found - using fallback localhost configuration");
+                        connectionString = "localhost:6379"; // Fallback for standalone operation
                     }
                     
-                    Console.WriteLine($"🔐 REDIS: Connecting to {connectionString}");
+                    Console.WriteLine($"🔐 REDIS: Attempting connection to {connectionString}");
                     
-                    var options = CreateRedisConfigurationOptions(connectionString);
-                    var multiplexer = ConnectionMultiplexer.Connect(options);
-                    
-                    Console.WriteLine("✅ REDIS: Connected successfully");
-                    return multiplexer;
+                    // Apache Flink 2.0 pattern: Retry connection with exponential backoff
+                    return ConnectToRedisWithRetry(connectionString);
                 });
                 
                 builder.Services.AddSingleton<IDatabase>(provider =>
@@ -165,6 +165,78 @@ PreviousState: FlinkJobSimulatorNotStarted
                 // Keep alive for Aspire orchestration
                 await KeepProcessAliveOnError();
             }
+        }
+
+        /// <summary>
+        /// Get Redis connection string from multiple sources following Apache Flink 2.0 patterns
+        /// </summary>
+        private static string? GetRedisConnectionString(IConfiguration configuration)
+        {
+            // Try Aspire connection string first
+            string? connectionString = configuration.GetConnectionString("redis");
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                Console.WriteLine("🔐 REDIS: Using Aspire connection string");
+                return connectionString;
+            }
+            
+            // Try environment variable
+            connectionString = Environment.GetEnvironmentVariable("DOTNET_REDIS_URL");
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                Console.WriteLine("🔐 REDIS: Using DOTNET_REDIS_URL environment variable");
+                return connectionString;
+            }
+            
+            // Try alternative environment variable
+            connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__redis");
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                Console.WriteLine("🔐 REDIS: Using ConnectionStrings__redis environment variable");
+                return connectionString;
+            }
+            
+            return null;
+        }
+        
+        /// <summary>
+        /// Connect to Redis with Apache Flink 2.0 resilient retry pattern
+        /// </summary>
+        private static IConnectionMultiplexer ConnectToRedisWithRetry(string connectionString)
+        {
+            const int maxRetries = 5;
+            const int baseDelayMs = 1000; // Start with 1 second
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    Console.WriteLine($"🔄 REDIS: Connection attempt {attempt}/{maxRetries} to {connectionString}");
+                    
+                    var options = CreateRedisConfigurationOptions(connectionString);
+                    var multiplexer = ConnectionMultiplexer.Connect(options);
+                    
+                    Console.WriteLine("✅ REDIS: Connected successfully on attempt " + attempt);
+                    return multiplexer;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ REDIS: Attempt {attempt}/{maxRetries} failed: {ex.Message}");
+                    
+                    if (attempt == maxRetries)
+                    {
+                        Console.WriteLine("💥 REDIS: All connection attempts failed - FlinkJobSimulator cannot start");
+                        throw new InvalidOperationException($"Failed to connect to Redis after {maxRetries} attempts: {ex.Message}", ex);
+                    }
+                    
+                    // Apache Flink 2.0 pattern: Exponential backoff
+                    var delay = baseDelayMs * (int)Math.Pow(2, attempt - 1);
+                    Console.WriteLine($"⏳ REDIS: Waiting {delay}ms before retry...");
+                    Thread.Sleep(delay);
+                }
+            }
+            
+            throw new InvalidOperationException("Should never reach here");
         }
 
         private static StackExchange.Redis.ConfigurationOptions CreateRedisConfigurationOptions(string connectionString)
