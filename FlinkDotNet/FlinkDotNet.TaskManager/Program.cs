@@ -21,65 +21,15 @@ namespace FlinkDotNet.TaskManager
         public static async Task Main(string[] args)
         {
             // Initialize dynamic port allocation for Aspire/Kubernetes environments
-            // Use port 0 to let the system assign an available port when ASPIRE_USE_DYNAMIC_PORTS is set
-            if (Environment.GetEnvironmentVariable("ASPIRE_USE_DYNAMIC_PORTS")?.ToLowerInvariant() == "true")
-            {
-                GrpcPort = 0; // Let Kestrel/system assign an available port dynamically
-                Console.WriteLine("🔄 ASPIRE MODE: Using dynamic port allocation (system will assign available port)");
-            }
-            else
-            {
-                // Default gRPC port for TaskManager services (JobManager will call this) - for non-Aspire scenarios
-                GrpcPort = ServicePorts.TaskManagerGrpc;
-            }
+            InitializeDynamicPortAllocation();
 
             // Basic configuration - replace with actual config mechanism later
-            // Allow overriding TM ID and gRPC port via command line for multiple instances
-            if (args.Length > 0) TaskManagerId = args[0];
-            if (args.Length > 1 && int.TryParse(args[1], out int port)) GrpcPort = port;
-            if (args.Length > 2) JobManagerAddress = args[2];
+            ProcessCommandLineArguments(args);
 
             // Override settings from environment variables if provided (Aspire service discovery)
-            var envTaskManagerId = Environment.GetEnvironmentVariable("TaskManagerId");
-            if (!string.IsNullOrEmpty(envTaskManagerId))
-            {
-                TaskManagerId = envTaskManagerId;
-            }
+            ApplyEnvironmentVariables();
 
-            var envJobManagerAddress = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
-            if (!string.IsNullOrEmpty(envJobManagerAddress))
-            {
-                JobManagerAddress = envJobManagerAddress;
-                Console.WriteLine($"Using JobManager address from Aspire service discovery: {JobManagerAddress}");
-            }
-            else
-            {
-                // Try the direct environment variable as fallback
-                var directJobManagerAddress = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS");
-                if (!string.IsNullOrEmpty(directJobManagerAddress))
-                {
-                    JobManagerAddress = directJobManagerAddress;
-                    Console.WriteLine($"Using JobManager address from environment variable: {JobManagerAddress}");
-                }
-            }
-
-            var envGrpcPort = Environment.GetEnvironmentVariable("TASKMANAGER_GRPC_PORT");
-            if (!string.IsNullOrEmpty(envGrpcPort) && int.TryParse(envGrpcPort, out int envPort))
-            {
-                GrpcPort = envPort;
-            }
-
-
-            Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
-            Console.WriteLine($"JobManager Address: {JobManagerAddress}");
-            if (GrpcPort == 0)
-            {
-                Console.WriteLine($"TaskManager gRPC services using dynamic port allocation (Aspire/K8s mode)");
-            }
-            else
-            {
-                Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
-            }
+            DisplayStartupConfiguration();
 
             var host = CreateHostBuilder(args).Build();
 
@@ -110,6 +60,108 @@ namespace FlinkDotNet.TaskManager
                 // However, if taskManagerCoreService needs to be stopped before the host fully stops, this could be a place.
                 // For typical IHostedService, manual StopAsync call here is not standard.
                 Console.WriteLine("TaskManager has shut down.");
+            }
+        }
+
+        /// <summary>
+        /// Initialize dynamic port allocation based on environment settings
+        /// </summary>
+        private static void InitializeDynamicPortAllocation()
+        {
+            // Use port 0 to let the system assign an available port when ASPIRE_USE_DYNAMIC_PORTS is set
+            if (Environment.GetEnvironmentVariable("ASPIRE_USE_DYNAMIC_PORTS")?.ToLowerInvariant() == "true")
+            {
+                GrpcPort = 0; // Let Kestrel/system assign an available port dynamically
+                Console.WriteLine("🔄 ASPIRE MODE: Using dynamic port allocation (system will assign available port)");
+            }
+            else
+            {
+                // Default gRPC port for TaskManager services (JobManager will call this) - for non-Aspire scenarios
+                GrpcPort = ServicePorts.TaskManagerGrpc;
+            }
+        }
+
+        /// <summary>
+        /// Process command line arguments for configuration overrides
+        /// </summary>
+        private static void ProcessCommandLineArguments(string[] args)
+        {
+            // Allow overriding TM ID and gRPC port via command line for multiple instances
+            if (args.Length > 0) TaskManagerId = args[0];
+            if (args.Length > 1 && int.TryParse(args[1], out int port)) GrpcPort = port;
+            if (args.Length > 2) JobManagerAddress = args[2];
+        }
+
+        /// <summary>
+        /// Apply configuration from environment variables (Aspire service discovery)
+        /// </summary>
+        private static void ApplyEnvironmentVariables()
+        {
+            ApplyTaskManagerIdFromEnvironment();
+            ApplyJobManagerAddressFromEnvironment();
+            ApplyGrpcPortFromEnvironment();
+        }
+
+        /// <summary>
+        /// Apply TaskManager ID from environment variable if available
+        /// </summary>
+        private static void ApplyTaskManagerIdFromEnvironment()
+        {
+            var envTaskManagerId = Environment.GetEnvironmentVariable("TaskManagerId");
+            if (!string.IsNullOrEmpty(envTaskManagerId))
+            {
+                TaskManagerId = envTaskManagerId;
+            }
+        }
+
+        /// <summary>
+        /// Apply JobManager address from environment variables with fallback chain
+        /// </summary>
+        private static void ApplyJobManagerAddressFromEnvironment()
+        {
+            var envJobManagerAddress = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
+            if (!string.IsNullOrEmpty(envJobManagerAddress))
+            {
+                JobManagerAddress = envJobManagerAddress;
+                Console.WriteLine($"Using JobManager address from Aspire service discovery: {JobManagerAddress}");
+                return;
+            }
+
+            // Try the direct environment variable as fallback
+            var directJobManagerAddress = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS");
+            if (!string.IsNullOrEmpty(directJobManagerAddress))
+            {
+                JobManagerAddress = directJobManagerAddress;
+                Console.WriteLine($"Using JobManager address from environment variable: {JobManagerAddress}");
+            }
+        }
+
+        /// <summary>
+        /// Apply gRPC port from environment variable if available
+        /// </summary>
+        private static void ApplyGrpcPortFromEnvironment()
+        {
+            var envGrpcPort = Environment.GetEnvironmentVariable("TASKMANAGER_GRPC_PORT");
+            if (!string.IsNullOrEmpty(envGrpcPort) && int.TryParse(envGrpcPort, out int envPort))
+            {
+                GrpcPort = envPort;
+            }
+        }
+
+        /// <summary>
+        /// Display startup configuration information
+        /// </summary>
+        private static void DisplayStartupConfiguration()
+        {
+            Console.WriteLine($"Starting TaskManager: {TaskManagerId}");
+            Console.WriteLine($"JobManager Address: {JobManagerAddress}");
+            if (GrpcPort == 0)
+            {
+                Console.WriteLine($"TaskManager gRPC services using dynamic port allocation (Aspire/K8s mode)");
+            }
+            else
+            {
+                Console.WriteLine($"TaskManager gRPC services listening on: http://{ServiceHosts.Localhost}:{GrpcPort}");
             }
         }
 

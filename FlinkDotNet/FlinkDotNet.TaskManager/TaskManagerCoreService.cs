@@ -200,49 +200,82 @@ namespace FlinkDotNet.TaskManager
                 return Program.GrpcPort;
             }
 
-            // For dynamic ports, wait for server to be fully initialized and discover the actual assigned port
-            var maxAttempts = 10;
-            var delayMs = 500;
-            
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
-            {
-                var serverAddressesFeature = _server.Features.Get<IServerAddressesFeature>();
-                if (serverAddressesFeature?.Addresses != null && serverAddressesFeature.Addresses.Any())
-                {
-                    foreach (var address in serverAddressesFeature.Addresses)
-                    {
-                        Console.WriteLine($"Server address (attempt {attempt}): {address}");
-                        
-                        // Parse port from address like "http://[::]:5000" or "http://0.0.0.0:5000"
-                        if (Uri.TryCreate(address, UriKind.Absolute, out var uri))
-                        {
-                            if (uri.Port > 0)
-                            {
-                                Console.WriteLine($"Discovered actual gRPC port: {uri.Port}");
-                                return uri.Port;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"Server addresses not available yet (attempt {attempt}/{maxAttempts}), waiting...");
-                }
-
-                if (attempt < maxAttempts)
-                {
-                    Thread.Sleep(delayMs);
-                }
-            }
-
-            Console.WriteLine($"Could not discover actual port after {maxAttempts} attempts, falling back to Program.GrpcPort: {Program.GrpcPort}");
-            return Program.GrpcPort;
+            // For dynamic ports, discover the actual assigned port
+            var discoveredPort = DiscoverDynamicPort();
+            return discoveredPort > 0 ? discoveredPort : Program.GrpcPort;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error discovering actual gRPC port: {ex.Message}");
             return Program.GrpcPort;
         }
+    }
+
+    /// <summary>
+    /// Attempts to discover the dynamically assigned port from server features
+    /// </summary>
+    private int DiscoverDynamicPort()
+    {
+        const int maxAttempts = 10;
+        const int delayMs = 500;
+        
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var discoveredPort = TryGetPortFromServerAddresses(attempt, maxAttempts);
+            if (discoveredPort > 0)
+            {
+                return discoveredPort;
+            }
+
+            if (attempt < maxAttempts)
+            {
+                Thread.Sleep(delayMs);
+            }
+        }
+
+        Console.WriteLine($"Could not discover actual port after {maxAttempts} attempts, falling back to Program.GrpcPort: {Program.GrpcPort}");
+        return -1;
+    }
+
+    /// <summary>
+    /// Attempts to extract port from server addresses feature
+    /// </summary>
+    private int TryGetPortFromServerAddresses(int attempt, int maxAttempts)
+    {
+        var serverAddressesFeature = _server.Features.Get<IServerAddressesFeature>();
+        if (serverAddressesFeature?.Addresses == null || !serverAddressesFeature.Addresses.Any())
+        {
+            Console.WriteLine($"Server addresses not available yet (attempt {attempt}/{maxAttempts}), waiting...");
+            return -1;
+        }
+
+        foreach (var address in serverAddressesFeature.Addresses)
+        {
+            Console.WriteLine($"Server address (attempt {attempt}): {address}");
+            
+            var port = ExtractPortFromAddress(address);
+            if (port > 0)
+            {
+                return port;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Extracts port number from server address string
+    /// </summary>
+    private static int ExtractPortFromAddress(string address)
+    {
+        // Parse port from address like "http://[::]:5000" or "http://0.0.0.0:5000"
+        if (Uri.TryCreate(address, UriKind.Absolute, out var uri) && uri.Port > 0)
+        {
+            Console.WriteLine($"Discovered actual gRPC port: {uri.Port}");
+            return uri.Port;
+        }
+
+        return -1;
     }
 
     /// <summary>
