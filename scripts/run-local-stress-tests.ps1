@@ -632,30 +632,19 @@ try {
                     $completionReason = "MessageCountReached"
                     break
                 } else {
-                    $remainingSeconds = $maxWaitSeconds - ((Get-Date) - $waitStartTime).TotalSeconds
+                    # Display progress using Redis counter directly (per second tracking)
                     $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
+                    $currentTime = Get-Date
+                    $timeSinceLastProgress = ($currentTime - $lastProgressTime).TotalSeconds
                     
-                    # Only log progress every 10% milestones to prevent spam
-                    # Special handling: log once at 0%, then only at 10%, 20%, etc.
-                    $shouldLog = $false
-                    if ($currentCount -eq 0 -and $counterNotInitializedAttempts -eq 0) {
-                        $shouldLog = $true  # Log once when first reaching 0
-                    } elseif ($currentCount -gt 0 -and $progressPercent % 10 -eq 0) {
-                        $shouldLog = $true  # Log at 10%, 20%, 30%, etc.
-                    } elseif ($currentCount -gt 0 -and $currentCount % [math]::Max(1, $expectedMessages / 10) -eq 0) {
-                        $shouldLog = $true  # Log at message count milestones
-                    }
-                    
-                    if ($shouldLog) {
-                        # Calculate message rate like producer script
+                    # Print progress per second
+                    if ($timeSinceLastProgress -ge 1.0) {
                         if ($processingStartTime -and $messageProcessingStarted) {
-                            $elapsedProcessingSeconds = ((Get-Date) - $processingStartTime).TotalSeconds
+                            $elapsedProcessingSeconds = ($currentTime - $processingStartTime).TotalSeconds
                             $rate = if ($elapsedProcessingSeconds -gt 0) { [math]::Round($currentCount / $elapsedProcessingSeconds, 0) } else { 0 }
-                            Write-Host "📊 [PROGRESS] Processed=$($currentCount.ToString('N0')) / $($expectedMessages.ToString('N0'))  Rate=$($rate.ToString('N0')) msg/sec  Progress=$progressPercent%"
-                        } else {
-                            Write-Host "📊 Current message count: $currentCount / $expectedMessages"
-                            Write-Host "⏳ Progress: $progressPercent% (${remainingSeconds:F0}s remaining)"
+                            Write-Host "[PROGRESS] Sent=$($currentCount.ToString('N0'))  Rate=$($rate.ToString('N0')) msg/sec"
                         }
+                        $lastProgressTime = $currentTime
                     }
                 }
             } else {

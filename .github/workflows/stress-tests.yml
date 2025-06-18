@@ -641,35 +641,22 @@ jobs:
                   Write-Host "🚀 Message processing started! FlinkJobSimulator is consuming messages..."
                 }
                 
-                # Check for FlinkJobSimulator progress logs and display them
-                try {
-                  if (Test-Path "flinkjobsimulator_display.log") {
-                    $displayContent = Get-Content "flinkjobsimulator_display.log" -Raw -ErrorAction SilentlyContinue
-                    if ($displayContent -and $displayContent.Trim()) {
-                      # Only show progress if it's different from last time
-                      if ($displayContent -ne $script:lastDisplayContent) {
-                        Write-Host $displayContent.Trim()
-                        $script:lastDisplayContent = $displayContent
-                      }
-                    }
+                # Display progress using Redis counter directly (per second tracking)
+                $progressPercent = [math]::Round(($currentCount / $expectedMessages) * 100, 1)
+                $currentTime = Get-Date
+                $timeSinceLastProgress = ($currentTime - $lastProgressTime).TotalSeconds
+                
+                # Print progress per second
+                if ($timeSinceLastProgress -ge 1.0) {
+                  if ($processingStartTime -and $messageProcessingStarted) {
+                    $elapsedProcessingSeconds = ($currentTime - $processingStartTime).TotalSeconds
+                    $rate = if ($elapsedProcessingSeconds -gt 0) { [math]::Round($currentCount / $elapsedProcessingSeconds, 0) } else { 0 }
+                    Write-Host "[PROGRESS] Sent=$($currentCount.ToString('N0'))  Rate=$($rate.ToString('N0')) msg/sec"
                   }
-                } catch {
-                  # Ignore display log read errors - fall back to Redis-based display
+                  $lastProgressTime = $currentTime
                 }
                 
                 if ($currentCount -ge $expectedMessages) {
-                  # Check for completion log and display it
-                  try {
-                    if (Test-Path "flinkjobsimulator_display.log") {
-                      $displayContent = Get-Content "flinkjobsimulator_display.log" -Raw -ErrorAction SilentlyContinue
-                      if ($displayContent -and $displayContent.Trim() -and $displayContent.Contains("[FINISH]")) {
-                        Write-Host $displayContent.Trim()
-                      }
-                    }
-                  } catch {
-                    # Ignore completion log read errors - use fallback
-                  }
-                  
                   # Calculate final rate like producer script
                   if ($processingStartTime) {
                     $totalProcessingTime = ((Get-Date) - $processingStartTime).TotalSeconds
