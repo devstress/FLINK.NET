@@ -26,7 +26,8 @@
 #>
 
 param(
-    [int]$ExpectedMessages = $env:SIMULATOR_NUM_MESSAGES -as [int] ?? 1000000,
+    [string]$ExpectedMessagesString = $env:SIMULATOR_NUM_MESSAGES ?? "1000000",
+    [int]$ExpectedMessages = [int]$ExpectedMessagesString,
     [string]$RedisCounterKey = $env:SIMULATOR_REDIS_KEY_SINK_COUNTER ?? "flinkdotnet:sample:processed_message_counter",
     [int]$MaxWaitSeconds = 10,
     [int]$CheckIntervalSeconds = 1
@@ -118,6 +119,7 @@ while (-not $completed) {
         
         if ($counterValue -match '^\d+$') {
             $currentCount = [int]$counterValue
+            Write-Host "💡 Found `"$RedisCounterKey`" = $currentCount"
             
             # Progress stall detection and dynamic timeout extension
             if ($currentCount -ne $lastMessageCount) {
@@ -166,9 +168,7 @@ while (-not $completed) {
             if ($currentCount -ge $expectedMessages) {
                 # Calculate final rate like producer script
                 if ($processingStartTime) {
-                    $totalProcessingTime = ((Get-Date) - $processingStartTime).TotalSeconds
-                    $finalRate = if ($totalProcessingTime -gt 0) { [math]::Round($currentCount / $totalProcessingTime, 0) } else { 0 }
-                    Write-Host "✅ [FINISH] FlinkJobSimulator completed! Total: $($currentCount.ToString('N0')) Time: $($totalProcessingTime.ToString('F3'))s Rate: $($finalRate.ToString('N0')) msg/sec"
+                    Write-Host "✅ [FINISH] FlinkJobSimulator completed! Total: $($currentCount.ToString('N0'))"
                 } else {
                     Write-Host "✅ FlinkJobSimulator completed message processing! Messages processed: $currentCount"
                 }
