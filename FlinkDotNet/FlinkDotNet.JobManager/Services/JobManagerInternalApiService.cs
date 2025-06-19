@@ -115,16 +115,16 @@ namespace FlinkDotNet.JobManager.Services
 
                     try
                     {
-                        // Use HTTPS by default for security (S5332 compliance)
-                        // For development/internal networks, this could be configurable
-                        var channelAddress = $"https://{targetTm.Address}:{targetTm.Port}";
+                        // Use Aspire service discovery for TaskManager communication
+                        var channelAddress = ResolveTaskManagerAddress(targetTm);
                         using var channel = GrpcChannel.ForAddress(channelAddress);
                         var client = new global::FlinkDotNet.Proto.Internal.TaskExecution.TaskExecutionClient(channel);
                         _ = client.DeployTaskAsync(tdd, deadline: System.DateTime.UtcNow.AddSeconds(10));
                         _logger.LogDebug(
-                            "DeployTask call initiated for '{TaskName}' to TM {TaskManagerId}.",
+                            "DeployTask call initiated for '{TaskName}' to TM {TaskManagerId} at {ChannelAddress}.",
                             tdd.TaskName,
-                            targetTm.TaskManagerId);
+                            targetTm.TaskManagerId,
+                            channelAddress);
                     }
                     catch (System.Exception ex)
                     {
@@ -142,6 +142,63 @@ namespace FlinkDotNet.JobManager.Services
                 "All tasks for job {JobName} (ID: {JobId}) have been (attempted) deployed.",
                 jobGraph.JobName,
                 jobGraph.JobId);
+        }
+
+        /// <summary>
+        /// Resolve TaskManager address using Aspire service discovery
+        /// </summary>
+        private string ResolveTaskManagerAddress(TaskManagerInfo taskManager)
+        {
+            try
+            {
+                // In Aspire environment, use service name from registered address
+                var serviceName = taskManager.Address;
+                
+                // Check if this is a service name pattern (taskmanager1, taskmanager2, etc.)
+                if (serviceName.StartsWith("taskmanager") && char.IsDigit(serviceName.Last()))
+                {
+                    // Try Aspire service discovery environment variables
+                    var aspireHttpsUrl = Environment.GetEnvironmentVariable($"services__{serviceName}__https__0");
+                    if (!string.IsNullOrEmpty(aspireHttpsUrl))
+                    {
+                        _logger.LogDebug("Using Aspire HTTPS service discovery for {ServiceName}: {Url}", serviceName, aspireHttpsUrl);
+                        return aspireHttpsUrl;
+                    }
+
+                    var aspireHttpUrl = Environment.GetEnvironmentVariable($"services__{serviceName}__http__0");
+                    if (!string.IsNullOrEmpty(aspireHttpUrl))
+                    {
+                        _logger.LogDebug("Using Aspire HTTP service discovery for {ServiceName}: {Url}", serviceName, aspireHttpUrl);
+                        return aspireHttpUrl;
+                    }
+
+                    // Try alternative Aspire patterns
+                    var aspireConnectionString = Environment.GetEnvironmentVariable($"ConnectionStrings__{serviceName}");
+                    if (!string.IsNullOrEmpty(aspireConnectionString))
+                    {
+                        _logger.LogDebug("Using Aspire connection string for {ServiceName}: {Url}", serviceName, aspireConnectionString);
+                        return aspireConnectionString;
+                    }
+                }
+
+                // Determine protocol based on environment
+                var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
+                var protocol = string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase) ? "http" : "https";
+                
+                // Fallback to registered address and port
+                var fallbackAddress = $"{protocol}://{taskManager.Address}:{taskManager.Port}";
+                _logger.LogDebug("Using fallback address for TaskManager {TaskManagerId}: {Address}", taskManager.TaskManagerId, fallbackAddress);
+                return fallbackAddress;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resolving TaskManager address for {TaskManagerId}, using fallback", taskManager.TaskManagerId);
+                
+                // Final fallback
+                var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
+                var protocol = string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase) ? "http" : "https";
+                return $"{protocol}://{taskManager.Address}:{taskManager.Port}";
+            }
         }
 
         public override Task<global::FlinkDotNet.Proto.Internal.SubmitJobReply> SubmitJob(global::FlinkDotNet.Proto.Internal.SubmitJobRequest request, ServerCallContext context)

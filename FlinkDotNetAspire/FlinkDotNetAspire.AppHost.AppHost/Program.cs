@@ -178,18 +178,29 @@ public static class Program
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
             .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true");
 
+        // Store TaskManager references for JobManager
+        var taskManagers = new List<IResourceBuilder<ProjectResource>>();
+
         // Add TaskManagers with dynamic port allocation
         for (int i = 1; i <= taskManagerCount; i++)
         {
             // Let Aspire/Kubernetes assign ports dynamically to avoid conflicts
             // Each TaskManager will get a unique port through Aspire service discovery
-            builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
+            var taskManager = builder.AddProject<Projects.FlinkDotNet_TaskManager>($"taskmanager{i}")
                 .WithEnvironment("TaskManagerId", $"TM-{i.ToString("D2")}")
                 .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
                 .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true")
                 .WithReference(jobManager) // Use service reference for proper Aspire discovery
                 .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Signal to use dynamic ports
+
+            taskManagers.Add(taskManager);
+        }
+
+        // Add all TaskManager references to JobManager for reverse service discovery
+        foreach (var taskManager in taskManagers)
+        {
+            jobManager.WithReference(taskManager);
         }
 
         return (simulatorNumMessages, jobManager);
