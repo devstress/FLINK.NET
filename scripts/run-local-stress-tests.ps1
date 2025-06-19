@@ -596,7 +596,14 @@ try {
         }
         try {
             $redisPort = if ($env:DOTNET_REDIS_PORT) { $env:DOTNET_REDIS_PORT } elseif ($env:DOTNET_REDIS_URL -match ':([0-9]+)$') { $Matches[1] } else { '6379' }
-            $redisCli = "redis-cli -h localhost -p $redisPort -a `\"$env:SIMULATOR_REDIS_PASSWORD`\""
+
+            if (Get-Command redis-cli -ErrorAction SilentlyContinue) {
+                $redisCli = "redis-cli -h localhost -p $redisPort -a `\"$env:SIMULATOR_REDIS_PASSWORD`\""
+            }
+            else {
+                $containerId = docker ps --filter 'ancestor=redis' --format '{{.ID}}' | Select-Object -First 1
+                $redisCli = "docker exec -i $containerId redis-cli -a `\"$env:SIMULATOR_REDIS_PASSWORD`\""
+            }
 
             # Check completion status first
             $statusCommand = "$redisCli get `\"flinkdotnet:job_completion_status`\""
