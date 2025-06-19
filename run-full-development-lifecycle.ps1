@@ -253,7 +253,9 @@ if (-not $SkipSonar) {
 
 # Start all tests as background jobs
 $jobs = @{}
+$jobStartTimes = @{}
 $progress = @{}
+$individualJobTimeout = if ($isCI) { 300 } else { 900 }  # 5 minutes for CI, 15 minutes for local
 
 foreach ($config in $testConfigs) {
     if ($config.Enabled) {
@@ -292,6 +294,7 @@ foreach ($config in $testConfigs) {
         } -ArgumentList $config.Script, $logPath, $rootPath
         
         $jobs[$config.Name] = $job
+        $jobStartTimes[$config.Name] = Get-Date
         $progress[$config.Name] = @{ Percentage = 0; Status = "Starting..." }
     }
 }
@@ -356,7 +359,10 @@ function Get-TestProgress($logPath, $testName) {
 # Main monitoring loop with progress bars
 $allCompleted = $false
 $refreshCount = 0
-$maxRefreshCount = 1800  # 1800 * 2 seconds = 60 minutes timeout
+# Adjust timeout based on environment
+$isCI = $env:GITHUB_ACTIONS -eq 'true' -or $env:CI -eq 'true'
+$maxRefreshCount = if ($isCI) { 300 } else { 1800 }  # 10 minutes for CI, 60 minutes for local
+Write-Host "Using timeout: $(($maxRefreshCount * 2 / 60).ToString('F1')) minutes" -ForegroundColor Gray
 
 while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
     $allCompleted = $true
@@ -392,6 +398,18 @@ while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
             $allCompleted = $false
             $activeJobs++
             
+            # Check for individual job timeout
+            $jobRunTime = (Get-Date) - $jobStartTimes[$testName]
+            if ($jobRunTime.TotalSeconds -gt $individualJobTimeout) {
+                Write-Host "[TIMEOUT] $testName exceeded timeout ($($individualJobTimeout)s), stopping job" -ForegroundColor Red
+                Stop-Job $job
+                Remove-Job $job
+                $jobs.Remove($testName)
+                $jobStartTimes.Remove($testName)
+                Write-Progress -Id ($testConfigs.IndexOf($config) + 1) -Activity $testName -Status "Timeout" -PercentComplete 100 -Completed
+                continue
+            }
+            
             # Get current progress
             $currentProgress = Get-TestProgress $logPath $testName
             $progress[$testName] = $currentProgress
@@ -405,12 +423,14 @@ while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
             Write-Host "[OK] $testName completed successfully" -ForegroundColor Green
             Remove-Job $job
             $jobs.Remove($testName)
+            $jobStartTimes.Remove($testName)
             
         } elseif ($job.State -eq "Failed") {
             Write-Progress -Id ($testConfigs.IndexOf($config) + 1) -Activity $testName -Status "Failed" -PercentComplete 100 -Completed  
             Write-Host "[ERROR] $testName failed" -ForegroundColor Red
             Remove-Job $job
             $jobs.Remove($testName)
+            $jobStartTimes.Remove($testName)
         } else {
             # Handle other job states (Stopped, Blocked, etc.)
             Write-Host "[WARNING] $testName in unexpected state: $($job.State)" -ForegroundColor Yellow

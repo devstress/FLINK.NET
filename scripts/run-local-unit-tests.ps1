@@ -36,6 +36,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$startTime = Get-Date
 Write-Host "=== FlinkDotNet Local Unit Tests ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor White
 Write-Host "Configuration: $Configuration" -ForegroundColor White

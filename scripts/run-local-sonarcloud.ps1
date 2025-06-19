@@ -38,6 +38,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$startTime = Get-Date
 Write-Host "=== FlinkDotNet Local SonarCloud Analysis ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor White
 Write-Host "Skip Analysis: $SkipAnalysis" -ForegroundColor White
