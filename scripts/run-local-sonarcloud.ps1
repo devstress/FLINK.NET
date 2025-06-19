@@ -66,7 +66,8 @@ try {
             throw "Java is required for SonarCloud analysis. Please install Java 11+ or use -SkipAnalysis."
         }
     } else {
-        Write-Host "✅ Java detected: $($javaVersion.Trim())" -ForegroundColor Green
+        $javaVersionString = if ($javaVersion -is [string]) { $javaVersion.Trim() } else { $javaVersion.ToString().Trim() }
+        Write-Host "✅ Java detected: $javaVersionString" -ForegroundColor Green
     }
 
     # Setup SonarScanner (only if needed)
