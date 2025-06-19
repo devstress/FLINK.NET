@@ -175,11 +175,20 @@ namespace FlinkJobSimulator
         private string ResolveJobManagerAddress()
         {
             // Try Aspire service reference first (when running in Aspire)
-            var aspireJobManagerUrl = _configuration["services:jobmanager:grpc:0"];
+            // Aspire creates connection strings in format: "services__jobmanager__grpc__0"
+            var aspireJobManagerUrl = _configuration.GetConnectionString("jobmanager");
             if (!string.IsNullOrEmpty(aspireJobManagerUrl))
             {
                 _logger.LogInformation("🔍 Using Aspire service discovery for JobManager: {AspireUrl}", aspireJobManagerUrl);
                 return aspireJobManagerUrl;
+            }
+
+            // Try alternative Aspire configuration keys
+            var aspireServiceUrl = _configuration["services:jobmanager:grpc:0"];
+            if (!string.IsNullOrEmpty(aspireServiceUrl))
+            {
+                _logger.LogInformation("🔍 Using Aspire service configuration for JobManager: {AspireUrl}", aspireServiceUrl);
+                return aspireServiceUrl;
             }
 
             // Try environment variable
@@ -190,9 +199,15 @@ namespace FlinkJobSimulator
                 return envJobManagerUrl;
             }
 
+            // Check if we have Aspire unsecured transport enabled
+            var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
+            var useInsecure = string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase);
+
             // Default fallback for local development
-            var defaultUrl = "https://localhost:8081";
-            _logger.LogInformation("🔍 Using default JobManager address: {DefaultUrl}", defaultUrl);
+            var protocol = useInsecure ? "http" : "https";
+            var defaultPort = useInsecure ? "50051" : "8081"; // Use gRPC default port 50051 for HTTP
+            var defaultUrl = $"{protocol}://localhost:{defaultPort}";
+            _logger.LogInformation("🔍 Using default JobManager address: {DefaultUrl} (unsecured: {UseInsecure})", defaultUrl, useInsecure);
             return defaultUrl;
         }
     }

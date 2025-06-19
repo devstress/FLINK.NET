@@ -89,10 +89,10 @@ public static class Program
         AddKafkaUIForLocalDevelopment(builder, kafka);
 
         // Configure Flink cluster based on environment
-        var simulatorNumMessages = ConfigureFlinkCluster(builder);
+        var (simulatorNumMessages, jobManager) = ConfigureFlinkCluster(builder);
 
         // Add and configure FlinkJobSimulator
-        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages, kafkaInit);
+        ConfigureFlinkJobSimulator(builder, redis, kafka, simulatorNumMessages, kafkaInit, jobManager);
 
         await builder.Build().RunAsync();
     }
@@ -167,7 +167,7 @@ public static class Program
         }
     }
 
-    private static string ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
+    private static (string simulatorNumMessages, IResourceBuilder<ProjectResource> jobManager) ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
     {
         var simulatorNumMessages = GetSimulatorMessageCount();
         var taskManagerCount = 20; // Always use 20 TaskManagers for Apache Flink 2.0 compliance and high-throughput 1M+ msg/sec processing
@@ -192,14 +192,15 @@ public static class Program
                 .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Signal to use dynamic ports
         }
 
-        return simulatorNumMessages;
+        return (simulatorNumMessages, jobManager);
     }
 
     private static void ConfigureFlinkJobSimulator(IDistributedApplicationBuilder builder,
         IResourceBuilder<RedisResource> redis,
         IResourceBuilder<KafkaServerResource> kafka,
         string simulatorNumMessages,
-        IResourceBuilder<ContainerResource> kafkaInit)
+        IResourceBuilder<ContainerResource> kafkaInit,
+        IResourceBuilder<ProjectResource> jobManager)
     {
         // Check if we should use Kafka source for TaskManager load testing
         var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
@@ -218,6 +219,7 @@ public static class Program
 
         var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
+            .WithReference(jobManager) // Makes JobManager gRPC endpoint discoverable via Aspire
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
@@ -226,7 +228,8 @@ public static class Program
             .WaitFor(redis) // Always wait for Redis since we need it even in simplified mode
             .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WaitFor(kafka) // Wait for Kafka to be ready
-            .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+            .WaitFor(kafkaInit) // Wait for Kafka initialization (topics created) to complete
+            .WaitFor(jobManager); // Wait for JobManager to be ready before starting job submission
 
         // Pass simplified mode flag if set
         var useSimplifiedModeEnv = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
