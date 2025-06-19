@@ -766,6 +766,31 @@ jobs:
                 Write-Host "`n📋 $($logFile.Name): Log file not found" -ForegroundColor Yellow
               }
             }
+
+            # Print FlinkJobSimulator, JobManager and up to 20 TaskManager logs for debugging
+            $logsToPrint = @(
+              "aspire-logs/flinkjobsimulator.log",
+              "aspire-logs/jobmanager.log"
+            )
+
+            # Limit output to the most recent 20 TaskManager logs to avoid flooding
+            $allTaskManagerLogs = Get-ChildItem "aspire-logs" -Filter "taskmanager*.log" -ErrorAction SilentlyContinue
+            $taskManagerLogs = $allTaskManagerLogs | Sort-Object LastWriteTime -Descending | Select-Object -First 20
+            if ($allTaskManagerLogs.Count -gt $taskManagerLogs.Count) {
+              Write-Host "Displaying most recent $($taskManagerLogs.Count) of $($allTaskManagerLogs.Count) TaskManager logs..."
+            }
+            foreach ($tmLog in $taskManagerLogs) {
+              $logsToPrint += $tmLog.FullName
+            }
+
+            foreach ($logPath in $logsToPrint) {
+              if (Test-Path $logPath) {
+                Write-Host "`n=== Contents of $logPath ===" -ForegroundColor Cyan
+                Get-Content $logPath -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+              } else {
+                Write-Host "`nLog file not found: $logPath" -ForegroundColor Yellow
+              }
+            }
             
           } else {
             Write-Host "❌ No aspire-logs directory found - log capture may have failed" -ForegroundColor Red
