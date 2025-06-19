@@ -16,6 +16,10 @@
       <PrivateAssets>All</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="StackExchange.Redis" Version="2.8.16" />
+    <PackageReference Include="Confluent.Kafka" Version="2.10.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
   </ItemGroup>
 
   <!-- gRPC service and message types are provided by the JobManager project
@@ -24,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FlinkDotNet.Connectors.Sources.File\FlinkDotNet.Connectors.Sources.File.csproj" />
+    <ProjectReference Include="..\FlinkDotNet.Connectors.Sources.Kafka\FlinkDotNet.Connectors.Sources.Kafka.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Connectors.Sinks.Console\FlinkDotNet.Connectors.Sinks.Console.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Storage.FileSystem\FlinkDotNet.Storage.FileSystem.csproj" />
     <ProjectReference Include="..\FlinkDotNet.Core\FlinkDotNet.Core.csproj" />

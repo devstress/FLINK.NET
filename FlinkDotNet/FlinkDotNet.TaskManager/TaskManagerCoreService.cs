@@ -281,11 +281,26 @@ namespace FlinkDotNet.TaskManager
     /// <summary>
     /// Get the TaskManager address for registration - supports Aspire/K8s environments
     /// </summary>
-    private static string GetTaskManagerAddress()
+    private string GetTaskManagerAddress()
     {
         try
         {
-            // In Aspire/K8s environments, use the pod/container IP if available
+            // In Aspire environments, use the service name that JobManager can reach
+            // Get the TaskManager ID to determine the service name
+            var taskManagerId = _config.TaskManagerId;
+            if (taskManagerId.StartsWith("TM-"))
+            {
+                // Convert TM-01 -> taskmanager1, TM-02 -> taskmanager2, etc.
+                var numberPart = taskManagerId.Substring(3); // Remove "TM-"
+                if (int.TryParse(numberPart, out var tmNumber))
+                {
+                    var serviceName = $"taskmanager{tmNumber}";
+                    Console.WriteLine($"Using Aspire service name: {serviceName}");
+                    return serviceName;
+                }
+            }
+
+            // Fallback: In Aspire/K8s environments, use the pod/container IP if available
             var aspireAddress = Environment.GetEnvironmentVariable("ASPIRE_TASKMANAGER_ADDRESS");
             if (!string.IsNullOrEmpty(aspireAddress))
             {
