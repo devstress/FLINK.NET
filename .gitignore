@@ -82,3 +82,6 @@ nunit-*.xml
 /scripts/apphost.err.log
 /scripts/apphost.out.log
 apphost_test.log
+
+# local apt package
+packages-microsoft-prod.deb

@@ -1,4 +1,4 @@
-#!/usr/bin/env powershell
+#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
     Complete Development Lifecycle Runner with Parallel Execution and Progress Tracking
@@ -21,11 +21,20 @@
     Show help message
 
 .EXAMPLE
-    powershell ./run-full-development-lifecycle.ps1
+    pwsh ./run-full-development-lifecycle.ps1
     
 .EXAMPLE
-    powershell ./run-full-development-lifecycle.ps1 -SkipSonar -SkipStress
+    pwsh ./run-full-development-lifecycle.ps1 -SkipSonar -SkipStress
 #>
+
+<#
+Workflows executed in parallel:
+1. Unit Tests - .github/workflows/unit-tests.yml
+2. SonarCloud Analysis - .github/workflows/sonarcloud.yml
+3. Stress Tests - .github/workflows/stress-tests.yml
+4. Integration Tests - .github/workflows/integration-tests.yml
+#>
+# Updated: Print Key Logs step now prints AppHost and container logs via bash
 
 param(
     [switch]$SkipSonar,
@@ -118,7 +127,7 @@ function Test-Command($command, $name, $url = $null) {
             'dotnet' { & dotnet --version 2>$null }
             'java' { (& java -version 2>&1)[0] -replace '.*"([^"]*)".*', '$1' }
             'docker' { (& docker --version 2>$null) -replace '.*version ([^,]*),.*', '$1' }
-            'powershell' { $PSVersionTable.PSVersion.ToString() }
+            'pwsh' { $PSVersionTable.PSVersion.ToString() }
             default { "found" }
         }
         Write-Host "[OK] $name : $version" -ForegroundColor Green
@@ -160,7 +169,7 @@ if (-not $SkipStress -or -not $SkipReliability) {
     }
 }
 
-$powershellOk = Test-Command 'powershell' 'PowerShell'
+$powershellOk = Test-Command 'pwsh' 'PowerShell'
 Write-Host "Prerequisites check completed." -ForegroundColor White
 Write-Host ""
 
@@ -208,6 +217,15 @@ if (-not (Test-Path $logsDir)) {
 $env:SIMULATOR_NUM_MESSAGES = if ($env:SIMULATOR_NUM_MESSAGES) { $env:SIMULATOR_NUM_MESSAGES } else { "1000000" }
 $env:FLINKDOTNET_STANDARD_TEST_MESSAGES = if ($env:FLINKDOTNET_STANDARD_TEST_MESSAGES) { $env:FLINKDOTNET_STANDARD_TEST_MESSAGES } else { "100000" }
 $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
+$env:MAX_ALLOWED_TIME_MS = if ($env:MAX_ALLOWED_TIME_MS) { $env:MAX_ALLOWED_TIME_MS } else { "300000" }
+$env:USE_SIMPLIFIED_MODE = if ($env:USE_SIMPLIFIED_MODE) { $env:USE_SIMPLIFIED_MODE } else { "false" }
+$env:DOTNET_ENVIRONMENT = if ($env:DOTNET_ENVIRONMENT) { $env:DOTNET_ENVIRONMENT } else { "Development" }
+$env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE = if ($env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE) { $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE } else { "flinkdotnet:global_sequence_id" }
+$env:SIMULATOR_REDIS_KEY_SINK_COUNTER = if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $env:SIMULATOR_REDIS_KEY_SINK_COUNTER } else { "flinkdotnet:sample:processed_message_counter" }
+$env:SIMULATOR_KAFKA_TOPIC = if ($env:SIMULATOR_KAFKA_TOPIC) { $env:SIMULATOR_KAFKA_TOPIC } else { "flinkdotnet.sample.topic" }
+$env:SIMULATOR_REDIS_PASSWORD = if ($env:SIMULATOR_REDIS_PASSWORD) { $env:SIMULATOR_REDIS_PASSWORD } else { "FlinkDotNet_Redis_CI_Password_2024" }
+$env:SIMULATOR_FORCE_RESET_TO_EARLIEST = if ($env:SIMULATOR_FORCE_RESET_TO_EARLIEST) { $env:SIMULATOR_FORCE_RESET_TO_EARLIEST } else { "true" }
+
 
 Write-Host "Starting parallel test execution with progress tracking..." -ForegroundColor White
 Write-Host ""
@@ -251,7 +269,7 @@ foreach ($config in $testConfigs) {
             try {
                 if ($scriptPath.EndsWith('.ps1')) {
                     # Use simple redirection for better compatibility
-                    & powershell -ExecutionPolicy Bypass -File $scriptPath 2>&1 | Out-File -FilePath $logPath -Encoding UTF8
+                    & pwsh -ExecutionPolicy Bypass -File $scriptPath 2>&1 | Out-File -FilePath $logPath -Encoding UTF8
                 } elseif ($scriptPath.EndsWith('.sh')) {
                     if ($IsWindows) {
                         # Use WSL or bash if available on Windows

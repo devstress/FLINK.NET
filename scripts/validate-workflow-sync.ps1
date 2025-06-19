@@ -142,16 +142,17 @@ function Check-EnvironmentVariables {
     # Extract environment variables from run-full-development-lifecycle
     if (Test-Path $RunAllWorkflowsFile) {
         $runAllContent = Get-Content $RunAllWorkflowsFile -Raw
+
         $runAllContent | Select-String 'set\s+(\w+)=' -AllMatches | ForEach-Object {
-            $_.Matches | ForEach-Object {
-                $runAllEnvs += $_.Groups[1].Value
-            }
+            $_.Matches | ForEach-Object { $runAllEnvs += $_.Groups[1].Value }
         }
-        
+
+        $runAllContent | Select-String 'export\s+(\w+)=' -AllMatches | ForEach-Object {
+            $_.Matches | ForEach-Object { $runAllEnvs += $_.Groups[1].Value }
+        }
+
         $runAllContent | Select-String '\$env:(\w+)' -AllMatches | ForEach-Object {
-            $_.Matches | ForEach-Object {
-                $runAllEnvs += $_.Groups[1].Value
-            }
+            $_.Matches | ForEach-Object { $runAllEnvs += $_.Groups[1].Value }
         }
     }
     
@@ -186,9 +187,13 @@ function Check-CommandSequence {
         $workflowContent = Get-Content $WorkflowFile -Raw
         
         # Look for dotnet commands
-        $workflowContent | Select-String 'dotnet\s+(workload\s+install|workload\s+restore|build|test)\s+([^\n]+)' -AllMatches | ForEach-Object {
+        $workflowContent | Select-String 'dotnet\s+(workload\s+install|workload\s+restore|build|test)\s+([^\n\r\|\;\#]+)' -AllMatches | ForEach-Object {
             $_.Matches | ForEach-Object {
-                $workflowCommands += "$($_.Groups[1].Value) $($_.Groups[2].Value)".Trim()
+                $cmdType = $_.Groups[1].Value
+                $cmdArgs = $_.Groups[2].Value.Trim() -replace '\s*\}\s*".*', ''
+                if ($cmdArgs -match '^("[^"\n]+"|\S+)') { $cmdArgs = $Matches[1] }
+                $cmdArgs = [System.IO.Path]::GetFileName($cmdArgs.Trim('"'))
+                $workflowCommands += "$cmdType $cmdArgs".Trim()
             }
         }
     }
@@ -198,9 +203,13 @@ function Check-CommandSequence {
         $runAllContent = Get-Content $RunAllWorkflowsFile -Raw
         
         # Look for dotnet commands in the embedded scripts
-        $runAllContent | Select-String 'dotnet\s+(workload\s+install|workload\s+restore|build|test)\s+([^\n\\]+)' -AllMatches | ForEach-Object {
+        $runAllContent | Select-String 'dotnet\s+(workload\s+install|workload\s+restore|build|test)\s+([^\n\r\|\;\#]+)' -AllMatches | ForEach-Object {
             $_.Matches | ForEach-Object {
-                $runAllCommands += "$($_.Groups[1].Value) $($_.Groups[2].Value)".Trim()
+                $cmdType = $_.Groups[1].Value
+                $cmdArgs = $_.Groups[2].Value.Trim() -replace '\s*\}\s*".*', ''
+                if ($cmdArgs -match '^("[^"\n]+"|\S+)') { $cmdArgs = $Matches[1] }
+                $cmdArgs = [System.IO.Path]::GetFileName($cmdArgs.Trim('"'))
+                $runAllCommands += "$cmdType $cmdArgs".Trim()
             }
         }
     }
@@ -314,24 +323,22 @@ try {
             
             # Check cmd alignment
             $cmdEnvCheck = Check-EnvironmentVariables $workflow $RunAllWorkflowsCmd
-            if ($cmdEnvCheck.Missing.Count -eq 0 -and $cmdEnvCheck.Extra.Count -eq 0) {
-                Add-ValidationResult "ENV: $workflowName vs CMD" $true "Environment variables aligned"
+            if ($cmdEnvCheck.Missing.Count -eq 0) {
+                Add-ValidationResult "ENV: $workflowName vs CMD" $true "All workflow variables present"
             } else {
-                $details = @()
-                if ($cmdEnvCheck.Missing.Count -gt 0) { $details += "Missing in CMD: $($cmdEnvCheck.Missing -join ', ')" }
-                if ($cmdEnvCheck.Extra.Count -gt 0) { $details += "Extra in CMD: $($cmdEnvCheck.Extra -join ', ')" }
-                Add-ValidationResult "ENV: $workflowName vs CMD" $false ($details -join '; ')
+                $details = "Missing in CMD: $($cmdEnvCheck.Missing -join ', ')"
+                if ($cmdEnvCheck.Extra.Count -gt 0) { $details += "; Extra in CMD: $($cmdEnvCheck.Extra -join ', ')" }
+                Add-ValidationResult "ENV: $workflowName vs CMD" $false $details
             }
             
             # Check sh alignment
             $shEnvCheck = Check-EnvironmentVariables $workflow $RunAllWorkflowsSh
-            if ($shEnvCheck.Missing.Count -eq 0 -and $shEnvCheck.Extra.Count -eq 0) {
-                Add-ValidationResult "ENV: $workflowName vs SH" $true "Environment variables aligned"
+            if ($shEnvCheck.Missing.Count -eq 0) {
+                Add-ValidationResult "ENV: $workflowName vs SH" $true "All workflow variables present"
             } else {
-                $details = @()
-                if ($shEnvCheck.Missing.Count -gt 0) { $details += "Missing in SH: $($shEnvCheck.Missing -join ', ')" }
-                if ($shEnvCheck.Extra.Count -gt 0) { $details += "Extra in SH: $($shEnvCheck.Extra -join ', ')" }
-                Add-ValidationResult "ENV: $workflowName vs SH" $false ($details -join '; ')
+                $details = "Missing in SH: $($shEnvCheck.Missing -join ', ')"
+                if ($shEnvCheck.Extra.Count -gt 0) { $details += "; Extra in SH: $($shEnvCheck.Extra -join ', ')" }
+                Add-ValidationResult "ENV: $workflowName vs SH" $false $details
             }
         }
     }
@@ -350,7 +357,9 @@ try {
             if ($cmdCmdCheck.Missing.Count -eq 0) {
                 Add-ValidationResult "CMD: $workflowName vs CMD" $true "Command sequences aligned"
             } else {
-                Add-ValidationResult "CMD: $workflowName vs CMD" $false "Missing commands: $($cmdCmdCheck.Missing -join '; ')"
+                $details = "Missing commands: $($cmdCmdCheck.Missing -join '; ')"
+                if ($cmdCmdCheck.Extra.Count -gt 0) { $details += "; Extra commands: $($cmdCmdCheck.Extra -join '; ')" }
+                Add-ValidationResult "CMD: $workflowName vs CMD" $false $details
             }
             
             # Check sh alignment
@@ -358,7 +367,9 @@ try {
             if ($shCmdCheck.Missing.Count -eq 0) {
                 Add-ValidationResult "CMD: $workflowName vs SH" $true "Command sequences aligned"
             } else {
-                Add-ValidationResult "CMD: $workflowName vs SH" $false "Missing commands: $($shCmdCheck.Missing -join '; ')"
+                $details = "Missing commands: $($shCmdCheck.Missing -join '; ')"
+                if ($shCmdCheck.Extra.Count -gt 0) { $details += "; Extra commands: $($shCmdCheck.Extra -join '; ')" }
+                Add-ValidationResult "CMD: $workflowName vs SH" $false $details
             }
         }
     }

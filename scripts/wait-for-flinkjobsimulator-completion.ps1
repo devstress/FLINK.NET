@@ -22,8 +22,10 @@ while ($true) {
     $elapsed = ($now - $startTime).TotalSeconds
     $effectiveTimeout = $MaxWaitSeconds + $dynamicTimeoutExtension
 
-    # Get Redis counter value
-    $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis:7.4' | Select-Object -First 1) redis-cli -a FlinkDotNet_Redis_CI_Password_2024 get `"$RedisCounterKey`""
+    # Get Redis counter value using host-mapped port
+    $redisPort = if ($env:DOTNET_REDIS_PORT) { $env:DOTNET_REDIS_PORT } elseif ($env:DOTNET_REDIS_URL -match ':([0-9]+)$') { $Matches[1] } else { '6379' }
+    Write-Host "Using Redis port $redisPort" -ForegroundColor Gray
+    $redisCommand = "redis-cli -h localhost -p $redisPort -a FlinkDotNet_Redis_CI_Password_2024 get `"$RedisCounterKey`""
     try {
         $counterValue = Invoke-Expression $redisCommand 2>$null
     } catch {
