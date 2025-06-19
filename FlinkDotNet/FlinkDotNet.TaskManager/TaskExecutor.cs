@@ -6,7 +6,6 @@ using FlinkDotNet.Proto.Internal;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using FlinkDotNet.Core.Abstractions.Sources;
-using FlinkDotNet.Core.Abstractions.Windowing;
 
 namespace FlinkDotNet.TaskManager
 {
@@ -48,14 +47,14 @@ namespace FlinkDotNet.TaskManager
                 // Since we're using a simplified architecture, we'll use the combined Kafka-to-Redis operator
                 await ExecuteKafkaToRedisTask(descriptor, operatorConfig, cancellationToken);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
-                _logger?.LogInformation("[TaskExecutor] Task '{TaskName}' was cancelled", descriptor.TaskName);
+                _logger?.LogInformation(ex, "[TaskExecutor] Task '{TaskName}' was cancelled", descriptor.TaskName);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "[TaskExecutor] Task '{TaskName}' failed with error", descriptor.TaskName);
-                throw;
+                throw new InvalidOperationException($"Task '{descriptor.TaskName}' execution failed on TaskManager {_taskManagerId}", ex);
             }
         }
 
@@ -69,13 +68,13 @@ namespace FlinkDotNet.TaskManager
 
             try
             {
-                // Extract configuration
-                var topic = config.TryGetValue("topic", out var topicObj) ? topicObj.ToString() : "flinkdotnet.sample.topic";
-                var consumerGroupId = config.TryGetValue("consumerGroupId", out var groupObj) ? groupObj.ToString() : "flinkdotnet-consumer-group";
+                // Extract configuration with null checks
+                var topic = config.TryGetValue("topic", out var topicObj) ? topicObj?.ToString() ?? "flinkdotnet.sample.topic" : "flinkdotnet.sample.topic";
+                var consumerGroupId = config.TryGetValue("consumerGroupId", out var groupObj) ? groupObj?.ToString() ?? "flinkdotnet-consumer-group" : "flinkdotnet-consumer-group";
                 var redisSinkCounterKey = config.TryGetValue("redisSinkCounterKey", out var counterObj) ? 
-                    counterObj.ToString() : "flinkdotnet:sample:processed_message_counter";
+                    counterObj?.ToString() ?? "flinkdotnet:sample:processed_message_counter" : "flinkdotnet:sample:processed_message_counter";
                 var globalSequenceKey = config.TryGetValue("globalSequenceKey", out var seqObj) ? 
-                    seqObj.ToString() : "flinkdotnet:global_sequence_id";
+                    seqObj?.ToString() ?? "flinkdotnet:global_sequence_id" : "flinkdotnet:global_sequence_id";
                 var expectedMessages = config.TryGetValue("expectedMessages", out var expectedObj) ? 
                     Convert.ToInt32(expectedObj) : 1000000;
 
@@ -101,7 +100,7 @@ namespace FlinkDotNet.TaskManager
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "[TaskExecutor] Kafka-to-Redis task failed on TaskManager {TaskManagerId}", _taskManagerId);
-                throw;
+                throw new InvalidOperationException($"Kafka-to-Redis task execution failed on TaskManager {_taskManagerId}", ex);
             }
         }
 

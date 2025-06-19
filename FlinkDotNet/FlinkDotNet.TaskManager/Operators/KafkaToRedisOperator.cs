@@ -1,7 +1,5 @@
 using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Checkpointing;
-using FlinkDotNet.Core.Abstractions.Context;
-using FlinkDotNet.Core.Abstractions.Windowing;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -79,7 +77,7 @@ namespace FlinkDotNet.TaskManager.Operators
                         if (consumeResult != null && !consumeResult.IsPartitionEOF)
                         {
                             // Process message: increment Redis counters
-                            await ProcessMessageAsync(consumeResult.Message.Value);
+                            await ProcessMessageAsync();
                             
                             // Update checkpoint state
                             lock (_checkpointLock)
@@ -88,7 +86,7 @@ namespace FlinkDotNet.TaskManager.Operators
                             }
 
                             // Emit to source context for potential downstream operators
-                            ctx.Collect(consumeResult.Message.Value);
+                            await ctx.CollectAsync(consumeResult.Message.Value);
                         }
                     }
                     catch (ConsumeException ex)
@@ -117,7 +115,7 @@ namespace FlinkDotNet.TaskManager.Operators
                     }
                     catch { /* Ignore errors when reporting errors */ }
                 }
-                throw;
+                throw new InvalidOperationException($"Kafka-to-Redis operator failed on TaskManager {_taskManagerId}", ex);
             }
             finally
             {
@@ -164,7 +162,7 @@ namespace FlinkDotNet.TaskManager.Operators
             _logger?.LogInformation("✅ TaskManager {TaskManagerId}: Kafka consumer initialized for topic '{Topic}'", _taskManagerId, _topic);
         }
 
-        private async Task ProcessMessageAsync(string message)
+        private async Task ProcessMessageAsync()
         {
             if (_redisDatabase == null) return;
 
