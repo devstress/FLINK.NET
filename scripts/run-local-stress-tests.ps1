@@ -595,8 +595,18 @@ try {
             break
         }
         try {
+            $redisPort = if ($env:DOTNET_REDIS_PORT) { $env:DOTNET_REDIS_PORT } elseif ($env:DOTNET_REDIS_URL -match ':([0-9]+)$') { $Matches[1] } else { '6379' }
+
+            if (Get-Command redis-cli -ErrorAction SilentlyContinue) {
+                $redisCli = "redis-cli -h localhost -p $redisPort -a `\"$env:SIMULATOR_REDIS_PASSWORD`\""
+            }
+            else {
+                $containerId = docker ps --filter 'ancestor=redis' --format '{{.ID}}' | Select-Object -First 1
+                $redisCli = "docker exec -i $containerId redis-cli -a `\"$env:SIMULATOR_REDIS_PASSWORD`\""
+            }
+
             # Check completion status first
-            $statusCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_completion_status`""
+            $statusCommand = "$redisCli get `\"flinkdotnet:job_completion_status`\""
             $completionStatus = Invoke-Expression $statusCommand 2>$null
             
             if ($completionStatus -eq "SUCCESS") {
@@ -612,7 +622,7 @@ try {
             }
             
             # Check for execution errors
-            $errorCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"flinkdotnet:job_execution_error`""
+            $errorCommand = "$redisCli get `\"flinkdotnet:job_execution_error`\""
             $errorValue = Invoke-Expression $errorCommand 2>$null
             if ($errorValue -and $errorValue -ne "(nil)") {
                 Write-Host "❌ Found job execution error in Redis: $errorValue"
@@ -622,7 +632,7 @@ try {
             }
             
             # Check message counter progress
-            $redisCommand = "docker exec -i $(docker ps -q --filter 'ancestor=redis' | Select-Object -First 1) redis-cli -a `"$env:SIMULATOR_REDIS_PASSWORD`" get `"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`""
+            $redisCommand = "$redisCli get `\"$env:SIMULATOR_REDIS_KEY_SINK_COUNTER`\""
             $counterValue = Invoke-Expression $redisCommand 2>$null
             
             if ($counterValue -match '^\d+$') {
@@ -891,6 +901,64 @@ try {
             if ($warningCount) { Write-Host "  ⚠️ Total Warnings: $warningCount" -ForegroundColor Yellow }
             
             Write-Host "  📄 Full report available at: $reportPath" -ForegroundColor Gray
+        }
+        
+        # Step 9: Print Key Logs for Debugging (matches workflow)
+        Write-Host "`n=== Step 9: Print Key Logs for Debugging ===" -ForegroundColor Yellow
+        $flinkSimLog = 'aspire-logs/flinkjobsimulator.log'
+        $jobManagerLog = 'aspire-logs/jobmanager.log'
+        $taskManagerLog = 'aspire-logs/taskmanager.log'
+        $appHostOut = 'apphost.out.log'
+        $appHostErr = 'apphost.err.log'
+        $redisContainerLog = 'aspire-logs/redis-container.log'
+        $kafkaContainerLog = 'aspire-logs/kafka-container.log'
+
+        if (Test-Path $flinkSimLog) {
+            Write-Host "`n📄 FlinkJobSimulator Log:" -ForegroundColor Cyan
+            Get-Content $flinkSimLog | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of FlinkJobSimulator --" -ForegroundColor Gray
+        } else {
+            Write-Host "`n⚠️ FlinkJobSimulator log not found" -ForegroundColor Yellow
+        }
+
+        if (Test-Path $jobManagerLog) {
+            Write-Host "`n📄 JobManager Log:" -ForegroundColor Cyan
+            Get-Content $jobManagerLog | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of JobManager --" -ForegroundColor Gray
+        } else {
+            Write-Host "`n⚠️ JobManager log not found" -ForegroundColor Yellow
+        }
+
+        if (Test-Path $taskManagerLog) {
+            Write-Host "`n📄 TaskManagers Log (last 20 lines):" -ForegroundColor Cyan
+            Get-Content $taskManagerLog -Tail 20 | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of TaskManagers --" -ForegroundColor Gray
+        } else {
+            Write-Host "`n⚠️ TaskManagers log not found" -ForegroundColor Yellow
+        }
+
+        if (Test-Path $appHostOut) {
+            Write-Host "`n📄 AppHost Output Log (last 20 lines):" -ForegroundColor Cyan
+            Get-Content $appHostOut -Tail 20 | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of AppHost Output --" -ForegroundColor Gray
+        }
+
+        if (Test-Path $appHostErr) {
+            Write-Host "`n📄 AppHost Error Log (last 20 lines):" -ForegroundColor Cyan
+            Get-Content $appHostErr -Tail 20 | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of AppHost Error --" -ForegroundColor Gray
+        }
+
+        if (Test-Path $redisContainerLog) {
+            Write-Host "`n📄 Redis Container Log (last 20 lines):" -ForegroundColor Cyan
+            Get-Content $redisContainerLog -Tail 20 | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of Redis Container --" -ForegroundColor Gray
+        }
+
+        if (Test-Path $kafkaContainerLog) {
+            Write-Host "`n📄 Kafka Container Log (last 20 lines):" -ForegroundColor Cyan
+            Get-Content $kafkaContainerLog -Tail 20 | ForEach-Object { Write-Host $_ }
+            Write-Host "-- End of Kafka Container --" -ForegroundColor Gray
         }
     } else {
         Write-Host "⚠️ No Aspire logs directory found" -ForegroundColor Yellow

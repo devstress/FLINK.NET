@@ -781,3 +781,56 @@ jobs:
           }
           
           Write-Host "`n📋 === LOG COLLECTION COMPLETE ===" -ForegroundColor Cyan
+
+      - name: Print Key Logs for Debugging
+        if: always()
+        run: |
+          set -e
+          if [ -f aspire-logs/flinkjobsimulator.log ]; then
+            echo "\n📄 FlinkJobSimulator Log:"
+            cat aspire-logs/flinkjobsimulator.log
+            echo "-- End of FlinkJobSimulator --"
+          else
+            echo "\n⚠️ FlinkJobSimulator log not found" >&2
+          fi
+
+          if [ -f aspire-logs/jobmanager.log ]; then
+            echo "\n📄 JobManager Log:"
+            cat aspire-logs/jobmanager.log
+            echo "-- End of JobManager --"
+          else
+            echo "\n⚠️ JobManager log not found" >&2
+          fi
+
+          if [ -f aspire-logs/taskmanager.log ]; then
+            echo "\n📄 TaskManagers Log (last 20 lines):"
+            tail -n 20 aspire-logs/taskmanager.log
+            echo "-- End of TaskManagers --"
+          else
+            echo "\n⚠️ TaskManagers log not found" >&2
+          fi
+
+          if [ -f apphost.out.log ]; then
+            echo "\n📄 AppHost Output Log (last 20 lines):"
+            tail -n 20 apphost.out.log
+            echo "-- End of AppHost Output --"
+          fi
+
+          if [ -f apphost.err.log ]; then
+            echo "\n📄 AppHost Error Log (last 20 lines):"
+            tail -n 20 apphost.err.log
+            echo "-- End of AppHost Error --"
+          fi
+
+          if [ -f aspire-logs/redis-container.log ]; then
+            echo "\n📄 Redis Container Log (last 20 lines):"
+            tail -n 20 aspire-logs/redis-container.log
+            echo "-- End of Redis Container --"
+          fi
+
+          if [ -f aspire-logs/kafka-container.log ]; then
+            echo "\n📄 Kafka Container Log (last 20 lines):"
+            tail -n 20 aspire-logs/kafka-container.log
+            echo "-- End of Kafka Container --"
+          fi
+

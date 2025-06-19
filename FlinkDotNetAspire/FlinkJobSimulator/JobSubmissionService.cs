@@ -34,44 +34,49 @@ namespace FlinkJobSimulator
         /// </summary>
         public async Task<bool> SubmitKafkaToRedisStreamingJobAsync()
         {
-            try
+            _logger.LogInformation("🚀 Creating JobGraph for Kafka-to-Redis streaming job following Apache Flink 2.0 architecture");
+
+            var jobGraph = CreateKafkaToRedisJobGraph();
+
+            var request = new SubmitJobRequest
             {
-                _logger.LogInformation("🚀 Creating JobGraph for Kafka-to-Redis streaming job following Apache Flink 2.0 architecture");
-                
-                var jobGraph = CreateKafkaToRedisJobGraph();
-                
-                _logger.LogInformation("📤 Submitting JobGraph to JobManager at {JobManagerAddress}", _jobManagerAddress);
-                
-                using var channel = GrpcChannel.ForAddress(_jobManagerAddress);
-                var client = new JobManagerInternalService.JobManagerInternalServiceClient(channel);
-                
-                var request = new SubmitJobRequest
+                JobGraph = jobGraph
+            };
+
+            const int maxAttempts = 5;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
                 {
-                    JobGraph = jobGraph
-                };
-                
-                var response = await client.SubmitJobAsync(request);
-                
-                if (response.Success)
-                {
-                    _logger.LogInformation("✅ Job submitted successfully! JobId: {JobId}, Message: {Message}", 
-                        response.JobId, response.Message);
-                    
-                    // Write success state for stress test monitoring
-                    await Program.WriteRunningStateLogAsync();
-                    return true;
+                    _logger.LogInformation("📤 Attempt {Attempt}/{Max} submitting JobGraph to JobManager at {JobManagerAddress}", attempt, maxAttempts, _jobManagerAddress);
+
+                    using var channel = GrpcChannel.ForAddress(_jobManagerAddress);
+                    var client = new JobManagerInternalService.JobManagerInternalServiceClient(channel);
+
+                    var response = await client.SubmitJobAsync(request);
+
+                    if (response.Success)
+                    {
+                        _logger.LogInformation("✅ Job submitted successfully! JobId: {JobId}, Message: {Message}", response.JobId, response.Message);
+                        await Program.WriteRunningStateLogAsync();
+                        return true;
+                    }
+
+                    _logger.LogWarning("❌ Job submission attempt {Attempt} failed: {Message}", attempt, response.Message);
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.LogError("❌ Job submission failed: {Message}", response.Message);
-                    return false;
+                    _logger.LogWarning(ex, "⚠️ Job submission attempt {Attempt}/{Max} failed", attempt, maxAttempts);
+                }
+
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(2000);
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "💥 Failed to submit job to JobManager at {JobManagerAddress}", _jobManagerAddress);
-                return false;
-            }
+
+            _logger.LogError("❌ All attempts to submit job to JobManager at {JobManagerAddress} failed", _jobManagerAddress);
+            return false;
         }
 
         /// <summary>
@@ -191,12 +196,24 @@ namespace FlinkJobSimulator
                 return aspireServiceUrl;
             }
 
-            // Try environment variable
-            var envJobManagerUrl = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS");
+            // Try environment variable for full URL
+            var envJobManagerUrl = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS")
+                                   ?? Environment.GetEnvironmentVariable("DOTNET_JOBMANAGER_GRPC_ADDRESS");
             if (!string.IsNullOrEmpty(envJobManagerUrl))
             {
                 _logger.LogInformation("🔍 Using environment variable for JobManager: {EnvUrl}", envJobManagerUrl);
                 return envJobManagerUrl;
+            }
+
+            // Try environment variable for port only
+            var envPortString = Environment.GetEnvironmentVariable("DOTNET_JOBMANAGER_GRPC_PORT");
+            if (!string.IsNullOrEmpty(envPortString) && int.TryParse(envPortString, out var envPort))
+            {
+                var insecure = string.Equals(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT"), "true", StringComparison.OrdinalIgnoreCase);
+                var proto = insecure ? "http" : "https";
+                var envUrl = $"{proto}://localhost:{envPort}";
+                _logger.LogInformation("🔍 Using DOTNET_JOBMANAGER_GRPC_PORT to build JobManager URL: {EnvUrl}", envUrl);
+                return envUrl;
             }
 
             // Check if we have Aspire unsecured transport enabled
