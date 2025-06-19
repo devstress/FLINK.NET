@@ -90,6 +90,13 @@ done
 # Check if PowerShell Core is available
 if command -v pwsh &> /dev/null; then
     echo "[INFO] Using PowerShell Core..."
+    
+    # Add sequential mode for CI environments
+    if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+        PS_ARGS="$PS_ARGS -Sequential"
+        echo "[INFO] CI environment detected, using sequential execution mode"
+    fi
+    
     pwsh -File "$ROOT/run-full-development-lifecycle.ps1" $PS_ARGS
     exit_code=$?
 else
