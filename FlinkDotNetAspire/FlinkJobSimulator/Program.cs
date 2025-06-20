@@ -123,9 +123,11 @@ Architecture: Job is now running on 20 TaskManagers coordinated by JobManager
             var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
             var isCI = Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" || 
                       Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+            var ultraFastMode = Environment.GetEnvironmentVariable("STRESS_TEST_ULTRA_FAST_MODE")?.ToLowerInvariant() == "true";
             
             // Stress test mode is enabled if explicitly set OR if CI is running (since CI runs stress tests)
-            return stressTestMode || useKafkaSource || isCI;
+            // Ultra-fast mode specifically targets 1M messages in <5 seconds
+            return stressTestMode || useKafkaSource || isCI || ultraFastMode;
         }
         
         /// <summary>
@@ -192,11 +194,13 @@ Architecture: Job is now running on 20 TaskManagers coordinated by JobManager
             });
             
             // Add multiple TaskManagerKafkaConsumer instances for parallel processing
-            // Use Environment.ProcessorCount to determine optimal parallelism
+            // ULTRA-HIGH THROUGHPUT: Use Environment.ProcessorCount to determine optimal parallelism
+            // For 1M messages in <5 seconds target, we need ~200k+ msg/sec throughput
             var parallelConsumers = Environment.GetEnvironmentVariable("STRESS_TEST_CONSUMER_PARALLELISM");
-            var consumerCount = int.TryParse(parallelConsumers, out var parsed) ? parsed : Math.Max(4, Environment.ProcessorCount / 2);
+            var defaultConsumerCount = Math.Max(16, Environment.ProcessorCount * 2); // Aggressive parallelism for 5s target
+            var consumerCount = int.TryParse(parallelConsumers, out var parsed) ? parsed : defaultConsumerCount;
             
-            Console.WriteLine($"🚀 STRESS TEST: Starting {consumerCount} parallel consumers for maximum throughput");
+            Console.WriteLine($"🚀 ULTRA-FAST STRESS TEST: Starting {consumerCount} parallel consumers to achieve 1M messages in <5 seconds (target: 200k+ msg/sec)");
             
             for (int i = 0; i < consumerCount; i++)
             {

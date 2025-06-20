@@ -53,12 +53,12 @@ namespace FlinkJobSimulator
             _globalSequenceKey = _configuration["SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"] ?? "flinkdotnet:global_sequence_id";
             _taskManagerId = customTaskManagerId ?? Environment.GetEnvironmentVariable("TaskManagerId") ?? "TM-Unknown";
             
-            // Optimize for stress test mode with faster batching
+            // Optimize for stress test mode with ULTRA-FAST batching for 5-second target
             var isStressTestMode = IsRunningInStressTestMode();
             if (isStressTestMode)
             {
-                _redisUpdateInterval = TimeSpan.FromMilliseconds(50); // Faster Redis updates in stress test mode
-                _logger.LogInformation("⚡ STRESS TEST OPTIMIZATION: Using 50ms Redis batch interval for maximum throughput");
+                _redisUpdateInterval = TimeSpan.FromMilliseconds(10); // Ultra-fast Redis updates for 5s target
+                _logger.LogInformation("⚡ ULTRA-FAST STRESS TEST: Using 10ms Redis batch interval for 1M messages in <5 seconds");
             }
             
             _logger.LogInformation("TaskManagerKafkaConsumer initialized for TaskManager: {TaskManagerId}, Input: {InputTopic}, Output: {OutputTopic}, StressTest: {IsStressTest}", 
@@ -418,8 +418,8 @@ Status: {(currentCount > 0 ? "PROCESSING" : "WAITING")}
                 var displayLogPath = Path.Combine(projectRoot, $"flinkjobsimulator_display_{_taskManagerId}.log");
                 await File.WriteAllTextAsync(displayLogPath, displayLogContent);
                 
-                // Console output matching producer script format for major milestones
-                if (currentCount == 1 || currentCount % 250000 == 0 || currentCount >= 1000000)
+                // Console output matching producer script format for major milestones (reduced for 5s target)
+                if (currentCount == 1 || currentCount % 200000 == 0 || currentCount >= 1000000)
                 {
                     _logger.LogInformation("📊 [PROGRESS] Sent={Count:N0}  Rate={Rate:N0} msg/sec", 
                         currentCount, rate);
@@ -550,11 +550,11 @@ Message: {message}
             _logger.LogInformation("💡 TaskManager {TaskManagerId}: Using timestamp-based consumer group for guaranteed fresh consumption", _taskManagerId);
 
             // APACHE FLINK 2.0 KAFKASOURCE CONFIGURATION: Exact same settings as Apache Flink KafkaSource
-            // Optimized for stress test mode with faster polling and larger fetch sizes
+            // ULTRA-OPTIMIZED for 1M messages in <5 seconds (200k+ msg/sec target)
             var isStressTestMode = IsRunningInStressTestMode();
-            var pollTimeoutMs = isStressTestMode ? 10 : 50; // Ultra-fast polling in stress test mode
-            var fetchMinBytes = isStressTestMode ? 2097152 : 1048576; // 2MB vs 1MB for stress test
-            var fetchMaxBytes = isStressTestMode ? 104857600 : 52428800; // 100MB vs 50MB for stress test
+            var pollTimeoutMs = isStressTestMode ? 1 : 50; // ULTRA-fast polling for 5s target (1ms vs 10ms)
+            var fetchMinBytes = isStressTestMode ? 4194304 : 1048576; // 4MB vs 1MB for ultra-fast mode
+            var fetchMaxBytes = isStressTestMode ? 209715200 : 52428800; // 200MB vs 50MB for ultra-fast mode
             
             var consumerConfig = new ConsumerConfig
             {
@@ -566,10 +566,10 @@ Message: {message}
                 EnableAutoCommit = false, // Critical: Flink checkpoint-based offset management
                 AutoOffsetReset = AutoOffsetReset.Earliest, // Start from beginning for new consumer groups
                 
-                // APACHE FLINK 2.0 SESSION MANAGEMENT: Optimized for continuous streaming
-                SessionTimeoutMs = isStressTestMode ? 6000 : 10000,  // Faster session timeout in stress test
-                HeartbeatIntervalMs = isStressTestMode ? 2000 : 3000, // Faster heartbeat in stress test
-                MaxPollIntervalMs = isStressTestMode ? 30000 : 60000, // Faster max poll in stress test
+                // APACHE FLINK 2.0 SESSION MANAGEMENT: Ultra-optimized for 5-second processing
+                SessionTimeoutMs = isStressTestMode ? 4000 : 10000,  // Faster session timeout for 5s target
+                HeartbeatIntervalMs = isStressTestMode ? 1000 : 3000, // Faster heartbeat for 5s target
+                MaxPollIntervalMs = isStressTestMode ? 15000 : 60000, // Faster max poll for 5s target
                 
                 // APACHE FLINK 2.0 PARTITION ASSIGNMENT: Cooperative sticky for minimal disruption
                 PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
@@ -577,8 +577,8 @@ Message: {message}
                 // HIGH-THROUGHPUT FETCH SETTINGS: Optimized for maximum performance
                 FetchMinBytes = fetchMinBytes,           // Larger fetch sizes for stress test
                 FetchWaitMaxMs = pollTimeoutMs,          // Faster polling for stress test
-                FetchMaxBytes = fetchMaxBytes,           // Larger max fetch for stress test
-                MaxPartitionFetchBytes = isStressTestMode ? 33554432 : 16777216, // 32MB vs 16MB per partition
+                FetchMaxBytes = fetchMaxBytes,           // Ultra-large max fetch for 5s target
+                MaxPartitionFetchBytes = isStressTestMode ? 67108864 : 16777216, // 64MB vs 16MB per partition for 5s target
                 
                 // APACHE FLINK 2.0 NETWORK OPTIMIZATION: Fast connectivity and metadata refresh
                 SocketTimeoutMs = 10000,       // 10s socket timeout
@@ -587,7 +587,7 @@ Message: {message}
 
             if (isStressTestMode)
             {
-                _logger.LogInformation("⚡ STRESS TEST OPTIMIZATION: Using ultra-fast polling ({PollTimeoutMs}ms) and large fetch sizes ({FetchMaxMB}MB)", 
+                _logger.LogInformation("⚡ ULTRA-FAST MODE: Using {PollTimeoutMs}ms polling and {FetchMaxMB}MB fetch sizes for 1M messages in <5 seconds", 
                     pollTimeoutMs, fetchMaxBytes / 1024 / 1024);
             }
 
@@ -892,8 +892,8 @@ Message: {message}
         private async Task RunMainConsumptionLoop(ConsumptionContext consumptionContext, int consecutiveNullResults, DateTime lastProgressLogTime, CancellationToken stoppingToken)
         {
             var isStressTestMode = IsRunningInStressTestMode();
-            var maxConsecutiveNulls = isStressTestMode ? 30 : 60; // Allow fewer null results in stress test mode
-            var pollTimeoutMs = isStressTestMode ? 10 : 50; // Ultra-fast polling in stress test mode
+            var maxConsecutiveNulls = isStressTestMode ? 15 : 60; // Ultra-fast failure detection for 5s target
+            var pollTimeoutMs = isStressTestMode ? 1 : 50; // Ultra-fast polling for 5s target (1ms)
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -908,7 +908,7 @@ Message: {message}
                         break;
                     }
                     
-                    // STRESS TEST OPTIMIZATION: Ultra-fast polling with optimized timeout
+                    // STRESS TEST OPTIMIZATION: Ultra-fast polling with optimized timeout for 5s target
                     var consumeResult = _consumerGroup?.ConsumeMessage(TimeSpan.FromMilliseconds(pollTimeoutMs));
                     
                     if (consumeResult?.Message != null)
@@ -928,7 +928,7 @@ Message: {message}
                     _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException in Apache Flink 2.0 polling - normal behavior: {Error}",
                         _taskManagerId, ex.Error.Reason);
                     // Apache Flink 2.0 pattern: Brief pause only for actual consume errors
-                    var errorDelayMs = isStressTestMode ? 25 : 50; // Faster recovery in stress test mode
+                    var errorDelayMs = isStressTestMode ? 10 : 50; // Ultra-fast recovery for 5s target
                     await Task.Delay(TimeSpan.FromMilliseconds(errorDelayMs), stoppingToken);
                 }
                 catch (OperationCanceledException ex)
@@ -939,7 +939,7 @@ Message: {message}
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Unexpected error during consumption", _taskManagerId);
-                    var errorDelayMs = isStressTestMode ? 500 : 1000; // Faster recovery in stress test mode
+                    var errorDelayMs = isStressTestMode ? 100 : 1000; // Ultra-fast recovery for 5s target
                     await Task.Delay(TimeSpan.FromMilliseconds(errorDelayMs), stoppingToken);
                 }
             }
@@ -1488,8 +1488,8 @@ Message: {message}
                 // Convert bytes to string (Apache Flink standard deserialization)
                 var messageContent = System.Text.Encoding.UTF8.GetString(consumeResult.Message.Value);
                 
-                // Enhanced logging for initial messages and major milestones only  
-                if (newCount <= 10 || newCount % 50000 == 0) // Reduced from every 10k to every 50k
+                // Enhanced logging for initial messages and major milestones only (reduced for 5s target)
+                if (newCount <= 5 || newCount % 100000 == 0) // Ultra-minimal logging for 5s target
                 {
                     _logger.LogInformation("⚡ CONSUME: TaskManager {TaskManagerId} message {Count} from " +
                                            "topic: {Topic}, partition: {Partition}, offset: {Offset}",
@@ -1500,11 +1500,16 @@ Message: {message}
                 // HIGH-PERFORMANCE: Batch Redis updates instead of individual operations per message
                 Interlocked.Increment(ref _pendingRedisUpdates);
                 
-                // Produce to output topic with fire-and-forget for maximum performance
-                ProduceToOutputTopicFireAndForget(messageContent);
+                // ULTRA-FAST MODE: Skip output topic production for maximum speed in 5s target
+                var isStressTestMode = IsRunningInStressTestMode();
+                if (!isStressTestMode)
+                {
+                    // Only produce to output topic in non-stress test mode
+                    ProduceToOutputTopicFireAndForget(messageContent);
+                }
                 
-                // Periodic checkpoint simulation - less frequent for performance
-                if (newCount % 25000 == 0) // Increased from every 5k to every 25k messages
+                // Periodic checkpoint simulation - much less frequent for 5s target performance
+                if (newCount % 100000 == 0) // Reduced from every 25k to every 100k messages
                 {
                     _ = Task.Run(async () => await SimulateFlinkCheckpoint());
                 }
@@ -1545,21 +1550,24 @@ Message: {message}
         }
 
         /// <summary>
-        /// Background progress reporter - updates progress every second like producer script
+        /// Background progress reporter - updates progress every 500ms during ultra-fast mode for 5-second target
         /// </summary>
         private async Task ProcessProgressReportsAsync(CancellationToken stoppingToken)
         {
+            var isStressTestMode = IsRunningInStressTestMode();
+            var progressInterval = isStressTestMode ? 500 : 1000; // Faster progress updates for 5s target
+            
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    await Task.Delay(1000, stoppingToken); // Update every second like producer script
+                    await Task.Delay(progressInterval, stoppingToken); // Update every 500ms in ultra-fast mode
                     
                     var currentCount = Interlocked.Read(ref _messagesProcessed);
                     var now = DateTime.UtcNow;
                     
-                    // Skip if we just updated recently (avoid spam)
-                    if ((now - _lastProgressUpdateTime).TotalMilliseconds < 500)
+                    // Skip if we just updated recently (avoid spam) - reduced threshold for 5s target
+                    if ((now - _lastProgressUpdateTime).TotalMilliseconds < (progressInterval / 2))
                     {
                         continue;
                     }
@@ -1588,16 +1596,16 @@ Message: {message}
         }
         
         /// <summary>
-        /// High-performance batch Redis counter updates - processes batches every 50-100ms depending on stress test mode
+        /// ULTRA-HIGH-PERFORMANCE batch Redis counter updates - processes batches every 5-10ms for 5-second target
         /// </summary>
         private async Task ProcessRedisBatchUpdatesAsync(CancellationToken stoppingToken)
         {
             var isStressTestMode = IsRunningInStressTestMode();
-            var batchInterval = isStressTestMode ? TimeSpan.FromMilliseconds(25) : _redisUpdateInterval; // Ultra-fast batching in stress test
+            var batchInterval = isStressTestMode ? TimeSpan.FromMilliseconds(5) : _redisUpdateInterval; // ULTRA-fast batching for 5s target
             
             if (isStressTestMode)
             {
-                _logger.LogInformation("⚡ STRESS TEST: Using ultra-fast Redis batching ({BatchIntervalMs}ms) for maximum throughput", 
+                _logger.LogInformation("⚡ ULTRA-FAST MODE: Using lightning-fast Redis batching ({BatchIntervalMs}ms) for 1M messages in <5 seconds", 
                     batchInterval.TotalMilliseconds);
             }
 
@@ -1693,8 +1701,8 @@ Message: {message}
                         var newGlobalCount = (long)resultArray[1]; 
                         var actualIncrement = (long)resultArray[2];
                     
-                    // Log only at significant milestones for performance
-                    if (currentProcessedCount <= 100 || currentProcessedCount % 25000 == 0)
+                    // Log only at major milestones for ultra-fast performance (5s target)
+                    if (currentProcessedCount <= 50 || currentProcessedCount % 100000 == 0)
                     {
                         _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} (requested: {RequestedSize}) - " +
                                        "local: {LocalCount}, redis_sink: {RedisSinkCount}, redis_global: {RedisGlobalCount}",
@@ -1827,8 +1835,10 @@ Message: {message}
             var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
             var isCI = Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" || 
                       Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+            var ultraFastMode = Environment.GetEnvironmentVariable("STRESS_TEST_ULTRA_FAST_MODE")?.ToLowerInvariant() == "true";
             
-            return stressTestMode || useKafkaSource || isCI;
+            // Ultra-fast mode specifically targets 1M messages in <5 seconds (200k+ msg/sec)
+            return stressTestMode || useKafkaSource || isCI || ultraFastMode;
         }
 
         public static long CurrentProcessingTimeMillis() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

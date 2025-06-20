@@ -236,8 +236,9 @@ All AI agents working on FLINK.NET issues MUST follow this investigation protoco
    .\run-simple-stress-test.ps1 -MessageCount 10000
    
    # Verify expected metrics
-   # ✅ Expected: >1M messages processed in <10 seconds
-   # ✅ Expected: Redis counter increments correctly
+   # ✅ Expected: >1M messages processed in <5 seconds (MANDATORY REQUIREMENT)
+   # ✅ Expected: Target throughput: 200,000+ messages per second minimum
+   # ✅ Expected: Redis counter increments correctly with exact accuracy
    # ✅ Expected: No hanging processes or timeout errors
    ```
 
