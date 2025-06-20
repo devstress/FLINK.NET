@@ -154,9 +154,10 @@ function Get-KafkaPort {
             
             # Try multiple Kafka image patterns that Aspire might use  
             $imagePatterns = @(
-                "confluentinc/confluent-local",
-                "confluentinc/confluent-local:7.4.0",
-                "confluentinc/confluent-local:latest"
+                "confluentinc/cp-kafka:7.4.0",
+                "confluentinc/cp-kafka",
+                "confluentinc/confluent-local:7.9.0",
+                "confluentinc/confluent-local"
             )
             
             foreach ($pattern in $imagePatterns) {

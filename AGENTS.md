@@ -164,6 +164,119 @@ To use this configuration:
 - Update documentation alongside code changes
 - Consider performance implications for stream processing scenarios
 
+## 🚨 MANDATORY: AI Agent Stress Test Investigation Protocol
+
+### Overview
+All AI agents working on FLINK.NET issues MUST follow this investigation protocol, especially for stress test failures.
+
+### Before Making Any Code Changes
+
+**AI agents MUST perform these steps in order:**
+
+1. **🔍 Run the Full Stress Test Pipeline**
+   ```powershell
+   # Execute the complete stress test to understand current state
+   cd scripts
+   .\run-simple-stress-test.ps1 -MessageCount 10000
+   ```
+
+2. **📋 Document Current Behavior**
+   - Record exact error messages
+   - Capture performance metrics  
+   - Note infrastructure startup logs
+   - Identify which components fail and which succeed
+
+3. **🧪 Isolate Component Issues**
+   ```powershell
+   # Test individual components
+   .\produce-1-million-messages.ps1 -MessageCount 1000
+   .\wait-for-flinkjobsimulator-completion.ps1
+   .\discover-aspire-ports.ps1
+   ```
+
+4. **🐳 Verify Infrastructure**
+   ```bash
+   # Check Docker containers
+   docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}"
+   
+   # Test service connectivity
+   docker exec <redis-container> redis-cli ping
+   docker exec <kafka-container> kafka-topics --bootstrap-server localhost:9092 --list
+   ```
+
+### Investigation Requirements
+
+**AI agents MUST investigate in this order:**
+
+#### Phase 1: Infrastructure Verification
+- [ ] **Redis Connection**: Verify Redis container starts and accepts connections
+- [ ] **Kafka Broker**: Confirm Kafka container starts and API is accessible
+- [ ] **Port Discovery**: Ensure dynamic port allocation works correctly
+- [ ] **Network Connectivity**: Test inter-container communication
+
+#### Phase 2: Data Flow Testing
+- [ ] **Message Production**: Verify 1M messages can be produced successfully
+- [ ] **Topic Creation**: Confirm Kafka topics exist with correct configuration
+- [ ] **Consumer Registration**: Test FlinkJobSimulator can connect to Kafka
+- [ ] **Redis Counter**: Verify Redis counters increment properly
+
+#### Phase 3: Integration Testing
+- [ ] **End-to-End Flow**: Test complete message pipeline
+- [ ] **Performance Validation**: Achieve target throughput (1M+ msg/sec)
+- [ ] **Error Handling**: Verify graceful failure modes
+- [ ] **CI Compatibility**: Test in CI environment constraints
+
+### Mandatory Code Quality Checks
+
+**Before committing any changes:**
+
+1. **🧪 Test Your Changes**
+   ```powershell
+   # Run modified stress test
+   .\run-simple-stress-test.ps1 -MessageCount 10000
+   
+   # Verify expected metrics
+   # ✅ Expected: >1M messages processed in <10 seconds
+   # ✅ Expected: Redis counter increments correctly
+   # ✅ Expected: No hanging processes or timeout errors
+   ```
+
+2. **📊 Performance Regression Check**
+   - Compare before/after performance metrics
+   - Ensure no degradation in throughput
+   - Verify memory usage remains acceptable
+
+3. **🔒 CI Environment Testing**
+   ```powershell
+   # Test with CI constraints
+   $env:CI = "true"
+   .\run-simple-stress-test.ps1 -MessageCount 1000
+   ```
+
+### 🚨 ENFORCEMENT RULES
+
+#### Absolute Requirements
+1. **NO GUESSING**: All diagnoses must be based on actual test results
+2. **FULL PIPELINE TESTING**: Always test the complete stress test pipeline
+3. **PERFORMANCE VALIDATION**: Changes must maintain or improve performance
+4. **CI COMPATIBILITY**: All changes must work in CI environments
+
+#### Forbidden Actions
+❌ **Never do these:**
+- Skip running the actual stress test
+- Make changes based on assumptions
+- Ignore performance regressions
+- Break existing working functionality
+- Commit without validating the fix
+
+#### Quality Gates
+**All changes must pass:**
+- [ ] Stress test completes successfully
+- [ ] Performance meets targets (1M+ msg/sec)
+- [ ] No hanging processes or infinite loops
+- [ ] CI environment compatibility
+- [ ] Documentation is updated
+
 ## Integration Testing Details
 
 Integration tests mimic `.github/workflows/integration-tests.yml` and require Docker for Aspire to spin up Redis and Kafka containers. The tests verify:

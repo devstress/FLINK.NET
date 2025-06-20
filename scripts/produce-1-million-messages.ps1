@@ -1,5 +1,18 @@
 ﻿#!/usr/bin/env pwsh
 
+#
+# IMPORTANT: DELETE THE BUILT EXECUTABLE IF YOU PLAN TO UPDATE THIS SCRIPT
+#
+# This script uses a pre-built executable (producer-rc720-microbatch.exe/.exe)
+# stored in the same directory for performance. If you modify the producer code
+# in this script, delete the executable first to force a rebuild:
+#
+# Windows: rm .\producer-rc720-microbatch.exe
+# Linux:   rm ./producer-rc720-microbatch
+#
+# The executable will be automatically rebuilt on the next run.
+#
+
 param(
     [long]$MessageCount = 1000000,
     [string]$Topic = "flinkdotnet.sample.topic",
@@ -73,6 +86,18 @@ function Get-PlatformInfo {
 function Build-Producer {
     Write-Host "🛠️ Building .NET Producer..."
     $platform = Get-PlatformInfo
+    
+    # Check for existing executable in the script directory first
+    $scriptDir = Split-Path -Parent $PSCommandPath
+    $localExecutable = Join-Path $scriptDir $platform.ExecutableName
+    
+    if (Test-Path $localExecutable) {
+        Write-Host "✅ Found existing executable: $localExecutable" -ForegroundColor Green
+        Write-Host "💡 If you need to rebuild, delete the executable first" -ForegroundColor Yellow
+        return $localExecutable
+    }
+    
+    Write-Host "🔨 Building new executable as none found in: $scriptDir" -ForegroundColor Yellow
     $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc720-microbatch"
     if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
     New-Item -ItemType Directory -Path $tempDir | Out-Null
@@ -191,7 +216,22 @@ class Program
 
     $publishOutputDir = Join-Path $tempDir "publish"
     dotnet publish "$projectFile" -c Release -r $platform.RuntimeId --self-contained true -o $publishOutputDir | Out-Null
-    return Join-Path $publishOutputDir $platform.ExecutableName
+    
+    $tempExecutable = Join-Path $publishOutputDir $platform.ExecutableName
+    
+    # Copy the built executable to the script directory for future use
+    try {
+        Copy-Item $tempExecutable $localExecutable -Force
+        Write-Host "✅ Executable cached to: $localExecutable" -ForegroundColor Green
+        
+        # Clean up temp directory
+        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        
+        return $localExecutable
+    } catch {
+        Write-Host "⚠️ Could not cache executable, using temp location: $tempExecutable" -ForegroundColor Yellow
+        return $tempExecutable
+    }
 }
 
 function Run-Producers {
@@ -203,4 +243,8 @@ function Run-Producers {
 $exePath = Build-Producer
 Run-Producers $exePath $bootstrapServers $Topic $MessageCount $Partitions $ParallelProducers
 
-Remove-Item (Split-Path $exePath -Parent) -Recurse -Force -ErrorAction SilentlyContinue
+# Clean up temp directory if we used one (don't delete cached executable)
+$scriptDir = Split-Path -Parent $PSCommandPath
+if (-not $exePath.StartsWith($scriptDir)) {
+    Remove-Item (Split-Path $exePath -Parent) -Recurse -Force -ErrorAction SilentlyContinue
+}
