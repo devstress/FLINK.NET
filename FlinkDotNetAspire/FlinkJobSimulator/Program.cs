@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
 namespace FlinkJobSimulator
@@ -114,6 +115,20 @@ Architecture: Job is now running on 20 TaskManagers coordinated by JobManager
         }
         
         /// <summary>
+        /// Check if running in stress test mode
+        /// </summary>
+        private static bool IsRunningInStressTestMode()
+        {
+            var stressTestMode = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
+            var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+            var isCI = Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" || 
+                      Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+            
+            // Stress test mode is enabled if explicitly set OR if CI is running (since CI runs stress tests)
+            return stressTestMode || useKafkaSource || isCI;
+        }
+        
+        /// <summary>
         /// Stress Test Mode: FlinkJobSimulator runs as direct Kafka consumer for stress testing.
         /// This bypasses JobManager/TaskManager complexity for reliable stress test execution.
         /// For production, use RunAsJobSubmissionMode() instead.
@@ -123,16 +138,13 @@ Architecture: Job is now running on 20 TaskManagers coordinated by JobManager
             try
             {
                 // Check if we should run in direct consumption mode for stress testing
-                var stressTestMode = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
-                var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
-                var isCI = Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" || 
-                          Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+                var isStressTestMode = IsRunningInStressTestMode();
                 
-                // For stress tests or CI environments, use direct Kafka consumption for reliability
-                if (stressTestMode || useKafkaSource || isCI)
+                // For stress tests, use direct Kafka consumption for reliability and speed
+                if (isStressTestMode)
                 {
-                    Console.WriteLine("🎯 STRESS TEST MODE: FlinkJobSimulator running as direct Kafka consumer for reliable testing");
-                    Console.WriteLine("🔄 This bypasses JobManager/TaskManager complexity to ensure test reliability");
+                    Console.WriteLine("🎯 STRESS TEST MODE: FlinkJobSimulator running as direct Kafka consumer for reliable and fast testing");
+                    Console.WriteLine("🔄 This bypasses JobManager/TaskManager complexity to ensure test reliability and 10-second processing goal");
                     await RunAsDirectKafkaConsumerAsync(args);
                 }
                 else
@@ -179,8 +191,25 @@ Architecture: Job is now running on 20 TaskManagers coordinated by JobManager
                 return connectionMultiplexer.GetDatabase();
             });
             
-            // Add TaskManagerKafkaConsumer for direct consumption
-            builder.Services.AddHostedService<TaskManagerKafkaConsumer>();
+            // Add multiple TaskManagerKafkaConsumer instances for parallel processing
+            // Use Environment.ProcessorCount to determine optimal parallelism
+            var parallelConsumers = Environment.GetEnvironmentVariable("STRESS_TEST_CONSUMER_PARALLELISM");
+            var consumerCount = int.TryParse(parallelConsumers, out var parsed) ? parsed : Math.Max(4, Environment.ProcessorCount / 2);
+            
+            Console.WriteLine($"🚀 STRESS TEST: Starting {consumerCount} parallel consumers for maximum throughput");
+            
+            for (int i = 0; i < consumerCount; i++)
+            {
+                builder.Services.AddHostedService<TaskManagerKafkaConsumer>(provider =>
+                {
+                    var configuration = provider.GetRequiredService<IConfiguration>();
+                    var logger = provider.GetRequiredService<ILogger<TaskManagerKafkaConsumer>>();
+                    var database = provider.GetRequiredService<IDatabase>();
+                    
+                    // Create a custom TaskManagerKafkaConsumer with unique ID for each consumer
+                    return new TaskManagerKafkaConsumer(configuration, logger, database, $"Consumer-{i + 1:D2}");
+                });
+            }
             
             var host = builder.Build();
             

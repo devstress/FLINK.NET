@@ -195,12 +195,13 @@ public static class Program
     private static (string simulatorNumMessages, IResourceBuilder<ProjectResource>? jobManager) ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
     {
         var simulatorNumMessages = GetSimulatorMessageCount();
-        var isCI = IsRunningInCI();
+        var isStressTestMode = IsRunningInStressTestMode();
         
-        // For stress testing and CI, skip JobManager/TaskManager complexity
-        if (isCI)
+        // For stress testing, skip JobManager/TaskManager complexity and use direct consumption
+        if (isStressTestMode)
         {
-            Console.WriteLine("🚀 STRESS TEST MODE: Skipping JobManager/TaskManager for direct consumption reliability");
+            Console.WriteLine("🚀 STRESS TEST MODE: Skipping JobManager/TaskManager for direct consumption reliability and speed");
+            Console.WriteLine("🚀 STRESS TEST: Using FlinkKafkaConsumerGroup for maximum throughput");
             return (simulatorNumMessages, null);
         }
         
@@ -252,12 +253,12 @@ public static class Program
     {
         // Check if we should use Kafka source for TaskManager load testing
         var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
-        var isCI = IsRunningInCI();
+        var isStressTestMode = IsRunningInStressTestMode();
         
         Console.WriteLine($"🚀 STRESS TEST MODE: Configuring FlinkJobSimulator for direct Kafka consumption");
         Console.WriteLine($"🔍 APPHOST CONFIG: STRESS_TEST_USE_KAFKA_SOURCE={Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: useKafkaSource: {useKafkaSource}");
-        Console.WriteLine($"🔍 APPHOST CONFIG: isCI: {isCI}");
+        Console.WriteLine($"🔍 APPHOST CONFIG: isStressTestMode: {isStressTestMode}");
 
         var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
@@ -271,13 +272,14 @@ public static class Program
             .WithEnvironment("STRESS_TEST_USE_KAFKA_SOURCE", "true")
             .WithEnvironment("SIMULATOR_USE_KAFKA_SOURCE", "true")
             .WithEnvironment("SIMULATOR_KAFKA_CONSUMER_GROUP", "flinkdotnet-stress-test-consumer-group")
+            .WithEnvironment("STRESS_TEST_CONSUMER_PARALLELISM", "8") // Set high parallelism for stress test speed
             .WaitFor(redis) // Always wait for Redis since we need it
             .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WaitFor(kafka) // Wait for Kafka to be ready
             .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
 
         // For stress testing, don't wait for JobManager as we use direct consumption
-        if (jobManager != null && !isCI && !useKafkaSource)
+        if (jobManager != null && !isStressTestMode && !useKafkaSource)
         {
             Console.WriteLine("🔄 PRODUCTION CONFIG: Adding JobManager reference for production mode");
             flinkJobSimulator.WithReference(jobManager) // Makes JobManager gRPC endpoint discoverable via Aspire
@@ -292,6 +294,16 @@ public static class Program
     private static bool IsRunningInCI()
     {
         return Environment.GetEnvironmentVariable("CI") == "true" || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+    }
+
+    private static bool IsRunningInStressTestMode()
+    {
+        var stressTestMode = Environment.GetEnvironmentVariable("STRESS_TEST_MODE")?.ToLowerInvariant() == "true";
+        var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        var isCI = IsRunningInCI();
+        
+        // Stress test mode is enabled if explicitly set OR if CI is running (since CI runs stress tests)
+        return stressTestMode || useKafkaSource || isCI;
     }
 
     private static bool IsRunningOnWindows()
