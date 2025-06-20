@@ -119,21 +119,28 @@ namespace FlinkDotNet.TaskManager
         /// </summary>
         private static void ApplyJobManagerAddressFromEnvironment()
         {
-            var envJobManagerAddress = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
-            if (!string.IsNullOrEmpty(envJobManagerAddress))
+            // Try Aspire service discovery patterns first
+            var aspireServiceAddress = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
+            if (!string.IsNullOrEmpty(aspireServiceAddress))
             {
-                JobManagerAddress = envJobManagerAddress;
+                JobManagerAddress = aspireServiceAddress;
                 Console.WriteLine($"Using JobManager address from Aspire service discovery: {JobManagerAddress}");
                 return;
             }
 
-            // Try the direct environment variable as fallback
-            var directJobManagerAddress = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS");
-            if (!string.IsNullOrEmpty(directJobManagerAddress))
+            // Try alternative Aspire patterns
+            var aspireConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__jobmanager");
+            if (!string.IsNullOrEmpty(aspireConnectionString))
             {
-                JobManagerAddress = directJobManagerAddress;
-                Console.WriteLine($"Using JobManager address from environment variable: {JobManagerAddress}");
+                JobManagerAddress = aspireConnectionString;
+                Console.WriteLine($"Using JobManager address from Aspire connection string: {JobManagerAddress}");
+                return;
             }
+
+            // Note: JOBMANAGER_GRPC_ADDRESS and DOTNET_JOBMANAGER_GRPC_ADDRESS environment variables
+            // are no longer set by discover-aspire-ports.ps1 since JobManager runs as .NET project.
+            // Service discovery should happen through Aspire configuration instead.
+            Console.WriteLine($"No JobManager address found in environment, using default: {JobManagerAddress}");
         }
 
         /// <summary>

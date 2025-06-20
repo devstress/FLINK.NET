@@ -256,42 +256,9 @@ function Get-KafkaPort {
     return $null
 }
 
-function Get-JobManagerPort {
-    param(
-        [int]$MaxRetries = 3,
-        [int]$DelaySeconds = 5
-    )
-
-    for ($retry = 1; $retry -le $MaxRetries; $retry++) {
-        try {
-            Write-Host "JobManager discovery attempt $retry/$MaxRetries..." -ForegroundColor Yellow
-
-            $containerId = docker ps --filter "name=jobmanager" --format "{{.ID}}" | Select-Object -First 1
-            if (-not $containerId) {
-                Write-Host "JobManager container not found" -ForegroundColor Yellow
-                if ($retry -lt $MaxRetries) {
-                    Start-Sleep -Seconds $DelaySeconds
-                    continue
-                }
-                return $null
-            }
-
-            $portInfo = docker port $containerId 50051 2>/dev/null
-            if ($portInfo -and $portInfo -match "(?:127\.0\.0\.1|0\.0\.0\.0|\[::\]):(\d+)") {
-                $jobManagerPort = [int]$Matches[1]
-                Write-Host "JobManager mapped to host port: $jobManagerPort" -ForegroundColor Green
-                return $jobManagerPort
-            }
-        } catch {
-            Write-Host "Error in JobManager discovery attempt $retry : $_" -ForegroundColor Red
-        }
-
-        if ($retry -lt $MaxRetries) {
-            Start-Sleep -Seconds $DelaySeconds
-        }
-    }
-    return $null
-}
+# Note: JobManager discovery removed because in Aspire mode, JobManager runs as a .NET project,
+# not a Docker container. JobManager address should be discovered through Aspire service discovery
+# mechanism in the FlinkJobSimulator itself via configuration like ConnectionStrings__jobmanager.
 
 # Main execution
 Write-Host "=== Discovering Aspire Container Ports ===" -ForegroundColor Cyan
@@ -309,7 +276,6 @@ if ($env:CI -eq "true" -or $env:GITHUB_ACTIONS -eq "true") {
 
 $redisInfo = Get-RedisConnectionInfo -MaxRetries 5 -DelaySeconds 3
 $kafkaPort = Get-KafkaPort -MaxRetries 5 -DelaySeconds 3
-$jobManagerPort = Get-JobManagerPort -MaxRetries 5 -DelaySeconds 3
 
 Write-Host ""
 Write-Host "=== Discovery Results ===" -ForegroundColor Cyan
@@ -334,21 +300,14 @@ if ($kafkaPort) {
     return 1
 }
 
-if ($jobManagerPort) {
-    Write-Host "✅ JobManager discovered on port: $jobManagerPort" -ForegroundColor Green
-    $env:DOTNET_JOBMANAGER_GRPC_PORT = $jobManagerPort.ToString()
-    $env:DOTNET_JOBMANAGER_GRPC_ADDRESS = "localhost:$jobManagerPort"
-} else {
-    Write-Host "⚠️ JobManager port not discovered - using default 50051" -ForegroundColor Yellow
-    $env:DOTNET_JOBMANAGER_GRPC_PORT = "50051"
-    $env:DOTNET_JOBMANAGER_GRPC_ADDRESS = "localhost:50051"
-}
+Write-Host "ℹ️  JobManager discovery skipped - using Aspire service discovery instead" -ForegroundColor Cyan
+Write-Host "   JobManager runs as .NET project and will be discovered via Aspire service references" -ForegroundColor Gray
 
 Write-Host ""
 Write-Host "Environment variables set:" -ForegroundColor Cyan
 Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
 Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
-Write-Host "  DOTNET_JOBMANAGER_GRPC_ADDRESS: $env:DOTNET_JOBMANAGER_GRPC_ADDRESS" -ForegroundColor Gray
+Write-Host "  JobManager: Using Aspire service discovery (no manual environment variables)" -ForegroundColor Gray
 
 # Export for GitHub Actions if in CI
 if ($env:GITHUB_ENV) {
@@ -356,8 +315,7 @@ if ($env:GITHUB_ENV) {
     "DOTNET_KAFKA_PORT=$([int]$kafkaPort)" | Out-File -FilePath $env:GITHUB_ENV -Append
     "DOTNET_REDIS_URL=$($redisInfo.ConnectionString)" | Out-File -FilePath $env:GITHUB_ENV -Append
     "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:$([int]$kafkaPort)" | Out-File -FilePath $env:GITHUB_ENV -Append
-    "DOTNET_JOBMANAGER_GRPC_PORT=$($env:DOTNET_JOBMANAGER_GRPC_PORT)" | Out-File -FilePath $env:GITHUB_ENV -Append
-    "DOTNET_JOBMANAGER_GRPC_ADDRESS=$($env:DOTNET_JOBMANAGER_GRPC_ADDRESS)" | Out-File -FilePath $env:GITHUB_ENV -Append
+    # Note: JobManager environment variables removed - using Aspire service discovery instead
 }
 
 Write-Host "Port discovery completed successfully!" -ForegroundColor Green

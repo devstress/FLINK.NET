@@ -45,10 +45,10 @@ public static class Program
         {
             if (useDynamicPorts)
             {
-                Console.WriteLine("🔄 ASPIRE MODE: JobManager using dynamic port allocation");
-                // Let Kestrel assign available ports dynamically
-                options.ListenAnyIP(httpPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1);
-                options.ListenAnyIP(grpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+                Console.WriteLine("🔄 ASPIRE MODE: JobManager using dynamic port allocation with combined HTTP1/HTTP2 endpoint");
+                // In Aspire mode, use a single endpoint that supports both HTTP1 (REST) and HTTP2 (gRPC)
+                // This ensures Aspire service discovery exposes one endpoint that works for both protocols
+                options.ListenAnyIP(httpPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);
             }
             else
             {
