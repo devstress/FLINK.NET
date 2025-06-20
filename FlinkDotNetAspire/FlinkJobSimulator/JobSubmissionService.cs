@@ -50,7 +50,17 @@ namespace FlinkJobSimulator
                 {
                     _logger.LogInformation("📤 Attempt {Attempt}/{Max} submitting JobGraph to JobManager at {JobManagerAddress}", attempt, maxAttempts, _jobManagerAddress);
 
-                    using var channel = GrpcChannel.ForAddress(_jobManagerAddress);
+                    var channelOptions = new GrpcChannelOptions();
+                    
+                    // Configure insecure transport if needed (for CI/development environments)
+                    var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
+                    if (string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogInformation("🔓 Using insecure gRPC transport for CI/development environment");
+                        channelOptions.Credentials = Grpc.Core.ChannelCredentials.Insecure;
+                    }
+
+                    using var channel = GrpcChannel.ForAddress(_jobManagerAddress, channelOptions);
                     var client = new JobManagerInternalService.JobManagerInternalServiceClient(channel);
 
                     var response = await client.SubmitJobAsync(request);
@@ -235,12 +245,14 @@ namespace FlinkJobSimulator
             var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
             var useInsecure = string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase);
 
-            // Default fallback for non-Aspire environments (this will likely fail in Aspire with dynamic ports)
+            // For Aspire mode, try to discover the JobManager service at the standard fixed ports
+            // Since JobManager uses combined HTTP1/HTTP2 endpoint in Aspire mode, use the HTTP port for gRPC
             var protocol = useInsecure ? "http" : "https";
-            var defaultPort = "50051"; // JobManager default gRPC port
-            var defaultUrl = $"{protocol}://localhost:{defaultPort}";
-            _logger.LogError("🔍 ASPIRE SERVICE DISCOVERY FAILED - Using default JobManager address: {DefaultUrl} (unsecured: {UseInsecure}) - this will likely fail with Aspire dynamic ports!", defaultUrl, useInsecure);
-            return defaultUrl;
+            var aspireJobManagerPort = "8080"; // JobManager HTTP port that also serves gRPC in Aspire mode
+            var aspireUrl = $"{protocol}://localhost:{aspireJobManagerPort}";
+            
+            _logger.LogWarning("🔍 Using Aspire fallback JobManager address: {AspireUrl} (combined HTTP1/HTTP2 endpoint)", aspireUrl);
+            return aspireUrl;
         }
     }
 }

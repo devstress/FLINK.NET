@@ -99,12 +99,20 @@ function Get-RedisConnectionInfo {
             }
 
             $envOutput = docker inspect $containerId 2>/dev/null | ConvertFrom-Json
-            $connectionString = "redis://:@localhost:$redisPort"
-            $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+            $connectionString = "redis://:FlinkDotNet_Redis_CI_Password_2024@localhost:$redisPort"
+            $testResult = docker exec $containerId redis-cli -p 6379 -a "FlinkDotNet_Redis_CI_Password_2024" ping 2>/dev/null
             if ($testResult -eq "PONG") {
-                Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                Write-Host "Redis connection test successful (with auth)" -ForegroundColor Green
             } else {
-                Write-Host "Redis connection without password failed: '$testResult'" -ForegroundColor Yellow
+                Write-Host "Redis connection test failed: '$testResult', trying without password..." -ForegroundColor Yellow
+                # Try without password as fallback
+                $testResultNoAuth = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+                if ($testResultNoAuth -eq "PONG") {
+                    Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                    $connectionString = "redis://:@localhost:$redisPort"
+                } else {
+                    Write-Host "Redis connection test failed both with and without auth" -ForegroundColor Yellow
+                }
             }
 
             return @{
@@ -147,15 +155,8 @@ function Get-KafkaPort {
             # Try multiple Kafka image patterns that Aspire might use  
             $imagePatterns = @(
                 "confluentinc/confluent-local",
-                "confluentinc/confluent-local:7.9.0",
-                "confluentinc/confluent-local:latest", 
-                "apache/kafka",
-                "apache/kafka:latest",
-                "confluentinc/cp-kafka",
-                "confluentinc/cp-kafka:7.4.0",
-                "confluentinc/cp-kafka:latest",
-                "bitnami/kafka",
-                "bitnami/kafka:latest"
+                "confluentinc/confluent-local:7.4.0",
+                "confluentinc/confluent-local:latest"
             )
             
             foreach ($pattern in $imagePatterns) {
@@ -166,12 +167,12 @@ function Get-KafkaPort {
                 }
             }
 
-            # If no exact matches, try pattern matching in names/images
+            # If no exact matches, try pattern matching in names/images (excluding kafka-init containers)
             if (-not ($kafkaContainers | Where-Object { $_ -and $_.Trim() })) {
                 Write-Host "No exact Kafka ancestor matches, checking all containers for Kafka..." -ForegroundColor Yellow
                 $allContainers = docker ps --format "{{.ID}}\t{{.Image}}\t{{.Names}}" 2>/dev/null
                 foreach ($line in $allContainers) {
-                    if ($line -match "kafka" -or $line -match "confluent" -or $line -match "Kafka") {
+                    if ($line -match "kafka" -and $line -notmatch "kafka-init") {
                         $containerId = ($line -split '\t')[0]
                         if ($containerId -and $containerId.Length -gt 5) { # Valid container ID should be longer
                             $kafkaContainers += $containerId

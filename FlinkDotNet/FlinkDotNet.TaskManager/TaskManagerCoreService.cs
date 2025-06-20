@@ -192,9 +192,13 @@ namespace FlinkDotNet.TaskManager
                 }
             }
 
-            // Fallback to the original config address
-            Console.WriteLine($"Using fallback JobManager address: {_config.JobManagerGrpcAddress}");
-            return Task.FromResult(_config.JobManagerGrpcAddress);
+            // For Aspire mode, use the standard HTTP port that JobManager exposes for combined HTTP1/HTTP2 traffic
+            var protocol = allowUnsecured ? "http" : "https";
+            var aspireJobManagerPort = "8080"; // JobManager HTTP port that also serves gRPC in Aspire mode
+            var aspireUrl = $"{protocol}://localhost:{aspireJobManagerPort}";
+            
+            Console.WriteLine($"Using Aspire fallback JobManager address: {aspireUrl} (combined HTTP1/HTTP2 endpoint)");
+            return Task.FromResult(aspireUrl);
         }
         catch (Exception ex)
         {

@@ -435,8 +435,8 @@ try {
     $global:BackgroundJobs += $outputJob
     Write-Host "Background monitor job started: $($outputJob.Id)" -ForegroundColor Gray
     
-    Write-Host "AppHost started, waiting 45 seconds for initialization..." -ForegroundColor White
-    Start-Sleep -Seconds 45  # Increased for consistency with CI improvements
+    Write-Host "AppHost started, waiting 60 seconds for initialization..." -ForegroundColor White
+    Start-Sleep -Seconds 60  # Increased wait time for containers to start properly
     
     # Start comprehensive Aspire sub-task log capture
     Write-Host "`n=== Starting Aspire Sub-Task Log Capture ===" -ForegroundColor Yellow
@@ -485,7 +485,36 @@ try {
     Write-Host "Discovering actual ports used by Aspire Docker containers..." -ForegroundColor White
     
     # Wait a moment for containers to be ready
-    Start-Sleep -Seconds 10
+    Start-Sleep -Seconds 20  # Increased wait time for container startup
+    
+    Write-Host "Checking if containers are starting..." -ForegroundColor White
+    $containerStartAttempts = 0
+    $maxContainerStartAttempts = 12  # 2 minutes total
+    
+    do {
+        $containerStartAttempts++
+        $runningContainers = docker ps --format "{{.Names}}" 2>/dev/null | Where-Object { $_ -match "(redis|kafka)" }
+        $containerCount = ($runningContainers | Measure-Object).Count
+        
+        Write-Host "Container startup check $containerStartAttempts/$maxContainerStartAttempts : Found $containerCount containers" -ForegroundColor Gray
+        if ($runningContainers) {
+            Write-Host "Running containers: $($runningContainers -join ', ')" -ForegroundColor Gray
+        }
+        
+        if ($containerCount -ge 2) {
+            Write-Host "✅ Both Redis and Kafka containers are running" -ForegroundColor Green
+            break
+        }
+        
+        if ($containerStartAttempts -lt $maxContainerStartAttempts) {
+            Write-Host "⏳ Waiting 10 more seconds for containers to start..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
+        }
+    } while ($containerStartAttempts -lt $maxContainerStartAttempts)
+    
+    if ($containerCount -lt 2) {
+        Write-Host "⚠️ Warning: Only $containerCount containers found after waiting. Proceeding anyway..." -ForegroundColor Yellow
+    }
     
     & ./scripts/discover-aspire-ports.ps1
     if ($LASTEXITCODE -ne 0) {
