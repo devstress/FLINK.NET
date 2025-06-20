@@ -22,7 +22,6 @@ env:
   SIMULATOR_NUM_MESSAGES: "1000000" # 1 million messages for optimized reliability testing
   FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000000" # 1 million messages for reliability testing
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout matching stress tests
-  USE_SIMPLIFIED_MODE: "false" # Use full Kafka architecture for real reliability testing
 
 jobs:
   run-reliability-tests:
@@ -73,12 +72,9 @@ jobs:
           Write-Host "🚀 Starting Aspire development environment with full infrastructure for reliability testing..." -ForegroundColor Green
           $env:SIMULATOR_NUM_MESSAGES = "${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
-          # Force full infrastructure mode for reliability testing (override CI auto-simplified mode)
-          $env:USE_SIMPLIFIED_MODE = "false"
           $env:STRESS_TEST_USE_KAFKA_SOURCE = "true"
           
           Write-Host "Environment configuration:"
-          Write-Host "  USE_SIMPLIFIED_MODE: $env:USE_SIMPLIFIED_MODE"
           Write-Host "  STRESS_TEST_USE_KAFKA_SOURCE: $env:STRESS_TEST_USE_KAFKA_SOURCE"
           Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT"
           

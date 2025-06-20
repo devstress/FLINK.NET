@@ -48,7 +48,6 @@ ROOT="$(pwd)"
 # Set default environment variables to mirror CI workflow
 export SIMULATOR_NUM_MESSAGES="1000000"
 export MAX_ALLOWED_TIME_MS="300000"
-export USE_SIMPLIFIED_MODE="false"
 export DOTNET_ENVIRONMENT="Development"
 export SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE="flinkdotnet:global_sequence_id"
 export SIMULATOR_REDIS_KEY_SINK_COUNTER="flinkdotnet:sample:processed_message_counter"

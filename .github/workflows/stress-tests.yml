@@ -22,7 +22,6 @@ concurrency:
 env:
   SIMULATOR_NUM_MESSAGES: "1000000" # 1 million messages for optimized stress testing
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout for processing 1M messages
-  USE_SIMPLIFIED_MODE: "false" # Use full Kafka architecture for real stress testing
 
 jobs:
   run-stress-tests:
@@ -73,8 +72,6 @@ jobs:
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
-          # Force full infrastructure mode for stress testing (override CI auto-simplified mode)
-          $env:USE_SIMPLIFIED_MODE='false'
           $env:STRESS_TEST_USE_KAFKA_SOURCE='true'
           
           # Create log files
@@ -83,7 +80,6 @@ jobs:
           
           Write-Host "Starting AppHost with full infrastructure mode for stress testing..."
           Write-Host "Environment configuration:"
-          Write-Host "  USE_SIMPLIFIED_MODE: $env:USE_SIMPLIFIED_MODE"
           Write-Host "  STRESS_TEST_USE_KAFKA_SOURCE: $env:STRESS_TEST_USE_KAFKA_SOURCE"
           Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT"
           
