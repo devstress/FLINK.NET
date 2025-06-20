@@ -1,16 +1,11 @@
 ﻿#!/usr/bin/env pwsh
 
 #
-# IMPORTANT: DELETE THE BUILT EXECUTABLE IF YOU PLAN TO UPDATE THIS SCRIPT
+# IMPORTANT: This script builds the producer executable fresh each time
+# to avoid committing large binary files to the repository.
 #
-# This script uses a pre-built executable (producer-rc720-microbatch.exe/.exe)
-# stored in the same directory for performance. If you modify the producer code
-# in this script, delete the executable first to force a rebuild:
-#
-# Windows: rm .\producer-rc720-microbatch.exe
-# Linux:   rm ./producer-rc720-microbatch
-#
-# The executable will be automatically rebuilt on the next run.
+# The executable is built in a temporary directory and cleaned up after use.
+# This ensures the repo stays clean while still providing high performance.
 #
 
 param(
@@ -87,18 +82,9 @@ function Build-Producer {
     Write-Host "🛠️ Building .NET Producer..."
     $platform = Get-PlatformInfo
     
-    # Check for existing executable in the script directory first
-    $scriptDir = Split-Path -Parent $PSCommandPath
-    $localExecutable = Join-Path $scriptDir $platform.ExecutableName
-    
-    if (Test-Path $localExecutable) {
-        Write-Host "✅ Found existing executable: $localExecutable" -ForegroundColor Green
-        Write-Host "💡 If you need to rebuild, delete the executable first" -ForegroundColor Yellow
-        return $localExecutable
-    }
-    
-    Write-Host "🔨 Building new executable as none found in: $scriptDir" -ForegroundColor Yellow
-    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc720-microbatch"
+    # Always build fresh to avoid large cached files in repo
+    Write-Host "🔨 Building fresh executable to avoid large repo files" -ForegroundColor Yellow
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc720-microbatch-$(Get-Random)"
     if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
     New-Item -ItemType Directory -Path $tempDir | Out-Null
 
@@ -219,27 +205,18 @@ class Program
     
     $tempExecutable = Join-Path $publishOutputDir $platform.ExecutableName
     
-    # Copy the built executable and any native dependencies to the script directory for future use
+    # Copy the built executable to the script directory for future use
+    # Note: We don't cache the executable to avoid large binary files in the repo
+    # Users should delete any cached files manually if they update the script
     try {
-        Copy-Item $tempExecutable $localExecutable -Force
+        # For now, always use temp location to avoid committing large binaries
+        Write-Host "✅ Executable built: $tempExecutable" -ForegroundColor Green
+        Write-Host "💡 Using temp location to avoid large files in repo" -ForegroundColor Yellow
         
-        # Also copy any native libraries that might be needed (like librdkafka)
-        $publishDir = Split-Path $tempExecutable -Parent
-        $nativeLibs = Get-ChildItem -Path $publishDir -Filter "*.so" -ErrorAction SilentlyContinue
-        foreach ($lib in $nativeLibs) {
-            $targetLib = Join-Path $scriptDir $lib.Name
-            Copy-Item $lib.FullName $targetLib -Force -ErrorAction SilentlyContinue
-        }
-        
-        Write-Host "✅ Executable cached to: $localExecutable" -ForegroundColor Green
-        
-        # Clean up temp directory
-        Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-        
-        return $localExecutable
-    } catch {
-        Write-Host "⚠️ Could not cache executable, using temp location: $tempExecutable" -ForegroundColor Yellow
         return $tempExecutable
+    } catch {
+        Write-Host "⚠️ Could not create executable: $_" -ForegroundColor Red
+        throw "Producer build failed"
     }
 }
 
