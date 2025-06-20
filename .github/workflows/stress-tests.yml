@@ -69,15 +69,23 @@ jobs:
           Pop-Location
 
       - name: Start Aspire AppHost
+        timeout-minutes: 5
         run: |
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
+          # Force full infrastructure mode for stress testing (override CI auto-simplified mode)
+          $env:USE_SIMPLIFIED_MODE='false'
+          $env:STRESS_TEST_USE_KAFKA_SOURCE='true'
           
           # Create log files
           $outLogPath = "apphost.out.log"
           $errLogPath = "apphost.err.log"
           
-          Write-Host "Starting AppHost with output logging to $outLogPath and $errLogPath"
+          Write-Host "Starting AppHost with full infrastructure mode for stress testing..."
+          Write-Host "Environment configuration:"
+          Write-Host "  USE_SIMPLIFIED_MODE: $env:USE_SIMPLIFIED_MODE"
+          Write-Host "  STRESS_TEST_USE_KAFKA_SOURCE: $env:STRESS_TEST_USE_KAFKA_SOURCE"
+          Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT"
           
           # Use Start-Process with file redirection
           $processArgs = @(
@@ -211,6 +219,7 @@ jobs:
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
 
       - name: Health Check Loop
+        timeout-minutes: 3
         env:
           DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
@@ -221,8 +230,8 @@ jobs:
           SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
           SIMULATOR_FORCE_RESET_TO_EARLIEST: "true"  # Force consumer group reset to ensure fresh consumption
         run: |
-          $maxAttempts = 2  # Reduced attempts as requested (1 retry)
-          $delaySeconds = 10  # Adequate delay for CI environment
+          $maxAttempts = 3  # Increased attempts for better CI reliability
+          $delaySeconds = 15  # Increased delay for infrastructure startup
           $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
 
           Write-Host "`n=== Health Check Configuration ===" 
@@ -269,6 +278,39 @@ jobs:
               } else {
                 Write-Host "  AppHost PID file not found"
               }
+              
+              Write-Host "`n🔍 Checking for JobManager/TaskManager processes..."
+              $jobManagerProcesses = Get-Process -Name "FlinkDotNet.JobManager*" -ErrorAction SilentlyContinue
+              $taskManagerProcesses = Get-Process -Name "FlinkDotNet.TaskManager*" -ErrorAction SilentlyContinue
+              if ($jobManagerProcesses) {
+                Write-Host "  ✅ Found JobManager processes: $($jobManagerProcesses.Count)"
+              } else {
+                Write-Host "  ❌ No JobManager processes found - this explains the gRPC connection failures"
+              }
+              if ($taskManagerProcesses) {
+                Write-Host "  ✅ Found TaskManager processes: $($taskManagerProcesses.Count)"
+              } else {
+                Write-Host "  ❌ No TaskManager processes found"
+              }
+              
+              Write-Host "`n🔍 Checking AppHost logs for startup errors..."
+              if (Test-Path apphost.out.log) {
+                $outContent = Get-Content apphost.out.log -ErrorAction SilentlyContinue | Where-Object { $_ -match "error|fail|exception" } | Select-Object -Last 5
+                if ($outContent) {
+                  Write-Host "  Recent errors in AppHost output:"
+                  $outContent | ForEach-Object { Write-Host "    $_" }
+                }
+              }
+              if (Test-Path apphost.err.log) {
+                $errContent = Get-Content apphost.err.log -ErrorAction SilentlyContinue | Select-Object -Last 10
+                if ($errContent) {
+                  Write-Host "  Recent AppHost error log:"
+                  $errContent | ForEach-Object { Write-Host "    $_" }
+                }
+              }
+              
+              Write-Host "`n💡 This suggests that the JobManager/TaskManager services are not starting properly in CI"
+              Write-Host "💡 This is likely due to infrastructure limitations or configuration issues in GitHub Actions"
               exit 1
             }
           }
