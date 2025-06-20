@@ -895,41 +895,38 @@ Message: {message}
             var maxConsecutiveNulls = isStressTestMode ? 15 : 60; // Ultra-fast failure detection for 5s target
             var pollTimeoutMs = isStressTestMode ? 1 : 50; // Ultra-fast polling for 5s target (1ms)
 
+            (consecutiveNullResults, lastProgressLogTime) = await this.RunKafkaConsumptionLoop(consumptionContext, consecutiveNullResults, lastProgressLogTime, isStressTestMode, maxConsecutiveNulls, pollTimeoutMs, stoppingToken);
+        }
+
+        private async Task<(int consecutiveNullResults, DateTime lastProgressLogTime)> RunKafkaConsumptionLoop(ConsumptionContext consumptionContext, int consecutiveNullResults, DateTime lastProgressLogTime, bool isStressTestMode, int maxConsecutiveNulls, int pollTimeoutMs, CancellationToken stoppingToken)
+        {
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    // CRITICAL CHECK: Stop processing once we've reached exactly 1,000,000 messages
-                    var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
-                    if (currentProcessedCount >= 1000000)
+                    if (ShouldStopProcessing())
                     {
-                        _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Reached target of 1,000,000 messages ({CurrentCount}), stopping consumption", 
-                            _taskManagerId, currentProcessedCount);
                         break;
                     }
-                    
-                    // STRESS TEST OPTIMIZATION: Ultra-fast polling with optimized timeout for 5s target
-                    var consumeResult = _consumerGroup?.ConsumeMessage(TimeSpan.FromMilliseconds(pollTimeoutMs));
-                    
+
+                    var consumeResult = PollKafkaMessage(pollTimeoutMs);
+
                     if (consumeResult?.Message != null)
                     {
                         consecutiveNullResults = await ProcessMessage(consumeResult, consumptionContext, stoppingToken);
-                        if (consecutiveNullResults == -1) break; // Signal to break from main loop
+                        if (consecutiveNullResults == -1)
+                            break; // Signal to break from main loop
                     }
                     else
                     {
                         consecutiveNullResults = HandleNullResult(consecutiveNullResults, maxConsecutiveNulls, ref lastProgressLogTime);
                     }
-                    
+
                     await HandleRecoveryMode(stoppingToken);
                 }
                 catch (ConsumeException ex)
                 {
-                    _logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException in Apache Flink 2.0 polling - normal behavior: {Error}",
-                        _taskManagerId, ex.Error.Reason);
-                    // Apache Flink 2.0 pattern: Brief pause only for actual consume errors
-                    var errorDelayMs = isStressTestMode ? 10 : 50; // Ultra-fast recovery for 5s target
-                    await Task.Delay(TimeSpan.FromMilliseconds(errorDelayMs), stoppingToken);
+                    await HandleConsumeExceptionAsync(ex, isStressTestMode, stoppingToken);
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -938,10 +935,50 @@ Message: {message}
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Unexpected error during consumption", _taskManagerId);
-                    var errorDelayMs = isStressTestMode ? 100 : 1000; // Ultra-fast recovery for 5s target
-                    await Task.Delay(TimeSpan.FromMilliseconds(errorDelayMs), stoppingToken);
+                    await HandleUnexpectedExceptionAsync(ex, isStressTestMode, stoppingToken);
                 }
+            }
+
+            return (consecutiveNullResults, lastProgressLogTime);
+        }
+
+        private async Task HandleConsumeExceptionAsync(ConsumeException ex, bool isStressTestMode, CancellationToken stoppingToken)
+		{
+			_logger.LogDebug(ex, "🔄 TaskManager {TaskManagerId}: ConsumeException in Apache Flink 2.0 polling - normal behavior: {Error}",
+				_taskManagerId, ex.Error.Reason);
+			var errorDelayMs = isStressTestMode ? 10 : 50; // Ultra-fast recovery for 5s target
+			await Task.Delay(TimeSpan.FromMilliseconds(errorDelayMs), stoppingToken);
+		}
+
+		private async Task HandleUnexpectedExceptionAsync(Exception ex, bool isStressTestMode, CancellationToken stoppingToken)
+		{
+			_logger.LogError(ex, "❌ TaskManager {TaskManagerId}: Unexpected error during consumption", _taskManagerId);
+			var errorDelayMs = isStressTestMode ? 100 : 1000; // Ultra-fast recovery for 5s target
+			await Task.Delay(TimeSpan.FromMilliseconds(errorDelayMs), stoppingToken);
+		}
+
+        private bool ShouldStopProcessing()
+        {
+            var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
+            if (currentProcessedCount >= 1000000)
+            {
+                _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Reached target of 1,000,000 messages ({CurrentCount}), stopping consumption",
+                    _taskManagerId, currentProcessedCount);
+                return true;
+            }
+            return false;
+        }
+
+        private ConsumeResult<Ignore, byte[]>? PollKafkaMessage(int pollTimeoutMs)
+        {
+            try
+            {
+                return _consumerGroup?.ConsumeMessage(TimeSpan.FromMilliseconds(pollTimeoutMs));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Error during Kafka polling", _taskManagerId);
+                return null;
             }
         }
 
@@ -1218,106 +1255,95 @@ Message: {message}
         /// </summary>
         private async Task<string?> DiscoverKafkaBootstrapServersLikeProducerScript()
         {
+            _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Discovering Kafka bootstrap servers using producer script method", _taskManagerId);
+
+            const int maxAttempts = 3;
+            const int retryDelaySeconds = 2;
+
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                var output = await ExecuteDockerPsCommandAsync();
+                if (string.IsNullOrWhiteSpace(output))
+                {
+                    LogDockerPsFailure(attempt, maxAttempts);
+                    if (attempt < maxAttempts)
+                        await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds));
+                    continue;
+                }
+
+                var bootstrapServers = ParseBootstrapServers(output);
+                if (!string.IsNullOrEmpty(bootstrapServers) && VerifyKafkaConnectivity(bootstrapServers))
+                {
+                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Verified Kafka bootstrap server: {BootstrapServers}", _taskManagerId, bootstrapServers);
+                    return bootstrapServers;
+                }
+
+                LogBootstrapServerParsingFailure(output);
+                if (attempt < maxAttempts)
+                    await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds));
+            }
+
+            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Failed to discover Kafka bootstrap servers after {MaxAttempts} attempts", _taskManagerId, maxAttempts);
+            return null;
+        }
+
+        private async Task<string> ExecuteDockerPsCommandAsync()
+        {
             try
             {
-                _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Discovering Kafka bootstrap servers using producer script method", _taskManagerId);
-                
-                // CRITICAL FIX: Add retry logic since producer and consumer may run at different times
-                var maxAttempts = 3;
-                var retryDelay = TimeSpan.FromSeconds(2);
-                
-                for (int attempt = 1; attempt <= maxAttempts; attempt++)
+                var process = new System.Diagnostics.Process
                 {
-                    try
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
                     {
-                        // Use the exact same logic as produce-1-million-messages.ps1
-                        var process = new System.Diagnostics.Process
-                        {
-                            StartInfo = new System.Diagnostics.ProcessStartInfo
-                            {
-                                FileName = "docker",
-                                Arguments = "ps --filter \"name=kafka\" --format \"{{.Ports}}\"",
-                                RedirectStandardOutput = true,
-                                RedirectStandardError = true,
-                                UseShellExecute = false,
-                                CreateNoWindow = true
-                            }
-                        };
-                        
-                        process.Start();
-                        var output = await process.StandardOutput.ReadToEndAsync();
-                        var error = await process.StandardError.ReadToEndAsync();
-                        await process.WaitForExitAsync();
-                        
-                        if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
-                        {
-                            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Docker ps attempt {Attempt}/{MaxAttempts} failed. Exit code: {ExitCode}, Error: {Error}", 
-                                _taskManagerId, attempt, maxAttempts, process.ExitCode, error);
-                            
-                            if (attempt < maxAttempts)
-                            {
-                                await Task.Delay(retryDelay);
-                                continue;
-                            }
-                            return null;
-                        }
-                        
-                        _logger.LogInformation("🔍 TaskManager {TaskManagerId}: Docker ps output (attempt {Attempt}): {Output}", _taskManagerId, attempt, output.Trim());
-                        
-                        // Parse ports using same logic as producer script
-                        var portsArray = output.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-                        var matchingPorts = portsArray.Where(portMapping => 
-                            System.Text.RegularExpressions.Regex.IsMatch(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp"));
-                        
-                        foreach (var portMapping in matchingPorts)
-                        {
-                            // Match pattern: 127.0.0.1:PORT->9092/tcp
-                            var match = System.Text.RegularExpressions.Regex.Match(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp");
-                            if (match.Success)
-                            {
-                                var hostPort = match.Groups[1].Value;
-                                var bootstrapServers = $"127.0.0.1:{hostPort}";
-                                
-                                // CRITICAL FIX: Verify connectivity before returning
-                                if (VerifyKafkaConnectivity(bootstrapServers))
-                                {
-                                    _logger.LogInformation("✅ TaskManager {TaskManagerId}: Verified Kafka bootstrap server: {BootstrapServers}", _taskManagerId, bootstrapServers);
-                                    return bootstrapServers;
-                                }
-                                else
-                                {
-                                    _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Discovered server {BootstrapServers} but connectivity verification failed", _taskManagerId, bootstrapServers);
-                                }
-                            }
-                        }
-                        
-                        _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Unable to parse valid Kafka 9092 port mapping from: {Output}", _taskManagerId, output);
-                        
-                        if (attempt < maxAttempts)
-                        {
-                            await Task.Delay(retryDelay);
-                        }
+                        FileName = "docker",
+                        Arguments = "ps --filter \"name=kafka\" --format \"{{.Ports}}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Exception during discovery attempt {Attempt}/{MaxAttempts}", _taskManagerId, attempt, maxAttempts);
-                        if (attempt < maxAttempts)
-                        {
-                            await Task.Delay(retryDelay);
-                        }
-                    }
-                }
-                
-                return null;
-                
+                };
+
+                process.Start();
+                var output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                return output.Trim();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Fatal exception during Kafka bootstrap server discovery", _taskManagerId);
-                return null;
+                _logger.LogWarning(ex, "⚠️ TaskManager {TaskManagerId}: Exception during Docker ps command execution", _taskManagerId);
+                return string.Empty;
             }
         }
-        
+
+        private void LogDockerPsFailure(int attempt, int maxAttempts)
+        {
+            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Docker ps attempt {Attempt}/{MaxAttempts} failed", _taskManagerId, attempt, maxAttempts);
+        }
+
+        private static string? ParseBootstrapServers(string output)
+        {
+            var portsArray = output.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            var matchingPorts = portsArray.Where(portMapping =>
+                System.Text.RegularExpressions.Regex.IsMatch(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp"));
+
+            foreach (var portMapping in matchingPorts)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(portMapping, @"127\.0\.0\.1:(\d+)->9092/tcp");
+                if (match.Success)
+                {
+                    return $"127.0.0.1:{match.Groups[1].Value}";
+                }
+            }
+
+            return null;
+        }
+
+        private void LogBootstrapServerParsingFailure(string output)
+        {
+            _logger.LogWarning("⚠️ TaskManager {TaskManagerId}: Unable to parse valid Kafka 9092 port mapping from: {Output}", _taskManagerId, output);
+        }
+
         /// <summary>
         /// Verify that we can actually connect to the discovered Kafka bootstrap server
         /// </summary>
@@ -1643,14 +1669,14 @@ Message: {message}
             {
                 // CRITICAL FIX: Use Redis scripting to ensure atomic increment with STRICT limit enforcement
                 // This prevents race conditions between multiple TaskManagers and ensures exactly 1M messages
-                
+
                 var currentProcessedCount = Interlocked.Read(ref _messagesProcessed);
-                
+
                 if (updateCount <= 0)
                 {
                     return;
                 }
-                
+
                 // Use Lua script for atomic increment with STRICT limit check to ensure exactly 1,000,000
                 const string luaScript = @"
                     local sinkKey = KEYS[1]
@@ -1686,48 +1712,12 @@ Message: {message}
                         return {currentSink, currentGlobal, 0}
                     end
                 ";
-                
-                var result = await _redisDatabase.ScriptEvaluateAsync(luaScript, 
+
+                var result = await _redisDatabase.ScriptEvaluateAsync(luaScript,
                     new RedisKey[] { _redisSinkCounterKey, _globalSequenceKey },
                     new RedisValue[] { updateCount, 1000000 });
-                
-                if (result != null && result.Resp2Type == ResultType.Array)
-                {
-                    // Use explicit cast to RedisValue[] 
-                    RedisValue[]? resultArray = (RedisValue[]?)result;
-                    if (resultArray != null && resultArray.Length >= 3)
-                    {
-                        var newSinkCount = (long)resultArray[0];
-                        var newGlobalCount = (long)resultArray[1]; 
-                        var actualIncrement = (long)resultArray[2];
-                    
-                    // Log only at major milestones for ultra-fast performance (5s target)
-                    if (currentProcessedCount <= 50 || currentProcessedCount % 100000 == 0)
-                    {
-                        _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} (requested: {RequestedSize}) - " +
-                                       "local: {LocalCount}, redis_sink: {RedisSinkCount}, redis_global: {RedisGlobalCount}",
-                                       _taskManagerId, actualIncrement, updateCount, currentProcessedCount, newSinkCount, newGlobalCount);
-                    }
-                    
-                    // If we couldn't increment as much as requested, we've hit the limit
-                    if (actualIncrement < updateCount)
-                    {
-                        _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Hit Redis counter limit - sink: {SinkCount}, global: {GlobalCount}", 
-                            _taskManagerId, newSinkCount, newGlobalCount);
-                    }
-                    
-                    // CRITICAL: Verify we never exceed 1,000,000 exactly
-                    if (newSinkCount > 1000000)
-                    {
-                        _logger.LogError("❌ TaskManager {TaskManagerId}: CRITICAL ERROR - Redis counter exceeded 1,000,000: {ActualCount}", 
-                            _taskManagerId, newSinkCount);
-                        
-                        // Emergency correction
-                        await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 1000000);
-                        await _redisDatabase.StringSetAsync(_globalSequenceKey, 1000000);
-                    }
-                    }
-                }
+
+                await this.BatchUpdateRedisCOuntersAsync(updateCount, currentProcessedCount, result);
             }
             catch (Exception ex)
             {
@@ -1736,6 +1726,46 @@ Message: {message}
             }
         }
 
+        private async Task BatchUpdateRedisCOuntersAsync(long updateCount, long currentProcessedCount, RedisResult result)
+        {
+            if (result != null && result.Resp2Type == ResultType.Array)
+            {
+                // Use explicit cast to RedisValue[] 
+                RedisValue[]? resultArray = (RedisValue[]?) result;
+                if (resultArray != null && resultArray.Length >= 3)
+                {
+                    var newSinkCount = (long) resultArray[0];
+                    var newGlobalCount = (long) resultArray[1];
+                    var actualIncrement = (long) resultArray[2];
+
+                    // Log only at major milestones for ultra-fast performance (5s target)
+                    if (currentProcessedCount <= 50 || currentProcessedCount % 100000 == 0)
+                    {
+                        _logger.LogInformation("⚡ REDIS BATCH: TaskManager {TaskManagerId} updated +{BatchSize} (requested: {RequestedSize}) - " +
+                                       "local: {LocalCount}, redis_sink: {RedisSinkCount}, redis_global: {RedisGlobalCount}",
+                                       _taskManagerId, actualIncrement, updateCount, currentProcessedCount, newSinkCount, newGlobalCount);
+                    }
+
+                    // If we couldn't increment as much as requested, we've hit the limit
+                    if (actualIncrement < updateCount)
+                    {
+                        _logger.LogInformation("🛑 TaskManager {TaskManagerId}: Hit Redis counter limit - sink: {SinkCount}, global: {GlobalCount}",
+                            _taskManagerId, newSinkCount, newGlobalCount);
+                    }
+
+                    // CRITICAL: Verify we never exceed 1,000,000 exactly
+                    if (newSinkCount > 1000000)
+                    {
+                        _logger.LogError("❌ TaskManager {TaskManagerId}: CRITICAL ERROR - Redis counter exceeded 1,000,000: {ActualCount}",
+                            _taskManagerId, newSinkCount);
+
+                        // Emergency correction
+                        await _redisDatabase.StringSetAsync(_redisSinkCounterKey, 1000000);
+                        await _redisDatabase.StringSetAsync(_globalSequenceKey, 1000000);
+                    }
+                }
+            }
+        }
 
         private async Task SimulateFlinkCheckpoint()
         {

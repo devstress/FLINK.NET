@@ -103,15 +103,8 @@ public static class Program
         var redisPassword = builder.AddParameter("redis-password", value: "FlinkDotNet_Redis_CI_Password_2024", secret: false);
         var redis = builder.AddRedis("redis", password: redisPassword)
             .WithImageTag("7.4") // Use specific stable version
-            .WithEnvironment("REDIS_ARGS", "--requirepass FlinkDotNet_Redis_CI_Password_2024"); // Ensure password is set
-        
-        var isCI = IsRunningInCI();
-        if (isCI)
-        {
-            // In CI, ensure Redis container starts with proper health checks
-            Console.WriteLine("🐳 CI MODE: Configuring Redis with health checks and startup verification");
-            redis = redis.WithEnvironment("REDIS_LOGLEVEL", "warning"); // Reduce logs in CI
-        }
+            .WithEnvironment("REDIS_ARGS", "--requirepass FlinkDotNet_Redis_CI_Password_2024")
+            .WithEnvironment("REDIS_LOGLEVEL", "warning");
         
         return redis.PublishAsContainer(); // Ensure Redis is accessible from host
     }
@@ -120,7 +113,6 @@ public static class Program
     private static IResourceBuilder<KafkaServerResource> AddKafkaInfrastructure(IDistributedApplicationBuilder builder)
     {
         var kafka = builder.AddKafka("kafka")
-        .WithImageTag("7.4.0") // Use specific stable version
         .WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true")   // Allow client to clean/create topics freely
         .WithEnvironment("KAFKA_NUM_PARTITIONS", "100")
         .WithEnvironment("KAFKA_DEFAULT_REPLICATION_FACTOR", "1")
@@ -136,28 +128,16 @@ public static class Program
         .WithEnvironment("KAFKA_REPLICA_FETCH_MAX_BYTES", "52428800")
         .WithEnvironment("KAFKA_SOCKET_REQUEST_MAX_BYTES", "268435456")
         .WithEnvironment("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
+        .WithEnvironment("KAFKA_HEAP_OPTS", "-Xmx16G -Xms16G")
         .WithEnvironment("KAFKA_NUM_IO_THREADS", "256")
         .WithEnvironment("KAFKA_NUM_NETWORK_THREADS", "64")
         .WithEnvironment("KAFKA_NUM_REPLICA_FETCHERS", "8")
         .WithEnvironment("KAFKA_SOCKET_SEND_BUFFER_BYTES", "16777216")
         .WithEnvironment("KAFKA_SOCKET_RECEIVE_BUFFER_BYTES", "16777216")
         .WithEnvironment("KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE", "false")
+        .WithEnvironment("KAFKA_TRANSACTION_STATE_LOG_NUM_PARTITIONS", "10")
+        .WithEnvironment("KAFKA_JVM_PERFORMANCE_OPTS", "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=10 -XX:InitiatingHeapOccupancyPercent=20")
         .WithEnvironment("KAFKA_LOG4J_ROOT_LOGLEVEL", "WARN");
-
-        var isCI = IsRunningInCI();
-        if (isCI)
-        {
-            // In CI, reduce memory usage and adjust for limited resources
-            Console.WriteLine("🐳 CI MODE: Configuring Kafka with CI-optimized settings");
-            kafka = kafka.WithEnvironment("KAFKA_HEAP_OPTS", "-Xmx2G -Xms2G")
-                .WithEnvironment("KAFKA_JVM_PERFORMANCE_OPTS", "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35");
-        }
-        else
-        {
-            // Local development settings with higher memory
-            kafka = kafka.WithEnvironment("KAFKA_HEAP_OPTS", "-Xmx16G -Xms16G")
-                .WithEnvironment("KAFKA_JVM_PERFORMANCE_OPTS", "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=10 -XX:InitiatingHeapOccupancyPercent=20");
-        }
 
 #pragma warning disable S125 // Test WithVolume vs without
         //kafka.WithVolume("kafka-volume", "/var/lib/kafka/data");

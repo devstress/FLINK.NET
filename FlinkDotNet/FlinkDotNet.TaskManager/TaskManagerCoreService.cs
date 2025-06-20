@@ -399,7 +399,11 @@ namespace FlinkDotNet.TaskManager
                 {
                     HttpHandler = new HttpClientHandler()
                     {
-                        ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true // Accept all certificates in CI
+                        ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+                        {
+                            // Validate the certificate chain and errors
+                            return errors == System.Net.Security.SslPolicyErrors.None;
+                        }
                     },
                     // Use HTTP/2 for gRPC but don't require HTTPS
                     Credentials = Grpc.Core.ChannelCredentials.Insecure

@@ -1,236 +1,109 @@
 ﻿#!/usr/bin/env pwsh
 
-#
-# IMPORTANT: This script builds the producer executable fresh each time
-# to avoid committing large binary files to the repository.
-#
-# The executable is built in a temporary directory and cleaned up after use.
-# This ensures the repo stays clean while still providing high performance.
-#
-
 param(
     [long]$MessageCount = 1000000,
     [string]$Topic = "flinkdotnet.sample.topic",
     [int]$Partitions = 100,
-    [int]$ParallelProducers = 64
+    [int]$ParallelProducers = 64,
+    [switch]$ForceRebuild
 )
-
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
-Write-Host "=== Flink.NET Kafka Producer RC7.2.0 MICRO-BATCH AUTOTUNED BUILD ===" -ForegroundColor Cyan
+Write-Host "=== Flink.NET Kafka Producer RC7.2.2 ===" -ForegroundColor Cyan
+
+$scriptDir = Split-Path -Parent $PSCommandPath
+$outputDir = Join-Path $scriptDir "producer"
+$sourceFile = Join-Path $outputDir "Producer.cs"
+$projectFile = Join-Path $outputDir "Producer.csproj"
+$platform = if ($IsWindows -or ($env:OS -eq "Windows_NT")) { @{ Rid = "win-x64"; Exe = "producer.exe" } } else { @{ Rid = "linux-x64"; Exe = "producer" } }
+$exePath = Join-Path $outputDir $platform.Exe
+
+function Build-Producer {
+    if (!(Test-Path $sourceFile)) {
+        Write-Error "❌ Missing source file: $sourceFile"
+        exit 1
+    }
+
+    if (!$ForceRebuild -and (Test-Path $exePath)) {
+        Write-Host "✅ Found cached executable: $exePath" -ForegroundColor Green
+        return
+    }
+
+    Write-Host "🛠️ Building .NET Producer..." -ForegroundColor Yellow
+    if (!(Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
+
+    if ($ForceRebuild) {
+        @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Confluent.Kafka" Version="*" />
+  </ItemGroup>
+</Project>
+"@ | Set-Content -Path $projectFile -Encoding UTF8
+    }
+
+    # Run publish and capture result
+    dotnet publish $projectFile `
+        -c Release `
+        -r $platform.Rid `
+        --self-contained true `
+        /p:PublishSingleFile=true `
+        /p:EnableCompressionInSingleFile=true `
+        -o $outputDir
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "❌ .NET publish failed with exit code $LASTEXITCODE. Aborting."
+        exit $LASTEXITCODE
+    }
+}
 
 function Get-KafkaBootstrapServers {
     Write-Host "🔍 Discovering Kafka bootstrap servers..."
-
-    # Use environment variable first
     if ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
-        # Replace localhost or ::1 with 127.0.0.1 to force IPv4 if needed
-        $bootstrap = $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS
-        $bootstrap = $bootstrap -replace 'localhost', '127.0.0.1'
-        $bootstrap = $bootstrap -replace '::1', '127.0.0.1'
-        Write-Host "✅ Using environment variable DOTNET_KAFKA_BOOTSTRAP_SERVERS: $bootstrap"
-        return $bootstrap
+        return $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS -replace 'localhost|::1', '127.0.0.1'
     }
 
-    # Fallback to docker discovery
-    Write-Host "⚠️ DOTNET_KAFKA_BOOTSTRAP_SERVERS not set, falling back to Docker discovery..."
-    $containerPorts = docker ps --filter "name=kafka" --format "{{.Ports}}"
-    if ([string]::IsNullOrWhiteSpace($containerPorts)) { Write-Error "❌ Kafka container not found."; exit 1 }
-    $portsArray = $containerPorts -split '\s+'
-    foreach ($portMapping in $portsArray) {
-        if ($portMapping -match "127\.0\.0\.1:(\d+)->9092/tcp") {
-            $hostPort = $matches[1]
-            $bootstrapServers = "127.0.0.1:$hostPort"
-            Write-Host "✅ Discovered Kafka bootstrap server via Docker: $bootstrapServers"
-            return $bootstrapServers
+    $ports = docker ps --filter "name=kafka" --format "{{.Ports}}"
+    foreach ($line in $ports -split '\s+') {
+        if ($line -match ":(\d+)->9092/tcp") {
+            $port = $matches[1]
+            Write-Host "✅ Kafka detected on 127.0.0.1:$port"
+            return "127.0.0.1:$port"
         }
     }
-    Write-Error "❌ Unable to parse Kafka 9092 port mapping."; exit 1
+
+    Write-Error "❌ Failed to discover Kafka port"
+    exit 1
 }
 
 function Get-KafkaContainerName {
     Write-Host "🔍 Discovering Kafka container name..."
-    $containerName = docker ps --filter "ancestor=confluentinc/cp-kafka:7.4.0" --format "{{.Names}}"
-    if ([string]::IsNullOrWhiteSpace($containerName)) { Write-Error "❌ Kafka container not found."; exit 1 }
-    Write-Host "✅ Kafka container found: $containerName"
-    return $containerName
-}
-
-$bootstrapServers = Get-KafkaBootstrapServers
-Write-Host "📡 Kafka Broker: $bootstrapServers" -ForegroundColor Green
-
-$kafkaContainer = Get-KafkaContainerName
-Write-Host "🔧 Warming up Kafka Broker disk & page cache..." -ForegroundColor Yellow
-docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
-
-function Get-PlatformInfo {
-    if ($IsWindows -or ($env:OS -eq "Windows_NT")) {
-        return @{
-            RuntimeId = "win-x64"
-            ExecutableName = "producer-rc720-microbatch.exe"
-            PathSeparator = "\"
-        }
-    } else {
-        return @{
-            RuntimeId = "linux-x64"
-            ExecutableName = "producer-rc720-microbatch"
-            PathSeparator = "/"
-        }
+    $name = docker ps --filter "name=kafka" --format "{{.Names}}" | Select-Object -First 1
+    if (-not $name) {
+        Write-Error "❌ Kafka container not found."
+        exit 1
     }
-}
-
-function Build-Producer {
-    Write-Host "🛠️ Building .NET Producer..."
-    $platform = Get-PlatformInfo
-    
-    # Always build fresh to avoid large cached files in repo
-    Write-Host "🔨 Building fresh executable to avoid large repo files" -ForegroundColor Yellow
-    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "producer-rc720-microbatch-$(Get-Random)"
-    if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-    New-Item -ItemType Directory -Path $tempDir | Out-Null
-
-    dotnet new console -f net8.0 --force --output $tempDir | Out-Null
-    $projectFile = Join-Path $tempDir "producer-rc720-microbatch.csproj"
-    dotnet add "$projectFile" package Confluent.Kafka | Out-Null
-
-@"
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Threading;
-using System.Diagnostics;
-using Confluent.Kafka;
-
-class Program
-{
-    static async Task Main(string[] args)
-    {
-        string bootstrap = args[0];
-        string topic = args[1];
-        long messageCount = long.Parse(args[2]);
-        int producers = int.Parse(args[3]);
-        int partitions = int.Parse(args[4]);
-
-        PreheatPartitions(bootstrap, topic, partitions);
-        var payloads = PreGeneratePayloads(messageCount);
-
-        var perProducerCounter = new long[producers];
-        var sw = Stopwatch.StartNew();
-
-        var progressTask = Task.Run(() =>
-        {
-            while (true)
-            {
-                long totalSent = perProducerCounter.Sum();
-                double elapsed = sw.Elapsed.TotalSeconds;
-                double rate = totalSent / (elapsed > 0 ? elapsed : 1);
-                Console.Write($"\r[PROGRESS] Sent={totalSent:N0}  Rate={rate:N0} msg/sec");
-                if (totalSent >= messageCount && !sw.IsRunning) break;
-                Thread.Sleep(200);
-            }
-        });
-
-        var tasks = Enumerable.Range(0, producers).Select(id => Task.Run(() =>
-        {
-            var config = new ProducerConfig
-            {
-                BootstrapServers = bootstrap,
-                Acks = Acks.None,
-                LingerMs = 2,
-                BatchSize = 524288,
-                CompressionType = CompressionType.None,
-                QueueBufferingMaxKbytes = 64 * 1024 * 1024,
-                QueueBufferingMaxMessages = 20_000_000,
-                SocketTimeoutMs = 60000,
-                SocketKeepaliveEnable = true,
-                ClientId = $"producer-{id}",
-                EnableDeliveryReports = false
-            };
-
-            using var producer = new ProducerBuilder<long, byte[]>(config)
-                .SetKeySerializer(Serializers.Int64)
-                .SetValueSerializer(Serializers.ByteArray)
-                .Build();
-
-            long sliceSize = messageCount / producers;
-            long sliceStart = id * sliceSize;
-            long sliceEnd = sliceStart + sliceSize;
-
-            for (long i = sliceStart; i < sliceEnd; i++)
-            {
-                producer.Produce(topic, new Message<long, byte[]> { Key = i, Value = payloads[i] });
-                perProducerCounter[id]++;
-            }
-
-            producer.Flush(TimeSpan.FromSeconds(10));
-        })).ToArray();
-
-        await Task.WhenAll(tasks);
-        sw.Stop();
-        await progressTask;
-
-        long finalSent = perProducerCounter.Sum();
-        Console.WriteLine($"\n[FINISH] Total: {finalSent:N0} Time: {sw.Elapsed.TotalSeconds:F3}s Rate: {finalSent / sw.Elapsed.TotalSeconds:N0} msg/sec");
-    }
-
-    static byte[][] PreGeneratePayloads(long totalMessages)
-    {
-        var payloads = new byte[totalMessages][];
-        Parallel.For(0, (int)totalMessages, i =>
-        {
-            var buffer = new byte[32];
-            BitConverter.TryWriteBytes(buffer.AsSpan(0, 8), i);
-            BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-            Random.Shared.NextBytes(buffer.AsSpan(16, 16));
-            payloads[i] = buffer;
-        });
-        return payloads;
-    }
-
-    static void PreheatPartitions(string bootstrap, string topic, int partitions)
-    {
-        var config = new ProducerConfig { BootstrapServers = bootstrap };
-        using var producer = new ProducerBuilder<Null, byte[]>(config).SetValueSerializer(Serializers.ByteArray).Build();
-        var payload = new byte[16];
-        for (int pid = 0; pid < partitions; pid++)
-        {
-            producer.Produce(new TopicPartition(topic, new Partition(pid)), new Message<Null, byte[]> { Value = payload });
-        }
-        producer.Flush(TimeSpan.FromSeconds(10));
-    }
-}
-"@ | Out-File (Join-Path $tempDir "Program.cs") -Encoding UTF8
-
-    $publishOutputDir = Join-Path $tempDir "publish"
-    dotnet publish "$projectFile" -c Release -r $platform.RuntimeId --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o $publishOutputDir | Out-Null
-    
-    $tempExecutable = Join-Path $publishOutputDir $platform.ExecutableName
-    
-    # Copy the built executable to the script directory for future use
-    # Note: We don't cache the executable to avoid large binary files in the repo
-    # Users should delete any cached files manually if they update the script
-    try {
-        # For now, always use temp location to avoid committing large binaries
-        Write-Host "✅ Executable built: $tempExecutable" -ForegroundColor Green
-        Write-Host "💡 Using temp location to avoid large files in repo" -ForegroundColor Yellow
-        
-        return $tempExecutable
-    } catch {
-        Write-Host "⚠️ Could not create executable: $_" -ForegroundColor Red
-        throw "Producer build failed"
-    }
+    Write-Host "✅ Kafka container: $name"
+    return $name
 }
 
 function Run-Producers {
     param($ExecutablePath, $BootstrapServers, $Topic, $MessageCount, $Partitions, $ParallelProducers)
+    Write-Host "🚀 Starting Producer..."
     & "$ExecutablePath" "$BootstrapServers" "$Topic" "$MessageCount" "$ParallelProducers" "$Partitions"
 }
 
-# Build and run the producer
-$exePath = Build-Producer
-Run-Producers $exePath $bootstrapServers $Topic $MessageCount $Partitions $ParallelProducers
+# === MAIN EXECUTION ===
+$bootstrapServers = Get-KafkaBootstrapServers
+$kafkaContainer = Get-KafkaContainerName
 
-# Clean up temp directory if we used one (don't delete cached executable)
-$scriptDir = Split-Path -Parent $PSCommandPath
-if (-not $exePath.StartsWith($scriptDir)) {
-    Remove-Item (Split-Path $exePath -Parent) -Recurse -Force -ErrorAction SilentlyContinue
-}
+docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
+
+Build-Producer
+Run-Producers $exePath $bootstrapServers $Topic $MessageCount $Partitions $ParallelProducers
