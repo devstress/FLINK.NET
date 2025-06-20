@@ -215,13 +215,22 @@ class Program
 "@ | Out-File (Join-Path $tempDir "Program.cs") -Encoding UTF8
 
     $publishOutputDir = Join-Path $tempDir "publish"
-    dotnet publish "$projectFile" -c Release -r $platform.RuntimeId --self-contained true -o $publishOutputDir | Out-Null
+    dotnet publish "$projectFile" -c Release -r $platform.RuntimeId --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o $publishOutputDir | Out-Null
     
     $tempExecutable = Join-Path $publishOutputDir $platform.ExecutableName
     
-    # Copy the built executable to the script directory for future use
+    # Copy the built executable and any native dependencies to the script directory for future use
     try {
         Copy-Item $tempExecutable $localExecutable -Force
+        
+        # Also copy any native libraries that might be needed (like librdkafka)
+        $publishDir = Split-Path $tempExecutable -Parent
+        $nativeLibs = Get-ChildItem -Path $publishDir -Filter "*.so" -ErrorAction SilentlyContinue
+        foreach ($lib in $nativeLibs) {
+            $targetLib = Join-Path $scriptDir $lib.Name
+            Copy-Item $lib.FullName $targetLib -Force -ErrorAction SilentlyContinue
+        }
+        
         Write-Host "✅ Executable cached to: $localExecutable" -ForegroundColor Green
         
         # Clean up temp directory

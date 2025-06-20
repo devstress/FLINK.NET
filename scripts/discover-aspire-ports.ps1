@@ -152,12 +152,13 @@ function Get-KafkaPort {
             # Get Kafka containers with different image patterns
             $kafkaContainers = @()
             
-            # Try multiple Kafka image patterns that Aspire might use  
+            # Try multiple Kafka image patterns that Aspire might use
+            # Priority to confluentinc/confluent-local:7.4.0 as specified by user
             $imagePatterns = @(
+                "confluentinc/confluent-local:7.4.0",
+                "confluentinc/confluent-local",
                 "confluentinc/cp-kafka:7.4.0",
-                "confluentinc/cp-kafka",
-                "confluentinc/confluent-local:7.9.0",
-                "confluentinc/confluent-local"
+                "confluentinc/cp-kafka"
             )
             
             foreach ($pattern in $imagePatterns) {
@@ -173,11 +174,22 @@ function Get-KafkaPort {
                 Write-Host "No exact Kafka ancestor matches, checking all containers for Kafka..." -ForegroundColor Yellow
                 $allContainers = docker ps --format "{{.ID}}\t{{.Image}}\t{{.Names}}" 2>/dev/null
                 foreach ($line in $allContainers) {
-                    if ($line -match "kafka" -and $line -notmatch "kafka-init") {
-                        $containerId = ($line -split '\t')[0]
-                        if ($containerId -and $containerId.Length -gt 5) { # Valid container ID should be longer
-                            $kafkaContainers += $containerId
-                            Write-Host "Found Kafka container by pattern: $containerId" -ForegroundColor Green
+                    # Look for kafka but exclude init containers and prioritize confluent-local
+                    if ($line -match "kafka" -and $line -notmatch "kafka-init" -and $line -notmatch "-init") {
+                        # Prioritize confluent-local containers over others
+                        if ($line -match "confluent-local") {
+                            $containerId = ($line -split '\t')[0]
+                            if ($containerId -and $containerId.Length -gt 5) {
+                                $kafkaContainers = @($containerId) + $kafkaContainers  # Put at front
+                                Write-Host "Found priority Kafka container (confluent-local): $containerId" -ForegroundColor Green
+                            }
+                        }
+                        elseif ($line -match "cp-kafka") {
+                            $containerId = ($line -split '\t')[0]
+                            if ($containerId -and $containerId.Length -gt 5) {
+                                $kafkaContainers += $containerId
+                                Write-Host "Found Kafka container (cp-kafka): $containerId" -ForegroundColor Green
+                            }
                         }
                     }
                 }

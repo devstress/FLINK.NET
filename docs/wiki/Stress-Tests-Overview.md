@@ -19,19 +19,7 @@ Our stress tests validate FLINK.NET's ability to handle high-volume message proc
 
 ## How to run
 
-### Automated Script (Recommended)
-```powershell
-# Run with default 1 million messages
-./scripts/run-simple-stress-test.ps1
-
-# Run with custom message count  
-./scripts/run-simple-stress-test.ps1 -MessageCount 10000
-
-# Keep AppHost running after completion for debugging
-./scripts/run-simple-stress-test.ps1 -SkipCleanup
-```
-
-### Manual Process (As documented)
+### Manual Process (Required Approach)
 1/ Make sure Docker Desktop is running or the equivalent like containerd/Rancher Desktop.
 ![Docker Desktop](TestScreenshoots/Docker-Desktop.png)
 

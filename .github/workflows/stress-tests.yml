@@ -67,11 +67,11 @@ jobs:
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Run Simple Stress Test (Following Documentation)
+      - name: Run Manual Stress Test (Following Documentation)
         timeout-minutes: 10
         run: |
-          Write-Host "=== FLINK.NET Stress Test - Following Documented Approach ===" -ForegroundColor Cyan
-          Write-Host "Using simplified approach from docs/wiki/Stress-Tests-Overview.md" -ForegroundColor White
+          Write-Host "=== FLINK.NET Stress Test - Manual Approach ===" -ForegroundColor Cyan
+          Write-Host "Following docs/wiki/Stress-Tests-Overview.md manual process" -ForegroundColor White
           
           # Set environment variables for stress testing
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES }}'
@@ -83,7 +83,7 @@ jobs:
           Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES" -ForegroundColor Gray
           Write-Host "  CI: $env:CI (enables direct consumption mode)" -ForegroundColor Gray
           
-          # Step 1: Start AppHost
+          # Step 1: Start AppHost (Open FlinkDotNetAspire.sln > F5)
           Write-Host "`n=== Step 1: Start AppHost ===" -ForegroundColor Yellow
           $processArgs = @(
             'run', '--no-build', '--configuration', 'Release',
@@ -94,7 +94,7 @@ jobs:
           $proc.Id | Out-File apphost.pid -Encoding utf8
           Write-Host "✅ AppHost started with PID: $($proc.Id)" -ForegroundColor Green
           
-          # Step 2: Wait for services
+          # Step 2: Wait all the services running (Redis, Kafka, FlinkJobSimulator)
           Write-Host "`n=== Step 2: Wait for Services ===" -ForegroundColor Yellow
           Write-Host "Waiting 60 seconds for services to start..." -ForegroundColor White
           Start-Sleep -Seconds 60
@@ -108,7 +108,7 @@ jobs:
           Write-Host "  Redis: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
           Write-Host "  Kafka: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
           
-          # Step 3: Produce messages
+          # Step 3: cd scripts > Run .\produce-1-million-messages.ps1
           Write-Host "`n=== Step 3: Produce Messages ===" -ForegroundColor Yellow
           Push-Location scripts
           try {
@@ -119,7 +119,7 @@ jobs:
             Pop-Location
           }
           
-          # Step 4: Wait for completion
+          # Step 4: Run wait-for-flinkjobsimulator-completion.ps1
           Write-Host "`n=== Step 4: Wait for Completion ===" -ForegroundColor Yellow
           Push-Location scripts
           try {

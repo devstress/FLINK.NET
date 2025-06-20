@@ -258,8 +258,25 @@ All AI agents working on FLINK.NET issues MUST follow this investigation protoco
 #### Absolute Requirements
 1. **NO GUESSING**: All diagnoses must be based on actual test results
 2. **FULL PIPELINE TESTING**: Always test the complete stress test pipeline
-3. **PERFORMANCE VALIDATION**: Changes must maintain or improve performance
-4. **CI COMPATIBILITY**: All changes must work in CI environments
+3. **MANUAL APPROACH MANDATORY**: Must follow manual stress testing approach from `docs/wiki/Stress-Tests-Overview.md`
+4. **PERFORMANCE VALIDATION**: Changes must maintain or improve performance
+5. **CI COMPATIBILITY**: All changes must work in CI environments
+
+#### Mandatory Stress Testing Approach
+**AI agents MUST follow the manual process exactly as documented:**
+
+1. **Start Aspire AppHost**: `FlinkDotNetAspire.sln > F5`
+2. **Wait for Services**: All Redis/Kafka/FlinkJobSimulator services running  
+3. **Produce Messages**: `cd scripts > .\produce-1-million-messages.ps1`
+4. **Wait for Completion**: `.\wait-for-flinkjobsimulator-completion.ps1`
+
+**NO automated scripts allowed** - must follow manual documented steps.
+
+#### Performance Requirements
+- **Processing Speed**: Messages must be processed in **< 5 seconds**
+- **Redis Counter**: Must increment properly within timeout window
+- **Throughput**: Target 1M+ messages/second capability
+- **Kafka Container**: Must detect `confluentinc/confluent-local:7.4.0` (not init containers)
 
 #### Forbidden Actions
 ❌ **Never do these:**
