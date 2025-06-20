@@ -178,7 +178,8 @@ public static class Program
         var jobManager = builder.AddProject<Projects.FlinkDotNet_JobManager>("jobmanager")
             .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
-            .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true");
+            .WithEnvironment("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true")
+            .WithEnvironment("ASPIRE_USE_DYNAMIC_PORTS", "true"); // Enable dynamic ports for Aspire
 
         // Store TaskManager references for JobManager
         var taskManagers = new List<IResourceBuilder<ProjectResource>>();

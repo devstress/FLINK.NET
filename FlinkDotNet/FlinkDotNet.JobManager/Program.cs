@@ -24,9 +24,13 @@ public static class Program
 
     private static void ConfigurePorts(WebApplicationBuilder builder)
     {
-        var httpPort = ServicePorts.JobManagerHttp;
-        var grpcPort = ServicePorts.JobManagerGrpc;
+        // Check if dynamic port allocation is enabled for Aspire environments
+        var useDynamicPorts = Environment.GetEnvironmentVariable("ASPIRE_USE_DYNAMIC_PORTS")?.ToLowerInvariant() == "true";
+        
+        var httpPort = useDynamicPorts ? 0 : ServicePorts.JobManagerHttp;
+        var grpcPort = useDynamicPorts ? 0 : ServicePorts.JobManagerGrpc;
 
+        // Allow environment variable overrides
         if (int.TryParse(Environment.GetEnvironmentVariable(EnvironmentVariables.JobManagerGrpcPort), out var envGrpc))
         {
             grpcPort = envGrpc;
@@ -39,8 +43,19 @@ public static class Program
 
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.Listen(IPAddress.Any, httpPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1);
-            options.Listen(IPAddress.Any, grpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+            if (useDynamicPorts)
+            {
+                Console.WriteLine("🔄 ASPIRE MODE: JobManager using dynamic port allocation");
+                // Let Kestrel assign available ports dynamically
+                options.ListenAnyIP(httpPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1);
+                options.ListenAnyIP(grpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+            }
+            else
+            {
+                Console.WriteLine($"🔧 FIXED PORT MODE: JobManager using HTTP port {httpPort}, gRPC port {grpcPort}");
+                options.Listen(IPAddress.Any, httpPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1);
+                options.Listen(IPAddress.Any, grpcPort, o => o.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
+            }
         });
     }
 
