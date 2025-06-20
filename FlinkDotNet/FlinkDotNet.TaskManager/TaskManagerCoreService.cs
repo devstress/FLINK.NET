@@ -50,13 +50,17 @@ namespace FlinkDotNet.TaskManager
         var resolvedJobManagerAddress = await ResolveJobManagerAddressAsync();
         Console.WriteLine($"Resolved JobManager address: {resolvedJobManagerAddress}");
         
+        // Wait for our own server to be ready before discovering port and registering
+        await WaitForServerReadyAsync(linkedToken);
+        
         // Discover the actual assigned port when using dynamic allocation
         var actualGrpcPort = GetActualGrpcPort();
         Console.WriteLine($"TaskManager {_config.TaskManagerId} actual gRPC port: {actualGrpcPort}");
         
-        var channel = GrpcChannel.ForAddress(resolvedJobManagerAddress); // Use resolved address
-        _client = new TaskManagerRegistration.TaskManagerRegistrationClient(channel); // _jmRegistrationClient is _client
-        _jobManagerInternalClient = new JobManagerInternalService.JobManagerInternalServiceClient(channel); // Initialize the new client
+        // Configure gRPC channel with appropriate settings for the environment
+        var channel = CreateGrpcChannel(resolvedJobManagerAddress);
+        _client = new TaskManagerRegistration.TaskManagerRegistrationClient(channel);
+        _jobManagerInternalClient = new JobManagerInternalService.JobManagerInternalServiceClient(channel);
 
         try
         {
@@ -145,27 +149,28 @@ namespace FlinkDotNet.TaskManager
     {
         try
         {
-            // First try Aspire service discovery patterns
-            var aspireJobManagerUrl = Environment.GetEnvironmentVariable("services__jobmanager__https__0");
-            if (!string.IsNullOrEmpty(aspireJobManagerUrl))
+            // Check if unsecured transport is allowed (prefer HTTP for gRPC in CI)
+            var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT")?.ToLowerInvariant() == "true";
+            
+            if (allowUnsecured)
             {
-                Console.WriteLine($"Using Aspire HTTPS service discovery: {aspireJobManagerUrl}");
-                return Task.FromResult(aspireJobManagerUrl);
+                Console.WriteLine("🔧 UNSECURED TRANSPORT MODE: Prioritizing HTTP endpoints for gRPC communication");
+                
+                // First try HTTP endpoint for unsecured gRPC
+                var aspireJobManagerHttp = Environment.GetEnvironmentVariable("services__jobmanager__http__0");
+                if (!string.IsNullOrEmpty(aspireJobManagerHttp))
+                {
+                    Console.WriteLine($"Using Aspire HTTP service discovery: {aspireJobManagerHttp}");
+                    return Task.FromResult(aspireJobManagerHttp);
+                }
             }
 
+            // Try dedicated gRPC endpoint if available
             var aspireJobManagerGrpc = Environment.GetEnvironmentVariable("services__jobmanager__grpc__0");
             if (!string.IsNullOrEmpty(aspireJobManagerGrpc))
             {
                 Console.WriteLine($"Using Aspire gRPC service discovery: {aspireJobManagerGrpc}");
                 return Task.FromResult(aspireJobManagerGrpc);
-            }
-
-            // Try HTTP endpoint as fallback
-            var aspireJobManagerHttp = Environment.GetEnvironmentVariable("services__jobmanager__http__0");
-            if (!string.IsNullOrEmpty(aspireJobManagerHttp))
-            {
-                Console.WriteLine($"Using Aspire HTTP service discovery: {aspireJobManagerHttp}");
-                return Task.FromResult(aspireJobManagerHttp);
             }
 
             // Try alternative Aspire patterns
@@ -176,9 +181,24 @@ namespace FlinkDotNet.TaskManager
                 return Task.FromResult(aspireJobManager);
             }
 
-            // Fallback to the original config address
-            Console.WriteLine($"Using fallback JobManager address: {_config.JobManagerGrpcAddress}");
-            return Task.FromResult(_config.JobManagerGrpcAddress);
+            // Only use HTTPS as last resort if unsecured transport is not allowed
+            if (!allowUnsecured)
+            {
+                var aspireJobManagerHttps = Environment.GetEnvironmentVariable("services__jobmanager__https__0");
+                if (!string.IsNullOrEmpty(aspireJobManagerHttps))
+                {
+                    Console.WriteLine($"Using Aspire HTTPS service discovery: {aspireJobManagerHttps}");
+                    return Task.FromResult(aspireJobManagerHttps);
+                }
+            }
+
+            // For Aspire mode, use the standard HTTP port that JobManager exposes for combined HTTP1/HTTP2 traffic
+            var protocol = allowUnsecured ? "http" : "https";
+            var aspireJobManagerPort = "8080"; // JobManager HTTP port that also serves gRPC in Aspire mode
+            var aspireUrl = $"{protocol}://localhost:{aspireJobManagerPort}";
+            
+            Console.WriteLine($"Using Aspire fallback JobManager address: {aspireUrl} (combined HTTP1/HTTP2 endpoint)");
+            return Task.FromResult(aspireUrl);
         }
         catch (Exception ex)
         {
@@ -332,6 +352,74 @@ namespace FlinkDotNet.TaskManager
         {
             Console.WriteLine($"Error determining TaskManager address: {ex.Message}");
             return ServiceHosts.Localhost;
+        }
+    }
+
+    /// <summary>
+    /// Wait for the TaskManager's own server to be ready before attempting registration
+    /// </summary>
+    private async Task WaitForServerReadyAsync(CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 20;
+        const int delayMs = 500;
+        
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return;
+                
+            var serverAddressesFeature = _server.Features.Get<IServerAddressesFeature>();
+            if (serverAddressesFeature?.Addresses != null && serverAddressesFeature.Addresses.Any())
+            {
+                Console.WriteLine($"TaskManager server ready after {attempt} attempts");
+                return;
+            }
+            
+            Console.WriteLine($"Waiting for TaskManager server to be ready (attempt {attempt}/{maxAttempts})...");
+            await Task.Delay(delayMs, cancellationToken);
+        }
+        
+        Console.WriteLine($"Warning: TaskManager server may not be fully ready after {maxAttempts} attempts");
+    }
+
+    /// <summary>
+    /// Create gRPC channel with appropriate configuration for the environment
+    /// </summary>
+    private GrpcChannel CreateGrpcChannel(string address)
+    {
+        try
+        {
+            var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT")?.ToLowerInvariant() == "true";
+            
+            if (allowUnsecured)
+            {
+                Console.WriteLine("🔧 Creating gRPC channel with unsecured transport settings");
+                
+                return GrpcChannel.ForAddress(address, new GrpcChannelOptions
+                {
+                    HttpHandler = new HttpClientHandler()
+                    {
+                        ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+                        {
+                            // Validate the certificate chain and errors
+                            return errors == System.Net.Security.SslPolicyErrors.None;
+                        }
+                    },
+                    // Use HTTP/2 for gRPC but don't require HTTPS
+                    Credentials = Grpc.Core.ChannelCredentials.Insecure
+                });
+            }
+            else
+            {
+                Console.WriteLine("🔐 Creating gRPC channel with secured transport settings");
+                return GrpcChannel.ForAddress(address);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating gRPC channel: {ex.Message}");
+            // Fallback to basic channel creation
+            return GrpcChannel.ForAddress(address);
         }
     }
 

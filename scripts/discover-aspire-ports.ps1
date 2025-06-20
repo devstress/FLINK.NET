@@ -99,12 +99,20 @@ function Get-RedisConnectionInfo {
             }
 
             $envOutput = docker inspect $containerId 2>/dev/null | ConvertFrom-Json
-            $connectionString = "redis://:@localhost:$redisPort"
-            $testResult = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+            $connectionString = "redis://:FlinkDotNet_Redis_CI_Password_2024@localhost:$redisPort"
+            $testResult = docker exec $containerId redis-cli -p 6379 -a "FlinkDotNet_Redis_CI_Password_2024" ping 2>/dev/null
             if ($testResult -eq "PONG") {
-                Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                Write-Host "Redis connection test successful (with auth)" -ForegroundColor Green
             } else {
-                Write-Host "Redis connection without password failed: '$testResult'" -ForegroundColor Yellow
+                Write-Host "Redis connection test failed: '$testResult', trying without password..." -ForegroundColor Yellow
+                # Try without password as fallback
+                $testResultNoAuth = docker exec $containerId redis-cli -p 6379 ping 2>/dev/null
+                if ($testResultNoAuth -eq "PONG") {
+                    Write-Host "Redis connection test successful (no auth required)" -ForegroundColor Green
+                    $connectionString = "redis://:@localhost:$redisPort"
+                } else {
+                    Write-Host "Redis connection test failed both with and without auth" -ForegroundColor Yellow
+                }
             }
 
             return @{
@@ -144,18 +152,13 @@ function Get-KafkaPort {
             # Get Kafka containers with different image patterns
             $kafkaContainers = @()
             
-            # Try multiple Kafka image patterns that Aspire might use  
+            # Try multiple Kafka image patterns that Aspire might use
+            # Priority to confluentinc/confluent-local:7.4.0 as specified by user
             $imagePatterns = @(
+                "confluentinc/confluent-local:7.4.0",
                 "confluentinc/confluent-local",
-                "confluentinc/confluent-local:7.9.0",
-                "confluentinc/confluent-local:latest", 
-                "apache/kafka",
-                "apache/kafka:latest",
-                "confluentinc/cp-kafka",
                 "confluentinc/cp-kafka:7.4.0",
-                "confluentinc/cp-kafka:latest",
-                "bitnami/kafka",
-                "bitnami/kafka:latest"
+                "confluentinc/cp-kafka"
             )
             
             foreach ($pattern in $imagePatterns) {
@@ -166,16 +169,27 @@ function Get-KafkaPort {
                 }
             }
 
-            # If no exact matches, try pattern matching in names/images
+            # If no exact matches, try pattern matching in names/images (excluding kafka-init containers)
             if (-not ($kafkaContainers | Where-Object { $_ -and $_.Trim() })) {
                 Write-Host "No exact Kafka ancestor matches, checking all containers for Kafka..." -ForegroundColor Yellow
                 $allContainers = docker ps --format "{{.ID}}\t{{.Image}}\t{{.Names}}" 2>/dev/null
                 foreach ($line in $allContainers) {
-                    if ($line -match "kafka" -or $line -match "confluent" -or $line -match "Kafka") {
-                        $containerId = ($line -split '\t')[0]
-                        if ($containerId -and $containerId.Length -gt 5) { # Valid container ID should be longer
-                            $kafkaContainers += $containerId
-                            Write-Host "Found Kafka container by pattern: $containerId" -ForegroundColor Green
+                    # Look for kafka but exclude init containers and prioritize confluent-local
+                    if ($line -match "kafka" -and $line -notmatch "kafka-init" -and $line -notmatch "-init") {
+                        # Prioritize confluent-local containers over others
+                        if ($line -match "confluent-local") {
+                            $containerId = ($line -split '\t')[0]
+                            if ($containerId -and $containerId.Length -gt 5) {
+                                $kafkaContainers = @($containerId) + $kafkaContainers  # Put at front
+                                Write-Host "Found priority Kafka container (confluent-local): $containerId" -ForegroundColor Green
+                            }
+                        }
+                        elseif ($line -match "cp-kafka") {
+                            $containerId = ($line -split '\t')[0]
+                            if ($containerId -and $containerId.Length -gt 5) {
+                                $kafkaContainers += $containerId
+                                Write-Host "Found Kafka container (cp-kafka): $containerId" -ForegroundColor Green
+                            }
                         }
                     }
                 }
@@ -256,42 +270,9 @@ function Get-KafkaPort {
     return $null
 }
 
-function Get-JobManagerPort {
-    param(
-        [int]$MaxRetries = 3,
-        [int]$DelaySeconds = 5
-    )
-
-    for ($retry = 1; $retry -le $MaxRetries; $retry++) {
-        try {
-            Write-Host "JobManager discovery attempt $retry/$MaxRetries..." -ForegroundColor Yellow
-
-            $containerId = docker ps --filter "name=jobmanager" --format "{{.ID}}" | Select-Object -First 1
-            if (-not $containerId) {
-                Write-Host "JobManager container not found" -ForegroundColor Yellow
-                if ($retry -lt $MaxRetries) {
-                    Start-Sleep -Seconds $DelaySeconds
-                    continue
-                }
-                return $null
-            }
-
-            $portInfo = docker port $containerId 50051 2>/dev/null
-            if ($portInfo -and $portInfo -match "(?:127\.0\.0\.1|0\.0\.0\.0|\[::\]):(\d+)") {
-                $jobManagerPort = [int]$Matches[1]
-                Write-Host "JobManager mapped to host port: $jobManagerPort" -ForegroundColor Green
-                return $jobManagerPort
-            }
-        } catch {
-            Write-Host "Error in JobManager discovery attempt $retry : $_" -ForegroundColor Red
-        }
-
-        if ($retry -lt $MaxRetries) {
-            Start-Sleep -Seconds $DelaySeconds
-        }
-    }
-    return $null
-}
+# Note: JobManager discovery removed because in Aspire mode, JobManager runs as a .NET project,
+# not a Docker container. JobManager address should be discovered through Aspire service discovery
+# mechanism in the FlinkJobSimulator itself via configuration like ConnectionStrings__jobmanager.
 
 # Main execution
 Write-Host "=== Discovering Aspire Container Ports ===" -ForegroundColor Cyan
@@ -309,7 +290,6 @@ if ($env:CI -eq "true" -or $env:GITHUB_ACTIONS -eq "true") {
 
 $redisInfo = Get-RedisConnectionInfo -MaxRetries 5 -DelaySeconds 3
 $kafkaPort = Get-KafkaPort -MaxRetries 5 -DelaySeconds 3
-$jobManagerPort = Get-JobManagerPort -MaxRetries 5 -DelaySeconds 3
 
 Write-Host ""
 Write-Host "=== Discovery Results ===" -ForegroundColor Cyan
@@ -334,21 +314,14 @@ if ($kafkaPort) {
     return 1
 }
 
-if ($jobManagerPort) {
-    Write-Host "✅ JobManager discovered on port: $jobManagerPort" -ForegroundColor Green
-    $env:DOTNET_JOBMANAGER_GRPC_PORT = $jobManagerPort.ToString()
-    $env:DOTNET_JOBMANAGER_GRPC_ADDRESS = "localhost:$jobManagerPort"
-} else {
-    Write-Host "⚠️ JobManager port not discovered - using default 50051" -ForegroundColor Yellow
-    $env:DOTNET_JOBMANAGER_GRPC_PORT = "50051"
-    $env:DOTNET_JOBMANAGER_GRPC_ADDRESS = "localhost:50051"
-}
+Write-Host "ℹ️  JobManager discovery skipped - using Aspire service discovery instead" -ForegroundColor Cyan
+Write-Host "   JobManager runs as .NET project and will be discovered via Aspire service references" -ForegroundColor Gray
 
 Write-Host ""
 Write-Host "Environment variables set:" -ForegroundColor Cyan
 Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
 Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
-Write-Host "  DOTNET_JOBMANAGER_GRPC_ADDRESS: $env:DOTNET_JOBMANAGER_GRPC_ADDRESS" -ForegroundColor Gray
+Write-Host "  JobManager: Using Aspire service discovery (no manual environment variables)" -ForegroundColor Gray
 
 # Export for GitHub Actions if in CI
 if ($env:GITHUB_ENV) {
@@ -356,8 +329,7 @@ if ($env:GITHUB_ENV) {
     "DOTNET_KAFKA_PORT=$([int]$kafkaPort)" | Out-File -FilePath $env:GITHUB_ENV -Append
     "DOTNET_REDIS_URL=$($redisInfo.ConnectionString)" | Out-File -FilePath $env:GITHUB_ENV -Append
     "DOTNET_KAFKA_BOOTSTRAP_SERVERS=localhost:$([int]$kafkaPort)" | Out-File -FilePath $env:GITHUB_ENV -Append
-    "DOTNET_JOBMANAGER_GRPC_PORT=$($env:DOTNET_JOBMANAGER_GRPC_PORT)" | Out-File -FilePath $env:GITHUB_ENV -Append
-    "DOTNET_JOBMANAGER_GRPC_ADDRESS=$($env:DOTNET_JOBMANAGER_GRPC_ADDRESS)" | Out-File -FilePath $env:GITHUB_ENV -Append
+    # Note: JobManager environment variables removed - using Aspire service discovery instead
 }
 
 Write-Host "Port discovery completed successfully!" -ForegroundColor Green

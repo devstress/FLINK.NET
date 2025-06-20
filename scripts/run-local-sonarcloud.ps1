@@ -38,6 +38,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$startTime = Get-Date
 Write-Host "=== FlinkDotNet Local SonarCloud Analysis ===" -ForegroundColor Cyan
 Write-Host "Started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor White
 Write-Host "Skip Analysis: $SkipAnalysis" -ForegroundColor White
@@ -66,7 +67,8 @@ try {
             throw "Java is required for SonarCloud analysis. Please install Java 11+ or use -SkipAnalysis."
         }
     } else {
-        Write-Host "✅ Java detected: $($javaVersion.Trim())" -ForegroundColor Green
+        $javaVersionString = if ($javaVersion -is [string]) { $javaVersion.Trim() } else { $javaVersion.ToString().Trim() }
+        Write-Host "✅ Java detected: $javaVersionString" -ForegroundColor Green
     }
 
     # Setup SonarScanner (only if needed)

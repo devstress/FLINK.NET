@@ -50,7 +50,17 @@ namespace FlinkJobSimulator
                 {
                     _logger.LogInformation("📤 Attempt {Attempt}/{Max} submitting JobGraph to JobManager at {JobManagerAddress}", attempt, maxAttempts, _jobManagerAddress);
 
-                    using var channel = GrpcChannel.ForAddress(_jobManagerAddress);
+                    var channelOptions = new GrpcChannelOptions();
+                    
+                    // Configure insecure transport if needed (for CI/development environments)
+                    var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
+                    if (string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogInformation("🔓 Using insecure gRPC transport for CI/development environment");
+                        channelOptions.Credentials = Grpc.Core.ChannelCredentials.Insecure;
+                    }
+
+                    using var channel = GrpcChannel.ForAddress(_jobManagerAddress, channelOptions);
                     var client = new JobManagerInternalService.JobManagerInternalServiceClient(channel);
 
                     var response = await client.SubmitJobAsync(request);
@@ -175,12 +185,12 @@ namespace FlinkJobSimulator
         }
 
         /// <summary>
-        /// Resolve JobManager gRPC address using Aspire service discovery or environment variables
+        /// Resolve JobManager gRPC address using Aspire service discovery
         /// </summary>
         private string ResolveJobManagerAddress()
         {
             // Try Aspire service reference first (when running in Aspire)
-            // Aspire creates connection strings in format: "services__jobmanager__grpc__0"
+            // When AppHost uses .WithReference(jobManager), Aspire creates connection strings like "ConnectionStrings__jobmanager"
             var aspireJobManagerUrl = _configuration.GetConnectionString("jobmanager");
             if (!string.IsNullOrEmpty(aspireJobManagerUrl))
             {
@@ -188,44 +198,61 @@ namespace FlinkJobSimulator
                 return aspireJobManagerUrl;
             }
 
-            // Try alternative Aspire configuration keys
+            // Try alternative Aspire configuration patterns
+            // Aspire may also create service entries like "services__jobmanager__http__0" or "services__jobmanager__grpc__0"
             var aspireServiceUrl = _configuration["services:jobmanager:grpc:0"];
             if (!string.IsNullOrEmpty(aspireServiceUrl))
             {
-                _logger.LogInformation("🔍 Using Aspire service configuration for JobManager: {AspireUrl}", aspireServiceUrl);
+                _logger.LogInformation("🔍 Using Aspire service configuration for JobManager gRPC: {AspireUrl}", aspireServiceUrl);
                 return aspireServiceUrl;
             }
 
-            // Try environment variable for full URL
-            var envJobManagerUrl = Environment.GetEnvironmentVariable("JOBMANAGER_GRPC_ADDRESS")
-                                   ?? Environment.GetEnvironmentVariable("DOTNET_JOBMANAGER_GRPC_ADDRESS");
-            if (!string.IsNullOrEmpty(envJobManagerUrl))
+            // Try Aspire HTTP endpoint configuration and use it for gRPC (since .NET projects often share HTTP/gRPC on same port)
+            var aspireHttpUrl = _configuration["services:jobmanager:http:0"];
+            if (!string.IsNullOrEmpty(aspireHttpUrl))
             {
-                _logger.LogInformation("🔍 Using environment variable for JobManager: {EnvUrl}", envJobManagerUrl);
-                return envJobManagerUrl;
+                // For .NET gRPC services, HTTP and gRPC typically use the same port
+                _logger.LogInformation("🔍 Using Aspire HTTP endpoint for JobManager gRPC (same port): {GrpcUrl}", aspireHttpUrl);
+                return aspireHttpUrl;
             }
 
-            // Try environment variable for port only
-            var envPortString = Environment.GetEnvironmentVariable("DOTNET_JOBMANAGER_GRPC_PORT");
-            if (!string.IsNullOrEmpty(envPortString) && int.TryParse(envPortString, out var envPort))
+            // Try direct connection string patterns that Aspire might use
+            foreach (var (key, value) in _configuration.AsEnumerable())
             {
-                var insecure = string.Equals(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT"), "true", StringComparison.OrdinalIgnoreCase);
-                var proto = insecure ? "http" : "https";
-                var envUrl = $"{proto}://localhost:{envPort}";
-                _logger.LogInformation("🔍 Using DOTNET_JOBMANAGER_GRPC_PORT to build JobManager URL: {EnvUrl}", envUrl);
-                return envUrl;
+                if (key != null && value != null && 
+                    key.Contains("jobmanager", StringComparison.OrdinalIgnoreCase) &&
+                    (value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                     value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                {
+                    _logger.LogInformation("🔍 Found JobManager URL via configuration key {Key}: {Url}", key, value);
+                    return value;
+                }
+            }
+
+            // Log all available configuration keys for debugging
+            _logger.LogWarning("🔍 JobManager address not found via Aspire service discovery. Available configuration keys:");
+            foreach (var item in _configuration.AsEnumerable())
+            {
+                if (item.Key != null && (item.Key.Contains("jobmanager", StringComparison.OrdinalIgnoreCase) || 
+                    item.Key.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) ||
+                    item.Key.Contains("services", StringComparison.OrdinalIgnoreCase)))
+                {
+                    _logger.LogWarning("  {Key} = {Value}", item.Key, item.Value ?? "null");
+                }
             }
 
             // Check if we have Aspire unsecured transport enabled
             var allowUnsecured = Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT");
             var useInsecure = string.Equals(allowUnsecured, "true", StringComparison.OrdinalIgnoreCase);
 
-            // Default fallback for local development
+            // For Aspire mode, try to discover the JobManager service at the standard fixed ports
+            // Since JobManager uses combined HTTP1/HTTP2 endpoint in Aspire mode, use the HTTP port for gRPC
             var protocol = useInsecure ? "http" : "https";
-            var defaultPort = useInsecure ? "50051" : "8081"; // Use gRPC default port 50051 for HTTP
-            var defaultUrl = $"{protocol}://localhost:{defaultPort}";
-            _logger.LogInformation("🔍 Using default JobManager address: {DefaultUrl} (unsecured: {UseInsecure})", defaultUrl, useInsecure);
-            return defaultUrl;
+            var aspireJobManagerPort = "8080"; // JobManager HTTP port that also serves gRPC in Aspire mode
+            var aspireUrl = $"{protocol}://localhost:{aspireJobManagerPort}";
+            
+            _logger.LogWarning("🔍 Using Aspire fallback JobManager address: {AspireUrl} (combined HTTP1/HTTP2 endpoint)", aspireUrl);
+            return aspireUrl;
         }
     }
 }

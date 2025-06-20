@@ -40,6 +40,7 @@ param(
     [switch]$SkipSonar,
     [switch]$SkipStress,
     [switch]$SkipReliability,
+    [switch]$Sequential,
     [switch]$Help
 )
 
@@ -60,6 +61,7 @@ Options:
   -SkipSonar        Skip SonarCloud analysis
   -SkipStress       Skip stress tests  
   -SkipReliability  Skip reliability tests
+  -Sequential       Run tests sequentially (recommended for CI)
   -Help             Show this help
 
 Prerequisites:
@@ -218,7 +220,6 @@ $env:SIMULATOR_NUM_MESSAGES = if ($env:SIMULATOR_NUM_MESSAGES) { $env:SIMULATOR_
 $env:FLINKDOTNET_STANDARD_TEST_MESSAGES = if ($env:FLINKDOTNET_STANDARD_TEST_MESSAGES) { $env:FLINKDOTNET_STANDARD_TEST_MESSAGES } else { "100000" }
 $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
 $env:MAX_ALLOWED_TIME_MS = if ($env:MAX_ALLOWED_TIME_MS) { $env:MAX_ALLOWED_TIME_MS } else { "300000" }
-$env:USE_SIMPLIFIED_MODE = if ($env:USE_SIMPLIFIED_MODE) { $env:USE_SIMPLIFIED_MODE } else { "false" }
 $env:DOTNET_ENVIRONMENT = if ($env:DOTNET_ENVIRONMENT) { $env:DOTNET_ENVIRONMENT } else { "Development" }
 $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE = if ($env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE) { $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE } else { "flinkdotnet:global_sequence_id" }
 $env:SIMULATOR_REDIS_KEY_SINK_COUNTER = if ($env:SIMULATOR_REDIS_KEY_SINK_COUNTER) { $env:SIMULATOR_REDIS_KEY_SINK_COUNTER } else { "flinkdotnet:sample:processed_message_counter" }
@@ -251,9 +252,64 @@ if (-not $SkipSonar) {
     $testConfigs += @{ Name = "SonarCloud Analysis"; Script = "scripts/run-local-sonarcloud.ps1"; LogFile = "sonarcloud.log"; Enabled = $true }
 }
 
-# Start all tests as background jobs
+# Determine execution mode
+$isCI = $env:GITHUB_ACTIONS -eq 'true' -or $env:CI -eq 'true'
+$useSequential = $Sequential -or $isCI  # Use sequential mode for CI by default
+
+if ($useSequential) {
+    Write-Host "Using sequential execution mode (better for CI environments)" -ForegroundColor Yellow
+} else {
+    Write-Host "Using parallel execution mode" -ForegroundColor Yellow
+}
+
+# Execute tests
+if ($useSequential) {
+    # Sequential execution
+    Write-Host "`n=== Running Tests Sequentially ===" -ForegroundColor Cyan
+    
+    $allPassed = $true
+    foreach ($config in $testConfigs) {
+        if (-not $config.Enabled) { continue }
+        
+        $testName = $config.Name
+        $logPath = "$logsDir/$($config.LogFile)"
+        Write-Host "`n[INFO] Running $testName..." -ForegroundColor Cyan
+        
+        try {
+            if ($config.Script.EndsWith('.ps1')) {
+                & pwsh -ExecutionPolicy Bypass -File $config.Script *>&1 | Tee-Object -FilePath $logPath
+            } elseif ($config.Script.EndsWith('.sh')) {
+                & bash $config.Script *>&1 | Tee-Object -FilePath $logPath  
+            } else {
+                throw "Unsupported script type: $($config.Script)"
+            }
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "[OK] $testName completed successfully" -ForegroundColor Green
+            } else {
+                Write-Host "[ERROR] $testName failed with exit code $LASTEXITCODE" -ForegroundColor Red
+                $allPassed = $false
+            }
+        } catch {
+            Write-Host "[ERROR] $testName failed with exception: $_" -ForegroundColor Red
+            $allPassed = $false
+        }
+    }
+    
+    if ($allPassed) {
+        Write-Host "`n✅ All tests completed successfully!" -ForegroundColor Green
+        exit 0
+    } else {
+        Write-Host "`n❌ Some tests failed!" -ForegroundColor Red
+        exit 1
+    }
+} else {
+    # Parallel execution (original logic)
+    Write-Host "`n=== Running Tests in Parallel ===" -ForegroundColor Cyan
 $jobs = @{}
+$jobStartTimes = @{}
 $progress = @{}
+$individualJobTimeout = if ($isCI) { 300 } else { 900 }  # 5 minutes for CI, 15 minutes for local
 
 foreach ($config in $testConfigs) {
     if ($config.Enabled) {
@@ -292,6 +348,7 @@ foreach ($config in $testConfigs) {
         } -ArgumentList $config.Script, $logPath, $rootPath
         
         $jobs[$config.Name] = $job
+        $jobStartTimes[$config.Name] = Get-Date
         $progress[$config.Name] = @{ Percentage = 0; Status = "Starting..." }
     }
 }
@@ -356,7 +413,9 @@ function Get-TestProgress($logPath, $testName) {
 # Main monitoring loop with progress bars
 $allCompleted = $false
 $refreshCount = 0
-$maxRefreshCount = 1800  # 1800 * 2 seconds = 60 minutes timeout
+# Adjust timeout based on environment
+$maxRefreshCount = if ($isCI) { 300 } else { 1800 }  # 10 minutes for CI, 60 minutes for local
+Write-Host "Using timeout: $(($maxRefreshCount * 2 / 60).ToString('F1')) minutes" -ForegroundColor Gray
 
 while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
     $allCompleted = $true
@@ -392,6 +451,18 @@ while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
             $allCompleted = $false
             $activeJobs++
             
+            # Check for individual job timeout
+            $jobRunTime = (Get-Date) - $jobStartTimes[$testName]
+            if ($jobRunTime.TotalSeconds -gt $individualJobTimeout) {
+                Write-Host "[TIMEOUT] $testName exceeded timeout ($($individualJobTimeout)s), stopping job" -ForegroundColor Red
+                Stop-Job $job
+                Remove-Job $job
+                $jobs.Remove($testName)
+                $jobStartTimes.Remove($testName)
+                Write-Progress -Id ($testConfigs.IndexOf($config) + 1) -Activity $testName -Status "Timeout" -PercentComplete 100 -Completed
+                continue
+            }
+            
             # Get current progress
             $currentProgress = Get-TestProgress $logPath $testName
             $progress[$testName] = $currentProgress
@@ -405,12 +476,14 @@ while (-not $allCompleted -and $refreshCount -lt $maxRefreshCount) {
             Write-Host "[OK] $testName completed successfully" -ForegroundColor Green
             Remove-Job $job
             $jobs.Remove($testName)
+            $jobStartTimes.Remove($testName)
             
         } elseif ($job.State -eq "Failed") {
             Write-Progress -Id ($testConfigs.IndexOf($config) + 1) -Activity $testName -Status "Failed" -PercentComplete 100 -Completed  
             Write-Host "[ERROR] $testName failed" -ForegroundColor Red
             Remove-Job $job
             $jobs.Remove($testName)
+            $jobStartTimes.Remove($testName)
         } else {
             # Handle other job states (Stopped, Blocked, etc.)
             Write-Host "[WARNING] $testName in unexpected state: $($job.State)" -ForegroundColor Yellow
@@ -481,6 +554,8 @@ Get-ChildItem "$logsDir/*.log" | ForEach-Object {
     $size = [math]::Round($_.Length/1KB, 1)
     Write-Host "  $($_.Name) ($size KB)" -ForegroundColor Gray
 }
+
+}  # End of parallel execution mode
 
 Write-Host ""
 Write-Host "[OK] Development lifecycle completed successfully!" -ForegroundColor Green

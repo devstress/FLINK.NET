@@ -181,9 +181,6 @@ try {
     $env:SIMULATOR_KAFKA_TOPIC = 'flinkdotnet.sample.topic'
     $env:SIMULATOR_REDIS_PASSWORD = 'FlinkDotNet_Redis_CI_Password_2024'
     
-    # Disable simplified mode for reliability test - we need full Kafka functionality
-    $env:USE_SIMPLIFIED_MODE = 'false'
-    
     # ✨ RELIABILITY TEST CONFIGURATION: Focus on fault tolerance standards
     $env:RELIABILITY_TEST_MODE = 'true'
     $env:RELIABILITY_TEST_FAULT_TOLERANCE_LEVEL = 'high'

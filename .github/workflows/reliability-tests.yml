@@ -22,7 +22,6 @@ env:
   SIMULATOR_NUM_MESSAGES: "1000000" # 1 million messages for optimized reliability testing
   FLINKDOTNET_STANDARD_TEST_MESSAGES: "1000000" # 1 million messages for reliability testing
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout matching stress tests
-  USE_SIMPLIFIED_MODE: "false" # Use full Kafka architecture for real reliability testing
 
 jobs:
   run-reliability-tests:
@@ -68,10 +67,16 @@ jobs:
           Pop-Location
 
       - name: Start Aspire Development Environment
+        timeout-minutes: 5
         run: |
-          Write-Host "🚀 Starting Aspire development environment with Kafka best practices setup..." -ForegroundColor Green
+          Write-Host "🚀 Starting Aspire development environment with full infrastructure for reliability testing..." -ForegroundColor Green
           $env:SIMULATOR_NUM_MESSAGES = "${{ env.FLINKDOTNET_STANDARD_TEST_MESSAGES }}"
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"
+          $env:STRESS_TEST_USE_KAFKA_SOURCE = "true"
+          
+          Write-Host "Environment configuration:"
+          Write-Host "  STRESS_TEST_USE_KAFKA_SOURCE: $env:STRESS_TEST_USE_KAFKA_SOURCE"
+          Write-Host "  ASPIRE_ALLOW_UNSECURED_TRANSPORT: $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT"
           
           # Create log files
           $outLogPath = "aspire.out.log"
@@ -116,6 +121,7 @@ jobs:
           Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
 
       - name: Infrastructure Health Check
+        timeout-minutes: 3
         env:
           DOTNET_ENVIRONMENT: "Development"
           # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script

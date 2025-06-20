@@ -52,17 +52,17 @@ jobs:
 
       - name: Restore .NET Workloads for Solutions
         run: |
-          echo "Restoring workloads for FlinkDotNet.sln..."
+          Write-Host "Restoring workloads for FlinkDotNet.sln..."
           dotnet workload restore FlinkDotNet/FlinkDotNet.sln
-          echo "Restoring workloads for FlinkDotNetAspire.sln..."
+          Write-Host "Restoring workloads for FlinkDotNetAspire.sln..."
           dotnet workload restore FlinkDotNetAspire/FlinkDotNetAspire.sln
-          echo "Restoring workloads for FlinkDotNet.WebUI.sln..."
+          Write-Host "Restoring workloads for FlinkDotNet.WebUI.sln..."
           dotnet workload restore FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln
-          echo "Workload restoration complete."
+          Write-Host "Workload restoration complete."
 
       - name: Run tests for FlinkDotNet solution
         run: |
-          echo "Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection..."
+          Write-Host "Running tests for FlinkDotNet/FlinkDotNet.sln with coverage collection..."
           Push-Location FlinkDotNet
           dotnet test FlinkDotNet.sln --configuration Release --logger "trx" --results-directory "TestResults" --collect:"XPlat Code Coverage" --settings ../coverlet.runsettings
           Pop-Location
@@ -97,14 +97,14 @@ jobs:
 
       - name: Build FlinkDotNetAspire solution (no tests)
         run: |
-          echo "Building FlinkDotNetAspire/FlinkDotNetAspire.sln (contains no test projects)..."
+          Write-Host "Building FlinkDotNetAspire/FlinkDotNetAspire.sln (contains no test projects)..."
           Push-Location FlinkDotNetAspire
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
       - name: Build FlinkDotNet.WebUI solution (no tests)
         run: |
-          echo "Building FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln (contains no test projects)..."
+          Write-Host "Building FlinkDotNet.WebUI/FlinkDotNet.WebUI.sln (contains no test projects)..."
           Push-Location FlinkDotNet.WebUI
           dotnet build FlinkDotNet.WebUI.sln --configuration Release
           Pop-Location

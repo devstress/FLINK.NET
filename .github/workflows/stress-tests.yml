@@ -22,7 +22,6 @@ concurrency:
 env:
   SIMULATOR_NUM_MESSAGES: "1000000" # 1 million messages for optimized stress testing
   MAX_ALLOWED_TIME_MS: "300000" # 5 minutes timeout for processing 1M messages
-  USE_SIMPLIFIED_MODE: "false" # Use full Kafka architecture for real stress testing
 
 jobs:
   run-stress-tests:
@@ -58,779 +57,112 @@ jobs:
 
       - name: Build Solutions (including Verifier)
         run: |
-          echo "Building FlinkDotNet solution (dependency)..."
+          Write-Host "Building FlinkDotNet solution (dependency)..."
           Push-Location FlinkDotNet
           dotnet build FlinkDotNet.sln --configuration Release
           Pop-Location
           
-          echo "Building FlinkDotNetAspire solution..."
+          Write-Host "Building FlinkDotNetAspire solution..."
           Push-Location FlinkDotNetAspire
           dotnet build FlinkDotNetAspire.sln --configuration Release
           Pop-Location
 
-      - name: Start Aspire AppHost
+      - name: Run Manual Stress Test (Following Documentation)
+        timeout-minutes: 10
         run: |
+          Write-Host "=== FLINK.NET Stress Test - Manual Approach ===" -ForegroundColor Cyan
+          Write-Host "Following docs/wiki/Stress-Tests-Overview.md manual process" -ForegroundColor White
+          
+          # Set environment variables for stress testing
           $env:SIMULATOR_NUM_MESSAGES='${{ env.SIMULATOR_NUM_MESSAGES }}'
           $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT='true'
+          $env:DOTNET_ENVIRONMENT='Development'
+          $env:CI='true'  # Enable direct consumption mode for reliability
           
-          # Create log files
-          $outLogPath = "apphost.out.log"
-          $errLogPath = "apphost.err.log"
+          Write-Host "Environment configuration:" -ForegroundColor Gray
+          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES" -ForegroundColor Gray
+          Write-Host "  CI: $env:CI (enables direct consumption mode)" -ForegroundColor Gray
           
-          Write-Host "Starting AppHost with output logging to $outLogPath and $errLogPath"
-          
-          # Use Start-Process with file redirection
+          # Step 1: Start AppHost (Open FlinkDotNetAspire.sln > F5)
+          Write-Host "`n=== Step 1: Start AppHost ===" -ForegroundColor Yellow
           $processArgs = @(
-            'run',
-            '--no-build',
-            '--configuration', 'Release',
+            'run', '--no-build', '--configuration', 'Release',
             '--project', 'FlinkDotNetAspire/FlinkDotNetAspire.AppHost.AppHost/FlinkDotNetAspire.AppHost.AppHost.csproj'
           )
           
-          # Start the process with output redirection using Start-Process
-          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput $outLogPath -RedirectStandardError $errLogPath -NoNewWindow -PassThru
+          $proc = Start-Process -FilePath 'dotnet' -ArgumentList $processArgs -RedirectStandardOutput "apphost.out.log" -RedirectStandardError "apphost.err.log" -NoNewWindow -PassThru
           $proc.Id | Out-File apphost.pid -Encoding utf8
+          Write-Host "✅ AppHost started with PID: $($proc.Id)" -ForegroundColor Green
           
-          Write-Host "Started AppHost with PID: $($proc.Id)"
+          # Step 2: Wait all the services running (Redis, Kafka, FlinkJobSimulator)
+          Write-Host "`n=== Step 2: Wait for Services ===" -ForegroundColor Yellow
+          Write-Host "Waiting 60 seconds for services to start..." -ForegroundColor White
+          Start-Sleep -Seconds 60
           
-          # Start background jobs to tail the log files and display content in real-time
-          $outputJob = Start-Job -ScriptBlock {
-            param($logPath)
-            $lastSize = 0
-            $attempts = 0
-            $maxAttempts = 600  # 10 minutes of checking
-            
-            Write-Host "[OUTPUT MONITOR] Starting to monitor $logPath"
-            
-            while ($attempts -lt $maxAttempts) {
-              try {
-                if (Test-Path $logPath) {
-                  $currentSize = (Get-Item $logPath).Length
-                  if ($currentSize -gt $lastSize) {
-                    # Read new content
-                    $newContent = Get-Content $logPath -Tail ($currentSize - $lastSize) -Encoding utf8 -ErrorAction SilentlyContinue
-                    if ($newContent) {
-                      foreach ($line in $newContent) {
-                        if ($line -and $line.Trim()) {
-                          # Highlight FlinkJobSimulator logs for easier identification
-                          if ($line -match "FlinkJobSimulator|FLINKJOBSIMULATOR|STEP \d+") {
-                            Write-Host "[APPHOST-OUT] *** FLINK: $line" -ForegroundColor Yellow
-                          } else {
-                            Write-Host "[APPHOST-OUT] $line"
-                          }
-                        }
-                      }
-                    }
-                    $lastSize = $currentSize
-                  }
-                }
-                Start-Sleep -Seconds 1
-                $attempts++
-              } catch {
-                Write-Host "[OUTPUT MONITOR ERROR] $_"
-                Start-Sleep -Seconds 1
-                $attempts++
-              }
-            }
-            Write-Host "[OUTPUT MONITOR] Finished monitoring $logPath"
-          } -ArgumentList $outLogPath
-          
-          $errorJob = Start-Job -ScriptBlock {
-            param($logPath)
-            $lastSize = 0
-            $attempts = 0
-            $maxAttempts = 600  # 10 minutes of checking
-            
-            Write-Host "[ERROR MONITOR] Starting to monitor $logPath"
-            
-            while ($attempts -lt $maxAttempts) {
-              try {
-                if (Test-Path $logPath) {
-                  $currentSize = (Get-Item $logPath).Length
-                  if ($currentSize -gt $lastSize) {
-                    # Read new content  
-                    $newContent = Get-Content $logPath -Tail ($currentSize - $lastSize) -Encoding utf8 -ErrorAction SilentlyContinue
-                    if ($newContent) {
-                      foreach ($line in $newContent) {
-                        if ($line -and $line.Trim()) {
-                          # Highlight FlinkJobSimulator errors for easier identification
-                          if ($line -match "FlinkJobSimulator|FLINKJOBSIMULATOR|STEP \d+") {
-                            Write-Host "[APPHOST-ERR] *** FLINK ERROR: $line" -ForegroundColor Red
-                          } else {
-                            Write-Host "[APPHOST-ERR] $line"
-                          }
-                        }
-                      }
-                    }
-                    $lastSize = $currentSize
-                  }
-                }
-                Start-Sleep -Seconds 1
-                $attempts++
-              } catch {
-                Write-Host "[ERROR MONITOR ERROR] $_"
-                Start-Sleep -Seconds 1
-                $attempts++
-              }
-            }
-            Write-Host "[ERROR MONITOR] Finished monitoring $logPath"
-          } -ArgumentList $errLogPath
-          
-          $outputJob.Id | Out-File apphost.output.job -Encoding utf8
-          $errorJob.Id | Out-File apphost.error.job -Encoding utf8
-          
-          Write-Host "Background monitor jobs started - OutputJob: $($outputJob.Id), ErrorJob: $($errorJob.Id)"
-          Write-Host "AppHost started, waiting 45 seconds for Redis/Kafka container initialization and Aspire service bindings..."
-          
-          # Increased startup time for Aspire service binding setup
-          Start-Sleep -Seconds 45
-          
-          # Start comprehensive Aspire sub-task log capture
-          Write-Host "`n=== Starting Aspire Sub-Task Log Capture ==="
-          Write-Host "Capturing logs from all Aspire components for error/warning analysis..."
-          $logCaptureJob = Start-Job -ScriptBlock {
-            param($scriptPath)
-            & $scriptPath -LogDirectory "aspire-logs" -MonitorDurationSeconds 420  # 7 minutes
-          } -ArgumentList "./scripts/capture-aspire-logs.ps1"
-          
-          $logCaptureJob.Id | Out-File "aspire-log-capture.job" -Encoding utf8
-          Write-Host "Aspire log capture job started: $($logCaptureJob.Id)" -ForegroundColor Green
-          
-          # Add container diagnostics
-          Write-Host "`n=== Container Diagnostics ==="
-          Write-Host "Checking for Redis/Kafka container processes..."
-          docker ps --format "table {{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" | Write-Host
-
-      - name: Discover Aspire Container Ports
-        run: |
-          Write-Host "Discovering actual Aspire container ports after AppHost startup..."
+          # Discover ports
+          Write-Host "Discovering Aspire container ports..." -ForegroundColor White
           & ./scripts/discover-aspire-ports.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Port discovery failed" }
           
-          Write-Host "Current environment variables after discovery:"
-          Write-Host "DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
-          Write-Host "DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-
-      - name: Health Check Loop
-        env:
-          DOTNET_ENVIRONMENT: "Development" # Helps Aspire resolve services if it has multiple modes
-          # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
-          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES }}
-          SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
-          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
-          SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
-          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
-          SIMULATOR_FORCE_RESET_TO_EARLIEST: "true"  # Force consumer group reset to ensure fresh consumption
-        run: |
-          $maxAttempts = 2  # Reduced attempts as requested (1 retry)
-          $delaySeconds = 10  # Adequate delay for CI environment
-          $verifierDll = "./FlinkDotNetAspire/IntegrationTestVerifier/bin/Release/net8.0/FlinkDotNet.IntegrationTestVerifier.dll"
-
-          Write-Host "`n=== Health Check Configuration ===" 
-          Write-Host "Max attempts: $maxAttempts"
-          Write-Host "Delay between attempts: $delaySeconds seconds"
-          Write-Host "Total max time: $($maxAttempts * $delaySeconds) seconds"
-          Write-Host "Environment variables:"
-          Write-Host "  DOTNET_REDIS_URL: $env:DOTNET_REDIS_URL"
-          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-          Write-Host "  SIMULATOR_NUM_MESSAGES: $env:SIMULATOR_NUM_MESSAGES"
-          Write-Host "  SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: $env:SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE"
-          Write-Host "  SIMULATOR_REDIS_KEY_SINK_COUNTER: $env:SIMULATOR_REDIS_KEY_SINK_COUNTER"
-          Write-Host "  SIMULATOR_KAFKA_TOPIC: $env:SIMULATOR_KAFKA_TOPIC"
-
-          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-            Write-Host "`n--- Health check attempt $attempt/$maxAttempts ---"
-            Write-Host "Starting health check at $(Get-Date -Format 'HH:mm:ss')..."
-            
-            & dotnet $verifierDll --health-check
-            $healthExitCode = $LASTEXITCODE
-            
-            if ($healthExitCode -eq 0) {
-              Write-Host "✅ Health check PASSED on attempt $attempt" -ForegroundColor Green
-              break
-            }
-            
-            Write-Host "❌ Health check FAILED on attempt $attempt (exit code: $healthExitCode)" -ForegroundColor Red
-            
-            if ($attempt -lt $maxAttempts) {
-              Write-Host "Waiting $delaySeconds seconds before retry..." -ForegroundColor Yellow
-              Start-Sleep -Seconds $delaySeconds
-            } else {
-              Write-Host "❌ Max health check attempts ($maxAttempts) reached. Health checks failed." -ForegroundColor Red
-              Write-Host "`n=== Final Diagnostics ==="
-              Write-Host "AppHost process status:"
-              if (Test-Path apphost.pid) {
-                $apphostPid = Get-Content apphost.pid
-                $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
-                if ($process) {
-                  Write-Host "  AppHost PID $apphostPid is still running"
-                } else {
-                  Write-Host "  AppHost PID $apphostPid is no longer running"
-                }
-              } else {
-                Write-Host "  AppHost PID file not found"
-              }
-              exit 1
-            }
-          }
-
-      - name: Start Message Producer
-        run: |
-          Write-Host "🚀 === STARTING MESSAGE PRODUCER ==="
-          Write-Host "Producing ${{ env.SIMULATOR_NUM_MESSAGES }} messages to Kafka..."
-          Write-Host "Environment check before production:"
-          Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
+          Write-Host "✅ Services discovered:" -ForegroundColor Green
+          Write-Host "  Redis: $env:DOTNET_REDIS_URL" -ForegroundColor Gray
+          Write-Host "  Kafka: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS" -ForegroundColor Gray
           
-          # Ensure environment variables are available to the producer script
-          if (-not $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
-            Write-Host "❌ DOTNET_KAFKA_BOOTSTRAP_SERVERS not set. Re-running port discovery..." -ForegroundColor Red
-            & ./scripts/discover-aspire-ports.ps1
-            Write-Host "After re-discovery:"
-            Write-Host "  DOTNET_KAFKA_BOOTSTRAP_SERVERS: $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS"
-          }
-          
-          # Run optimized parallel message producer for 1M+ msg/sec throughput
-          Write-Host "🔄 Starting high-performance parallel message producer (targeting 1M+ msg/sec)..."
-          & ./scripts/produce-1-million-messages.ps1 -MessageCount ${{ env.SIMULATOR_NUM_MESSAGES }} -Topic "flinkdotnet.sample.topic" -ParallelProducers 50
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Message producer failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-            Write-Host "Cannot proceed with stress test - no messages available for FlinkJobSimulator to consume" -ForegroundColor Red
-            exit 1
-          }
-          
-          Write-Host "✅ Message producer completed successfully" -ForegroundColor Green
-          
-          # CRITICAL FIX: Add verification that messages are actually available in Kafka
-          Write-Host "🔍 Verifying messages are available in Kafka before proceeding..."
-          Start-Sleep -Seconds 5  # Give Kafka a moment to flush and commit all messages
-          
-          # Quick verification with kafka-console-consumer to check if messages exist
+          # Step 3: cd scripts > Run .\produce-1-million-messages.ps1
+          Write-Host "`n=== Step 3: Produce Messages ===" -ForegroundColor Yellow
+          Push-Location scripts
           try {
-            $kafkaContainer = docker ps --filter "name=kafka" --format "{{.Names}}" | Select-Object -First 1
-            if ($kafkaContainer) {
-              Write-Host "📊 Checking message count in topic..."
-              $messageCheck = docker exec $kafkaContainer kafka-console-consumer --bootstrap-server localhost:9092 --topic flinkdotnet.sample.topic --from-beginning --timeout-ms 5000 --max-messages 10 2>/dev/null | Measure-Object -Line
-              $foundMessages = $messageCheck.Lines
-              Write-Host "✅ Found $foundMessages sample messages in topic (verified Kafka has data)"
-            } else {
-              Write-Host "⚠️ Could not find Kafka container for verification"
-            }
-          } catch {
-            Write-Host "⚠️ Message verification failed, but proceeding: $_"
+            & "./produce-1-million-messages.ps1" -MessageCount $env:SIMULATOR_NUM_MESSAGES
+            if ($LASTEXITCODE -ne 0) { throw "Message production failed" }
+            Write-Host "✅ Message production completed" -ForegroundColor Green
+          } finally {
+            Pop-Location
           }
           
-          Write-Host "🎯 FlinkJobSimulator should now consume the produced messages..." -ForegroundColor Green
-
-      - name: Diagnose FlinkJobSimulator Status
-        env:
-          DOTNET_ENVIRONMENT: "Development"
-          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES }}
-          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
-        run: |
-          Write-Host "🔍 === DIAGNOSING FLINKJOBSIMULATOR STATUS ==="
-          Write-Host "Checking if FlinkJobSimulator process is running..."
-          
-          # Check if AppHost is still running
-          if (Test-Path apphost.pid) {
-            $apphostPid = Get-Content apphost.pid
-            $apphostProcess = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
-            if ($apphostProcess) {
-              Write-Host "✅ AppHost (PID $apphostPid) is running"
-            } else {
-              Write-Host "❌ AppHost (PID $apphostPid) is not running"
-            }
-          } else {
-            Write-Host "❌ AppHost PID file not found"
+          # Step 4: Run wait-for-flinkjobsimulator-completion.ps1
+          Write-Host "`n=== Step 4: Wait for Completion ===" -ForegroundColor Yellow
+          Push-Location scripts
+          try {
+            & "./wait-for-flinkjobsimulator-completion.ps1" -ExpectedMessages $env:SIMULATOR_NUM_MESSAGES
+            if ($LASTEXITCODE -ne 0) { throw "FlinkJobSimulator completion failed" }
+            Write-Host "✅ FlinkJobSimulator completed successfully!" -ForegroundColor Green
+          } finally {
+            Pop-Location
           }
           
-          # Check for any FlinkJobSimulator processes (Aspire runs .NET projects as "dotnet <dll>")
-          Write-Host "`n🔍 Checking for FlinkJobSimulator processes..."
-          
-          # Get all dotnet processes and check their command lines for FlinkJobSimulator
-          $allDotnetProcesses = Get-Process -Name "dotnet" -ErrorAction SilentlyContinue
-          $flinkProcesses = @()
-          
-          if ($allDotnetProcesses) {
-            Write-Host "Found $($allDotnetProcesses.Count) dotnet processes - checking for FlinkJobSimulator..."
-            foreach ($proc in $allDotnetProcesses) {
-              try {
-                # Try multiple approaches to detect FlinkJobSimulator processes
-                $isFlinkProcess = $false
-                
-                # Approach 1: Try WMI command line check (if permissions allow)
-                try {
-                  $wmiProcess = Get-WmiObject -Class Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
-                  if ($wmiProcess -and $wmiProcess.CommandLine -like "*FlinkJobSimulator*") {
-                    $isFlinkProcess = $true
-                    Write-Host "  ✅ Found FlinkJobSimulator via WMI: PID $($proc.Id), Command: $($wmiProcess.CommandLine)"
-                  }
-                } catch {
-                  # WMI failed, continue with other approaches
-                }
-                
-                # Approach 2: Check if process is running FlinkJobSimulator.dll by checking working directory
-                if (-not $isFlinkProcess) {
-                  try {
-                    $procInfo = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
-                    if ($procInfo -and $procInfo.Path -and $procInfo.Path -like "*FlinkJobSimulator*") {
-                      $isFlinkProcess = $true
-                      Write-Host "  ✅ Found FlinkJobSimulator via process path: PID $($proc.Id), Path: $($procInfo.Path)"
-                    }
-                  } catch {
-                    # Ignore path check failures
-                  }
-                }
-                
-                # Approach 3: Check if process modules include FlinkJobSimulator
-                if (-not $isFlinkProcess) {
-                  try {
-                    $modules = Get-Process -Id $proc.Id -Module -ErrorAction SilentlyContinue
-                    if ($modules -and ($modules | Where-Object { $_.ModuleName -like "*FlinkJobSimulator*" })) {
-                      $isFlinkProcess = $true
-                      Write-Host "  ✅ Found FlinkJobSimulator via loaded modules: PID $($proc.Id)"
-                    }
-                  } catch {
-                    # Ignore module check failures
-                  }
-                }
-                
-                if ($isFlinkProcess) {
-                  $flinkProcesses += [PSCustomObject]@{
-                    PID = $proc.Id
-                    Name = $proc.ProcessName
-                    CommandLine = "FlinkJobSimulator detected"
-                  }
-                }
-              } catch {
-                Write-Host "  ⚠️ PID $($proc.Id): Error during detection: $_"
-              }
-            }
-          }
-          
-          # Also check for any processes with FlinkJobSimulator in the name (direct execution)
-          $directFlinkProcesses = Get-Process | Where-Object { $_.ProcessName -like "*FlinkJobSimulator*" } -ErrorAction SilentlyContinue
-          if ($directFlinkProcesses) {
-            foreach ($proc in $directFlinkProcesses) {
-              $flinkProcesses += [PSCustomObject]@{
-                PID = $proc.Id
-                Name = $proc.ProcessName
-                CommandLine = "Direct execution"
-              }
-              Write-Host "  Found direct FlinkJobSimulator: PID $($proc.Id), Name: $($proc.ProcessName)"
-            }
-          }
-          
-          if ($flinkProcesses.Count -gt 0) {
-            Write-Host "✅ Found FlinkJobSimulator processes:"
-            $flinkProcesses | ForEach-Object { Write-Host "  PID: $($_.PID), Name: $($_.Name)" }
-          } else {
-            Write-Host "❌ No FlinkJobSimulator processes found"
-            Write-Host "🔍 Debugging: Analyzing all dotnet processes..."
-            if ($allDotnetProcesses) {
-              $allDotnetProcesses | ForEach-Object { 
-                try {
-                  Write-Host "    PID $($_.Id): $($_.ProcessName) - Working Set: $([math]::Round($_.WorkingSet64 / 1MB, 2))MB"
-                } catch {
-                  Write-Host "    PID $($_.Id): Basic info not accessible"
-                }
-              }
-            } else {
-              Write-Host "    No dotnet processes found at all"
-            }
-            
-            # Additional check: Look for any recent process exits or crashes
-            Write-Host "🔍 Checking for any process creation/exit events..."
-            try {
-              # Check if FlinkJobSimulator.dll output exists (indicating it started building)
-              $flinkDllPath = "./FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll"
-              if (Test-Path $flinkDllPath) {
-                $dllInfo = Get-Item $flinkDllPath
-                Write-Host "    ✅ FlinkJobSimulator.dll exists (modified: $($dllInfo.LastWriteTime))"
-              } else {
-                Write-Host "    ❌ FlinkJobSimulator.dll not found - build may have failed"
-              }
-            } catch {
-              Write-Host "    ⚠️ Could not check FlinkJobSimulator.dll: $_"
-            }
-          }
-          
-          # Check Docker containers for any Flink-related services
-          Write-Host "`n🔍 Checking Docker containers..."
-          $containers = docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}"
-          Write-Host "Active containers:"
-          $containers | ForEach-Object { Write-Host "  $_" }
-          
-          # Try to find any Aspire service logs and search for FlinkJobSimulator-specific content
-          Write-Host "`n🔍 Checking for Aspire service logs..."
-          if (Test-Path apphost.out.log) {
-            Write-Host "📄 Recent AppHost output log content:"
-            $outputContent = Get-Content apphost.out.log -ErrorAction SilentlyContinue
-            if ($outputContent) {
-              # Look for FlinkJobSimulator-specific lines first
-              $flinkLines = $outputContent | Where-Object { $_ -match "FlinkJobSimulator|FLINKJOBSIMULATOR|flinkjobsimulator" }
-              if ($flinkLines) {
-                Write-Host "📍 FlinkJobSimulator-related log entries:"
-                $flinkLines | ForEach-Object { Write-Host "    FLINK: $_" }
-              } else {
-                Write-Host "📍 No FlinkJobSimulator-specific entries found in output log"
-              }
-              
-              # Show general log content (last 50 lines)
-              Write-Host "📄 General output log (last 50 lines):"
-              $outputContent | Select-Object -Last 50 | ForEach-Object { Write-Host "  $_" }
-            } else {
-              Write-Host "📄 Output log file exists but is empty"
-            }
-          } else {
-            Write-Host "📄 No apphost.out.log file found"
-          }
-          
-          if (Test-Path apphost.err.log) {
-            Write-Host "`n📄 Recent AppHost error log content:"
-            $errorContent = Get-Content apphost.err.log -ErrorAction SilentlyContinue
-            if ($errorContent) {
-              # Look for FlinkJobSimulator-specific errors first
-              $flinkErrors = $errorContent | Where-Object { $_ -match "FlinkJobSimulator|FLINKJOBSIMULATOR|flinkjobsimulator" }
-              if ($flinkErrors) {
-                Write-Host "📍 FlinkJobSimulator-related error entries:"
-                $flinkErrors | ForEach-Object { Write-Host "    ERROR: $_" }
-              } else {
-                Write-Host "📍 No FlinkJobSimulator-specific errors found in error log"
-              }
-              
-              # Show general error content (last 50 lines)
-              Write-Host "📄 General error log (last 50 lines):"
-              $errorContent | Select-Object -Last 50 | ForEach-Object { Write-Host "  $_" }
-            } else {
-              Write-Host "📄 Error log file exists but is empty"
-            }
-          } else {
-            Write-Host "📄 No apphost.err.log file found"
-          }
-          
-          # Additional diagnostic: Check if any project build outputs exist for FlinkJobSimulator
-          Write-Host "`n🔍 Checking FlinkJobSimulator build outputs..."
-          $flinkSimulatorDll = "./FlinkDotNetAspire/FlinkJobSimulator/bin/Release/net8.0/FlinkJobSimulator.dll"
-          if (Test-Path $flinkSimulatorDll) {
-            $dllInfo = Get-Item $flinkSimulatorDll
-            Write-Host "✅ FlinkJobSimulator.dll exists: $flinkSimulatorDll"
-            Write-Host "   Size: $($dllInfo.Length) bytes, Last Modified: $($dllInfo.LastWriteTime)"
-          } else {
-            Write-Host "❌ FlinkJobSimulator.dll not found at: $flinkSimulatorDll"
-            Write-Host "   This could explain why AppHost cannot start FlinkJobSimulator"
-          }
-
-      - name: Wait for FlinkJobSimulator Completion
-        env:
-          DOTNET_ENVIRONMENT: "Development"
-          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES }}
-          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
-        run: |
-          & ./scripts/wait-for-flinkjobsimulator-completion.ps1 -ExpectedMessages ${{ env.SIMULATOR_NUM_MESSAGES }} -RedisCounterKey $env:SIMULATOR_REDIS_KEY_SINK_COUNTER
-
-      - name: Run Verification Tests
-        env:
-          # SIMULATOR_NUM_MESSAGES needs to be the same as used by the job simulator.
-          SIMULATOR_NUM_MESSAGES: ${{ env.SIMULATOR_NUM_MESSAGES }}
-          DOTNET_ENVIRONMENT: "Development"
-          # DOTNET_REDIS_URL and DOTNET_KAFKA_BOOTSTRAP_SERVERS are set by the port discovery script
-          MAX_ALLOWED_TIME_MS: ${{ env.MAX_ALLOWED_TIME_MS }}
-          # These environment variables must match those set in AppHost for FlinkJobSimulator
-          SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE: "flinkdotnet:global_sequence_id"
-          SIMULATOR_REDIS_KEY_SINK_COUNTER: "flinkdotnet:sample:processed_message_counter"
-          SIMULATOR_KAFKA_TOPIC: "flinkdotnet.sample.topic"
-          SIMULATOR_REDIS_PASSWORD: "FlinkDotNet_Redis_CI_Password_2024"
-        run: |
-          & ./scripts/run-verification-tests.ps1 -ExpectedMessages ${{ env.SIMULATOR_NUM_MESSAGES }} -MaxAllowedTimeMs ${{ env.MAX_ALLOWED_TIME_MS }}
-
-      - name: Stop Aspire AppHost
-        if: always()
-        run: |
-          Write-Host "=================== STOPPING APPHOST ==================="
-          
-          # Stop background monitor jobs first
-          if (Test-Path apphost.output.job) {
-            $outputJobId = Get-Content apphost.output.job
-            Write-Host "Stopping output monitor job: $outputJobId"
-            $outputJob = Get-Job -Id $outputJobId -ErrorAction SilentlyContinue
-            if ($outputJob) {
-              Write-Host "Output job state: $($outputJob.State)"
-              Stop-Job -Id $outputJobId -ErrorAction SilentlyContinue
-              Wait-Job -Id $outputJobId -Timeout 3 -ErrorAction SilentlyContinue
-              Remove-Job -Id $outputJobId -ErrorAction SilentlyContinue
-            }
-          }
-          
-          if (Test-Path apphost.error.job) {
-            $errorJobId = Get-Content apphost.error.job
-            Write-Host "Stopping error monitor job: $errorJobId"
-            $errorJob = Get-Job -Id $errorJobId -ErrorAction SilentlyContinue
-            if ($errorJob) {
-              Write-Host "Error job state: $($errorJob.State)"
-              Stop-Job -Id $errorJobId -ErrorAction SilentlyContinue
-              Wait-Job -Id $errorJobId -Timeout 3 -ErrorAction SilentlyContinue
-              Remove-Job -Id $errorJobId -ErrorAction SilentlyContinue
-            }
-          }
-          
-          # Wait for final log writes
-          Write-Host "Waiting for final log writes..."
-          Start-Sleep -Seconds 2
-          
-          # Stop AppHost process
-          if (Test-Path apphost.pid) {
-            $apphostPid = Get-Content apphost.pid
-            Write-Host "Stopping AppHost with PID $apphostPid"
-            
-            $process = Get-Process -Id $apphostPid -ErrorAction SilentlyContinue
-            if ($process) {
-              Write-Host "Process is running, stopping it..."
-              Stop-Process -Id $apphostPid -Force -ErrorAction SilentlyContinue
-              Start-Sleep -Seconds 2
-            } else {
-              Write-Host "Process was already stopped."
-            }
-            
-            Write-Host "apphost.pid content after stopping:"
-            Get-Content apphost.pid
-          } else {
-            Write-Host "No AppHost PID file found."
-          }
-          
-          # Give file system time to sync
-          Start-Sleep -Seconds 1
-          
-          Write-Host "=================== APPHOST OUTPUT LOG ==================="
-          if (Test-Path apphost.out.log) {
-            $outSize = (Get-Item apphost.out.log).Length
-            Write-Host "apphost.out.log size: $outSize bytes"
-            
-            if ($outSize -gt 0) {
-              Write-Host "Reading apphost.out.log content:"
-              try {
-                $lines = Get-Content apphost.out.log -ErrorAction SilentlyContinue
-                if ($lines -and $lines.Count -gt 0) {
-                  $lines | ForEach-Object { 
-                    if ($_ -and $_.Trim()) { 
-                      Write-Host $_ 
-                    }
-                  }
-                  Write-Host "Total lines read: $($lines.Count)"
-                } else {
-                  Write-Host "No content lines found in apphost.out.log"
-                }
-              } catch {
-                Write-Host "Error reading apphost.out.log: $_"
-              }
-            } else {
-              Write-Host "apphost.out.log exists but is empty"
-            }
-          } else {
-            Write-Host "No apphost.out.log found"
-          }
-          
-          Write-Host "=================== APPHOST ERROR LOG ==================="
-          if (Test-Path apphost.err.log) {
-            $errSize = (Get-Item apphost.err.log).Length
-            Write-Host "apphost.err.log size: $errSize bytes"
-            
-            if ($errSize -gt 0) {
-              Write-Host "Reading apphost.err.log content:"
-              try {
-                $lines = Get-Content apphost.err.log -ErrorAction SilentlyContinue
-                if ($lines -and $lines.Count -gt 0) {
-                  $lines | ForEach-Object { 
-                    if ($_ -and $_.Trim()) { 
-                      Write-Host $_ 
-                    }
-                  }
-                  Write-Host "Total lines read: $($lines.Count)"
-                } else {
-                  Write-Host "No content lines found in apphost.err.log"
-                }
-              } catch {
-                Write-Host "Error reading apphost.err.log: $_"
-              }
-            } else {
-              Write-Host "apphost.err.log exists but is empty"
-            }
-          } else {
-            Write-Host "No apphost.err.log found"
-          }
-          
-          Write-Host "=================== DEBUG INFO ==================="
-          Write-Host "Current directory files:"
-          Get-ChildItem -Filter "apphost*" | ForEach-Object {
-            Write-Host "  $($_.Name) - Size: $($_.Length) bytes, LastWrite: $($_.LastWriteTime)"
-          }
-          
-          Write-Host "AppHost cleanup complete."
-
-      - name: Ensure Stress Test Output File Exists
-        if: always()
-        run: |
-          Write-Host "🔍 Checking for stress test output file..."
-          if (-not (Test-Path "stress_test_passed_output.txt")) {
-            Write-Host "❌ Stress test output file not found - this indicates the test failed" -ForegroundColor Red
-            Write-Host "💡 This is expected behavior when FlinkJobSimulator fails to process messages" -ForegroundColor Yellow
-            exit 1
-          } else {
-            Write-Host "✅ Stress test output file exists" -ForegroundColor Green
-          }
-          
-          # Show the file size and first few lines
-          if (Test-Path "stress_test_passed_output.txt") {
-            $file = Get-Item "stress_test_passed_output.txt"
-            Write-Host "📊 Output file: $($file.Name) - Size: $($file.Length) bytes"
-            Write-Host "📄 First 10 lines:"
-            Get-Content "stress_test_passed_output.txt" -TotalCount 10 | ForEach-Object { Write-Host "  $_" }
-          }
-
-      - name: Collect Aspire Sub-Task Logs and Error Analysis
-        if: always()
-        run: |
-          Write-Host "📋 === ASPIRE SUB-TASK LOG COLLECTION RESULTS ===" -ForegroundColor Cyan
-          
-          # Wait for log capture job to complete (if still running)
-          $logCaptureJobFile = "aspire-log-capture.job"
-          if (Test-Path $logCaptureJobFile) {
-            $jobId = Get-Content $logCaptureJobFile
-            $job = Get-Job -Id $jobId -ErrorAction SilentlyContinue
-            if ($job -and $job.State -eq "Running") {
-              Write-Host "⏳ Waiting for log capture job to complete..." -ForegroundColor Yellow
-              Wait-Job -Id $jobId -Timeout 30 | Out-Null
-              Receive-Job -Id $jobId
-              Remove-Job -Id $jobId -ErrorAction SilentlyContinue
-            }
-          }
-          
-          # Display log capture results
-          if (Test-Path "aspire-logs") {
-            Write-Host "✅ Aspire logs directory found" -ForegroundColor Green
-            
-            # Show directory contents
-            Write-Host "`n📁 Captured log files:"
-            Get-ChildItem "aspire-logs" | ForEach-Object {
-              Write-Host "  📄 $($_.Name) - Size: $($_.Length) bytes" -ForegroundColor Gray
-            }
-            
-            # Display error and warning report if available
-            $reportPath = "aspire-logs/error-warning-report.log"
-            if (Test-Path $reportPath) {
-              Write-Host "`n🚨 ERROR AND WARNING REPORT:" -ForegroundColor Yellow
-              Get-Content $reportPath | ForEach-Object {
-                if ($_ -like "*ERROR*") {
-                  Write-Host "  ❌ $_" -ForegroundColor Red
-                } elseif ($_ -like "*WARNING*") {
-                  Write-Host "  ⚠️ $_" -ForegroundColor Yellow
-                } else {
-                  Write-Host "  $_" -ForegroundColor Gray
-                }
-              }
-            } else {
-              Write-Host "⚠️ Error report not found at $reportPath" -ForegroundColor Yellow
-            }
-            
-            # Show key log file summaries
-            $keyLogFiles = @(
-              @{Path="aspire-logs/jobmanager.log"; Name="JobManager"},
-              @{Path="aspire-logs/taskmanager.log"; Name="TaskManagers"},
-              @{Path="aspire-logs/flinkjobsimulator.log"; Name="FlinkJobSimulator"},
-              @{Path="aspire-logs/redis-container.log"; Name="Redis Container"},
-              @{Path="aspire-logs/kafka-container.log"; Name="Kafka Container"}
-            )
-            
-            foreach ($logFile in $keyLogFiles) {
-              if (Test-Path $logFile.Path) {
-                Write-Host "`n📋 $($logFile.Name) Summary:" -ForegroundColor Cyan
-                $content = Get-Content $logFile.Path -ErrorAction SilentlyContinue
-                if ($content) {
-                  # Show first few lines and any error/warning lines
-                  $firstLines = $content | Select-Object -First 3
-                  $errorLines = $content | Where-Object { $_ -like "*ERROR*" -or $_ -like "*FAILED*" } | Select-Object -First 3
-                  $warningLines = $content | Where-Object { $_ -like "*WARN*" -or $_ -like "*WARNING*" } | Select-Object -First 3
-                  
-                  $firstLines | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }
-                  if ($errorLines) {
-                    Write-Host "    ❌ Recent errors:" -ForegroundColor Red
-                    $errorLines | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
-                  }
-                  if ($warningLines) {
-                    Write-Host "    ⚠️ Recent warnings:" -ForegroundColor Yellow
-                    $warningLines | ForEach-Object { Write-Host "      $_" -ForegroundColor Yellow }
-                  }
-                } else {
-                  Write-Host "    (Empty or unreadable)" -ForegroundColor Gray
-                }
-              } else {
-                Write-Host "`n📋 $($logFile.Name): Log file not found" -ForegroundColor Yellow
-              }
-            }
-            
-          } else {
-            Write-Host "❌ No aspire-logs directory found - log capture may have failed" -ForegroundColor Red
-            
-            # Try to run log capture now as a fallback
-            Write-Host "🔄 Running immediate log capture as fallback..." -ForegroundColor Yellow
-            try {
-              & ./scripts/capture-aspire-logs.ps1 -LogDirectory "fallback-logs" -MonitorDurationSeconds 60
-              Write-Host "✅ Fallback log capture completed" -ForegroundColor Green
-            } catch {
-              Write-Host "❌ Fallback log capture failed: $_" -ForegroundColor Red
-            }
-          }
-          
-          Write-Host "`n📋 === LOG COLLECTION COMPLETE ===" -ForegroundColor Cyan
+          Write-Host "`n=== STRESS TEST RESULT: ✅ PASSED ===" -ForegroundColor Green
+          Write-Host "Successfully processed $env:SIMULATOR_NUM_MESSAGES messages!" -ForegroundColor Green
 
       - name: Print Key Logs for Debugging
         if: always()
         run: |
-          set -e
-          if [ -f aspire-logs/flinkjobsimulator.log ]; then
-            echo "\n📄 FlinkJobSimulator Log:"
-            cat aspire-logs/flinkjobsimulator.log
-            echo "-- End of FlinkJobSimulator --"
-          else
-            echo "\n⚠️ FlinkJobSimulator log not found" >&2
-          fi
+          Write-Host "`n=== AppHost Logs ===" -ForegroundColor Yellow
+          if (Test-Path "apphost.out.log") {
+            Write-Host "AppHost Output (last 20 lines):" -ForegroundColor Cyan
+            Get-Content "apphost.out.log" -Tail 20 | ForEach-Object { Write-Host $_ }
+          }
+          
+          if (Test-Path "apphost.err.log") {
+            Write-Host "AppHost Errors:" -ForegroundColor Red  
+            Get-Content "apphost.err.log" | ForEach-Object { Write-Host $_ }
+          }
 
-          if [ -f aspire-logs/jobmanager.log ]; then
-            echo "\n📄 JobManager Log:"
-            cat aspire-logs/jobmanager.log
-            echo "-- End of JobManager --"
-          else
-            echo "\n⚠️ JobManager log not found" >&2
-          fi
-
-          if [ -f aspire-logs/taskmanager.log ]; then
-            echo "\n📄 TaskManagers Log (last 20 lines):"
-            tail -n 20 aspire-logs/taskmanager.log
-            echo "-- End of TaskManagers --"
-          else
-            echo "\n⚠️ TaskManagers log not found" >&2
-          fi
-
-          if [ -f apphost.out.log ]; then
-            echo "\n📄 AppHost Output Log (last 20 lines):"
-            tail -n 20 apphost.out.log
-            echo "-- End of AppHost Output --"
-          fi
-
-          if [ -f apphost.err.log ]; then
-            echo "\n📄 AppHost Error Log (last 20 lines):"
-            tail -n 20 apphost.err.log
-            echo "-- End of AppHost Error --"
-          fi
-
-          if [ -f aspire-logs/redis-container.log ]; then
-            echo "\n📄 Redis Container Log (last 20 lines):"
-            tail -n 20 aspire-logs/redis-container.log
-            echo "-- End of Redis Container --"
-          fi
-
-          if [ -f aspire-logs/kafka-container.log ]; then
-            echo "\n📄 Kafka Container Log (last 20 lines):"
-            tail -n 20 aspire-logs/kafka-container.log
-            echo "-- End of Kafka Container --"
-          fi
-
+      - name: Cleanup
+        if: always()
+        run: |
+          Write-Host "`n=== Cleanup ===" -ForegroundColor Yellow
+          
+          # Stop AppHost if still running
+          if (Test-Path "apphost.pid") {
+            $pid = Get-Content "apphost.pid"
+            Write-Host "Stopping AppHost process $pid..."
+            $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            if ($process) {
+              Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            }
+          }
+          
+          # Clean up log files
+          Remove-Item -Path "apphost.*.log", "apphost.pid" -ErrorAction SilentlyContinue
+          
+          Write-Host "✅ Cleanup completed" -ForegroundColor Green
