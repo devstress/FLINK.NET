@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Confluent.Kafka;
 
@@ -18,12 +18,11 @@ static class Program
         string topic = args[1];
         long messageCount = long.Parse(args[2]);
         int producers = int.Parse(args[3]);
-        int partitions = int.Parse(args[4]);
 
         if (!OperatingSystem.IsWindows())
             PrintUlimit();
 
-        PreheatPartitions(bootstrap, topic, partitions);
+        await PreheatPartitions(bootstrap, topic);
         var payloads = PreGeneratePayloads(messageCount);
         var perProducerCounter = new long[producers];
 
@@ -34,7 +33,7 @@ static class Program
         for (int i = 0; i < producers; i++)
         {
             int id = i;
-            tasks[i] = Task.Run(() => ProduceMessages(id, bootstrap, topic, messageCount, producers, payloads, perProducerCounter));
+            tasks[i] = ProduceMessages(id, bootstrap, topic, messageCount, producers, payloads, perProducerCounter);
         }
 
         await Task.WhenAll(tasks);
@@ -52,18 +51,21 @@ static class Program
             BootstrapServers = bootstrap,
             EnableIdempotence = true,
             Acks = Acks.All,
-            LingerMs = 2,
-            BatchSize = 2 * 1024 * 1024,
+            LingerMs = 5,  // Increased
+            BatchSize = 10 * 1024 * 1024,  // Increased
             CompressionType = CompressionType.Zstd,
-            QueueBufferingMaxKbytes = 1024 * 1024,
-            QueueBufferingMaxMessages = 100_000_000,
-            SocketSendBufferBytes = 100000_000,
-            MessageSendMaxRetries = 15,
-            RetryBackoffMs = 25,
-            SocketTimeoutMs = 15000,
+            QueueBufferingMaxKbytes = 2 * 1024 * 1024,  // Increased
+            QueueBufferingMaxMessages = 1_000_000,  // Adjusted
+            SocketSendBufferBytes = 100_000_000,  // Increased
+            SocketReceiveBufferBytes = 100_000_000,
+            SocketNagleDisable = true,  // New
+            MessageSendMaxRetries = 10,
+            RetryBackoffMs = 100,
+            SocketTimeoutMs = 30000,  // Increased
             SocketKeepaliveEnable = true,
             ClientId = $"producer-{id}",
-            EnableDeliveryReports = false
+            EnableDeliveryReports = true,
+            ConnectionsMaxIdleMs = 300000
         };
 
         using var producer = new ProducerBuilder<long, byte[]>(config)
@@ -74,22 +76,33 @@ static class Program
         long sliceStart = id * messageCount / producers;
         long sliceEnd = (id + 1) * messageCount / producers;
 
-        var batch = new List<Task>(100_000);
+        var batch = new List<Task>(50000);  // Increased batch size
 
         for (long i = sliceStart; i < sliceEnd; i++)
         {
             var msg = new Message<long, byte[]> { Key = i, Value = payloads[i] };
-            batch.Add(producer.ProduceAsync(topic, msg));
-            counter[id]++;
 
-            if (batch.Count >= 100_000)
+            var task = producer.ProduceAsync(topic, msg)
+                .ContinueWith(t =>
+                {
+                    if (t.IsCompletedSuccessfully && t.Result.Status == PersistenceStatus.Persisted)
+                        Interlocked.Increment(ref counter[id]);
+                    else
+                        Console.WriteLine($"\n❌ Failed to produce msg {i}: {t.Exception?.Message ?? "Unknown error"}");
+                });
+
+            batch.Add(task);
+
+            if (batch.Count >= 50000)  // Larger batch before waiting
             {
                 await Task.WhenAll(batch);
                 batch.Clear();
             }
         }
 
-        await Task.WhenAll(batch);
+        if (batch.Count > 0)
+            await Task.WhenAll(batch);
+
         producer.Flush(TimeSpan.FromSeconds(10));
     }
 
@@ -125,21 +138,62 @@ static class Program
         return payloads;
     }
 
-    static void PreheatPartitions(string bootstrap, string topic, int partitions)
+    static async Task PreheatPartitions(string bootstrap, string topic)
     {
-        var config = new ProducerConfig { BootstrapServers = bootstrap };
+        using var adminClient = new AdminClientBuilder(new AdminClientConfig
+        {
+            BootstrapServers = bootstrap
+        }).Build();
+
+        // Wait for topic metadata and partition leaders
+        int retries = 10;
+        var partitions = 0;
+        while (retries-- > 0)
+        {
+            var metadata = adminClient.GetMetadata(topic, TimeSpan.FromSeconds(3));
+            var topicMeta = metadata.Topics.FirstOrDefault(t => t.Topic == topic);
+
+            if (topicMeta != null && topicMeta.Partitions.All(p => p.Leader != -1))
+            {
+                Console.WriteLine($"✅ Kafka topic '{topic}' is ready with {topicMeta.Partitions.Count} partitions.");
+                partitions = topicMeta.Partitions.Count;
+                if (partitions > 0)
+                    break;
+            }
+
+            Console.WriteLine("⏳ Waiting for Kafka topic and partition leaders...");
+            Thread.Sleep(1000);
+        }
+
+        // Real preheater to trigger idempotence init
+        var config = new ProducerConfig
+        {
+            BootstrapServers = bootstrap,
+            EnableIdempotence = true,
+            Acks = Acks.All,
+            LingerMs = 2,
+            BatchSize = 1024 * 1024,
+            CompressionType = CompressionType.Zstd,
+            ClientId = "preheater",
+            MessageSendMaxRetries = 3,
+            RetryBackoffMs = 100,
+            EnableDeliveryReports = false
+        };
+
         using var producer = new ProducerBuilder<Null, byte[]>(config)
+            .SetKeySerializer(Serializers.Null)
             .SetValueSerializer(Serializers.ByteArray)
             .Build();
 
         var payload = new byte[16];
-        for (int pid = 0; pid < partitions; pid++)
+        for (int i = 0; i < partitions; i++)
         {
-            var tp = new TopicPartition(topic, new Partition(pid));
-            producer.Produce(tp, new Message<Null, byte[]> { Value = payload });
+            var tp = new TopicPartition(topic, new Partition(i));
+            await producer.ProduceAsync(tp, new Message<Null, byte[]> { Value = payload });
         }
 
-        producer.Flush(TimeSpan.FromSeconds(10));
+        Console.WriteLine("🔥 Preheated producer with real config and metadata.");
+        producer.Flush();
     }
 
     static void PrintUlimit()

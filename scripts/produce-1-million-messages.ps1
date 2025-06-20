@@ -42,7 +42,7 @@ function Build-Producer {
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="*" />
+    <PackageReference Include="Confluent.Kafka" Version="2.10.1" />
   </ItemGroup>
 </Project>
 "@ | Set-Content -Path $projectFile -Encoding UTF8
