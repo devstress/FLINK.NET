@@ -222,7 +222,7 @@ namespace FlinkJobSimulator
 
             // Default fallback for local development
             var protocol = useInsecure ? "http" : "https";
-            var defaultPort = useInsecure ? "50051" : "8081"; // Use gRPC default port 50051 for HTTP
+            var defaultPort = "50051"; // JobManager always uses gRPC port 50051 for both HTTP and HTTPS
             var defaultUrl = $"{protocol}://localhost:{defaultPort}";
             _logger.LogInformation("🔍 Using default JobManager address: {DefaultUrl} (unsecured: {UseInsecure})", defaultUrl, useInsecure);
             return defaultUrl;

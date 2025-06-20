@@ -167,9 +167,45 @@ public static class Program
         }
     }
 
-    private static (string simulatorNumMessages, IResourceBuilder<ProjectResource> jobManager) ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
+    private static (string simulatorNumMessages, IResourceBuilder<ProjectResource>? jobManager) ConfigureFlinkCluster(IDistributedApplicationBuilder builder)
     {
         var simulatorNumMessages = GetSimulatorMessageCount();
+        
+        // Check if simplified mode is enabled
+        var useSimplifiedModeEnv = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant();
+        var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
+        var isCI = Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
+                   Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+        
+        bool useSimplifiedMode;
+        if (useSimplifiedModeEnv == "false")
+        {
+            useSimplifiedMode = false;
+        }
+        else if (useSimplifiedModeEnv == "true") 
+        {
+            useSimplifiedMode = true;
+        }
+        else if (useKafkaSource)
+        {
+            useSimplifiedMode = false;
+        }
+        else if (isCI)
+        {
+            useSimplifiedMode = true;
+        }
+        else
+        {
+            useSimplifiedMode = false;
+        }
+
+        if (useSimplifiedMode)
+        {
+            Console.WriteLine("🎯 SIMPLIFIED MODE: Skipping JobManager/TaskManager infrastructure (using mocked gRPC endpoints)");
+            return (simulatorNumMessages, null);
+        }
+
+        Console.WriteLine("🚀 FULL INFRASTRUCTURE MODE: Starting JobManager and TaskManagers");
         var taskManagerCount = 20; // Always use 20 TaskManagers for Apache Flink 2.0 compliance and high-throughput 1M+ msg/sec processing
 
         // Add JobManager (1 instance)
@@ -203,6 +239,7 @@ public static class Program
             jobManager.WithReference(taskManager);
         }
 
+        Console.WriteLine($"🚀 CONFIGURED: JobManager + {taskManagerCount} TaskManagers for full infrastructure mode");
         return (simulatorNumMessages, jobManager);
     }
 
@@ -211,18 +248,51 @@ public static class Program
         IResourceBuilder<KafkaServerResource> kafka,
         string simulatorNumMessages,
         IResourceBuilder<ContainerResource> kafkaInit,
-        IResourceBuilder<ProjectResource> jobManager)
+        IResourceBuilder<ProjectResource>? jobManager)
     {
         // Check if we should use Kafka source for TaskManager load testing
         var useKafkaSource = Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")?.ToLowerInvariant() == "true";
         
         // Check if we should use simplified mode
-        // If stress test explicitly requests Kafka source, don't use simplified mode even in CI
-        var useSimplifiedMode = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant() == "true" ||
-                               (!useKafkaSource && (Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
-                               Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true"));
+        // Priority: Explicit USE_SIMPLIFIED_MODE setting overrides everything
+        var useSimplifiedModeEnv = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")?.ToLowerInvariant();
+        var isCI = Environment.GetEnvironmentVariable("CI")?.ToLowerInvariant() == "true" ||
+                   Environment.GetEnvironmentVariable("GITHUB_ACTIONS")?.ToLowerInvariant() == "true";
+        
+        bool useSimplifiedMode;
+        if (useSimplifiedModeEnv == "false")
+        {
+            // Explicitly disabled - force full infrastructure mode regardless of CI
+            useSimplifiedMode = false;
+            Console.WriteLine($"🎯 INFRASTRUCTURE MODE: Full mode explicitly enabled (USE_SIMPLIFIED_MODE=false)");
+        }
+        else if (useSimplifiedModeEnv == "true") 
+        {
+            // Explicitly enabled - use simplified mode
+            useSimplifiedMode = true;
+            Console.WriteLine($"🎯 INFRASTRUCTURE MODE: Simplified mode explicitly enabled (USE_SIMPLIFIED_MODE=true)");
+        }
+        else if (useKafkaSource)
+        {
+            // Stress test with Kafka source requires full infrastructure
+            useSimplifiedMode = false;
+            Console.WriteLine($"🎯 INFRASTRUCTURE MODE: Full mode enabled for Kafka source stress testing");
+        }
+        else if (isCI)
+        {
+            // Default to simplified mode in CI when not explicitly configured
+            useSimplifiedMode = true;
+            Console.WriteLine($"🎯 INFRASTRUCTURE MODE: Simplified mode auto-enabled for CI (no explicit config)");
+        }
+        else
+        {
+            // Default to full mode for local development
+            useSimplifiedMode = false;
+            Console.WriteLine($"🎯 INFRASTRUCTURE MODE: Full mode enabled for local development");
+        }
 
         Console.WriteLine($"🔍 APPHOST CONFIG: USE_SIMPLIFIED_MODE={Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE")}");
+        Console.WriteLine($"🔍 APPHOST CONFIG: STRESS_TEST_USE_KAFKA_SOURCE={Environment.GetEnvironmentVariable("STRESS_TEST_USE_KAFKA_SOURCE")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: CI={Environment.GetEnvironmentVariable("CI")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: GITHUB_ACTIONS={Environment.GetEnvironmentVariable("GITHUB_ACTIONS")}");
         Console.WriteLine($"🔍 APPHOST CONFIG: Final useSimplifiedMode: {useSimplifiedMode}");
@@ -230,7 +300,6 @@ public static class Program
 
         var flinkJobSimulator = builder.AddProject<Projects.FlinkJobSimulator>("flinkjobsimulator")
             .WithReference(redis) // Makes "ConnectionStrings__redis" available
-            .WithReference(jobManager) // Makes JobManager gRPC endpoint discoverable via Aspire
             .WithEnvironment("SIMULATOR_NUM_MESSAGES", simulatorNumMessages)
             .WithEnvironment("SIMULATOR_REDIS_KEY_SINK_COUNTER", "flinkdotnet:sample:processed_message_counter")
             .WithEnvironment("SIMULATOR_REDIS_KEY_GLOBAL_SEQUENCE", "flinkdotnet:global_sequence_id")
@@ -239,15 +308,27 @@ public static class Program
             .WaitFor(redis) // Always wait for Redis since we need it even in simplified mode
             .WithReference(kafka) // Makes "ConnectionStrings__kafka" available for bootstrap servers
             .WaitFor(kafka) // Wait for Kafka to be ready
-            .WaitFor(kafkaInit) // Wait for Kafka initialization (topics created) to complete
-            .WaitFor(jobManager); // Wait for JobManager to be ready before starting job submission
+            .WaitFor(kafkaInit); // Wait for Kafka initialization (topics created) to complete
+
+        // Only add JobManager reference and wait in full infrastructure mode
+        if (!useSimplifiedMode && jobManager != null)
+        {
+            Console.WriteLine("🎯 FULL MODE: Adding JobManager reference and wait dependency");
+            flinkJobSimulator
+                .WithReference(jobManager) // Makes JobManager gRPC endpoint discoverable via Aspire
+                .WaitFor(jobManager); // Wait for JobManager to be ready before starting job submission
+        }
+        else
+        {
+            Console.WriteLine("🎯 SIMPLIFIED MODE: Skipping JobManager dependencies (using mock endpoints)");
+        }
 
         // Pass simplified mode flag if set
-        var useSimplifiedModeEnv = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
-        if (!string.IsNullOrEmpty(useSimplifiedModeEnv))
+        var useSimplifiedModeEnvValue = Environment.GetEnvironmentVariable("USE_SIMPLIFIED_MODE");
+        if (!string.IsNullOrEmpty(useSimplifiedModeEnvValue))
         {
-            Console.WriteLine($"🎯 SIMPLIFIED MODE: Enabling simplified mode in FlinkJobSimulator: {useSimplifiedModeEnv}");
-            flinkJobSimulator.WithEnvironment("USE_SIMPLIFIED_MODE", useSimplifiedModeEnv);
+            Console.WriteLine($"🎯 SIMPLIFIED MODE CONFIG: Passing USE_SIMPLIFIED_MODE={useSimplifiedModeEnvValue} to FlinkJobSimulator");
+            flinkJobSimulator.WithEnvironment("USE_SIMPLIFIED_MODE", useSimplifiedModeEnvValue);
         }
 
         // Enable Kafka source mode for TaskManager load distribution testing if requested (only in non-simplified mode)
