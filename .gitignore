@@ -48,6 +48,15 @@ CodeCoverage/
 # Build and test output files
 *_warnings.txt
 *build*.txt
+
+# Producer build artifacts
+scripts/producer/Producer
+scripts/producer/Producer.exe
+scripts/producer/Producer.pdb
+scripts/producer/*.dll
+scripts/producer/*.so
+scripts/producer/obj/
+scripts/producer/bin/
 all_warnings.txt
 
 # Temporary files

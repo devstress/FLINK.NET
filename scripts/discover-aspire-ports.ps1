@@ -149,7 +149,30 @@ function Get-KafkaPort {
         try {
             Write-Host "Kafka discovery attempt $retry/$MaxRetries..." -ForegroundColor Yellow
             
-            # Get Kafka containers with different image patterns
+            # Use the same discovery method as produce-1-million-messages.ps1 for consistency
+            # First check if environment variable is already set
+            if ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
+                $bootstrapServers = $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS -replace 'localhost|::1', '127.0.0.1'
+                if ($bootstrapServers -match ":(\d+)") {
+                    $kafkaPort = [int]$Matches[1]
+                    Write-Host "✅ Kafka port from environment: $kafkaPort" -ForegroundColor Green
+                    return $kafkaPort
+                }
+            }
+            
+            # Use same method as produce-1-million-messages.ps1: look for containers with "kafka" in name
+            Write-Host "Checking for Kafka containers by name..." -ForegroundColor Yellow
+            $ports = docker ps --filter "name=kafka" --format "{{.Ports}}" 2>/dev/null
+            foreach ($line in $ports -split '\s+') {
+                if ($line -match ":(\d+)->9092/tcp") {
+                    $kafkaPort = [int]$Matches[1]
+                    Write-Host "✅ Kafka detected on 127.0.0.1:$kafkaPort" -ForegroundColor Green
+                    return $kafkaPort
+                }
+            }
+            
+            # Fallback to original complex discovery for backward compatibility
+            Write-Host "Fallback to complex discovery..." -ForegroundColor Yellow
             $kafkaContainers = @()
             
             # Try multiple Kafka image patterns that Aspire might use
@@ -238,6 +261,27 @@ function Get-KafkaPort {
                 }
                 return $null
             }
+            
+            # Test Kafka connectivity if possible
+            Write-Host "Testing Kafka connectivity at localhost:$kafkaPort..." -ForegroundColor Yellow
+            try {
+                # Try to check if the port is responding
+                $tcpClient = New-Object System.Net.Sockets.TcpClient
+                $connectTask = $tcpClient.ConnectAsync("127.0.0.1", $kafkaPort)
+                $taskCompleted = $connectTask.Wait(5000)
+                if ($taskCompleted -and $tcpClient.Connected) {
+                    Write-Host "Kafka port $kafkaPort is accessible" -ForegroundColor Green
+                    $tcpClient.Close()
+                } else {
+                    Write-Host "Kafka port $kafkaPort connection test inconclusive but proceeding" -ForegroundColor Yellow
+                }
+                $tcpClient.Dispose()
+            } catch {
+                Write-Host "Kafka connection test failed, but proceeding with discovered port" -ForegroundColor Yellow
+            }
+            
+            # Ensure we return a clean integer port value to avoid tuple issues
+            return [int]$kafkaPort
             
             # Test Kafka connectivity if possible
             Write-Host "Testing Kafka connectivity at localhost:$kafkaPort..." -ForegroundColor Yellow
