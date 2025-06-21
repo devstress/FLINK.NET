@@ -21,7 +21,7 @@ namespace FlinkJobSimulator
         private FlinkKafkaConsumerGroup? _consumerGroup;
         private volatile bool _isRunning = true;
         private string _taskName = nameof(FlinkKafkaSourceFunction);
-        private readonly Dictionary<TopicPartition, long> _checkpointState;
+        private readonly Dictionary<Confluent.Kafka.TopicPartition, long> _checkpointState;
         private readonly object _checkpointLock = new object();
         private Timer? _heartbeatTimer;
 
@@ -38,7 +38,7 @@ namespace FlinkJobSimulator
         {
             _topic = topic ?? throw new ArgumentNullException(nameof(topic));
             _consumerGroupId = consumerGroupId ?? throw new ArgumentNullException(nameof(consumerGroupId));
-            _checkpointState = new Dictionary<TopicPartition, long>();
+            _checkpointState = new Dictionary<Confluent.Kafka.TopicPartition, long>();
             Console.WriteLine($"FlinkKafkaSourceFunction will consume from topic: '{_topic}' with consumer group: '{_consumerGroupId}'");
         }
 
@@ -47,7 +47,7 @@ namespace FlinkJobSimulator
         {
             _topic = GlobalTopic ?? Configuration?["SIMULATOR_KAFKA_TOPIC"] ?? "flinkdotnet.sample.topic";
             _consumerGroupId = GlobalConsumerGroupId ?? Configuration?["SIMULATOR_KAFKA_CONSUMER_GROUP"] ?? "flinkdotnet-consumer-group";
-            _checkpointState = new Dictionary<TopicPartition, long>();
+            _checkpointState = new Dictionary<Confluent.Kafka.TopicPartition, long>();
             Console.WriteLine($"FlinkKafkaSourceFunction parameterless constructor: topic '{_topic}', group '{_consumerGroupId}'");
         }
 
@@ -156,7 +156,7 @@ namespace FlinkJobSimulator
 
         private void ProcessSingleKafkaMessage(ISourceContext<string> sourceContext, ConsumptionState state)
         {
-            var consumeResult = _consumerGroup?.ConsumeMessage(TimeSpan.FromSeconds(1));
+            var consumeResult = _consumerGroup?.ConsumeMessage(TimeSpan.FromSeconds(1)) as ConsumeResult<Ignore, byte[]>;
             
             if (consumeResult?.Message?.Value != null)
             {
@@ -288,7 +288,7 @@ namespace FlinkJobSimulator
                             var parts = kvp.Key.Split('_');
                             if (parts.Length == 2 && int.TryParse(parts[1], out var partition))
                             {
-                                var topicPartition = new TopicPartition(parts[0], partition);
+                                var topicPartition = new Confluent.Kafka.TopicPartition(parts[0], partition);
                                 _checkpointState[topicPartition] = kvp.Value;
                             }
                         }
