@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using Confluent.Kafka;
+using FlinkDotNet.Connectors.Sources.Kafka.Native;
 
 namespace Flink.Net.Producer;
 
@@ -22,7 +22,7 @@ static class Program
         if (!OperatingSystem.IsWindows())
             PrintUlimit();
 
-        await PreheatPartitions(bootstrap, topic);
+        await PreheatTopic(bootstrap, topic);
         var payloads = PreGeneratePayloads(messageCount);
         var perProducerCounter = new long[producers];
 
@@ -46,79 +46,66 @@ static class Program
 
     static async Task ProduceMessages(int id, string bootstrap, string topic, long messageCount, int producers, byte[][] payloads, long[] counter)
     {
-        var config = new ProducerConfig
+        // Create high-performance native producer configuration
+        var config = new HighPerformanceKafkaProducer.Config
         {
             BootstrapServers = bootstrap,
-            EnableIdempotence = true,  // MANDATORY per requirements
-            Acks = Acks.All,  // Required when EnableIdempotence = true
+            Topic = topic,
             
             // ULTRA-HIGH PERFORMANCE CONFIG for >1M msg/sec target
-            LingerMs = 10,  // Higher linger for better batching (trade small latency for throughput)
             BatchSize = 64 * 1024 * 1024,  // 64MB batches for maximum throughput
-            CompressionType = CompressionType.Lz4,  // LZ4 is faster than Zstd for high throughput
-            QueueBufferingMaxKbytes = 128 * 1024,  // 128MB buffer (increased from 2MB)
+            LingerMs = 10,  // Higher linger for better batching (trade small latency for throughput)
+            QueueBufferingMaxKbytes = 128 * 1024,  // 128MB buffer (increased from default)
             QueueBufferingMaxMessages = 10_000_000,  // 10M message capacity
             
             // NETWORK OPTIMIZATIONS
             SocketSendBufferBytes = 100_000_000,  // 100MB send buffer (max allowed)
             SocketReceiveBufferBytes = 100_000_000,  // 100MB receive buffer (max allowed) 
-            SocketNagleDisable = true,  // Disable Nagle's algorithm for lower latency
-            SocketKeepaliveEnable = true,
-            SocketTimeoutMs = 60000,  // 60s timeout to prevent drops under load
+            CompressionType = "lz4",  // LZ4 is faster than Zstd for high throughput
             
-            // RETRY OPTIMIZATIONS
-            MessageSendMaxRetries = 3,  // Reduced retries for speed (was 10)
-            RetryBackoffMs = 50,  // Faster retry (was 100ms)
-            RequestTimeoutMs = 5000,  // 5s request timeout
+            // RELIABILITY SETTINGS (required for production)
+            EnableIdempotence = true,  // MANDATORY per requirements
+            Acks = -1,  // Required when EnableIdempotence = true (acks=all)
             
             // PERFORMANCE OPTIMIZATIONS
-            EnableDeliveryReports = true,  // Enable for better error tracking
-            ConnectionsMaxIdleMs = 600000,  // 10 minutes
-            ClientId = $"ultra-producer-{id}",
-            
-            // METADATA OPTIMIZATIONS
-            MetadataMaxAgeMs = 300000,  // 5 minutes metadata refresh
-            TopicMetadataRefreshIntervalMs = 60000  // 1 minute topic refresh
+            Retries = 3,  // Reduced retries for speed (was 10)
+            RequestTimeoutMs = 5000,  // 5s request timeout
+            MessageTimeoutMs = 120000,  // 2 minutes message timeout
         };
 
-        using var producer = new ProducerBuilder<long, byte[]>(config)
-            .SetKeySerializer(Serializers.Int64)
-            .SetValueSerializer(Serializers.ByteArray)
-            .Build();
+        using var producer = new HighPerformanceKafkaProducer(config);
 
         long sliceStart = id * messageCount / producers;
         long sliceEnd = (id + 1) * messageCount / producers;
+        long sliceSize = sliceEnd - sliceStart;
 
-        // ULTRA-FAST ASYNC BATCH MODE for maximum throughput
-        var tasks = new List<Task>(8192);  // Batch async operations
+        // ULTRA-FAST BATCH MODE for maximum throughput
+        const int batchSize = 8192;  // Process in large batches
         
-        for (long i = sliceStart; i < sliceEnd; i++)
+        for (long i = 0; i < sliceSize; i += batchSize)
         {
-            var msg = new Message<long, byte[]> { Key = i, Value = payloads[i] };
+            int currentBatchSize = (int)Math.Min(batchSize, sliceSize - i);
+            var batchMessages = new byte[currentBatchSize][];
             
-            // Async produce for maximum speed
-            var task = producer.ProduceAsync(topic, msg);
-            tasks.Add(task);
-            
-            // Process in batches to avoid overwhelming memory
-            if (tasks.Count >= 8192)
+            // Prepare batch without additional allocations
+            for (int j = 0; j < currentBatchSize; j++)
             {
-                await Task.WhenAll(tasks);
-                // Count completed tasks
-                Interlocked.Add(ref counter[id], tasks.Count);
-                tasks.Clear();
+                batchMessages[j] = payloads[sliceStart + i + j];
             }
-        }
-        
-        // Handle remaining tasks
-        if (tasks.Count > 0)
-        {
-            await Task.WhenAll(tasks);
-            Interlocked.Add(ref counter[id], tasks.Count);
+            
+            // Produce batch using native high-performance producer
+            int sent = producer.ProduceBatch(batchMessages);
+            Interlocked.Add(ref counter[id], sent);
+            
+            // Flush periodically to avoid overwhelming queues
+            if (i % (batchSize * 10) == 0)
+            {
+                producer.Flush(1000); // 1 second flush timeout
+            }
         }
 
         // Final flush to ensure all messages are sent
-        producer.Flush(TimeSpan.FromSeconds(30));  // Longer flush timeout for large batches
+        producer.Flush(30000);  // 30 second final flush timeout for large batches
     }
 
     static Task TrackProgress(long[] counters, long target, Stopwatch sw) => Task.Run(() =>
@@ -153,77 +140,49 @@ static class Program
         return payloads;
     }
 
-    static async Task PreheatPartitions(string bootstrap, string topic)
+    static async Task PreheatTopic(string bootstrap, string topic)
     {
-        using var adminClient = new AdminClientBuilder(new AdminClientConfig
-        {
-            BootstrapServers = bootstrap
-        }).Build();
-
-        // Wait for topic metadata and partition leaders - optimized for speed
-        int retries = 5;  // Reduced retries for faster startup
-        var partitions = 0;
-        while (retries-- > 0)
-        {
-            try
-            {
-                var metadata = adminClient.GetMetadata(topic, TimeSpan.FromSeconds(5));
-                var topicMeta = metadata.Topics.FirstOrDefault(t => t.Topic == topic);
-
-                if (topicMeta != null && topicMeta.Partitions.All(p => p.Leader != -1))
-                {
-                    Console.WriteLine($"✅ Kafka topic '{topic}' ready with {topicMeta.Partitions.Count} partitions.");
-                    partitions = topicMeta.Partitions.Count;
-                    if (partitions > 0)
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⏳ Metadata check attempt {5-retries}: {ex.Message}");
-            }
-
-            Console.WriteLine("⏳ Waiting for Kafka topic and partition leaders...");
-            Thread.Sleep(2000);  // 2s wait between retries
-        }
-
-        // Fast preheater with ultra-optimized config matching main producer
-        var config = new ProducerConfig
+        // For the native implementation, we'll do a simple preheat
+        // by creating a producer and sending a few test messages
+        Console.WriteLine($"🔥 Preheating native Kafka producer for topic '{topic}'...");
+        
+        var config = new HighPerformanceKafkaProducer.Config
         {
             BootstrapServers = bootstrap,
-            EnableIdempotence = true,  // MANDATORY
-            Acks = Acks.All,  // Required when EnableIdempotence = true
+            Topic = topic,
+            BatchSize = 1024 * 1024,  // 1MB batch for preheating
             LingerMs = 0,  // No linger for preheating - send immediately
-            BatchSize = 1024 * 1024,  // 1MB batch
-            CompressionType = CompressionType.Lz4,  // Match main config
             QueueBufferingMaxKbytes = 8 * 1024,  // 8MB for preheating
-            ClientId = "ultra-preheater",
-            MessageSendMaxRetries = 1,  // Single retry for speed
-            RetryBackoffMs = 50,
-            EnableDeliveryReports = false,  // Consistent with main config
+            EnableIdempotence = true,  // MANDATORY
+            Acks = -1,  // Required when EnableIdempotence = true
+            Retries = 1,  // Single retry for speed
             RequestTimeoutMs = 5000  // 5s timeout
         };
 
-        using var producer = new ProducerBuilder<Null, byte[]>(config)
-            .SetKeySerializer(Serializers.Null)
-            .SetValueSerializer(Serializers.ByteArray)
-            .Build();
-
-        var payload = new byte[16];
-        // Send one message per partition to preheat connections and establish idempotence
-        var preheatTasks = new List<Task>();
-        for (int i = 0; i < Math.Min(partitions, 20); i++)  // Limit to 20 partitions for speed
+        try
         {
-            var tp = new TopicPartition(topic, new Partition(i));
-            var task = producer.ProduceAsync(tp, new Message<Null, byte[]> { Value = payload });
-            preheatTasks.Add(task);
+            using var producer = new HighPerformanceKafkaProducer(config);
+            
+            // Send a few preheat messages
+            var preheatMessages = new byte[5][];
+            for (int i = 0; i < 5; i++)
+            {
+                preheatMessages[i] = new byte[16];
+                RandomNumberGenerator.Fill(preheatMessages[i]);
+            }
+            
+            producer.ProduceBatch(preheatMessages);
+            producer.Flush(5000);  // Quick flush
+            
+            Console.WriteLine($"✅ Native producer preheated successfully for topic '{topic}'.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Preheating failed (continuing anyway): {ex.Message}");
         }
         
-        // Wait for all preheat messages to complete
-        await Task.WhenAll(preheatTasks);
-
-        Console.WriteLine($"🔥 Preheated producer for {Math.Min(partitions, 20)} partitions with ultra-optimized config.");
-        producer.Flush(TimeSpan.FromSeconds(5));  // Quick flush
+        // Small delay to ensure everything is ready
+        await Task.Delay(1000);
     }
 
     static void PrintUlimit()

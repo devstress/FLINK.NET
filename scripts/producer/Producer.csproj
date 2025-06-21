@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="2.10.1" />
+    <ProjectReference Include="../../FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/FlinkDotNet.Connectors.Sources.Kafka.csproj" />
   </ItemGroup>
 </Project>
