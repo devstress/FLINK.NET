@@ -108,6 +108,7 @@ namespace FlinkDotNet.Connectors.Sources.Kafka.Native
         private NativeKafkaProducer.NativeProducer _producer;
         private bool _disposed = false;
         private readonly string _topic;
+        private readonly Config _config;
 
         /// <summary>
         /// Configuration for high-performance producer optimized for 1M+ msg/sec
@@ -134,15 +135,16 @@ namespace FlinkDotNet.Connectors.Sources.Kafka.Native
 
         public HighPerformanceKafkaProducer(Config config)
         {
-            _topic = config.Topic ?? throw new ArgumentNullException(nameof(config.Topic));
+            _config = config ?? throw new ArgumentNullException(nameof(config));
+            _topic = _config.Topic ?? throw new ArgumentNullException(nameof(config.Topic));
             
             var nativeConfig = new NativeKafkaProducer.NativeConfig
             {
-                BootstrapServers = config.BootstrapServers,
-                TopicName = config.Topic,
-                BatchSize = config.BatchSize,
-                LingerMs = config.LingerMs,
-                QueueBufferingMaxKbytes = config.QueueBufferingMaxKbytes,
+                BootstrapServers = _config.BootstrapServers,
+                TopicName = _config.Topic,
+                BatchSize = _config.BatchSize,
+                LingerMs = _config.LingerMs,
+                QueueBufferingMaxKbytes = _config.QueueBufferingMaxKbytes,
                 QueueBufferingMaxMessages = config.QueueBufferingMaxMessages,
                 SocketSendBufferBytes = config.SocketSendBufferBytes,
                 SocketReceiveBufferBytes = config.SocketReceiveBufferBytes,
