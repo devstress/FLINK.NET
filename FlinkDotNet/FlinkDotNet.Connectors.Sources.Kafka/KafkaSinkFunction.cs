@@ -1,52 +1,38 @@
 using System;
-using Confluent.Kafka;
 using FlinkDotNet.Core.Abstractions.Sinks;
 using FlinkDotNet.Core.Abstractions.Context;
+using FlinkDotNet.Connectors.Sources.Kafka.Native;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace FlinkDotNet.Connectors.Sources.Kafka
 {
     /// <summary>
-    /// Kafka sink function that supports exactly-once semantics via transactions
+    /// High-performance Kafka sink function that uses native librdkafka for maximum throughput.
+    /// Designed to achieve 1M+ messages/second with minimal .NET overhead.
     /// </summary>
     /// <typeparam name="T">The type of records to write</typeparam>
-    public class KafkaSinkFunction<T> : ITransactionalSinkFunction<T>, IDisposable
+    public class KafkaSinkFunction<T> : ISinkFunction<T>, IDisposable
     {
-        private readonly ProducerConfig _producerConfig;
-        private readonly string _topic;
-        private readonly ISerializer<T> _valueSerializer;
+        private readonly HighPerformanceKafkaProducer.Config _config;
         private readonly ILogger? _logger;
-        private IProducer<Null, T>? _producer;
-        private readonly bool _transactional;
+        private HighPerformanceKafkaProducer? _producer;
+        private readonly Func<T, byte[]> _serializer;
 
         public KafkaSinkFunction(
-            ProducerConfig producerConfig,
-            string topic,
-            ISerializer<T> valueSerializer,
+            HighPerformanceKafkaProducer.Config config,
+            Func<T, byte[]> serializer,
             ILogger? logger = null)
         {
-            _producerConfig = producerConfig ?? throw new ArgumentNullException(nameof(producerConfig));
-            _topic = topic ?? throw new ArgumentNullException(nameof(topic));
-            _valueSerializer = valueSerializer ?? throw new ArgumentNullException(nameof(valueSerializer));
+            _config = config ?? throw new ArgumentNullException(nameof(config));
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _logger = logger;
-            _transactional = !string.IsNullOrEmpty(_producerConfig.TransactionalId);
         }
 
         public void Open(IRuntimeContext context)
         {
-            var producerBuilder = new ProducerBuilder<Null, T>(_producerConfig)
-                .SetValueSerializer(_valueSerializer)
-                .SetErrorHandler((_, e) => _logger?.LogError("Kafka producer error: {Error}", e.Reason));
-
-            _producer = producerBuilder.Build();
-
-            if (_transactional)
-            {
-                _producer.InitTransactions(TimeSpan.FromSeconds(30));
-                _logger?.LogInformation("Kafka producer initialized with transactions");
-            }
-
-            _logger?.LogInformation("Kafka sink opened for topic: {Topic}", _topic);
+            _producer = new HighPerformanceKafkaProducer(_config);
+            _logger?.LogInformation("High-performance native Kafka sink opened for topic: {Topic}", _config.Topic);
         }
 
         public void Invoke(T record, ISinkContext context)
@@ -56,19 +42,14 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
 
             try
             {
-                var message = new Message<Null, T>
-                {
-                    Value = record,
-                    Timestamp = new Timestamp(DateTimeOffset.FromUnixTimeMilliseconds(context.CurrentProcessingTimeMillis()).DateTime)
-                };
-
-                _producer.Produce(_topic, message);
-                _logger?.LogDebug("Message produced to topic {Topic}", _topic);
+                var messageBytes = _serializer(record);
+                var batch = new byte[][] { messageBytes };
+                _producer.ProduceBatch(batch);
             }
-            catch (ProduceException<Null, T> ex)
+            catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to produce message to Kafka topic {Topic}: {Error}", _topic, ex.Error.Reason);
-                throw new InvalidOperationException($"Failed to produce message to Kafka topic '{_topic}': {ex.Error.Reason}", ex);
+                _logger?.LogError(ex, "Failed to produce message to Kafka");
+                throw;
             }
         }
 
@@ -76,123 +57,52 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
         {
             if (_producer != null)
             {
-                _producer.Flush(TimeSpan.FromSeconds(10));
-                _producer.Dispose();
-                _producer = null;
-                _logger?.LogInformation("Kafka sink closed");
-            }
-        }
-
-        // ITransactionalSinkFunction implementation for exactly-once semantics
-        public string BeginTransaction()
-        {
-            if (!_transactional || _producer == null)
-                return string.Empty;
-
-            try
-            {
-                _producer.BeginTransaction();
-                var transactionId = Guid.NewGuid().ToString();
-                _logger?.LogDebug("Kafka transaction begun: {TransactionId}", transactionId);
-                return transactionId;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Failed to begin Kafka transaction");
-                throw new InvalidOperationException("Failed to begin Kafka transaction", ex);
-            }
-        }
-
-        public void PreCommit(string transactionId)
-        {
-            // For Kafka, pre-commit doesn't require specific action
-            // The transaction is prepared when we call CommitTransaction
-            _logger?.LogDebug("Kafka pre-commit for transaction {TransactionId}", transactionId);
-        }
-
-        public void Commit(string transactionId)
-        {
-            if (!_transactional || _producer == null)
-                return;
-
-            try
-            {
-                _producer.CommitTransaction();
-                _logger?.LogDebug("Kafka transaction committed: {TransactionId}", transactionId);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Failed to commit Kafka transaction {TransactionId}", transactionId);
-                throw new InvalidOperationException($"Failed to commit Kafka transaction '{transactionId}'", ex);
-            }
-        }
-
-        public void Abort(string transactionId)
-        {
-            if (!_transactional || _producer == null)
-                return;
-
-            try
-            {
-                _producer.AbortTransaction();
-                _logger?.LogDebug("Kafka transaction aborted: {TransactionId}", transactionId);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Failed to abort Kafka transaction {TransactionId}", transactionId);
-                throw new InvalidOperationException($"Failed to abort Kafka transaction '{transactionId}'", ex);
+                try
+                {
+                    _producer.Flush(10000); // 10 second flush timeout
+                    _logger?.LogInformation("Kafka sink flushed and closed");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Error during Kafka sink close");
+                }
             }
         }
 
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                Close();
-            }
+            Close();
+            _producer?.Dispose();
+            _producer = null;
         }
     }
 
     /// <summary>
-    /// Builder for creating Kafka sink functions with fluent API
+    /// Builder for creating high-performance Kafka sink functions
     /// </summary>
     public class KafkaSinkBuilder<T>
     {
-        private ProducerConfig? _producerConfig;
-        private string? _topic;
-        private ISerializer<T>? _valueSerializer;
+        private HighPerformanceKafkaProducer.Config? _config;
+        private Func<T, byte[]>? _serializer;
         private ILogger? _logger;
 
         public KafkaSinkBuilder<T> BootstrapServers(string servers)
         {
-            _producerConfig ??= new ProducerConfig();
-            _producerConfig.BootstrapServers = servers;
+            _config ??= new HighPerformanceKafkaProducer.Config();
+            _config.BootstrapServers = servers;
             return this;
         }
 
         public KafkaSinkBuilder<T> Topic(string topic)
         {
-            _topic = topic;
+            _config ??= new HighPerformanceKafkaProducer.Config();
+            _config.Topic = topic;
             return this;
         }
 
-        public KafkaSinkBuilder<T> ValueSerializer(ISerializer<T> serializer)
+        public KafkaSinkBuilder<T> ValueSerializer(Func<T, byte[]> serializer)
         {
-            _valueSerializer = serializer;
-            return this;
-        }
-
-        public KafkaSinkBuilder<T> EnableTransactions(string transactionalId)
-        {
-            _producerConfig ??= new ProducerConfig();
-            _producerConfig.TransactionalId = transactionalId;
-            _producerConfig.EnableIdempotence = true;
+            _serializer = serializer;
             return this;
         }
 
@@ -202,22 +112,33 @@ namespace FlinkDotNet.Connectors.Sources.Kafka
             return this;
         }
 
-        public KafkaSinkBuilder<T> ProducerConfig(ProducerConfig config)
+        public KafkaSinkBuilder<T> ProducerConfig(HighPerformanceKafkaProducer.Config config)
         {
-            _producerConfig = config;
+            _config = config;
             return this;
         }
 
         public KafkaSinkFunction<T> Build()
         {
-            if (_producerConfig == null)
+            if (_config == null)
                 throw new InvalidOperationException("Producer configuration is required");
-            if (string.IsNullOrEmpty(_topic))
+            if (string.IsNullOrEmpty(_config.Topic))
                 throw new InvalidOperationException("Topic is required");
-            if (_valueSerializer == null)
+            if (_serializer == null)
                 throw new InvalidOperationException("Value serializer is required");
 
-            return new KafkaSinkFunction<T>(_producerConfig, _topic, _valueSerializer, _logger);
+            return new KafkaSinkFunction<T>(_config, _serializer, _logger);
         }
+    }
+
+    /// <summary>
+    /// Common serializers for convenience
+    /// </summary>
+    public static class Serializers
+    {
+        public static Func<string, byte[]> Utf8 => s => Encoding.UTF8.GetBytes(s);
+        public static Func<byte[], byte[]> ByteArray => b => b;
+        public static Func<int, byte[]> Int32 => i => BitConverter.GetBytes(i);
+        public static Func<long, byte[]> Int64 => l => BitConverter.GetBytes(l);
     }
 }
