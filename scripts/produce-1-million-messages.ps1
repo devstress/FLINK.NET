@@ -15,7 +15,7 @@ $scriptDir = Split-Path -Parent $PSCommandPath
 $outputDir = Join-Path $scriptDir "producer"
 $sourceFile = Join-Path $outputDir "Producer.cs"
 $projectFile = Join-Path $outputDir "Producer.csproj"
-$platform = if ($IsWindows -or ($env:OS -eq "Windows_NT")) { @{ Rid = "win-x64"; Exe = "producer.exe" } } else { @{ Rid = "linux-x64"; Exe = "producer" } }
+$platform = if ($IsWindows -or ($env:OS -eq "Windows_NT")) { @{ Rid = "win-x64"; Exe = "Producer.exe" } } else { @{ Rid = "linux-x64"; Exe = "Producer" } }
 $exePath = Join-Path $outputDir $platform.Exe
 
 function Build-Producer {
@@ -32,7 +32,8 @@ function Build-Producer {
     Write-Host "🛠️ Building .NET Producer..." -ForegroundColor Yellow
     if (!(Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
 
-    if ($ForceRebuild) {
+    # Create project file if missing or if ForceRebuild is requested
+    if ($ForceRebuild -or !(Test-Path $projectFile)) {
         @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -48,13 +49,27 @@ function Build-Producer {
 "@ | Set-Content -Path $projectFile -Encoding UTF8
     }
 
-    # Run publish and capture result
+    # Restore packages if needed (faster than always restoring)
+    if ($ForceRebuild -or !(Test-Path "$outputDir/obj")) {
+        Write-Host "📦 Restoring packages..." -ForegroundColor Yellow
+        dotnet restore $projectFile -r $platform.Rid --verbosity quiet
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Package restore failed with exit code $LASTEXITCODE. Aborting."
+            exit $LASTEXITCODE
+        }
+    }
+
+    # Run publish and capture result with performance optimizations
     dotnet publish $projectFile `
         -c Release `
         -r $platform.Rid `
         --self-contained true `
         /p:PublishSingleFile=true `
-        /p:EnableCompressionInSingleFile=true `
+        /p:EnableCompressionInSingleFile=false `
+        /p:PublishTrimmed=false `
+        /p:PublishReadyToRun=false `
+        --no-restore `
+        --verbosity quiet `
         -o $outputDir
 
     if ($LASTEXITCODE -ne 0) {
