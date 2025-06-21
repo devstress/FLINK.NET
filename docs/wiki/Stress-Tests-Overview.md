@@ -21,15 +21,16 @@ Our stress tests validate FLINK.NET's ability to handle high-volume message proc
 ## How to run
 
 ### Manual Process (Required Approach)
-1/ Make sure Docker Desktop is running or the equivalent like containerd/Rancher Desktop.
-![Docker Desktop](TestScreenshoots/Docker-Desktop.png)
-
-2/ Open FLINK.NET\FlinkDotNetAspire\FlinkDotNetAspire.sln > F5
+1/ Start the Aspire AppHost locally.
+    If Docker is not available, ensure Kafka and Redis are running on `localhost` (ports `9092` and `6379`).
+    Instead of launching AppHost, run each service with `dotnet run` inside its project folder (JobManager, TaskManager, FlinkJobSimulator, IntegrationTestVerifier).
+    Otherwise open `FLINK.NET\FlinkDotNetAspire\FlinkDotNetAspire.sln` and press **F5**.
+    Confirm the ports respond before continuing.
 ![Aspire_Running](TestScreenshoots/Aspire_Running.png)
 
-3/ Wait all the services running (Redis, Kafka, FlinkJobSimulator)
+2/ Wait for all services (Redis, Kafka, FlinkJobSimulator) to start.
 
-4/ `cd scripts` > Run `.\produce-1-million-messages.ps1`
+3/ `cd scripts` > Run `.\produce-1-million-messages.ps1`
 ![Open](TestScreenshoots/open-produce-1-million-messages.png)
 ![Run](TestScreenshoots/run-produce-1-million-messages.png)  
 

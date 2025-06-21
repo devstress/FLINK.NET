@@ -13,6 +13,8 @@ The Flink.Net Aspire setup provides a complete local development environment wit
 - 8GB+ RAM recommended for high-volume testing
 - Aspire tooling
 
+If Docker is unavailable, install Kafka and Redis locally and run them on ports `9092` and `6379` before starting the individual services with `dotnet run`.
+
 ## Setup Steps
 
 ### 1. Start Complete Environment with Aspire

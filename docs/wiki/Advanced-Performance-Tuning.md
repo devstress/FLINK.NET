@@ -58,9 +58,9 @@ Docker_Desktop:
   Compilation: Release mode with all optimizations
   GC_Mode: Server GC (automatic for high-throughput)
   
-Confluent_Kafka_Client:
-  Version: "Latest stable" (2.0+)
-  Configuration: High-performance settings
+Native_librdkafka_Client:
+  Version: "Latest"
+  Configuration: High-performance settings through P/Invoke bridge
   Native_Dependencies: librdkafka optimized build
 ```
 
@@ -258,7 +258,7 @@ static void PreheatPartitions(string bootstrap, string topic, int partitions)
 #### Kafka Container Setup (Aspire + Docker)
 ```yaml
 # Kafka Container Configuration (via Aspire)
-image: confluentinc/cp-kafka:7.4.0
+image: bitnami/kafka:latest
 environment:
   KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
   KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${DYNAMIC_PORT}
@@ -330,7 +330,8 @@ function Get-KafkaBootstrapServers {
 ```powershell
 # Build Configuration (produce-1-million-messages.ps1 Lines 160-163)
 dotnet new console -f net8.0 --force                    # Latest .NET 8 runtime
-dotnet add package Confluent.Kafka                      # High-performance Kafka client
+# Reference native producer bridge
+dotnet add reference ../NativeKafkaBridge/NativeKafkaBridge.csproj
 dotnet publish -c Release -r win-x64 --self-contained true  # Release build optimizations:
                                                             # - JIT compilation optimizations
                                                             # - Dead code elimination  

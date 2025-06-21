@@ -408,7 +408,7 @@ namespace FlinkJobSimulator
                 var processInfo = new ProcessStartInfo
                 {
                     FileName = "docker",
-                    Arguments = "ps --format \"table {{.Names}}\\t{{.Ports}}\" --filter ancestor=confluentinc/confluent-local",
+                    Arguments = "ps --format \"table {{.Names}}\\t{{.Ports}}\" --filter ancestor=bitnami/kafka",
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
                     CreateNoWindow = true

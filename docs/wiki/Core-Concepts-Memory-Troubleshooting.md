@@ -100,7 +100,7 @@ Despite careful [[Memory Tuning|Core-Concepts-Memory-Tuning]], Flink.NET applica
 
 *   [Troubleshooting Memory Issues (Flink Docs - general but relevant)](https://flink.apache.org/ টুডে/2021/02/22/memory-troubleshooting-intro.html) - *Note: This link seems to be a blog post, official docs on troubleshooting might be spread across memory configuration pages.*
 *   [Flink Memory Configuration Guides](https://nightlies.apache.org/flink/flink-docs-stable/docs/deployment/memory/mem_setup/)
-*   [Common Problems & Solutions (Flink Wiki - older but can have useful nuggets)](https://cwiki.apache.org/confluence/display/FLINK/Common+Problems)
+*   [Common Problems & Solutions](https://nightlies.apache.org/flink/flink-docs-release-1.18/docs/ops/troubleshooting/common_problems/)
 
 ## Next Steps
 

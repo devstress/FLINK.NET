@@ -267,9 +267,16 @@ All AI agents working on FLINK.NET issues MUST follow this investigation protoco
 **AI agents MUST follow the manual process exactly as documented:**
 
 1. **Start Aspire AppHost**: `FlinkDotNetAspire.sln > F5`
-2. **Wait for Services**: All Redis/Kafka/FlinkJobSimulator services running  
+2. **Wait for Services**: All Redis/Kafka/FlinkJobSimulator services running
 3. **Produce Messages**: `cd scripts > .\produce-1-million-messages.ps1`
 4. **Wait for Completion**: `.\wait-for-flinkjobsimulator-completion.ps1`
+5. **If Docker Unavailable**: Do **not** start the AppHost or any Docker scripts.
+   Ensure Kafka and Redis are running locally (ports `9092` and `6379`).
+   Then open each Aspire service project and execute `dotnet run` manually:
+   `FlinkJobSimulator`, `IntegrationTestVerifier`, `JobManager`, and `TaskManager`.
+   This mirrors the AppHost startup without using Docker.
+
+   Verify the ports are reachable (`kcat -b localhost:9092 -L`, `redis-cli PING`).
 
 **NO automated scripts allowed** - must follow manual documented steps.
 
@@ -277,7 +284,7 @@ All AI agents working on FLINK.NET issues MUST follow this investigation protoco
 - **Processing Speed**: Messages must be processed in **< 5 seconds**
 - **Redis Counter**: Must increment properly within timeout window
 - **Throughput**: Target 1M+ messages/second capability
-- **Kafka Container**: Must detect `confluentinc/confluent-local:7.4.0` (not init containers)
+- **Kafka Broker**: Prefer locally installed Kafka or Apache official container when Docker is available
 
 #### Forbidden Actions
 ❌ **Never do these:**
