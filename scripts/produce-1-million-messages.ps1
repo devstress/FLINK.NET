@@ -15,7 +15,7 @@ $scriptDir = Split-Path -Parent $PSCommandPath
 $outputDir = Join-Path $scriptDir "producer"
 $sourceFile = Join-Path $outputDir "Producer.cs"
 $projectFile = Join-Path $outputDir "Producer.csproj"
-$platform = if ($IsWindows -or ($env:OS -eq "Windows_NT")) { @{ Rid = "win-x64"; Exe = "producer.exe" } } else { @{ Rid = "linux-x64"; Exe = "producer" } }
+$platform = if ($IsWindows -or ($env:OS -eq "Windows_NT")) { @{ Rid = "win-x64"; Exe = "Producer.exe" } } else { @{ Rid = "linux-x64"; Exe = "Producer" } }
 $exePath = Join-Path $outputDir $platform.Exe
 
 function Build-Producer {
