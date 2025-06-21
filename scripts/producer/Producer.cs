@@ -51,21 +51,23 @@ static class Program
             BootstrapServers = bootstrap,
             EnableIdempotence = true,
             Acks = Acks.All,
-            LingerMs = 5,  // Increased
-            BatchSize = 10 * 1024 * 1024,  // Increased
+            LingerMs = 1,  // Reduced for faster batching
+            BatchSize = 16 * 1024 * 1024,  // Increased batch size 
             CompressionType = CompressionType.Zstd,
-            QueueBufferingMaxKbytes = 2 * 1024 * 1024,  // Increased
-            QueueBufferingMaxMessages = 1_000_000,  // Adjusted
-            SocketSendBufferBytes = 100_000_000,  // Increased
+            QueueBufferingMaxKbytes = 4 * 1024 * 1024,  // Increased queue size
+            QueueBufferingMaxMessages = 2_000_000,  // Increased queue messages
+            SocketSendBufferBytes = 100_000_000,  
             SocketReceiveBufferBytes = 100_000_000,
-            SocketNagleDisable = true,  // New
-            MessageSendMaxRetries = 10,
-            RetryBackoffMs = 100,
-            SocketTimeoutMs = 30000,  // Increased
+            SocketNagleDisable = true,  
+            MessageSendMaxRetries = 5,  // Reduced retries for speed
+            RetryBackoffMs = 50,  // Reduced backoff for speed
+            SocketTimeoutMs = 30000,  
             SocketKeepaliveEnable = true,
             ClientId = $"producer-{id}",
-            EnableDeliveryReports = false,  // OPTIMIZED: Disabled for performance
-            ConnectionsMaxIdleMs = 300000
+            EnableDeliveryReports = false,  // Optimized: Disabled for performance
+            ConnectionsMaxIdleMs = 300000,
+            RequestTimeoutMs = 30000,  // Added for better timeout control
+            MessageTimeoutMs = 300000  // Added overall message timeout
         };
 
         using var producer = new ProducerBuilder<long, byte[]>(config)
@@ -76,7 +78,7 @@ static class Program
         long sliceStart = id * messageCount / producers;
         long sliceEnd = (id + 1) * messageCount / producers;
 
-        var batch = new List<Task>(50000);  // Increased batch size
+        var batch = new List<Task>(100000);  // Increased batch size for better throughput
 
         for (long i = sliceStart; i < sliceEnd; i++)
         {
@@ -89,11 +91,11 @@ static class Program
                     // Count successful completions for progress tracking
                     if (t.IsCompletedSuccessfully)
                         Interlocked.Increment(ref counter[id]);
-                });
+                }, TaskContinuationOptions.ExecuteSynchronously);
 
             batch.Add(task);
 
-            if (batch.Count >= 50000)  // Larger batch before waiting
+            if (batch.Count >= 100000)  // Larger batch before waiting
             {
                 await Task.WhenAll(batch);
                 batch.Clear();
@@ -103,38 +105,60 @@ static class Program
         if (batch.Count > 0)
             await Task.WhenAll(batch);
 
-        producer.Flush(TimeSpan.FromSeconds(10));
+        producer.Flush(TimeSpan.FromSeconds(30));  // Increased flush timeout
     }
 
     static Task TrackProgress(long[] counters, long target, Stopwatch sw) => Task.Run(() =>
     {
+        long lastTotalSent = 0;
+        var lastTime = sw.Elapsed;
+        
         while (true)
         {
             long totalSent = counters.Sum();
-            double rate = totalSent / Math.Max(sw.Elapsed.TotalSeconds, 1);
-            Console.Write($"\r[PROGRESS] Sent={totalSent:N0}  Rate={rate:N0} msg/sec");
+            var currentTime = sw.Elapsed;
+            var timeDiff = currentTime - lastTime;
+            
+            if (timeDiff.TotalSeconds >= 1.0)  // Update every second
+            {
+                double overallRate = totalSent / Math.Max(sw.Elapsed.TotalSeconds, 1);
+                double instantRate = (totalSent - lastTotalSent) / Math.Max(timeDiff.TotalSeconds, 1);
+                
+                Console.Write($"\r[PROGRESS] Sent={totalSent:N0}  Rate={overallRate:N0} msg/sec  Instant={instantRate:N0} msg/sec");
+                
+                lastTotalSent = totalSent;
+                lastTime = currentTime;
+            }
 
             if (totalSent >= target && !sw.IsRunning)
                 break;
 
-            Thread.Sleep(100);
+            Thread.Sleep(250);  // Check more frequently for better responsiveness
         }
     });
 
     static byte[][] PreGeneratePayloads(long total)
     {
+        Console.WriteLine($"📊 Pre-generating {total:N0} message payloads...");
         var payloads = new byte[total][];
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        Parallel.For(0, (int)total, i =>
+        // Use more parallel processing for better performance
+        var partitioner = System.Collections.Concurrent.Partitioner.Create(0, (int)total, Math.Max(1, (int)total / Environment.ProcessorCount));
+        
+        Parallel.ForEach(partitioner, range =>
         {
-            var buffer = new byte[32];
-            BitConverter.TryWriteBytes(buffer.AsSpan(0, 8), i);
-            BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), timestamp);
-            RandomNumberGenerator.Fill(buffer.AsSpan(16, 16));
-            payloads[i] = buffer;
+            for (int i = range.Item1; i < range.Item2; i++)
+            {
+                var buffer = new byte[32];
+                BitConverter.TryWriteBytes(buffer.AsSpan(0, 8), i);
+                BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), timestamp);
+                RandomNumberGenerator.Fill(buffer.AsSpan(16, 16));
+                payloads[i] = buffer;
+            }
         });
 
+        Console.WriteLine($"✅ Payload generation completed");
         return payloads;
     }
 

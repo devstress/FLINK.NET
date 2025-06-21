@@ -32,7 +32,7 @@ function Build-Producer {
     Write-Host "🛠️ Building .NET Producer..." -ForegroundColor Yellow
     if (!(Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
 
-    if ($ForceRebuild) {
+    if ($ForceRebuild -or !(Test-Path $projectFile)) {
         @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -69,12 +69,63 @@ function Get-KafkaBootstrapServers {
         return $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS -replace 'localhost|::1', '127.0.0.1'
     }
 
-    $ports = docker ps --filter "name=kafka" --format "{{.Ports}}"
-    foreach ($line in $ports -split '\s+') {
-        if ($line -match ":(\d+)->9092/tcp") {
-            $port = $matches[1]
-            Write-Host "✅ Kafka detected on 127.0.0.1:$port"
-            return "127.0.0.1:$port"
+    # Use same discovery logic as discover-aspire-ports.ps1
+    $kafkaContainers = @()
+    
+    # Try multiple Kafka image patterns that Aspire might use
+    $imagePatterns = @(
+        "confluentinc/confluent-local:7.4.0",
+        "confluentinc/confluent-local",
+        "confluentinc/cp-kafka:7.4.0",
+        "confluentinc/cp-kafka"
+    )
+    
+    foreach ($pattern in $imagePatterns) {
+        $containers = docker ps --filter "ancestor=$pattern" --format "{{.ID}}" 2>/dev/null
+        if ($containers) {
+            $kafkaContainers += $containers
+            Write-Host "Found Kafka containers with image $pattern" -ForegroundColor Green
+        }
+    }
+
+    # If no exact matches, try pattern matching in names/images (excluding kafka-init containers)
+    if (-not ($kafkaContainers | Where-Object { $_ -and $_.Trim() })) {
+        Write-Host "No exact Kafka ancestor matches, checking all containers for Kafka..." -ForegroundColor Yellow
+        $allContainers = docker ps --format "{{.ID}}`t{{.Image}}`t{{.Names}}" 2>/dev/null
+        foreach ($line in $allContainers) {
+            # Look for kafka but exclude init containers and prioritize confluent-local
+            if ($line -match "kafka" -and $line -notmatch "kafka-init" -and $line -notmatch "-init") {
+                $containerId = ($line -split "`t")[0]
+                if ($containerId -and $containerId.Length -gt 5) {
+                    $kafkaContainers += $containerId
+                    Write-Host "Found Kafka container by pattern: $containerId" -ForegroundColor Green
+                }
+            }
+        }
+    }
+    
+    $kafkaContainers = $kafkaContainers | Where-Object { $_ -and $_.Trim() -and $_.Length -gt 5 } | Select-Object -Unique
+
+    if (-not $kafkaContainers) {
+        Write-Error "❌ No Kafka containers found"
+        exit 1
+    }
+
+    # Use the first container
+    $containerId = if ($kafkaContainers -is [array]) { $kafkaContainers[0] } else { $kafkaContainers }
+    Write-Host "Using Kafka container: $containerId" -ForegroundColor Green
+
+    # Get port mapping with multiple port checks
+    $portMappings = @()
+    $portMappings += docker port $containerId 9092 2>/dev/null
+    $portMappings += docker port $containerId 2>/dev/null | Where-Object { $_ -match "9092" }
+    
+    $kafkaPort = $null
+    foreach ($portInfo in $portMappings) {
+        if ($portInfo -and $portInfo -match "(?:127\.0\.0\.1|0\.0\.0\.0|\[::\]):(\d+)") {
+            $kafkaPort = [int]$Matches[1]
+            Write-Host "✅ Kafka detected on 127.0.0.1:$kafkaPort" -ForegroundColor Green
+            return "127.0.0.1:$kafkaPort"
         }
     }
 
@@ -100,10 +151,13 @@ function Run-Producers {
 }
 
 # === MAIN EXECUTION ===
+
+# Build producer first before discovery
+Build-Producer
+
 $bootstrapServers = Get-KafkaBootstrapServers
 $kafkaContainer = Get-KafkaContainerName
 
 docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
 
-Build-Producer
 Run-Producers $exePath $bootstrapServers $Topic $MessageCount $Partitions $ParallelProducers
