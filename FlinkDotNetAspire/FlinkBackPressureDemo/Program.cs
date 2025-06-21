@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using FlinkDotNet.Core.Api.BackPressure;
 using FlinkDotNet.Core.Api.Pipeline;
 using StackExchange.Redis;
-using Confluent.Kafka;
+// using Confluent... // REMOVED for native implementation
 using System.Text.Json;
 using FlinkDotNet.Common.Constants;
 

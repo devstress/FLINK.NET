@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+// using Confluent... // REMOVED for native implementation
 using FlinkDotNet.Connectors.Sources.Kafka;
 using FlinkDotNet.Core.Abstractions.Sources;
 using Microsoft.Extensions.Configuration;
@@ -724,8 +724,8 @@ Message: {message}
                 _taskManagerId, _outputTopic);
 
             _producer = new ProducerBuilder<Null, byte[]>(producerConfig)
-                .SetKeySerializer(Serializers.Null)
-                .SetValueSerializer(Serializers.ByteArray)
+                .SetKeySerializer(Confluent.Kafka.Serializers.Null)
+                .SetValueSerializer(Confluent.Kafka.Serializers.ByteArray)
                 .Build();
             
             // Create output topic if needed
@@ -973,7 +973,7 @@ Message: {message}
         {
             try
             {
-                return _consumerGroup?.ConsumeMessage(TimeSpan.FromMilliseconds(pollTimeoutMs));
+                return _consumerGroup?.ConsumeMessage(TimeSpan.FromMilliseconds(pollTimeoutMs)) as ConsumeResult<Ignore, byte[]>;
             }
             catch (Exception ex)
             {

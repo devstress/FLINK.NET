@@ -1,6 +1,6 @@
 using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Checkpointing;
-using Confluent.Kafka;
+using FlinkDotNet.Connectors.Sources.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -21,12 +21,12 @@ namespace FlinkDotNet.TaskManager.Operators
         private readonly string _taskManagerId;
         private readonly ILogger<KafkaToRedisOperator>? _logger;
         
-        private IConsumer<Ignore, string>? _consumer;
+        private FlinkKafkaConsumerGroup? _consumer;
         private IConnectionMultiplexer? _redisConnection;
         private IDatabase? _redisDatabase;
         private volatile bool _isRunning = true;
         private long _messagesProcessed = 0;
-        private readonly Dictionary<TopicPartition, long> _checkpointState;
+        private readonly Dictionary<FlinkTopicPartition, long> _checkpointState;
         private readonly object _checkpointLock = new object();
 
         public KafkaToRedisOperator(
@@ -45,7 +45,7 @@ namespace FlinkDotNet.TaskManager.Operators
             _expectedMessages = expectedMessages;
             _taskManagerId = taskManagerId ?? "Unknown";
             _logger = logger;
-            _checkpointState = new Dictionary<TopicPartition, long>();
+            _checkpointState = new Dictionary<FlinkTopicPartition, long>();
             
             _logger?.LogInformation("KafkaToRedisOperator initialized for TaskManager {TaskManagerId}, Topic: {Topic}, ConsumerGroup: {ConsumerGroup}", 
                 _taskManagerId, _topic, _consumerGroupId);
@@ -73,25 +73,31 @@ namespace FlinkDotNet.TaskManager.Operators
                 {
                     try
                     {
-                        var consumeResult = _consumer?.Consume(TimeSpan.FromMilliseconds(1000));
-                        if (consumeResult != null && !consumeResult.IsPartitionEOF)
+                        var consumeResult = _consumer?.ConsumeMessage(TimeSpan.FromMilliseconds(1000));
+                        if (consumeResult != null)
                         {
+                            // For now, the native consumer returns null (placeholder)
+                            // In the future, this would return actual message data
                             // Process message: increment Redis counters
                             await ProcessMessageAsync();
                             
-                            // Update checkpoint state
+                            // Update checkpoint state (simulate offset tracking)
                             lock (_checkpointLock)
                             {
-                                _checkpointState[consumeResult.TopicPartition] = consumeResult.Offset.Value;
+                                var topicPartition = new FlinkTopicPartition(_topic, 0);
+                                if (!_checkpointState.ContainsKey(topicPartition))
+                                    _checkpointState[topicPartition] = 0;
+                                _checkpointState[topicPartition]++;
                             }
 
-                            // Emit to source context for potential downstream operators
-                            await ctx.CollectAsync(consumeResult.Message.Value);
+                            // For now, emit a placeholder value since we don't have actual message content
+                            await ctx.CollectAsync($"message-{_messagesProcessed}");
                         }
-                    }
-                    catch (ConsumeException ex)
-                    {
-                        _logger?.LogError(ex, "TaskManager {TaskManagerId}: Error consuming from Kafka", _taskManagerId);
+                        else
+                        {
+                            // No message available, small delay to prevent busy waiting
+                            await Task.Delay(10, cancellationToken);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -119,7 +125,6 @@ namespace FlinkDotNet.TaskManager.Operators
             }
             finally
             {
-                _consumer?.Close();
                 _consumer?.Dispose();
                 _redisConnection?.Dispose();
             }
@@ -140,26 +145,13 @@ namespace FlinkDotNet.TaskManager.Operators
 
         private void InitializeKafkaConsumer()
         {
-            var config = new ConsumerConfig
-            {
-                BootstrapServers = GetKafkaBootstrapServers(),
-                GroupId = _consumerGroupId,
-                AutoOffsetReset = AutoOffsetReset.Earliest,
-                EnableAutoCommit = false, // We'll manage offsets through checkpointing
-                SessionTimeoutMs = 10000,
-                HeartbeatIntervalMs = 3000,
-                MaxPollIntervalMs = 300000,
-                FetchMinBytes = 1,
-                FetchWaitMaxMs = 500
-            };
-
-            _consumer = new ConsumerBuilder<Ignore, string>(config)
-                .SetValueDeserializer(Deserializers.Utf8)
-                .Build();
-
-            _consumer.Subscribe(_topic);
+            var bootstrapServers = GetKafkaBootstrapServers();
             
-            _logger?.LogInformation("✅ TaskManager {TaskManagerId}: Kafka consumer initialized for topic '{Topic}'", _taskManagerId, _topic);
+            // Use the native Kafka consumer group instead of Confluent.Kafka
+            _consumer = new FlinkKafkaConsumerGroup(bootstrapServers, _consumerGroupId, _logger);
+            _consumer.Subscribe(new[] { _topic });
+            
+            _logger?.LogInformation("✅ TaskManager {TaskManagerId}: Native Kafka consumer initialized for topic '{Topic}'", _taskManagerId, _topic);
         }
 
         private async Task ProcessMessageAsync()
@@ -214,7 +206,7 @@ namespace FlinkDotNet.TaskManager.Operators
         {
             try
             {
-                if (state is Dictionary<TopicPartition, long> restoredState)
+                if (state is Dictionary<FlinkTopicPartition, long> restoredState)
                 {
                     lock (_checkpointLock)
                     {

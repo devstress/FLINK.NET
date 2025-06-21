@@ -13,8 +13,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="2.10.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
+  </ItemGroup>
+
+  <!-- Include native library for high-performance Kafka producer -->
+  <ItemGroup>
+    <Content Include="../../native/libflinkkafka.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>libflinkkafka.so</TargetPath>
+    </Content>
+    <Content Include="../../scripts/producer/librdkafka.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>librdkafka.so</TargetPath>
+    </Content>
   </ItemGroup>
 
 </Project>

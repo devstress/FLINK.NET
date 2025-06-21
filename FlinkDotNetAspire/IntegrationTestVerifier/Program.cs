@@ -11,7 +11,7 @@ namespace IntegrationTestVerifier
     using System.Threading.Tasks;
     using System.Text.RegularExpressions;
     using System.IO;
-    using Confluent.Kafka;  
+    // using Confluent... // REMOVED for native implementation
     using Microsoft.Extensions.Configuration;
     using StackExchange.Redis;
 

@@ -4,8 +4,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AssemblyName>ProducerSimulated</AssemblyName>
   </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../FlinkDotNet/FlinkDotNet.Connectors.Sources.Kafka/FlinkDotNet.Connectors.Sources.Kafka.csproj" />
-  </ItemGroup>
 </Project>

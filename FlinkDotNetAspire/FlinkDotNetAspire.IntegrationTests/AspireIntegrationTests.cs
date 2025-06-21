@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using FlinkDotNet.Common.Constants;
-using Confluent.Kafka;
+// using Confluent... // REMOVED for native implementation
 
 namespace FlinkDotNetAspire.IntegrationTests;
 
