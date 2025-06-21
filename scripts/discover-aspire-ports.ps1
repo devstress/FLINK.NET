@@ -149,7 +149,20 @@ function Get-KafkaPort {
         try {
             Write-Host "Kafka discovery attempt $retry/$MaxRetries..." -ForegroundColor Yellow
             
-            # Get Kafka containers with different image patterns
+            # Use the same successful approach as produce-1-million-messages.ps1
+            # First try the direct port discovery method that works
+            Write-Host "Trying direct port discovery method..." -ForegroundColor Yellow
+            $ports = docker ps --filter "name=kafka" --format "{{.Ports}}" 2>/dev/null
+            foreach ($line in $ports -split '\s+') {
+                if ($line -match ":(\d+)->9092/tcp") {
+                    $kafkaPort = [int]$matches[1]
+                    Write-Host "✅ Kafka detected on 127.0.0.1:$kafkaPort (direct method)" -ForegroundColor Green
+                    return $kafkaPort
+                }
+            }
+            
+            # Fallback: Get Kafka containers with different image patterns
+            Write-Host "Direct method failed, trying container-based discovery..." -ForegroundColor Yellow
             $kafkaContainers = @()
             
             # Try multiple Kafka image patterns that Aspire might use
@@ -215,22 +228,35 @@ function Get-KafkaPort {
             }
             Write-Host "Using Kafka container: $containerId" -ForegroundColor Green
 
-            # Get port mapping with multiple port checks
+            # Use improved port mapping approach - try multiple methods
+            $kafkaPort = $null
+            
+            # Method 1: Use docker port command (original approach)
             $portMappings = @()
             $portMappings += docker port $containerId 9092 2>/dev/null
             $portMappings += docker port $containerId 2>/dev/null | Where-Object { $_ -match "9092" }
             
-            $kafkaPort = $null
             foreach ($portInfo in $portMappings) {
                 if ($portInfo -and $portInfo -match "(?:127\.0\.0\.1|0\.0\.0\.0|\[::\]):(\d+)") {
                     $kafkaPort = [int]$Matches[1]
-                    Write-Host "Kafka mapped to host port: $kafkaPort" -ForegroundColor Green
+                    Write-Host "Kafka mapped to host port: $kafkaPort (via docker port)" -ForegroundColor Green
                     break
                 }
             }
             
+            # Method 2: If docker port fails, try parsing from docker ps directly  
             if (-not $kafkaPort) {
-                Write-Host "Could not determine Kafka host port mapping from: '$($portMappings -join ', ')'" -ForegroundColor Red
+                Write-Host "Docker port command failed, trying docker ps approach..." -ForegroundColor Yellow
+                $containerInfo = docker ps --filter "id=$containerId" --format "{{.Ports}}" 2>/dev/null
+                if ($containerInfo -and $containerInfo -match ":(\d+)->9092/tcp") {
+                    $kafkaPort = [int]$matches[1]
+                    Write-Host "Kafka mapped to host port: $kafkaPort (via docker ps)" -ForegroundColor Green
+                }
+            }
+            
+            if (-not $kafkaPort) {
+                Write-Host "Could not determine Kafka host port mapping from container $containerId" -ForegroundColor Red
+                Write-Host "Port mappings tried: '$($portMappings -join ', ')'" -ForegroundColor Red
                 if ($retry -lt $MaxRetries) {
                     Write-Host "Waiting $DelaySeconds seconds before retry..." -ForegroundColor Yellow
                     Start-Sleep -Seconds $DelaySeconds
