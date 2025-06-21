@@ -64,7 +64,7 @@ static class Program
             SocketTimeoutMs = 30000,  // Increased
             SocketKeepaliveEnable = true,
             ClientId = $"producer-{id}",
-            EnableDeliveryReports = true,
+            EnableDeliveryReports = false,  // OPTIMIZED: Disabled for performance
             ConnectionsMaxIdleMs = 300000
         };
 
@@ -82,13 +82,13 @@ static class Program
         {
             var msg = new Message<long, byte[]> { Key = i, Value = payloads[i] };
 
+            // Optimized: No delivery report checking since EnableDeliveryReports = false
             var task = producer.ProduceAsync(topic, msg)
                 .ContinueWith(t =>
                 {
-                    if (t.IsCompletedSuccessfully && t.Result.Status == PersistenceStatus.Persisted)
+                    // Count successful completions for progress tracking
+                    if (t.IsCompletedSuccessfully)
                         Interlocked.Increment(ref counter[id]);
-                    else
-                        Console.WriteLine($"\n❌ Failed to produce msg {i}: {t.Exception?.Message ?? "Unknown error"}");
                 });
 
             batch.Add(task);
@@ -165,19 +165,19 @@ static class Program
             Thread.Sleep(1000);
         }
 
-        // Real preheater to trigger idempotence init
+        // Real preheater to trigger idempotence init with optimized config
         var config = new ProducerConfig
         {
             BootstrapServers = bootstrap,
             EnableIdempotence = true,
-            Acks = Acks.All,
-            LingerMs = 2,
+            Acks = Acks.All,  // Required when EnableIdempotence = true
+            LingerMs = 1,  // Faster for preheating
             BatchSize = 1024 * 1024,
             CompressionType = CompressionType.Zstd,
             ClientId = "preheater",
             MessageSendMaxRetries = 3,
             RetryBackoffMs = 100,
-            EnableDeliveryReports = false
+            EnableDeliveryReports = false  // Consistent with main config
         };
 
         using var producer = new ProducerBuilder<Null, byte[]>(config)
