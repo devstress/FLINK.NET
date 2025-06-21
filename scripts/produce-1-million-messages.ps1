@@ -4,7 +4,7 @@ param(
     [long]$MessageCount = 1000000,
     [string]$Topic = "flinkdotnet.sample.topic",
     [int]$Partitions = 100,
-    [int]$ParallelProducers = 128,  # Increased from 64 for maximum parallelism
+    [int]$ParallelProducers = 256,
     [switch]$ForceRebuild
 )
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -17,6 +17,19 @@ $sourceFile = Join-Path $outputDir "Producer.cs"
 $projectFile = Join-Path $outputDir "Producer.csproj"
 $platform = if ($IsWindows -or ($env:OS -eq "Windows_NT")) { @{ Rid = "win-x64"; Exe = "Producer.exe" } } else { @{ Rid = "linux-x64"; Exe = "Producer" } }
 $exePath = Join-Path $outputDir $platform.Exe
+
+function Test-TcpPort {
+    param([string]$TestHost, [int]$TestPort)
+    try {
+        $client = [System.Net.Sockets.TcpClient]::new()
+        $task = $client.ConnectAsync($TestHost, $TestPort)
+        if (-not $task.Wait(1000) -or $task.IsFaulted) { return $false }
+        $client.Close()
+        return $true
+    } catch {
+        return $false
+    }
+}
 
 function Build-Producer {
     if (!(Test-Path $sourceFile)) {
@@ -132,6 +145,21 @@ function Run-Producers {
 
 $bootstrapServers = Get-KafkaBootstrapServers
 $kafkaContainer = Get-KafkaContainerName
+
+$serverParts = $bootstrapServers.Split(":")
+$kHost = $serverParts[0]
+$kPort = [int]$serverParts[1]
+if (-not (Test-TcpPort $kHost $kPort)) {
+    Write-Error "❌ Kafka not reachable at $bootstrapServers. Please start Kafka."
+    exit 1
+}
+
+$redisPort = $env:DOTNET_REDIS_PORT
+if (-not $redisPort) { $redisPort = 6379 }
+if (-not (Test-TcpPort "127.0.0.1" ([int]$redisPort))) {
+    Write-Error "❌ Redis not reachable on 127.0.0.1:$redisPort. Please start Redis."
+    exit 1
+}
 
 if ($kafkaContainer) {
     docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"

@@ -276,6 +276,8 @@ All AI agents working on FLINK.NET issues MUST follow this investigation protoco
    `FlinkJobSimulator`, `IntegrationTestVerifier`, `JobManager`, and `TaskManager`.
    This mirrors the AppHost startup without using Docker.
 
+   Verify the ports are reachable (`kcat -b localhost:9092 -L`, `redis-cli PING`).
+
 **NO automated scripts allowed** - must follow manual documented steps.
 
 #### Performance Requirements

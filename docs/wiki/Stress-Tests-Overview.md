@@ -25,6 +25,7 @@ Our stress tests validate FLINK.NET's ability to handle high-volume message proc
     If Docker is not available, ensure Kafka and Redis are running on `localhost` (ports `9092` and `6379`).
     Instead of launching AppHost, run each service with `dotnet run` inside its project folder (JobManager, TaskManager, FlinkJobSimulator, IntegrationTestVerifier).
     Otherwise open `FLINK.NET\FlinkDotNetAspire\FlinkDotNetAspire.sln` and press **F5**.
+    Confirm the ports respond before continuing.
 ![Aspire_Running](TestScreenshoots/Aspire_Running.png)
 
 2/ Wait for all services (Redis, Kafka, FlinkJobSimulator) to start.

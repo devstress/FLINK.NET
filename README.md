@@ -140,6 +140,8 @@ For complete setup instructions, see [Aspire Local Development Setup](./docs/wik
 
 A PowerShell script is provided for executing the stress tests locally. It ensures the .NET 8 SDK version 8 or later is installed. If Docker is available the Aspire AppHost will start Redis and Kafka containers automatically. **When Docker is not present, start Kafka and Redis manually and run the remaining services with `dotnet run` from their project folders.** Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
 
+Make sure `localhost:9092` and `localhost:6379` are reachable before running the producer script.
+
 ```powershell
 pwsh scripts/run-integration-tests-in-windows-os.ps1
 ```
@@ -153,6 +155,7 @@ bash scripts/run-integration-tests-in-linux.sh
 ```
 
 Pass an optional argument to control the number of simulated messages. The script checks for Docker but falls back to local services when Docker is missing, then runs the verification tests.
+Ensure local Kafka and Redis are reachable on the default ports before running.
 
 **CI Workflow**: Stress tests run via `.github/workflows/stress-tests.yml` and process 1 million messages to validate high-throughput performance.
 
