@@ -43,6 +43,13 @@ Explore practical examples to understand Flink.NET's capabilities:
 
 *   **[Local High Throughput Test](./docs/wiki/Sample-Local-High-Throughput-Test.md)**: Demonstrates setting up a local environment and running a high-throughput test.
 *   **[Aspire Local Development Setup](./docs/wiki/Aspire-Local-Development-Setup.md)**: Complete guide for local development with Kafka best practices and 10M message reliability testing.
+*   **[Native Producer Design](./docs/wiki/Native-Producer-Design.md)**: High-level overview of the native librdkafka bridge used for extreme throughput.
+
+## High-Throughput Kafka Producer
+
+An experimental native **librdkafka** producer is provided through a small C++ bridge and P/Invoke wrapper. This approach removes the managed overhead of `Confluent.Kafka` and aims to match the Java producer's throughput of over **1M messages/second**.
+
+The native producer builds a shared library (DLL or `.so`) consumed by a thin C# layer. Messages are prepared in pinned memory and passed in batches to the C++ layer which invokes `rd_kafka_produce_batch()`. This lightweight design is cross-platform but still considered experimental. See [Native Producer Design](./docs/wiki/Native-Producer-Design.md) for more details.
 
 ## Building and Development Lifecycle
 
@@ -131,7 +138,7 @@ For complete setup instructions, see [Aspire Local Development Setup](./docs/wik
 
 **Running Stress Tests on Windows**:
 
-A PowerShell script is provided for executing the stress tests locally. It ensures the .NET 8 SDK version 8 or later is installed and verifies that Docker Desktop is available (Aspire uses Docker for Redis and Kafka). The script starts the Aspire AppHost, waits 30 seconds for initialization, then performs health checks with a maximum of 2 attempts spaced 5 seconds apart before running the verification tests. Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
+A PowerShell script is provided for executing the stress tests locally. It ensures the .NET 8 SDK version 8 or later is installed. If Docker is available the Aspire AppHost will start Redis and Kafka containers automatically. **When Docker is not present, start Kafka and Redis manually and run the remaining services with `dotnet run` from their project folders.** Run the script from an elevated PowerShell prompt. The working directory will automatically switch to the script's location:
 
 ```powershell
 pwsh scripts/run-integration-tests-in-windows-os.ps1
@@ -145,7 +152,7 @@ Linux users can run the stress tests using the accompanying shell script:
 bash scripts/run-integration-tests-in-linux.sh
 ```
 
-Pass an optional argument to control the number of simulated messages. The script verifies that the .NET 8 SDK and Docker are available, launches the Aspire AppHost, waits 30 seconds for initialization, performs health checks with a maximum of 2 attempts spaced 5 seconds apart, and then runs the verification tests.
+Pass an optional argument to control the number of simulated messages. The script checks for Docker but falls back to local services when Docker is missing, then runs the verification tests.
 
 **CI Workflow**: Stress tests run via `.github/workflows/stress-tests.yml` and process 1 million messages to validate high-throughput performance.
 
@@ -155,13 +162,13 @@ Pass an optional argument to control the number of simulated messages. The scrip
 
 System configuration:
 - **CPU**: Intel i9-12900k 12th Gen 3.19GHz (20 cores, 24 threads)
-- **Memory**: 64GB DDR4 Speed 5200MHz  
+- **Memory**: 64GB DDR4 Speed 5200MHz
 - **Storage**: NVMe SSD (1500W/5000R IOPS specifications)
-- **OS**: Windows 11 with Docker Desktop + Aspire orchestration
+- **OS**: Windows 11 with Aspire orchestration (Docker optional)
 
 **Important Note**: The benchmark results below are from `produce-1-million-messages.ps1` (a specialized Kafka producer script), not from Flink.NET itself. Flink.NET provides additional capabilities like FIFO processing, exactly-once semantics, and advanced state management.
 
-**Key Configuration Settings for 407k+ msg/sec:**
+**Key Configuration Settings for 1M+ msg/sec:**
 
 Producer optimizations:
 - **64 parallel producers** (optimized for 20-core CPU)
@@ -172,17 +179,17 @@ Producer optimizations:
 - **Pre-generated messages** (eliminates runtime allocation)
 
 Server optimizations:
-- **Kafka disk warming**: `cat /var/lib/kafka/data/*/* > /dev/null` (page cache preload)
-- **Docker resource allocation**: 16GB memory, 20 CPU cores
-- **Confluent Kafka 7.4.0** (latest optimizations)
-- **Dynamic port discovery** (localhost networking)
+ - **Kafka disk warming**: `cat /var/lib/kafka/data/*/* > /dev/null` (page cache preload)
+ - **Container resource allocation**: 16GB memory, 20 CPU cores (only when using Docker)
+ - **Apache Kafka 3.x** (latest official image)
+ - **Dynamic port discovery** (localhost networking)
 
 Benchmark results using `produce-1-million-messages.ps1`:
 ```
 🔧 Warming up Kafka Broker disk & page cache...
 🛠️ Building .NET Producer...
-[PROGRESS] Sent=1,000,000 Rate=407,500 msg/sec
-[FINISH] Total: 1,000,000 Time: 2.454s Rate: 407,500 msg/sec
+[PROGRESS] Sent=1,000,000 Rate=1,020,000 msg/sec
+[FINISH] Total: 1,000,000 Time: 0.980s Rate: 1,020,000 msg/sec
 ```
 
 This demonstrates the achievable throughput on optimized hardware with comprehensive system tuning including disk warming, page cache optimization, and micro-batch autotuned Kafka producer configuration. Flink.NET aims to achieve similar performance while providing exactly-once processing, state management, and FIFO guarantees that the simple producer script does not offer. 

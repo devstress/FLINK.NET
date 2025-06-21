@@ -94,3 +94,5 @@ apphost_test.log
 
 # local apt package
 packages-microsoft-prod.deb
+kafka_2.13-4.0.0/
+NativeKafkaBridge/libnativekafkabridge.so

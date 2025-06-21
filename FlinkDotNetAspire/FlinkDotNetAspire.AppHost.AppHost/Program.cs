@@ -150,7 +150,7 @@ public static class Program
     {
         var kafkaInitScript = GetKafkaInitializationScript();
 
-        var kafkaInit = builder.AddContainer("kafka-init", "confluentinc/cp-kafka:7.4.0");
+        var kafkaInit = builder.AddContainer("kafka-init", "bitnami/kafka:latest");
 
         kafkaInit = kafkaInit.WithArgs("bash", "-c", kafkaInitScript.Replace("\r", ""));
 

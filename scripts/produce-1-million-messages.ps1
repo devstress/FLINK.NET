@@ -29,6 +29,15 @@ function Build-Producer {
         return
     }
 
+    $nativeDir = Join-Path $scriptDir "..\NativeKafkaBridge"
+    if (Test-Path (Join-Path $nativeDir "Makefile")) {
+        Write-Host "🛠️ Building native bridge..." -ForegroundColor Yellow
+        Push-Location $nativeDir
+        make
+        Pop-Location
+        Copy-Item (Join-Path $nativeDir "libnativekafkabridge.so") $outputDir -Force
+    }
+
     Write-Host "🛠️ Building .NET Producer..." -ForegroundColor Yellow
     if (!(Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
 
@@ -43,7 +52,7 @@ function Build-Producer {
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Confluent.Kafka" Version="2.10.1" />
+    <ProjectReference Include="..\..\NativeKafkaBridge\NativeKafkaBridge.csproj" />
   </ItemGroup>
 </Project>
 "@ | Set-Content -Path $projectFile -Encoding UTF8
@@ -83,29 +92,34 @@ function Get-KafkaBootstrapServers {
     if ($env:DOTNET_KAFKA_BOOTSTRAP_SERVERS) {
         return $env:DOTNET_KAFKA_BOOTSTRAP_SERVERS -replace 'localhost|::1', '127.0.0.1'
     }
-
-    $ports = docker ps --filter "name=kafka" --format "{{.Ports}}"
-    foreach ($line in $ports -split '\s+') {
-        if ($line -match ":(\d+)->9092/tcp") {
-            $port = $matches[1]
-            Write-Host "✅ Kafka detected on 127.0.0.1:$port"
-            return "127.0.0.1:$port"
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        $ports = docker ps --filter "name=kafka" --format "{{.Ports}}"
+        foreach ($line in $ports -split '\s+') {
+            if ($line -match ":(\d+)->9092/tcp") {
+                $port = $matches[1]
+                Write-Host "✅ Kafka detected on 127.0.0.1:$port"
+                return "127.0.0.1:$port"
+            }
         }
     }
 
-    Write-Error "❌ Failed to discover Kafka port"
-    exit 1
+    Write-Host "⚠️ Docker not available. Using default 127.0.0.1:9092" -ForegroundColor Yellow
+    return "127.0.0.1:9092"
 }
 
 function Get-KafkaContainerName {
     Write-Host "🔍 Discovering Kafka container name..."
-    $name = docker ps --filter "name=kafka" --format "{{.Names}}" | Select-Object -First 1
-    if (-not $name) {
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        $name = docker ps --filter "name=kafka" --format "{{.Names}}" | Select-Object -First 1
+        if ($name) {
+            Write-Host "✅ Kafka container: $name"
+            return $name
+        }
         Write-Error "❌ Kafka container not found."
         exit 1
     }
-    Write-Host "✅ Kafka container: $name"
-    return $name
+    Write-Host "⚠️ Docker not available. Skipping container discovery" -ForegroundColor Yellow
+    return $null
 }
 
 function Run-Producers {
@@ -115,10 +129,13 @@ function Run-Producers {
 }
 
 # === MAIN EXECUTION ===
+
 $bootstrapServers = Get-KafkaBootstrapServers
 $kafkaContainer = Get-KafkaContainerName
 
-docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
+if ($kafkaContainer) {
+    docker exec $kafkaContainer bash -c "shopt -s nullglob; for f in /var/lib/kafka/data/*/*; do cat \$f > /dev/null; done"
+}
 
 Build-Producer
 Run-Producers $exePath $bootstrapServers $Topic $MessageCount $Partitions $ParallelProducers
