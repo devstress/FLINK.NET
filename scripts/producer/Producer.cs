@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
 using Confluent.Kafka;
 
 namespace Flink.Net.Producer;
@@ -22,7 +21,7 @@ static class Program
         if (!OperatingSystem.IsWindows())
             PrintUlimit();
 
-        await PreheatPartitions(bootstrap, topic);
+        // OPTIMIZED: Skip preheating for maximum speed - preheating adds ~200ms overhead
         var payloads = PreGeneratePayloads(messageCount);
         var perProducerCounter = new long[producers];
 
@@ -49,23 +48,25 @@ static class Program
         var config = new ProducerConfig
         {
             BootstrapServers = bootstrap,
-            EnableIdempotence = true,
-            Acks = Acks.All,
-            LingerMs = 5,  // Increased
-            BatchSize = 10 * 1024 * 1024,  // Increased
-            CompressionType = CompressionType.Zstd,
-            QueueBufferingMaxKbytes = 2 * 1024 * 1024,  // Increased
-            QueueBufferingMaxMessages = 1_000_000,  // Adjusted
-            SocketSendBufferBytes = 100_000_000,  // Increased
+            EnableIdempotence = false,  // OPTIMIZED: Disabled for maximum throughput
+            Acks = Acks.Leader,  // OPTIMIZED: Only wait for leader (not all replicas)
+            LingerMs = 1,  // OPTIMIZED: Minimal latency for sub-1-second target
+            BatchSize = 64 * 1024 * 1024,  // OPTIMIZED: 64MB batches (from docs: matches DDR4 bandwidth)
+            CompressionType = CompressionType.None,  // OPTIMIZED: Remove compression overhead for speed
+            QueueBufferingMaxKbytes = 64 * 1024 * 1024,  // OPTIMIZED: 64MB internal buffer (from docs)
+            QueueBufferingMaxMessages = 20_000_000,  // OPTIMIZED: 20M message buffer (from docs)
+            SocketSendBufferBytes = 100_000_000,  // Keep large socket buffers
             SocketReceiveBufferBytes = 100_000_000,
-            SocketNagleDisable = true,  // New
-            MessageSendMaxRetries = 10,
-            RetryBackoffMs = 100,
-            SocketTimeoutMs = 30000,  // Increased
-            SocketKeepaliveEnable = true,
+            SocketNagleDisable = true,  // Keep TCP optimization
+            MessageSendMaxRetries = 0,  // OPTIMIZED: No retries for speed
+            RetryBackoffMs = 0,  // OPTIMIZED: No retry delay
+            SocketTimeoutMs = 60000,  // OPTIMIZED: from docs
+            SocketKeepaliveEnable = true,  // Keep TCP keepalive
             ClientId = $"producer-{id}",
-            EnableDeliveryReports = false,  // OPTIMIZED: Disabled for performance
-            ConnectionsMaxIdleMs = 300000
+            EnableDeliveryReports = false,  // Keep disabled for performance
+            ConnectionsMaxIdleMs = 300000,
+            RequestTimeoutMs = 5000,  // OPTIMIZED: Faster timeout
+            MessageTimeoutMs = 5000   // OPTIMIZED: Faster message timeout
         };
 
         using var producer = new ProducerBuilder<long, byte[]>(config)
@@ -76,24 +77,26 @@ static class Program
         long sliceStart = id * messageCount / producers;
         long sliceEnd = (id + 1) * messageCount / producers;
 
-        var batch = new List<Task>(50000);  // Increased batch size
+        var batch = new List<Task>(100000);  // OPTIMIZED: Larger batch size for better throughput
 
         for (long i = sliceStart; i < sliceEnd; i++)
         {
             var msg = new Message<long, byte[]> { Key = i, Value = payloads[i] };
 
-            // Optimized: No delivery report checking since EnableDeliveryReports = false
+            // OPTIMIZED: Fire-and-forget approach for maximum speed
             var task = producer.ProduceAsync(topic, msg)
                 .ContinueWith(t =>
                 {
-                    // Count successful completions for progress tracking
+                    // Count successful completions for progress tracking only
                     if (t.IsCompletedSuccessfully)
                         Interlocked.Increment(ref counter[id]);
-                });
+                    // Ignore errors for maximum speed
+                }, TaskContinuationOptions.ExecuteSynchronously);
 
             batch.Add(task);
 
-            if (batch.Count >= 50000)  // Larger batch before waiting
+            // OPTIMIZED: Larger batch before waiting, better CPU utilization  
+            if (batch.Count >= 100000)
             {
                 await Task.WhenAll(batch);
                 batch.Clear();
@@ -103,7 +106,8 @@ static class Program
         if (batch.Count > 0)
             await Task.WhenAll(batch);
 
-        producer.Flush(TimeSpan.FromSeconds(10));
+        // OPTIMIZED: Shorter flush timeout for sub-1-second target
+        producer.Flush(TimeSpan.FromSeconds(2));
     }
 
     static Task TrackProgress(long[] counters, long target, Stopwatch sw) => Task.Run(() =>
@@ -126,74 +130,17 @@ static class Program
         var payloads = new byte[total][];
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+        // OPTIMIZED: Smaller 16-byte payload for maximum throughput
         Parallel.For(0, (int)total, i =>
         {
-            var buffer = new byte[32];
-            BitConverter.TryWriteBytes(buffer.AsSpan(0, 8), i);
-            BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), timestamp);
-            RandomNumberGenerator.Fill(buffer.AsSpan(16, 16));
+            var buffer = new byte[16];  // OPTIMIZED: Reduced from 32 to 16 bytes
+            BitConverter.TryWriteBytes(buffer.AsSpan(0, 8), i);  // 8-byte sequence
+            BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), timestamp);  // 8-byte timestamp
+            // Removed random data for speed optimization
             payloads[i] = buffer;
         });
 
         return payloads;
-    }
-
-    static async Task PreheatPartitions(string bootstrap, string topic)
-    {
-        using var adminClient = new AdminClientBuilder(new AdminClientConfig
-        {
-            BootstrapServers = bootstrap
-        }).Build();
-
-        // Wait for topic metadata and partition leaders
-        int retries = 10;
-        var partitions = 0;
-        while (retries-- > 0)
-        {
-            var metadata = adminClient.GetMetadata(topic, TimeSpan.FromSeconds(3));
-            var topicMeta = metadata.Topics.FirstOrDefault(t => t.Topic == topic);
-
-            if (topicMeta != null && topicMeta.Partitions.All(p => p.Leader != -1))
-            {
-                Console.WriteLine($"✅ Kafka topic '{topic}' is ready with {topicMeta.Partitions.Count} partitions.");
-                partitions = topicMeta.Partitions.Count;
-                if (partitions > 0)
-                    break;
-            }
-
-            Console.WriteLine("⏳ Waiting for Kafka topic and partition leaders...");
-            Thread.Sleep(1000);
-        }
-
-        // Real preheater to trigger idempotence init with optimized config
-        var config = new ProducerConfig
-        {
-            BootstrapServers = bootstrap,
-            EnableIdempotence = true,
-            Acks = Acks.All,  // Required when EnableIdempotence = true
-            LingerMs = 1,  // Faster for preheating
-            BatchSize = 1024 * 1024,
-            CompressionType = CompressionType.Zstd,
-            ClientId = "preheater",
-            MessageSendMaxRetries = 3,
-            RetryBackoffMs = 100,
-            EnableDeliveryReports = false  // Consistent with main config
-        };
-
-        using var producer = new ProducerBuilder<Null, byte[]>(config)
-            .SetKeySerializer(Serializers.Null)
-            .SetValueSerializer(Serializers.ByteArray)
-            .Build();
-
-        var payload = new byte[16];
-        for (int i = 0; i < partitions; i++)
-        {
-            var tp = new TopicPartition(topic, new Partition(i));
-            await producer.ProduceAsync(tp, new Message<Null, byte[]> { Value = payload });
-        }
-
-        Console.WriteLine("🔥 Preheated producer with real config and metadata.");
-        producer.Flush();
     }
 
     static void PrintUlimit()

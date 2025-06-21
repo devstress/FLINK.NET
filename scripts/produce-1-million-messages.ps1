@@ -4,7 +4,7 @@ param(
     [long]$MessageCount = 1000000,
     [string]$Topic = "flinkdotnet.sample.topic",
     [int]$Partitions = 100,
-    [int]$ParallelProducers = 64,
+    [int]$ParallelProducers = 128,  # OPTIMIZED: Increased from 64 to 128 for higher throughput
     [switch]$ForceRebuild
 )
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
