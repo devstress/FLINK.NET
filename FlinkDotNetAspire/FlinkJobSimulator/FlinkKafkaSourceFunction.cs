@@ -3,7 +3,7 @@ using FlinkDotNet.Core.Abstractions.Sources;
 using FlinkDotNet.Core.Abstractions.Operators;
 using FlinkDotNet.Core.Abstractions.Checkpointing;
 using FlinkDotNet.Connectors.Sources.Kafka;
-using Confluent.Kafka;
+// using Confluent... // REMOVED for native implementation
 using Microsoft.Extensions.Configuration;
 using System.Text;
 

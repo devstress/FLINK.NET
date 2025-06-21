@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+// using Confluent... // REMOVED for native implementation
 using FlinkDotNet.Connectors.Sources.Kafka;
 using FlinkDotNet.Core.Abstractions.Sources;
 using Microsoft.Extensions.Configuration;

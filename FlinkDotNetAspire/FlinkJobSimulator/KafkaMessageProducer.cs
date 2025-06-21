@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+// using Confluent... // REMOVED for native implementation
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
